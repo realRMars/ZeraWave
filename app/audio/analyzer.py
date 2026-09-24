@@ -15,3 +15,11 @@ class AudioAnalyzer:
         magnitudes = np.abs(spectrum)
 
         return frequencies, magnitudes
+
+    def band_energy(self, frequencies, magnitudes, low, high):
+        mask = (frequencies >= low) & (frequencies < high)
+
+        if not np.any(mask):
+            return 0.0
+
+        return float(np.mean(magnitudes[mask]))
