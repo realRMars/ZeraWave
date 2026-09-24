@@ -11,6 +11,7 @@ from analyzer import AudioAnalyzer
 from capture import AudioCapture
 from onset_detector import OnsetDetector
 from parameter_mapper import VisualParameterMapper
+from renderer import Renderer
 from signal_processor import SignalProcessor
 
 
@@ -25,6 +26,7 @@ def main():
     analyzer = AudioAnalyzer()
     processor = SignalProcessor(smoothing=0.5)
     mapper = VisualParameterMapper()
+    renderer = Renderer()
 
     detectors = {
         "bass": OnsetDetector(threshold=0.2),
@@ -50,12 +52,16 @@ def main():
     print("Listening for 20 seconds...")
     print()
 
-    capture.start()
-
     try:
+        renderer.create()
+        capture.start()
+
         start = time.perf_counter()
 
-        while time.perf_counter() - start < 20:
+        while (
+            time.perf_counter() - start < 20
+            and not renderer.should_close()
+        ):
             samples = capture.read(numframes=2048)
 
             if samples.ndim > 1:
@@ -129,6 +135,12 @@ def main():
                 highs_onset=highs_onset,
             )
 
+            renderer.parameters.scale = result["scale"]
+            renderer.parameters.movement = result["movement"]
+            renderer.render()
+            renderer.swap_buffers()
+            renderer.poll_events()
+
             for name, value in result.items():
                 peaks[name] = max(
                     peaks[name],
@@ -159,10 +171,11 @@ def main():
                 f"Impact   {peaks['impact']:.2f}\n"
             )
 
-            time.sleep(0.05)
-
     finally:
-        capture.stop()
+        try:
+            capture.stop()
+        finally:
+            renderer.close()
 
     print("\nTest complete.")
     print("\nFinal Peaks:")
