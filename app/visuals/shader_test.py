@@ -20,6 +20,8 @@ def main():
                 current_time * 1.5
             )
 
+            renderer.parameters.movement = 2.0
+
             renderer.render()
             renderer.swap_buffers()
             renderer.poll_events()

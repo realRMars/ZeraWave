@@ -91,8 +91,9 @@ class Renderer:
         self.ctx.viewport = (0, 0, width, height)
 
         current_time = time.perf_counter() - self.start_time
+        visual_time = current_time * self.parameters.movement
 
-        self.program["u_time"].value = current_time
+        self.program["u_time"].value = visual_time
         self.program["u_resolution"].value = (
             float(width),
             float(height),
