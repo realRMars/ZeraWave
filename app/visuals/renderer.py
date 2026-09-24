@@ -4,6 +4,7 @@ import time
 import glfw
 import moderngl
 
+from parameters import VisualParameters
 
 VERTEX_SHADER = """
 #version 330
@@ -30,7 +31,7 @@ class Renderer:
         self.vao = None
 
         self.start_time = None
-        self.intensity = 1.0
+        self.parameters = VisualParameters()
 
     def create(self):
         if not glfw.init():
@@ -96,8 +97,7 @@ class Renderer:
             float(width),
             float(height),
         )
-        self.program["u_intensity"].value = self.intensity
-
+        self.program["u_intensity"].value = self.parameters.intensity
         self.vao.render(mode=moderngl.TRIANGLE_STRIP)
 
     def should_close(self):

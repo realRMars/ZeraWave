@@ -16,7 +16,7 @@ def main():
         while not renderer.should_close():
             current_time = renderer.get_time()
 
-            renderer.intensity = 0.5 + 0.5 * math.sin(
+            renderer.parameters.intensity = 0.5 + 0.5 * math.sin(
                 current_time * 1.5
             )
 
