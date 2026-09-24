@@ -109,6 +109,12 @@ class Renderer:
     def swap_buffers(self):
         glfw.swap_buffers(self.window)
 
+    def get_time(self):
+        if self.start_time is None:
+            return 0.0
+
+        return time.perf_counter() - self.start_time
+
     def close(self):
         if self.vao is not None:
             self.vao.release()
