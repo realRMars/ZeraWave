@@ -30,6 +30,7 @@ class Renderer:
         self.vao = None
 
         self.start_time = None
+        self.intensity = 1.0
 
     def create(self):
         if not glfw.init():
@@ -95,6 +96,7 @@ class Renderer:
             float(width),
             float(height),
         )
+        self.program["u_intensity"].value = self.intensity
 
         self.vao.render(mode=moderngl.TRIANGLE_STRIP)
 

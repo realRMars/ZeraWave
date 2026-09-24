@@ -2,6 +2,7 @@
 
 uniform float u_time;
 uniform vec2 u_resolution;
+uniform float u_intensity;
 
 out vec4 fragColor;
 
@@ -89,7 +90,7 @@ void main()
     vec3 color = vec3(r, g, b);
 
     // Add depth-like illumination.
-    color *= 0.35 + glow * 1.25;
+    color *= (0.35 + glow * 1.25) * u_intensity;
 
     // Subtle flowing brightness.
     color += vec3(0.08) * pow(max(field, 0.0), 2.0);
