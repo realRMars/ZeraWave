@@ -22,6 +22,7 @@ def main():
 
             renderer.parameters.movement = 2.0
             renderer.parameters.distortion = 2.0
+            renderer.parameters.scale = 2.0
             renderer.render()
             renderer.swap_buffers()
             renderer.poll_events()

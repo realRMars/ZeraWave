@@ -4,6 +4,7 @@ uniform float u_time;
 uniform vec2 u_resolution;
 uniform float u_intensity;
 uniform float u_distortion;
+uniform float u_scale;
 
 out vec4 fragColor;
 
@@ -67,7 +68,7 @@ void main()
         cos(q.x * 3.0 - t)
     );
 
-    float n = fbm(q * 2.4 + vec2(t, -t * 0.7));
+    float n = fbm(q * 2.4 * u_scale + vec2(t, -t * 0.7));
 
     // Flowing wave structures.
     float waves =
