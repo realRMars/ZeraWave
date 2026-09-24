@@ -12,3 +12,11 @@ class SignalProcessor:
         self.previous = result
 
         return result
+
+    def normalize(self, value, minimum, maximum):
+        if maximum <= minimum:
+            return 0.0
+
+        result = (value - minimum) / (maximum - minimum)
+
+        return max(0.0, min(1.0, result))
