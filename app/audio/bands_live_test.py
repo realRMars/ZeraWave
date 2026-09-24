@@ -1,14 +1,18 @@
 import time
 
+import numpy as np
+
 from analyzer import AudioAnalyzer
 from capture import AudioCapture
+from signal_processor import SignalProcessor
 
 
 def main():
     capture = AudioCapture()
     analyzer = AudioAnalyzer()
+    processor = SignalProcessor(smoothing=0.5)
 
-    print("DreamWave Live Frequency Band Test")
+    print("DreamWave Live Processed Band Test")
     print("----------------------------------")
 
     print("Finding audio loopback device...")
@@ -56,10 +60,36 @@ def main():
                 16000,
             )
 
+            bass_processed = processor.process(
+                "bass",
+                bass,
+                0.0,
+                10.0,
+            )
+
+            mids_processed = processor.process(
+                "mids",
+                mids,
+                0.0,
+                1.5,
+            )
+
+            highs_processed = processor.process(
+                "highs",
+                highs,
+                0.0,
+                0.6,
+            )
+
             print(
-                f"\rBass: {bass:7.2f} | "
-                f"Mids: {mids:7.2f} | "
-                f"Highs: {highs:7.2f}",
+                f"\rRaw: "
+                f"Bass {bass:5.2f} | "
+                f"Mids {mids:5.2f} | "
+                f"Highs {highs:5.2f}    "
+                f"Processed: "
+                f"Bass {bass_processed:.2f} | "
+                f"Mids {mids_processed:.2f} | "
+                f"Highs {highs_processed:.2f}",
                 end="",
                 flush=True,
             )
