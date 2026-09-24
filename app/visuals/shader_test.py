@@ -27,6 +27,7 @@ def main():
 
     glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
     glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
+    glfw.window_hint(glfw.RESIZABLE, glfw.TRUE)
 
     window = glfw.create_window(
         WIDTH,
