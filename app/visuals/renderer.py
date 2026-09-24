@@ -99,6 +99,7 @@ class Renderer:
             float(height),
         )
         self.program["u_intensity"].value = self.parameters.intensity
+        self.program["u_distortion"].value = self.parameters.distortion
         self.vao.render(mode=moderngl.TRIANGLE_STRIP)
 
     def should_close(self):

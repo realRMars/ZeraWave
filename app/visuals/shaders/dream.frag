@@ -3,6 +3,7 @@
 uniform float u_time;
 uniform vec2 u_resolution;
 uniform float u_intensity;
+uniform float u_distortion;
 
 out vec4 fragColor;
 
@@ -56,11 +57,12 @@ void main()
     p.x *= u_resolution.x / u_resolution.y;
 
     float t = u_time * 0.18;
+    float distortion = u_distortion;
 
     // Slowly deform the space itself.
     vec2 q = p;
 
-    q += 0.18 * vec2(
+    q += 0.18 * distortion * vec2(
         sin(q.y * 3.0 + t),
         cos(q.x * 3.0 - t)
     );
