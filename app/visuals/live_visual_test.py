@@ -1,5 +1,4 @@
 import sys
-import time
 from pathlib import Path
 
 AUDIO_PATH = Path(__file__).resolve().parent.parent / "audio"
@@ -8,11 +7,12 @@ if str(AUDIO_PATH) not in sys.path:
     sys.path.insert(0, str(AUDIO_PATH))
 
 from analyzer import AudioAnalyzer
+from audio_frame import AudioFrame
 from capture import AudioCapture
 from onset_detector import OnsetDetector
 from parameter_mapper import VisualParameterMapper
 from renderer import Renderer
-from signal_processor import SignalProcessor
+from signal_processor import SignalProcessor, VisualSignalConditioner
 
 
 def make_bar(value, width=30):
@@ -25,6 +25,10 @@ def main():
     capture = AudioCapture()
     analyzer = AudioAnalyzer()
     processor = SignalProcessor(smoothing=0.5)
+    # Wider quiet dead-zone than the class default (0.03): gives the
+    # visual room to sit still at low signal instead of twitching on
+    # every small fluctuation, per the "more threshold to breathe" ask.
+    conditioner = VisualSignalConditioner(quiet_threshold=0.06)
     mapper = VisualParameterMapper()
     renderer = Renderer()
 
@@ -49,19 +53,14 @@ def main():
 
     print(f"Using: {device}")
     print("Play music in Opera.")
-    print("Listening for 20 seconds...")
+    print("Listening until the window closes...")
     print()
 
     try:
         renderer.create()
         capture.start()
 
-        start = time.perf_counter()
-
-        while (
-            time.perf_counter() - start < 20
-            and not renderer.should_close()
-        ):
+        while not renderer.should_close():
             samples = capture.read(numframes=2048)
 
             if samples.ndim > 1:
@@ -70,6 +69,19 @@ def main():
             frequencies, magnitudes = analyzer.spectrum(
                 samples,
                 samplerate=48000,
+            )
+
+            flux_processed = conditioner.condition(
+                "flux",
+                processor.process(
+                    "flux",
+                    # Provisional scale: 10s live sample showed raw
+                    # flux mean ~40, max ~344; 90 avoids near-constant
+                    # saturation while still reaching 1.0 on real spikes.
+                    analyzer.spectral_flux(magnitudes),
+                    0.0,
+                    90.0,
+                ),
             )
 
             bass = analyzer.band_energy(
@@ -93,25 +105,44 @@ def main():
                 16000,
             )
 
+            # Recalibrated ceilings: the previous values (10.0/1.5/0.6)
+            # were saturating to 1.0 almost constantly during real
+            # playback, leaving no room to breathe between quiet and
+            # loud. Raised ~50-65% so typical loud passages sit below
+            # the ceiling instead of pinning it -- verify by ear and
+            # retune further if it still saturates too easily.
             bass_processed = processor.process(
                 "bass",
                 bass,
                 0.0,
-                10.0,
+                16.0,
             )
 
             mids_processed = processor.process(
                 "mids",
                 mids,
                 0.0,
-                1.5,
+                2.4,
             )
 
             highs_processed = processor.process(
                 "highs",
                 highs,
                 0.0,
-                0.6,
+                1.0,
+            )
+
+            bass_processed = conditioner.condition(
+                "bass",
+                bass_processed,
+            )
+            mids_processed = conditioner.condition(
+                "mids",
+                mids_processed,
+            )
+            highs_processed = conditioner.condition(
+                "highs",
+                highs_processed,
             )
 
             bass_onset = detectors["bass"].detect(
@@ -126,17 +157,22 @@ def main():
                 highs_processed
             )
 
-            result = mapper.map(
-                bass=bass_processed,
-                mids=mids_processed,
-                highs=highs_processed,
-                bass_onset=bass_onset,
-                mids_onset=mids_onset,
-                highs_onset=highs_onset,
+            frame = AudioFrame(
+                bass_processed,
+                mids_processed,
+                highs_processed,
+                bass_onset,
+                mids_onset,
+                highs_onset,
+                flux=flux_processed,
             )
+            result = mapper.map_frame(frame)
 
             renderer.parameters.scale = result["scale"]
             renderer.parameters.movement = result["movement"]
+            renderer.parameters.sparkle = result["sparkle"]
+            renderer.parameters.impact = result["impact"]
+            renderer.parameters.flux = frame.flux
             renderer.render()
             renderer.swap_buffers()
             renderer.poll_events()
@@ -160,9 +196,10 @@ def main():
                 f"Impact   [{make_bar(result['impact'])}] "
                 f"{result['impact']:.2f}\n"
                 "\n"
-                f"Bass     {bass_onset:.2f}\n"
-                f"Mids     {mids_onset:.2f}\n"
-                f"Highs    {highs_onset:.2f}\n"
+                f"Bass     {bass_processed:.2f}\n"
+                f"Mids     {mids_processed:.2f}\n"
+                f"Highs    {highs_processed:.2f}\n"
+                f"Flux     {frame.flux:.2f}\n"
                 "\n"
                 "PEAKS\n"
                 f"Scale    {peaks['scale']:.2f}\n"

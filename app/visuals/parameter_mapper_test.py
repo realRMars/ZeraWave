@@ -1,3 +1,12 @@
+import sys
+from pathlib import Path
+
+AUDIO_PATH = Path(__file__).resolve().parent.parent / "audio"
+
+if str(AUDIO_PATH) not in sys.path:
+    sys.path.insert(0, str(AUDIO_PATH))
+
+from audio_frame import AudioFrame
 from parameter_mapper import VisualParameterMapper
 
 
@@ -62,6 +71,18 @@ def main():
                 f"{parameter:8} -> "
                 f"{value:.2f}"
             )
+
+        frame = AudioFrame(
+            bass,
+            mids,
+            highs,
+            bass_onset,
+            mids_onset,
+            highs_onset,
+        )
+        assert mapper.map_frame(frame) == result
+
+    print("\nmap_frame parity assertions passed.")
 
 
 if __name__ == "__main__":

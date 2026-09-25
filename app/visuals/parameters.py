@@ -4,3 +4,6 @@ class VisualParameters:
         self.movement = 1.0
         self.distortion = 1.0
         self.scale = 1.0
+        self.sparkle = 0.0
+        self.impact = 0.0
+        self.flux = 0.0

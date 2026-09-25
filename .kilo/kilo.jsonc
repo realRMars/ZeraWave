@@ -1,0 +1,23 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "mcp": {
+    "MCP_DOCKER": {
+      "type": "local",
+      "command": [
+        "cmd",
+        "/c",
+        "docker",
+        "mcp",
+        "gateway",
+        "run",
+        "--profile",
+        "test_coding_inspection"
+      ],
+      "environment": {
+        "MCP_GATEWAY_DOCKER_BIND_ALLOWED_PATHS": "C:\\DreamWave;C:\\AI-LIFE"
+      },
+      "enabled": true,
+      "timeout": 60000
+    }
+  }
+}

@@ -10,3 +10,13 @@ class VisualParameterMapper:
                 highs_onset,
             ),
         }
+
+    def map_frame(self, frame):
+        return self.map(
+            bass=frame.bass,
+            mids=frame.mids,
+            highs=frame.highs,
+            bass_onset=frame.bass_onset,
+            mids_onset=frame.mids_onset,
+            highs_onset=frame.highs_onset,
+        )

@@ -3,6 +3,7 @@ import time
 
 import glfw
 import moderngl
+import math
 
 from parameters import VisualParameters
 
@@ -19,6 +20,12 @@ void main()
 
 
 class Renderer:
+    # River Flow: bounds/smoothing for the animation rate driven by
+    # the movement parameter (see render()).
+    FLOW_FLOOR = 0.35
+    FLOW_CEILING = 1.15
+    FLOW_SMOOTHING_SECONDS = 0.6
+
     def __init__(self, width=1280, height=720, title="DreamWave"):
         self.width = width
         self.height = height
@@ -31,6 +38,10 @@ class Renderer:
         self.vao = None
 
         self.start_time = None
+        self.last_render_time = None
+        self.impact_envelope = 0.0
+        self.flow_time = 0.0
+        self.flow_rate = self.FLOW_FLOOR
         self.parameters = VisualParameters()
 
     def create(self):
@@ -91,9 +102,39 @@ class Renderer:
         self.ctx.viewport = (0, 0, width, height)
 
         current_time = time.perf_counter() - self.start_time
-        visual_time = current_time * self.parameters.movement
+        if self.last_render_time is None:
+            delta_time = 0.0
+        else:
+            delta_time = max(0.0, current_time - self.last_render_time)
+
+        self.impact_envelope = max(
+            self.parameters.impact,
+            self.impact_envelope * math.exp(-delta_time * 6.0),
+        )
+        self.last_render_time = current_time
+
+        # River Flow: movement sets a target current speed within a
+        # bounded range, eased toward, then integrated over time.
+        # Saturated movement is the strongest current, not a runaway clock.
+        movement = max(0.0, min(1.0, self.parameters.movement))
+        target_rate = (
+            self.FLOW_FLOOR
+            + (self.FLOW_CEILING - self.FLOW_FLOOR) * movement
+        )
+
+        if delta_time <= 0.0:
+            ease = 1.0
+        else:
+            ease = 1.0 - math.exp(
+                -delta_time / self.FLOW_SMOOTHING_SECONDS
+            )
+
+        self.flow_rate += (target_rate - self.flow_rate) * ease
+        self.flow_time += delta_time * self.flow_rate
+        visual_time = self.flow_time
 
         self.program["u_time"].value = visual_time
+        self.program["u_drift_time"].value = current_time
         self.program["u_resolution"].value = (
             float(width),
             float(height),
@@ -101,6 +142,9 @@ class Renderer:
         self.program["u_intensity"].value = self.parameters.intensity
         self.program["u_distortion"].value = self.parameters.distortion
         self.program["u_scale"].value = self.parameters.scale
+        self.program["u_sparkle"].value = self.parameters.sparkle
+        self.program["u_impact"].value = self.impact_envelope
+        self.program["u_flux"].value = self.parameters.flux
         self.vao.render(mode=moderngl.TRIANGLE_STRIP)
 
     def should_close(self):
