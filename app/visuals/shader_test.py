@@ -130,6 +130,46 @@ def sweep(output):
         renderer.close()
 
 
+def geometric_test(output):
+    """Guard isolated corridor visibility through both turn directions."""
+    output.mkdir(parents=True, exist_ok=True)
+    renderer = Renderer(width=320, height=180, title="Geometric surface test")
+    results = []
+    try:
+        glfw.init()
+        glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
+        renderer.create()
+        renderer.render()
+        renderer.program['u_debug_state'].value = 2.0
+        for profile, scale, flux, sparkle, impact in (
+            ('quiet', .05, .02, .05, 0.),
+            ('active', .45, .45, .25, .25),
+            ('chorus', .85, .95, .80, .55),
+        ):
+            for seconds in np.arange(0., 70.01, .5):
+                for name, value in dict(u_time=float(seconds * .75),
+                        u_star_time=float(seconds), u_drift_time=float(seconds),
+                        u_scale=scale, u_flux=flux, u_sparkle=sparkle,
+                        u_impact=impact, u_intensity=1., u_distortion=1.).items():
+                    renderer.program[name].value = value
+                renderer.vao.render(mode=moderngl.TRIANGLE_STRIP)
+                pixels = np.frombuffer(renderer.ctx.screen.read(components=3),
+                    dtype=np.uint8).reshape(180, 320, 3)
+                contrast = float(pixels.astype(float).std(axis=(0, 1)).mean())
+                results.append((profile, float(seconds), contrast))
+                if seconds in (18., 30., 32., 33., 64., 66., 67.) or contrast < 2.:
+                    save_png(output / f'{profile}-{seconds:g}.png', pixels[::-1])
+                assert contrast > 2., (profile, seconds, 'Corridor lost', contrast)
+        (output / 'verification.json').write_text(json.dumps(dict(
+            frames=len(results), minimum_contrast=min(r[2] for r in results),
+            samples=results, note='Synthetic GPU visibility, not motion/aesthetic acceptance.'),
+            indent=2), encoding='utf-8')
+        print(f'PASS: {len(results)} isolated Geometric frames; '
+              f'minimum spatial contrast {min(r[2] for r in results):.3f}; {output}')
+    finally:
+        renderer.close()
+
+
 def handoff_test(output):
     """Exercise the actual transition branch, including boundaries and hold."""
     output.mkdir(parents=True, exist_ok=True)
@@ -221,12 +261,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--sweep", type=Path)
     parser.add_argument("--handoff-test", type=Path)
+    parser.add_argument("--geometric-test", type=Path)
     parser.add_argument("--capture", type=Path)
     parser.add_argument("--seconds", type=float, default=100.)
     parser.add_argument("--profile", choices=("standard", "quiet", "active", "chorus"), default="standard")
     parser.add_argument("--state", choices=tuple(STATES), default="blend")
     args = parser.parse_args()
-    if args.handoff_test:
+    if args.geometric_test:
+        geometric_test(args.geometric_test)
+    elif args.handoff_test:
         handoff_test(args.handoff_test)
     elif args.capture:
         capture(args.capture, args.seconds, args.profile,

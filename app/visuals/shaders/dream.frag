@@ -666,7 +666,16 @@ float geo_tall(float travel)
     return mix(h0, h1, smoothstep(0.15, 0.85, fract(bay)));
 }
 
-vec3 isolated_geometric_scene(vec2 p, vec3 canvas, float canvas_mix)
+// Trace once, then evaluate DreamWave's existing field in this surface domain.
+// No second field evaluation or screen-space texture is required.
+struct GeometricSurface {
+    vec2 uv;
+    float distance;
+    float kind;
+    float height;
+};
+
+GeometricSurface geometric_surface(vec2 p)
 {
     float fluxv = clamp(u_flux, 0.0, 1.0);
     float spark = clamp(u_sparkle, 0.0, 1.0);
@@ -685,23 +694,33 @@ vec3 isolated_geometric_scene(vec2 p, vec3 canvas, float canvas_mix)
     float w_next = w_here;
     float h_next = geo_tall(walk);
     float slide = next_turn * turn_u * (w_here + w_next);
-    vec3 ro = vec3(slide, 0.48, 0.0);
+    // Reach the junction before sliding into its side passage. Otherwise
+    // the old lateral-only camera starts inside a wall during a turn.
+    float junction_approach = (SPAN - local) * smoothstep(0.0, 0.55, turn_u);
+    vec3 ro = vec3(slide, 0.48, junction_approach);
     vec3 rd = normalize(vec3(p.x * 0.90, (p.y - 0.10) * 0.72, 1.12));
     rd = vec3(cs * rd.x + sn * rd.z, rd.y, -sn * rd.x + cs * rd.z);
     float bass = clamp(u_scale, 0.0, 1.0);
     float drive = max(hit, max(fluxv * 0.85, bass));
     float flex = smoothstep(0.34, 0.86, drive);
-    float amp = flex * (0.14 + 0.32 * drive) + hit * flex * 0.10;
-    vec3 ink = vec3(0.010, 0.012, 0.014);
+    // Pressure animates the room without pinching the chorus into a slit.
+    float amp = flex * (0.08 + 0.14 * drive) + hit * flex * 0.04;
     float corner = SPAN - local;
     float best_t = 80.0;
     float kind = 0.0;
     vec3 hp = ro;
-    for (int step_i = 0; step_i < 72; step_i++)
+    float march_t = 0.04;
+    float lo = 0.0;
+    float hi = 0.0;
+    int refinement = 0;
+    for (int step_i = 0; step_i < 80; step_i++)
     {
-        float t = 0.04 + float(step_i) * 0.14;
+        float t = march_t;
         vec3 q = ro + rd * t;
-        float along = walk + t;
+        // Axial distance, not ray length: adjacent pixels share one wall.
+        float side = turning * step(w_here * 0.25, q.x * next_turn)
+            * step(abs(q.z - corner), w_next + 0.35);
+        float along = walk + mix(q.z, corner + q.x * next_turn, side);
         float base_w = geo_width(along);
         float base_h = geo_tall(along);
         float slow = sin(along * 0.26 + u_drift_time * 0.10);
@@ -747,37 +766,79 @@ vec3 isolated_geometric_scene(vec2 p, vec3 canvas, float canvas_mix)
             best_t = t;
             hp = q;
             kind = hit_kind;
-            break;
+            if (refinement == 0) lo = max(0.0, t - 0.14);
+            hi = t;
+            refinement += 1;
         }
+        else if (refinement > 0) { lo = t; refinement += 1; }
+        if (refinement >= 6) break;
+        march_t = refinement > 0 ? (lo + hi) * 0.5 : t + 0.14;
+        if (march_t > 10.0) break;
     }
+    float side = turning * step(w_here * 0.25, hp.x * next_turn)
+        * step(abs(hp.z - corner), w_next + 0.35);
+    float travel = walk + mix(hp.z, corner + hp.x * next_turn, side);
+    float crossway = mix(hp.x, hp.z - corner, side);
+    float tall = mix(geo_tall(travel), h_next, side);
+    vec2 surface_uv = kind < 1.5 ? vec2(travel, hp.y)
+        : vec2(travel, crossway);
+    return GeometricSurface(surface_uv, best_t, kind,
+        clamp(hp.y / max(tall, 0.2), 0.0, 1.0));
+}
+
+vec3 isolated_geometric_scene(GeometricSurface surface, vec3 canvas, float canvas_mix)
+{
+    float fluxv = clamp(u_flux, 0.0, 1.0);
+    float spark = clamp(u_sparkle, 0.0, 1.0);
+    float hit = clamp(u_impact, 0.0, 1.0);
+    float best_t = surface.distance;
+    float kind = surface.kind;
     vec3 scene = vec3(0.003, 0.004, 0.005);
     if (best_t < 70.0)
     {
-        float travel = walk + best_t;
-        float tall = geo_tall(travel);
-        float v01 = clamp(hp.y / max(tall, 0.2), 0.0, 1.0);
+        float travel = surface.uv.x;
+        float v01 = surface.height;
         float down = (kind > 1.5 && kind < 2.5)
             ? fract(travel * 0.07)
             : (1.0 - v01);
-        float across = (kind < 1.5) ? travel : hp.x + travel * 0.15;
-        vec3 tint = geo_palette(0.62 + 0.28 * spark);
-        vec3 metal = ink + geo_palette(0.18) * 0.55;
-        metal += geo_palette(0.78) * 0.08;
-        metal = mix(metal, canvas, clamp(canvas_mix, 0.0, 1.0) * 0.18);
-        if (kind > 2.5) metal *= 0.55;
-        if (kind > 1.5 && kind < 2.5) metal *= 0.70;
+        float across = (kind < 1.5) ? travel : surface.uv.y + travel * 0.15;
+        // The actual field is the inlay, not a faint tint on a flat swatch.
+        vec3 pigment = canvas / (0.30 + max(canvas.r, max(canvas.g, canvas.b)));
+        vec3 tint = mix(geo_palette(0.62 + 0.28 * spark), pigment, 0.65);
+        vec2 panel = surface.uv * vec2(0.70, 2.6);
+        vec2 seam_distance = abs(fract(panel + 0.5) - 0.5);
+        vec2 aa = max(fwidth(panel), vec2(0.002));
+        vec2 seam = 1.0 - smoothstep(vec2(0.018), vec2(0.018) + aa, seam_distance);
+        float joint = max(seam.x, seam.y);
+        float vein_phase = surface.uv.y * 18.0
+            + sin(travel * 1.7 + surface.uv.y * 3.0) * (1.5 + fluxv)
+            + dot(canvas, vec3(2.0, 3.0, 1.0));
+        float resolved = 1.0 - smoothstep(0.6, 2.0, fwidth(vein_phase));
+        float veins = pow(0.5 + 0.5 * sin(vein_phase), 10.0) * resolved;
+        float cavity = mix(0.48, 1.0, smoothstep(0.0, 0.17, min(seam_distance.x, seam_distance.y)));
+        vec3 metal = mix(geo_palette(0.18) * 0.20,
+            canvas * (2.10 + fluxv * 0.35), clamp(canvas_mix, 0.0, 1.0));
+        metal *= cavity * (0.72 + 0.28 * veins);
+        metal += pigment * veins * (0.06 + spark * 0.10);
+        if (kind > 2.5) metal *= 0.72;
+        if (kind > 1.5 && kind < 2.5) metal *= 0.85;
         vec3 rain = geo_rain(across, down, tint);
-        float fog = exp(-best_t * 0.08);
-        scene = metal * (0.20 + 0.80 * fog);
-        scene += rain * (1.25 + spark * 0.6) * fog;
+        float fog = exp(-best_t * 0.18);
+        scene = metal * fog;
+        scene += rain * (0.65 + spark * 0.35) * fog;
+        // Sparse lit joints reveal perspective without filling negative space.
+        float pulse = pow(0.5 + 0.5 * sin(travel * 2.0 - u_time * 1.8), 8.0);
+        scene += tint * joint * (0.065 + hit * pulse * 0.20) * fog;
         float bay = floor(travel / 3.4);
         float open = 0.04 + 0.46 * hit;
         float door = step(0.55, hash(vec2(bay, 9.9)))
             * (1.0 - smoothstep(open, open + 0.05, abs(fract(travel * 0.35) - 0.5)))
             * (1.0 - smoothstep(0.12, 0.46, abs(v01 - 0.30)));
-        vec3 door_col = geo_palette(0.90);
-        scene = mix(scene, door_col, door * 0.85);
-        scene += door_col * door * (0.20 + hit);
+        door *= 1.0 - step(1.5, kind);
+        vec3 door_col = canvas * 0.25 + tint * (0.04 + hit * 0.12);
+        scene = mix(scene, door_col * fog, door * 0.85);
+        float lip = 4.0 * door * (1.0 - door);
+        scene += tint * lip * (0.12 + spark * 0.14) * fog;
     }
     return scene;
 }
@@ -809,7 +870,6 @@ void main()
     vec2 screen_p = p;
     float cosmic_takeover = (
         u_debug_state < 0.5
-        || (u_debug_state > 1.5 && u_debug_state < 2.5)
         || u_debug_state > 3.5
     ) ? cosmic_handoff(u_drift_time, u_debug_state > 3.5) : 0.0;
     if (u_debug_state > 4.5) cosmic_takeover = 1.0;
@@ -974,6 +1034,24 @@ void main()
     float organic_weight = max(organic_floor, 1.0 - total_transform);
     float weight_sum = max(organic_weight + total_transform, 1.0);
 
+    GeometricSurface geo_surface = GeometricSurface(vec2(0.0), 80.0, 0.0, 0.0);
+    float geo_gather = smoothstep(0.0, 0.90, geometric_weight)
+        * (1.0 - cosmic_takeover);
+    if (geometric_weight > 0.0) geo_surface = geometric_surface(screen_p);
+    if (geo_gather > 0.0 && geo_surface.kind > 0.5) {
+        // Continuous mirror folds stretch the source along the corridor.
+        // During assembly, contraction precedes full surface ownership;
+        // release follows the same envelope back to the shared field.
+        vec2 material_domain = geo_surface.uv * vec2(0.38, 0.95);
+        material_domain.x = 2.0 - abs(mod(material_domain.x, 8.0) - 4.0);
+        material_domain.y += sin(geo_surface.uv.x * 0.9 - t * 0.3)
+            * (0.06 + flux * 0.09);
+        float gathering_pressure = sin(geo_gather * 3.14159265)
+            * (0.22 + bass_pressure * 0.14 + impact * 0.08);
+        q *= 1.0 + gathering_pressure;
+        q = mix(q, material_domain, geo_gather);
+    }
+
     // Inversion needs spatial coordinates, not an ever-growing scroll offset.
     // Preserve this domain so overlapping tunnel/horizon states cannot make
     // the fractal fold converge to the same value across the whole screen.
@@ -1077,7 +1155,7 @@ vec2 geo_q = geo_dir * geo_crystalline;
 geo_q += normalize(q + vec2(0.0001))
     * bass_pressure * geo_radius * 0.08;
 
-q = mix(q, geo_q, geometric_weight);
+q = mix(q, geo_q, geometric_weight * (1.0 - geo_gather));
 
 // Color: distinct violet -> cyan -> pink -> gold -> highlight ramp,
 // modulated by form evolution and bass so the palette breaths with music.
@@ -1311,7 +1389,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         organic_color * organic_weight
         + ocean_palette(body_value) * tunnel_weight
         + crystal_palette(body_value) * fractal_weight
-        + geo_dream_color * geometric_weight
+        + mix(geo_dream_color, organic_color, geo_gather) * geometric_weight
         + ember_palette(body_value) * cosmic_weight
         + teal_amber_palette(body_value) * horizon_weight
     ) / weight_sum;
@@ -1672,12 +1750,8 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
 
     if (geometric_weight > 0.0)
     {
-        float geo_canvas = clamp(
-            tunnel_weight + fractal_weight * 0.85
-            + horizon_weight * 0.25 + u_flux * 0.30,
-            0.0, 1.0
-        );
-        vec3 geo_world = isolated_geometric_scene(screen_p, color, geo_canvas);
+        float geo_canvas = 0.85 + 0.15 * clamp(u_flux, 0.0, 1.0);
+        vec3 geo_world = isolated_geometric_scene(geo_surface, color, geo_canvas);
         color = mix(color, geo_world, geometric_weight);
     }
     if (cosmic_takeover > 0.0)

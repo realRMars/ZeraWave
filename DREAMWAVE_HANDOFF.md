@@ -2,7 +2,61 @@
 
 Updated: 2026-09-26
 
-## Current working tree: Geometric world and continuous star drift
+## Current pass: Geometric material gathering (awaiting review)
+
+The user accepted the preceding Geometric/star work and committed it as
+`d8053d6`. Historical pending-review statements below describe earlier work.
+This new pass is uncommitted; stop for visual review before further work.
+
+Changed files: app/visuals/shaders/dream.frag, app/visuals/shader_test.py,
+and this handoff. No renderer, uniforms, audio, dependencies, or launchers changed.
+Untracked root-level live_visual_test.py and shader_test.py remain untouched.
+
+The corridor is traced once before the shared DreamWave field is evaluated.
+Its axial surface coordinates gather/stretch/mirror-fold that actual field
+onto the walls, floor, ceiling and turned passage. The final material uses
+the field substantially, including its moving colored artifacts, rather than
+an 18-percent tint. Recessed panel joints, derivative-filtered veins, local
+edge pulses, inherited glyph colors and darker openings add bounded detail.
+Bass/impact pressure cannot pinch the chorus corridor closed. Surface hit
+refinement removes the coarse stepping visible in the previous captures.
+
+The isolated Geometric preview no longer activates the timed Cosmic takeover.
+A 32-second turning capture revealed a camera-inside-wall blank frame; the
+camera now approaches the junction before sliding sideways. Existing segment
+turn timing remains, not a new path/camera system. Cosmic stars, bodies, rings,
+moon materials and their depth code are unchanged. Shared-field changes can
+still affect material inherited by the Cosmic canvas during mixed states.
+
+Verification actually executed on the GPU:
+- Same-time quiet/active/chorus PNG captures at 18 seconds, visually inspected.
+  Quiet is dark blue-violet, active carries colored material along surfaces,
+  and chorus is brighter/more detailed while retaining an open dark passage.
+- Extra turning PNGs inspected at 32, 33, 66 and 67 seconds.
+- shader_test.py --geometric-test work/geometric-gather/geometry-test:
+  423 frames across three input profiles and both turn directions; passed,
+  minimum spatial contrast 4.946. This guards blank frames, not aesthetics.
+- shader_test.py --sweep work/geometric-gather/sweep: 183 frames and existing
+  washout assertions passed; minimum spatial contrast 10.038.
+- shader_test.py --handoff-test work/geometric-gather/handoff: 19 frames,
+  Cosmic space isolation and boundary continuity passed.
+- moon_opacity_test.py: 122 GPU frames passed, 155 opaque lit and 27 hidden
+  moon centers.
+- git diff --check passed; Git reports only existing LF-to-CRLF warnings.
+  Three tracked files modified, nothing staged or committed; all pre-existing
+  untracked research/helper files remain in place.
+
+Evidence is under ignored work/geometric-gather/. Preview remains
+run_geometric_preview.bat (synthetic inputs, not live audio). Live music,
+full-resolution performance and continuous-motion acceptance remain untested.
+The mirrored material repeats; openings imply depth rather than tracing extra
+rooms. Gathering is a reversible procedural domain transformation, not stored
+past frames or persistent captured imagery. Existing timed/audio state weights
+still select the world; phrase-aware scheduling is not implemented here.
+
+Next: user reviews this one pass. Do not automatically commit or expand scope.
+
+## Previous checkpoint: Geometric world and continuous star drift
 
 An external geometry pass added isolated_geometric_scene to
 app/visuals/shaders/dream.frag. It renders a procedural corridor with long
