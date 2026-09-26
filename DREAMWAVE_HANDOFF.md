@@ -2,6 +2,38 @@
 
 Updated: 2026-09-26
 
+## Current working tree: Geometric world and continuous star drift
+
+An external geometry pass added isolated_geometric_scene to
+app/visuals/shaders/dream.frag. It renders a procedural corridor with long
+straight spans, committed turns, varying width/height, material color swatches,
+and sparse falling glyph columns. It is available in the existing isolated
+Geometric preview via run_geometric_preview.bat; the normal shared state
+composition also mixes it when the existing geometric weight is active. This is
+an uncommitted prototype awaiting user visual acceptance, not an architectural
+replacement or a new renderer.
+
+The same pass introduces star_time and star_rate in the existing
+app/visuals/renderer.py. The renderer eases a positive star clock from normal
+speed toward a faster chorus speed, then the shader moves three depth sheets in
+one-way, slightly parallel headings. They wrap naturally through the procedural
+field rather than reversing after an audio beat. High chorus energy lengthens
+and thins their wakes; quiet stars vary in brightness/twinkle. This supersedes
+the prior direct time-times-current-audio star experiment, which could twitch.
+
+Verification actually run after this pass: Geometric quiet and active captures
+at 18 seconds were visually inspected; the 183-frame GPU sweep rendered; the
+19-frame handoff continuity test passed; the 122-frame moon opacity/occlusion
+test passed (155 lit centers, 27 hidden centers); and renderer, shader-test,
+and live-entry Python compilation passed. git diff --check passed with only
+the existing LF/CRLF warnings. No live music run, frame-rate measurement, or
+user acceptance of the Geometry/star changes has happened yet.
+
+Untracked root-level live_visual_test.py and shader_test.py exist beside the
+project files. The actual launchers use app/visuals versions, so these root
+copies were not run, edited, staged, or treated as source of truth. Preserve
+them until the user decides whether they are intentional references.
+
 ## Current continuation: planetary canvas and handoff
 
 Latest bounded pass: user accepted the three moon identities. Added selective
@@ -14,6 +46,28 @@ At 18s canvas, quiet before/after PPM hashes match exactly; active PNGs were
 visually compared (richer rings, modest planet lift). Moon test (122 frames),
 handoff test (19), sweep (183) and diff check passed. Captures/tests are under
 work/cosmic-vivid. Live aesthetic review is pending; no commit made.
+
+Moon–ring interaction is now implemented as a small colored dust wake around
+each orbital position. It uses existing sparkle/flux and the assembly envelope;
+it does not alter depth, geometry or moon opacity. GPU regressions remain the
+acceptance gate. The follow-up tuning now gives the wake a longer tail and
+stronger near-moon ring density/color, fading continuously behind each moon.
+Dust persistence and star motion remain future bounded passes. User review of
+this stronger tuning is pending. The latest refinement bends the tail along
+the ring curve and samples each moon's animated material for its color.
+
+The next small adjustment gives the inner, middle and outer moons rates 0.52,
+0.42 and 0.32 respectively, with their dust wakes synchronized.
+
+Star rotation is now implemented as a shared center-locked field with input-
+scaled exposure trails. Quiet captures remain short; active captures show
+curved light dashes. The latest tuning shares the planet spin clock at a slower
+baseline, accelerates with audio, tapers trail ends, and preserves varied
+twinkling point stars during dwell. User review is pending.
+
+The field is layered into three parallel-offset depth bands with different
+rates, so stars do not move uniformly. A chorus-only threshold controls longer
+exposure trails; the shader test's chorus profile captures that case.
 
 Latest review: user likes live canvas; requests more vivid planet/rings and
 three moons with their own dye/fire/layered-candy identities. Implemented only

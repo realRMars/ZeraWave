@@ -30,7 +30,7 @@ def capture(output, seconds, profile="standard", debug_state=0):
     output.mkdir(parents=True, exist_ok=True)
     renderer = Renderer(width=640, height=360, title="DreamWave capture")
     source = (Path(__file__).parent / "shaders/dream.frag").read_text(encoding="utf-8")
-    values = dict(u_time=seconds * .75, u_drift_time=seconds,
+    values = dict(u_time=seconds * .75, u_star_time=seconds, u_drift_time=seconds,
                   u_resolution=(640., 360.), u_scale=.3, u_flux=.2,
                   u_sparkle=.2, u_impact=.05, u_intensity=1., u_distortion=1.,
                   u_debug_state=float(debug_state))
@@ -38,6 +38,8 @@ def capture(output, seconds, profile="standard", debug_state=0):
         values.update(u_scale=.05, u_flux=.02, u_sparkle=.05, u_impact=0.)
     elif profile == "active":
         values.update(u_scale=.45, u_flux=.45, u_sparkle=.25, u_impact=.25)
+    elif profile == "chorus":
+        values.update(u_scale=.85, u_flux=.95, u_sparkle=.80, u_impact=.55)
     try:
         glfw.init()
         glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
@@ -97,7 +99,7 @@ def sweep(output):
         for level in (0.3, 0.7, 1.0):
             for seconds in range(0, 241, 4):
                 for name, value in {
-                    "u_time": seconds * 0.75, "u_drift_time": seconds,
+                    "u_time": seconds * 0.75, "u_star_time": seconds, "u_drift_time": seconds,
                     "u_scale": level, "u_flux": level,
                     "u_sparkle": level, "u_impact": 0.2,
                 }.items():
@@ -152,6 +154,8 @@ def handoff_test(output):
         for seconds in (0., 7., 11., 18., 24., 29., 35., 40., 47.):
             renderer.last_render_time = 0.0
             renderer.flow_time = 0.0
+            renderer.star_time = 0.0
+            renderer.star_rate = 1.0
             pixels = frame(seconds)
             assert pixels.std() > 3, f'Blank frame at {seconds}'
             save_png(output / f'stage-{seconds:g}.png', pixels[::-1])
@@ -167,6 +171,8 @@ def handoff_test(output):
         for boundary in (3., 11., 24., 35., 40.):
             renderer.last_render_time = 0.0
             renderer.flow_time = 0.0
+            renderer.star_time = 0.0
+            renderer.star_rate = 1.0
             # Probe the boundary limit (2 ms apart), not ordinary animation
             # motion: the fractal source can change rapidly over a whole frame.
             a = frame(boundary - .001)
@@ -217,7 +223,7 @@ if __name__ == "__main__":
     parser.add_argument("--handoff-test", type=Path)
     parser.add_argument("--capture", type=Path)
     parser.add_argument("--seconds", type=float, default=100.)
-    parser.add_argument("--profile", choices=("standard", "quiet", "active"), default="standard")
+    parser.add_argument("--profile", choices=("standard", "quiet", "active", "chorus"), default="standard")
     parser.add_argument("--state", choices=tuple(STATES), default="blend")
     args = parser.parse_args()
     if args.handoff_test:

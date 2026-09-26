@@ -61,12 +61,29 @@ def main():
                 geometry.render(mode=moderngl.TRIANGLE_STRIP)
                 frames.append(np.frombuffer(renderer.ctx.screen.read(components=3), dtype=np.uint8).reshape(360,640,3))
             for i in range(3):
-                phase = seconds*(.42+i*.11)+i*2.1
+                phase = seconds*(.52-i*.10)+i*2.1
                 center = (.43+i*.09)*(u*math.cos(phase)+v*math.sin(phase))
                 radius = .025+i*.006
-                col, row = int(center[0]*360+320), int(center[1]*360+180)
+                col = int(round(center[0]*360+320-0.5))
+                row = int(round(center[1]*360+180-0.5))
                 p = np.array([(col+.5-320)/360, (row+.5-180)/360])
                 depth = center[2]+math.sqrt(radius**2-np.sum((p-center[:2])**2))
+                covered_by_moon = False
+                for other in range(3):
+                    if other == i:
+                        continue
+                    other_phase = seconds*(.52-other*.10)+other*2.1
+                    other_radius = .43+other*.09
+                    other_center = other_radius*(u*math.cos(other_phase)+v*math.sin(other_phase))
+                    other_r = .025+other*.006
+                    other_d = other_r**2-np.sum((p-other_center[:2])**2)
+                    if other_d > 0:
+                        other_depth = other_center[2]+math.sqrt(other_d)
+                        if other_depth > depth:
+                            covered_by_moon = True
+                            break
+                if covered_by_moon:
+                    continue
                 planet_d = .3**2-np.dot(p,p)
                 if planet_d > 0 and math.sqrt(planet_d) > depth:
                     # A hidden moon must leave precisely the underlying scene.

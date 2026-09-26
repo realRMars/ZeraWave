@@ -42,6 +42,8 @@ class Renderer:
         self.impact_envelope = 0.0
         self.flow_time = 0.0
         self.flow_rate = self.FLOW_FLOOR
+        self.star_time = 0.0
+        self.star_rate = 1.0
         self.parameters = VisualParameters()
         self.debug_state = 0
 
@@ -138,7 +140,21 @@ class Renderer:
         self.flow_time += delta_time * self.flow_rate
         visual_time = self.flow_time
 
+        # Star motion has its own positive, eased clock. Chorus energy can
+        # accelerate it, but never reverse or teleport the accumulated angle.
+        star_drive = (
+            0.70 * max(0.0, min(1.0, self.parameters.flux))
+            + 0.30 * max(0.0, min(1.0, self.parameters.sparkle))
+        )
+        chorus = max(0.0, min(1.0, (star_drive - 0.72) / 0.24))
+        chorus = chorus * chorus * (3.0 - 2.0 * chorus)
+        target_star_rate = 1.0 + 0.75 * chorus
+        star_ease = 1.0 if delta_time <= 0.0 else 1.0 - math.exp(-delta_time / 0.8)
+        self.star_rate += (target_star_rate - self.star_rate) * star_ease
+        self.star_time += delta_time * self.star_rate
+
         self.program["u_time"].value = visual_time
+        self.program["u_star_time"].value = self.star_time
         self.program["u_drift_time"].value = current_time
         self.program["u_resolution"].value = (
             float(width),

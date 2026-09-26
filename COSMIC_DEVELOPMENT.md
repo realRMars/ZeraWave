@@ -18,6 +18,38 @@ lighting; ring color retains its shadow and band structure. Only canvas/live
 material participates, not diagnostic land/ocean, moons or stars. Synthetic
 quiet/active comparisons and GPU regressions passed; live review is pending.
 
+Moon–ring dust pass: each moon now produces a short, localized colored wake in
+the shared ring plane. The wake follows the existing orbit phase and is limited
+by sparkle/flux plus the assembly envelope; it changes ring color only. Ring
+depth, planet shadow, moon opacity and occlusion are untouched. This is a
+bounded procedural disturbance, not particle transport or frame feedback. The
+latest tuning widens the lateral wake, lengthens its decay, and increases local
+ring density/color near each moon before fading down the tail. The active canvas
+capture was inspected; moon opacity, handoff and sweep regressions passed.
+The latest refinement evaluates the wake in polar orbital coordinates, so it
+curves along the projected ring ellipse. Its tint samples cosmic_moon_material
+at the trail angle, allowing color to evolve with the parent moon.
+
+Orbital timing now follows the intended hierarchy: the closest moon runs at
+0.52, the middle at 0.42, and the outer at 0.32 shader-time units. Dust wakes
+share those rates, and the opacity regression uses the same expected positions.
+
+Star motion pass: the field rotates uniformly around the scene center. Quiet
+input keeps stars close to points; rising flux/sparkle increases a five-sample
+exposure arc, producing curved streaks. This is a procedural sample blur, not
+persistent particles or framebuffer history.
+
+The latest star tuning uses the planet's 0.035 spin clock at a slower baseline,
+then accelerates it with audio drive. Trail samples taper toward their ends in
+both thickness and brightness. Quiet dwell collapses the exposure to points and
+retains seeded brightness variation with gentle twinkle.
+
+The star field is now layered into three parallel-offset depth bands. The
+integrated visual clock gives them continuous momentum, each band has a
+different rate, and only a high-energy chorus threshold lengthens the exposure.
+The shader-test capture tool accepts the chorus profile for that deterministic
+full-energy inspection.
+
 Moon material pass: three independent animated sphere-space palettes—cyan/pink
 liquid-dye folds, orange/blue-white fire bands, and traveling rainbow candy
 shells. These are procedural suggestions, not fluid/fire simulations. They use

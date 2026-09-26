@@ -1,6 +1,7 @@
 #version 330
 
 uniform float u_time;
+uniform float u_star_time;
 uniform float u_drift_time;
 uniform vec2 u_resolution;
 uniform float u_intensity;
@@ -409,18 +410,56 @@ vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly
     float color_drive = canvas_mix * smoothstep(0.08, 0.65,
         clamp(0.45 * u_scale + 0.35 * u_flux + 0.20 * u_sparkle, 0.0, 1.0));
     vec3 scene = vec3(0.0);
-    // Jittered stars with independent brightness, size and restrained twinkle.
-    vec2 cell = floor(p * 34.0);
-    vec2 local = fract(p * 34.0);
-    float seed = hash(cell + 61.0);
-    vec2 star_center = vec2(hash(cell + 12.3), hash(cell + 45.7));
-    float star_size = mix(0.025, 0.085, pow(seed, 8.0));
-    float star_aa = 34.0 / u_resolution.y;
-    float stars = (1.0 - smoothstep(star_size, star_size + star_aa,
-        length(local - star_center))) * step(0.84, seed);
-    scene += mix(vec3(0.55, 0.72, 1.0), vec3(1.0, 0.83, 0.62), hash(cell + 2.0))
-        * stars * (0.25 + 0.65 * seed)
-        * (0.85 + 0.15 * sin(time * 0.6 + seed * 60.0));
+    // Layered star sheets drift one way across the sky and wrap off-screen.
+    // Motion comes from the integrated clock, never from a spring that
+    // returns. Audio only changes cruise speed and trail length.
+    float star_drive = 0.48 * clamp(u_flux, 0.0, 1.0)
+        + 0.22 * clamp(u_sparkle, 0.0, 1.0)
+        + 0.30 * clamp(u_impact, 0.0, 1.0);
+    float chorus = smoothstep(0.38, 0.88, star_drive);
+    // Quiet: almost a point. Chorus: a long, thin wake behind the heading.
+    float trail_len = mix(0.0012, 0.095, chorus * chorus);
+    vec3 star_layer = vec3(0.0);
+    for (int layer_i = 0; layer_i < 3; layer_i++)
+    {
+        float layer = float(layer_i);
+        float depth = 0.22 + 0.39 * layer;
+        // Farther sheets crawl; nearer sheets travel faster. Headings stay
+        // nearly parallel so the field reads as space, not a wheel.
+        vec2 heading = normalize(vec2(0.94, 0.12 + 0.10 * (layer - 1.0)));
+        float layer_speed = mix(0.028, 0.13, depth);
+        vec2 star_p = p - heading * u_star_time * layer_speed;
+        float grid = mix(42.0, 28.0, depth);
+        for (int star_i = 0; star_i < 5; star_i++)
+        {
+            float tail = float(star_i) / 4.0;
+            vec2 sample_p = star_p + heading * tail * trail_len;
+            vec2 cell = floor(sample_p * grid + layer * 13.0);
+            vec2 local = fract(sample_p * grid + layer * 13.0);
+            float seed = hash(cell + 61.0);
+            vec2 star_center = vec2(hash(cell + 12.3), hash(cell + 45.7));
+            float head_size = mix(0.018, 0.072, pow(seed, 7.0))
+                * (0.78 + 0.22 * depth);
+            float star_size = head_size * mix(1.0, 0.18, tail);
+            float star_aa = grid / u_resolution.y;
+            // Chorus reveals a few more faint stars; quiet keeps them sparse.
+            float presence = step(mix(0.935, 0.905, chorus), seed);
+            float stars = (1.0 - smoothstep(star_size, star_size + star_aa,
+                length(local - star_center))) * presence;
+            vec3 star_color = mix(vec3(0.55, 0.72, 1.0),
+                vec3(1.0, 0.83, 0.62), hash(cell + 2.0));
+            // Dwell brightness lives in the star, not in its position.
+            float phase = seed * 60.0;
+            float twinkle = 0.28 + 0.72 * (0.5 + 0.5 * sin(
+                u_star_time * (0.18 + 0.55 * seed) + phase));
+            twinkle = mix(twinkle, 0.82 + 0.18 * seed, chorus);
+            float trail_fade = pow(1.0 - tail, 1.35);
+            float alive = 0.22 + 0.55 * seed + 0.45 * chorus;
+            star_layer = max(star_layer, star_color * stars
+                * alive * twinkle * trail_fade);
+        }
+    }
+    scene += star_layer;
 
     float radius = 0.30;
     vec3 light_dir = normalize(vec3(-0.5, 0.65, 1.0));
@@ -443,6 +482,50 @@ vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly
         + 0.12 * sin(radial * 910.0);
     vec3 ring_color = mix(vec3(0.31, 0.19, 0.40), vec3(0.93, 0.67, 0.39),
         0.5 + 0.5 * sin(radial * 46.0)) * banding;
+    // Moons stir a short, colored wake in the dust. The wake is evaluated in
+    // the shared orbital plane, so it follows the same path as each solid moon
+    // without changing ring depth or body occlusion.
+    float orbit_speed = (u_debug_state > 2.5 && u_debug_state < 3.5)
+        ? 1.0 : 0.22;
+    float dust_strength = (0.10 + 0.65 * clamp(u_sparkle, 0.0, 1.0)
+        + 0.45 * clamp(u_flux, 0.0, 1.0)) * smoothstep(0.35, 0.90, assembly);
+    vec3 dust_color = vec3(0.0);
+    float dust = 0.0;
+    float dust_near = 0.0;
+    for (int dust_i = 0; dust_i < 3; dust_i++)
+    {
+        float fi = float(dust_i);
+        // Inner moons complete an orbit faster; outer moons drift more slowly.
+        float phase = time * (0.52 - fi * 0.10) * orbit_speed + fi * 2.1;
+        float orbit_radius = 0.43 + fi * 0.09;
+        // Work in polar coordinates so the wake bends around the same orbital
+        // curve as the ring instead of forming a straight tangent streak.
+        float point_angle = atan(plane.y, plane.x);
+        float angle_delta = atan(sin(point_angle - phase),
+            cos(point_angle - phase));
+        float radial_delta = radial - orbit_radius;
+        float near_moon = exp(-(radial_delta * radial_delta / 0.0012
+            + angle_delta * angle_delta / 0.0035));
+        float halo = exp(-angle_delta * angle_delta / 0.018);
+        float tail = exp(-max(-angle_delta, 0.0) * 1.7)
+            * (1.0 - smoothstep(0.0, 0.22, angle_delta));
+        float wake = exp(-radial_delta * radial_delta / 0.0018)
+            * (0.44 * halo + 0.78 * tail);
+        dust = max(dust, wake);
+        dust_near = max(dust_near, near_moon);
+        // Sample the same animated moon material at the trail's current
+        // orbital angle, so the wake changes color with its parent moon.
+        vec3 trail_normal = normalize(vec3(cos(point_angle),
+            sin(point_angle), 0.72));
+        vec3 tint = cosmic_moon_material(trail_normal, dust_i, time);
+        dust_color += tint * wake;
+    }
+    dust_color /= max(dust, 0.0001);
+    // Near the moon the ring reads dense and painted; the longer tail fades
+    // continuously behind it instead of becoming a second opaque ring.
+    ring_color = mix(ring_color,
+        dust_color * (0.72 + 0.90 * dust_near + 0.35 * banding),
+        clamp(dust * (0.35 + 1.25 * dust_strength), 0.0, 0.95));
     // Planet casts a real directional shadow onto the ring plane.
     vec3 ring_point = axis_u * plane.x + axis_v * plane.y;
     float along_light = dot(-ring_point, light_dir);
@@ -492,7 +575,8 @@ vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly
         // Keep the fast orbit only in the geometry diagnostic.
         float orbit_speed = (u_debug_state > 2.5 && u_debug_state < 3.5)
             ? 1.0 : 0.22;
-        float phase = time * (0.42 + fi * 0.11) * orbit_speed + fi * 2.1;
+        // Match the dust wake's orbital timing so it remains attached.
+        float phase = time * (0.52 - fi * 0.10) * orbit_speed + fi * 2.1;
         float orbit_radius = 0.43 + fi * 0.09;
         vec3 center = orbit_radius * (axis_u * cos(phase) + axis_v * sin(phase));
         float moon_radius = (0.025 + fi * 0.006) * smoothstep(0.65, 1.0, assembly);
@@ -508,6 +592,192 @@ vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly
             scene = cosmic_moon_material(normal, i, time) * (0.12 + 0.88 * diffuse * eclipse);
             closest = depth;
         }
+    }
+    return scene;
+}
+
+// Long straights, then a committed turn. The next hall continues; it does not dead-end.
+// mod keeps the pattern stable no matter how long the walk runs.
+float geo_end_turn(float seg)
+{
+    float s = mod(seg, 8.0);
+    if (s < 3.0) return 0.0;
+    if (s < 4.0) return 1.0;
+    if (s < 7.0) return 0.0;
+    return -1.0;
+}
+
+vec3 geo_swatch(float v, float slot)
+{
+    float s = mod(slot, 10.0);
+    if (s < 0.5) return mix(geometric_dream_palette(v), gold_sun_palette(v), 0.42);
+    if (s < 1.5) return mix(ocean_palette(v), electric_blue_palette(v), 0.50);
+    if (s < 2.5) return mix(crimson_gold_palette(v), ember_palette(v), 0.48);
+    if (s < 3.5) return mix(neon_forest_palette(v), teal_amber_palette(v), 0.46);
+    if (s < 4.5) return mix(lavender_pearl_palette(v), aurora_palette(v), 0.50);
+    if (s < 5.5) return mix(ink_burgundy_palette(v), fire_palette(v), 0.40);
+    if (s < 6.5) return mix(crystal_palette(v), electric_blue_palette(v), 0.45);
+    if (s < 7.5) return mix(teal_amber_palette(v), gold_sun_palette(v), 0.40);
+    if (s < 8.5) return mix(geometric_dream_palette(v), neon_forest_palette(v), 0.48);
+    return mix(ember_palette(v), lavender_pearl_palette(v), 0.42);
+}
+
+vec3 geo_palette(float v)
+{
+    float phase = u_drift_time * 0.035;
+    float slot = floor(phase);
+    float fade = smoothstep(0.72, 1.0, fract(phase));
+    return mix(geo_swatch(v, slot), geo_swatch(v, slot + 1.0), fade);
+}
+
+// Columns of glyphs falling from the top of a surface toward the bottom.
+// Thin columns, not a filled grid.
+vec3 geo_rain(float across, float down01, vec3 tint)
+{
+    float spacing = 0.42;
+    float across_w = mod(across, 18.0);
+    float col = floor(across_w / spacing);
+    float local = across_w - col * spacing;
+    float mask = 1.0 - smoothstep(0.02, 0.07, abs(local - spacing * 0.5));
+    float speed = 0.35 + hash(vec2(col, 2.2)) * 1.5;
+    float head = fract(u_drift_time * speed + hash(vec2(col, 5.5)));
+    float down = clamp(down01, 0.0, 1.0);
+    float trail = head - down;
+    float row = floor(down * 16.0);
+    float glyph = step(0.42, hash(vec2(col, row + floor(u_drift_time * speed))));
+    float body = glyph * step(0.0, trail) * exp(-trail * 3.2);
+    float lead = exp(-abs(down - head) * 24.0);
+    return tint * (body + lead * 1.4) * mask;
+}
+
+float geo_width(float travel)
+{
+    float bay = travel / 3.4;
+    float w0 = mix(0.38, 1.12, hash(vec2(floor(bay), 1.2)));
+    float w1 = mix(0.38, 1.12, hash(vec2(floor(bay) + 1.0, 1.2)));
+    return mix(w0, w1, smoothstep(0.15, 0.85, fract(bay)));
+}
+
+float geo_tall(float travel)
+{
+    float bay = travel / 3.4;
+    float h0 = mix(0.62, 1.55, hash(vec2(floor(bay), 4.8)));
+    float h1 = mix(0.62, 1.55, hash(vec2(floor(bay) + 1.0, 4.8)));
+    return mix(h0, h1, smoothstep(0.15, 0.85, fract(bay)));
+}
+
+vec3 isolated_geometric_scene(vec2 p, vec3 canvas, float canvas_mix)
+{
+    float fluxv = clamp(u_flux, 0.0, 1.0);
+    float spark = clamp(u_sparkle, 0.0, 1.0);
+    float hit = clamp(u_impact, 0.0, 1.0);
+    float walk = max(u_time, 0.0) * 1.05 + u_drift_time * 0.16;
+    const float SPAN = 8.0;
+    float seg = floor(walk / SPAN);
+    float local = walk - seg * SPAN;
+    float next_turn = geo_end_turn(seg);
+    float turning = step(0.5, abs(next_turn));
+    float turn_u = turning * smoothstep(SPAN - 3.4, SPAN - 0.04, local);
+    float yaw = next_turn * 1.5707963 * turn_u;
+    float cs = cos(yaw);
+    float sn = sin(yaw);
+    float w_here = geo_width(walk);
+    float w_next = w_here;
+    float h_next = geo_tall(walk);
+    float slide = next_turn * turn_u * (w_here + w_next);
+    vec3 ro = vec3(slide, 0.48, 0.0);
+    vec3 rd = normalize(vec3(p.x * 0.90, (p.y - 0.10) * 0.72, 1.12));
+    rd = vec3(cs * rd.x + sn * rd.z, rd.y, -sn * rd.x + cs * rd.z);
+    float bass = clamp(u_scale, 0.0, 1.0);
+    float drive = max(hit, max(fluxv * 0.85, bass));
+    float flex = smoothstep(0.34, 0.86, drive);
+    float amp = flex * (0.14 + 0.32 * drive) + hit * flex * 0.10;
+    vec3 ink = vec3(0.010, 0.012, 0.014);
+    float corner = SPAN - local;
+    float best_t = 80.0;
+    float kind = 0.0;
+    vec3 hp = ro;
+    for (int step_i = 0; step_i < 72; step_i++)
+    {
+        float t = 0.04 + float(step_i) * 0.14;
+        vec3 q = ro + rd * t;
+        float along = walk + t;
+        float base_w = geo_width(along);
+        float base_h = geo_tall(along);
+        float slow = sin(along * 0.26 + u_drift_time * 0.10);
+        float fast = sin(along * (0.85 + fluxv * 1.35) + u_drift_time * 0.48);
+        float wave = clamp(
+            slow * mix(0.82, 0.28, fluxv) + fast * mix(0.08, 0.62, fluxv),
+            -1.0, 1.0
+        );
+        float bow = amp * wave;
+        float hit_kind = 0.0;
+        float in_side = turning
+            * step(w_here * 0.25, q.x * next_turn)
+            * step(abs(q.z - corner), w_next + 0.35);
+        if (in_side > 0.5)
+        {
+            float nz = clamp((q.z - corner) / max(w_next, 0.2), -1.0, 1.0);
+            float y01 = clamp(q.y / max(h_next, 0.2), 0.0, 1.0);
+            float mid = cos(nz * 1.5707963);
+            float floor_y = bow * mid;
+            float ceil_y = h_next - bow * mid;
+            float side_half = max(w_next - bow * sin(3.14159265 * y01), 0.14);
+            if (q.y <= floor_y) hit_kind = 2.0;
+            else if (q.y >= ceil_y) hit_kind = 3.0;
+            else if (abs(q.z - corner) > side_half) hit_kind = 1.0;
+            else if (q.x * next_turn > w_here + 22.0) hit_kind = 1.0;
+        }
+        else
+        {
+            float nx = clamp(q.x / max(base_w, 0.2), -1.0, 1.0);
+            float y01 = clamp(q.y / max(base_h, 0.2), 0.0, 1.0);
+            float mid = cos(nx * 1.5707963);
+            float floor_y = bow * mid;
+            float ceil_y = base_h - bow * mid;
+            float halfw = max(base_w - bow * sin(3.14159265 * y01), 0.14);
+            float blocked = turning * step(corner, q.z) * step(q.x * next_turn, w_here * 0.2);
+            if (q.y <= floor_y) hit_kind = 2.0;
+            else if (q.y >= ceil_y) hit_kind = 3.0;
+            else if (blocked > 0.5) hit_kind = 1.0;
+            else if (q.x < -halfw || q.x > halfw) hit_kind = 1.0;
+        }
+        if (hit_kind > 0.5)
+        {
+            best_t = t;
+            hp = q;
+            kind = hit_kind;
+            break;
+        }
+    }
+    vec3 scene = vec3(0.003, 0.004, 0.005);
+    if (best_t < 70.0)
+    {
+        float travel = walk + best_t;
+        float tall = geo_tall(travel);
+        float v01 = clamp(hp.y / max(tall, 0.2), 0.0, 1.0);
+        float down = (kind > 1.5 && kind < 2.5)
+            ? fract(travel * 0.07)
+            : (1.0 - v01);
+        float across = (kind < 1.5) ? travel : hp.x + travel * 0.15;
+        vec3 tint = geo_palette(0.62 + 0.28 * spark);
+        vec3 metal = ink + geo_palette(0.18) * 0.55;
+        metal += geo_palette(0.78) * 0.08;
+        metal = mix(metal, canvas, clamp(canvas_mix, 0.0, 1.0) * 0.18);
+        if (kind > 2.5) metal *= 0.55;
+        if (kind > 1.5 && kind < 2.5) metal *= 0.70;
+        vec3 rain = geo_rain(across, down, tint);
+        float fog = exp(-best_t * 0.08);
+        scene = metal * (0.20 + 0.80 * fog);
+        scene += rain * (1.25 + spark * 0.6) * fog;
+        float bay = floor(travel / 3.4);
+        float open = 0.04 + 0.46 * hit;
+        float door = step(0.55, hash(vec2(bay, 9.9)))
+            * (1.0 - smoothstep(open, open + 0.05, abs(fract(travel * 0.35) - 0.5)))
+            * (1.0 - smoothstep(0.12, 0.46, abs(v01 - 0.30)));
+        vec3 door_col = geo_palette(0.90);
+        scene = mix(scene, door_col, door * 0.85);
+        scene += door_col * door * (0.20 + hit);
     }
     return scene;
 }
@@ -537,8 +807,11 @@ void main()
     }
 
     vec2 screen_p = p;
-    float cosmic_takeover = (u_debug_state < 0.5 || u_debug_state > 3.5)
-        ? cosmic_handoff(u_drift_time, u_debug_state > 3.5) : 0.0;
+    float cosmic_takeover = (
+        u_debug_state < 0.5
+        || (u_debug_state > 1.5 && u_debug_state < 2.5)
+        || u_debug_state > 3.5
+    ) ? cosmic_handoff(u_drift_time, u_debug_state > 3.5) : 0.0;
     if (u_debug_state > 4.5) cosmic_takeover = 1.0;
     float canvas_zoom = mix(3.4, 1.0, cosmic_takeover);
     // Tiny music-driven pressure on the entire system, never independent
@@ -1397,6 +1670,16 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     float peak = max(color.r, max(color.g, color.b));
     color = color / (1.0 + peak * 0.6);
 
+    if (geometric_weight > 0.0)
+    {
+        float geo_canvas = clamp(
+            tunnel_weight + fractal_weight * 0.85
+            + horizon_weight * 0.25 + u_flux * 0.30,
+            0.0, 1.0
+        );
+        vec3 geo_world = isolated_geometric_scene(screen_p, color, geo_canvas);
+        color = mix(color, geo_world, geometric_weight);
+    }
     if (cosmic_takeover > 0.0)
     {
         vec3 world = isolated_cosmic_scene(cosmic_p, color, 1.0, cosmic_takeover);
