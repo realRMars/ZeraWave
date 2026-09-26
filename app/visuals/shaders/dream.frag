@@ -9,6 +9,7 @@ uniform float u_scale;
 uniform float u_sparkle;
 uniform float u_impact;
 uniform float u_flux;
+uniform float u_debug_state;
 
 out vec4 fragColor;
 
@@ -351,6 +352,176 @@ float blossom_field(vec2 position, float phase)
     return clamp(glow, 0.0, 1.0);
 }
 
+// Standalone Cosmic diagnostic composition. This intentionally bypasses the
+// shared DreamWave field so depth order can be judged without contamination.
+// Orthographic camera looks down -Z. Positive Z is closer to the viewer.
+// Sphere and ring intersections share this depth convention.
+float cosmic_sphere_depth(vec2 p, vec3 center, float radius)
+{
+    float d = radius * radius - dot(p - center.xy, p - center.xy);
+    return d >= 0.0 ? center.z + sqrt(max(d, 0.0)) : -100.0;
+}
+
+// Independent sphere-space moon materials: no sampled field or opacity changes.
+vec3 cosmic_moon_material(vec3 normal, int index, float time)
+{
+    float spin = time * 0.12;
+    vec3 q = vec3(cos(spin) * normal.x + sin(spin) * normal.z,
+        normal.y, -sin(spin) * normal.x + cos(spin) * normal.z);
+    float drift = time * 0.18;
+    float fold = sin(q.y * 5.0 + sin(q.z * 4.0 + drift));
+    float dye = 0.5 + 0.5 * sin(q.x * 5.0 + fold * 2.0 + drift);
+    if (index == 0)
+    {
+        vec3 ink = mix(vec3(0.08, 0.85, 0.95), vec3(0.95, 0.08, 0.55), dye);
+        float vein = pow(0.5 + 0.5 * sin(q.y * 9.0 + fold * 3.0 - drift), 8.0);
+        return mix(ink, vec3(0.85, 1.0, 0.62), vein * 0.65);
+    }
+    if (index == 1)
+    {
+        float heat = 0.5 + 0.5 * sin(q.y * 7.0 + fold * 2.0 - drift * 2.0);
+        vec3 flame = mix(vec3(0.95, 0.08, 0.015), vec3(1.0, 0.50, 0.04), heat);
+        flame = mix(flame, vec3(0.08, 0.40, 1.0), smoothstep(0.45, 0.78, heat));
+        return mix(flame, vec3(0.85, 0.96, 1.0), smoothstep(0.78, 1.0, heat));
+    }
+    // Moving nested shells, broad enough to remain readable on a small moon.
+    float layers = length(q.xy + vec2(0.22, -0.18)) * 3.0
+        + q.z * 0.35 - time * 0.10;
+    return 0.52 + 0.46 * cos(6.2831853 * (layers + vec3(0.0, 0.33, 0.67)));
+}
+
+// Bounded material chroma/lift. Zero drive is exactly the accepted quiet color.
+// Applied only to planet/rings, never to final scene, stars or moon materials.
+vec3 cosmic_vivid_material(vec3 material, float drive)
+{
+    float gray = dot(material, vec3(0.2126, 0.7152, 0.0722));
+    vec3 vivid = max(vec3(0.0), vec3(gray) + (material - gray) * (1.0 + 1.2 * drive));
+    vivid *= 1.0 + 0.30 * drive;
+    // Keep channel ratios instead of flattening saturated highlights to white.
+    return vivid / max(1.0, max(vivid.r, max(vivid.g, vivid.b)));
+}
+
+// The accepted depth composition is shared by the isolated diagnostic and
+// live takeover. Canvas color is evaluated from DreamWave's existing field.
+vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly)
+{
+    float time = u_drift_time;
+    float color_drive = canvas_mix * smoothstep(0.08, 0.65,
+        clamp(0.45 * u_scale + 0.35 * u_flux + 0.20 * u_sparkle, 0.0, 1.0));
+    vec3 scene = vec3(0.0);
+    // Jittered stars with independent brightness, size and restrained twinkle.
+    vec2 cell = floor(p * 34.0);
+    vec2 local = fract(p * 34.0);
+    float seed = hash(cell + 61.0);
+    vec2 star_center = vec2(hash(cell + 12.3), hash(cell + 45.7));
+    float star_size = mix(0.025, 0.085, pow(seed, 8.0));
+    float star_aa = 34.0 / u_resolution.y;
+    float stars = (1.0 - smoothstep(star_size, star_size + star_aa,
+        length(local - star_center))) * step(0.84, seed);
+    scene += mix(vec3(0.55, 0.72, 1.0), vec3(1.0, 0.83, 0.62), hash(cell + 2.0))
+        * stars * (0.25 + 0.65 * seed)
+        * (0.85 + 0.15 * sin(time * 0.6 + seed * 60.0));
+
+    float radius = 0.30;
+    vec3 light_dir = normalize(vec3(-0.5, 0.65, 1.0));
+    // Inverted orientation requested in the references. Shared by all orbits.
+    float angle = 0.28;
+    float opening = 0.40;
+    vec3 axis_u = vec3(cos(angle), sin(angle), 0.0);
+    vec3 axis_v = vec3(-sin(angle) * opening, cos(angle) * opening,
+        -sqrt(1.0 - opening * opening));
+    vec2 plane = vec2(dot(p, axis_u.xy),
+        dot(p, vec2(-sin(angle), cos(angle))) / opening);
+    float ring_depth = plane.y * axis_v.z;
+    float radial = length(plane);
+    float aa = 1.5 / u_resolution.y;
+    float band_mask = smoothstep(0.355, 0.355 + aa, radial)
+        * (1.0 - smoothstep(0.61 - aa, 0.61, radial));
+    float gap = 1.0 - 0.92 * (smoothstep(0.474, 0.478, radial)
+        * (1.0 - smoothstep(0.491, 0.495, radial)));
+    float banding = 0.52 + 0.25 * sin(radial * 370.0)
+        + 0.12 * sin(radial * 910.0);
+    vec3 ring_color = mix(vec3(0.31, 0.19, 0.40), vec3(0.93, 0.67, 0.39),
+        0.5 + 0.5 * sin(radial * 46.0)) * banding;
+    // Planet casts a real directional shadow onto the ring plane.
+    vec3 ring_point = axis_u * plane.x + axis_v * plane.y;
+    float along_light = dot(-ring_point, light_dir);
+    float shadow_distance = length(ring_point + light_dir * max(along_light, 0.0));
+    float ring_shadow = along_light > 0.0
+        ? smoothstep(radius - 0.015, radius + 0.015, shadow_distance) : 1.0;
+    ring_color *= mix(0.18, 1.0, ring_shadow);
+    ring_color = mix(ring_color, mix(ring_color, canvas, 0.38)
+        * (0.85 + 0.3 * clamp(u_sparkle, 0.0, 1.0)), canvas_mix);
+    ring_color = cosmic_vivid_material(ring_color, color_drive);
+    band_mask *= smoothstep(0.35, 0.90, assembly);
+
+    float closest = cosmic_sphere_depth(p, vec3(0.0), radius);
+    if (closest > -99.0)
+    {
+        vec3 normal = vec3(p, closest) / radius;
+        // Rotate a sphere-space surface, avoiding flat screen-space texture.
+        float spin = time * 0.035;
+        vec3 surface = vec3(cos(spin) * normal.x + sin(spin) * normal.z,
+            normal.y, -sin(spin) * normal.x + cos(spin) * normal.z);
+        float terrain = fbm(surface.xy * 3.2 + surface.z * vec2(1.7, -2.1));
+        float land = smoothstep(0.46, 0.54, terrain);
+        vec3 albedo = mix(vec3(0.025, 0.12, 0.32),
+            mix(vec3(0.16, 0.42, 0.28), vec3(0.72, 0.39, 0.22), terrain), land);
+        float clouds = smoothstep(0.57, 0.72,
+            fbm(surface.xy * 6.0 + surface.z * 2.0 + vec2(time * 0.006, 0.0)));
+        albedo = mix(albedo, vec3(0.70, 0.79, 0.92), clouds * 0.65);
+        // Opaque material substitution, not an overlay on the final scene.
+        albedo = mix(albedo, sqrt(clamp(canvas, 0.0, 1.0)) * 0.95, canvas_mix);
+        albedo = cosmic_vivid_material(albedo, color_drive);
+        float diffuse = max(dot(normal, light_dir), 0.0);
+        scene = albedo * (0.10 + 0.90 * diffuse);
+        scene += vec3(0.10, 0.30, 0.65) * pow(1.0 - normal.z, 3.0)
+            * (0.15 + 0.55 * diffuse);
+    }
+    if (band_mask > 0.0 && ring_depth > closest)
+    {
+        scene = mix(scene, ring_color, band_mask * gap);
+        // Empty gap remains transparent for bodies behind it.
+        if (band_mask * gap > 0.5) closest = ring_depth;
+    }
+
+    // Moon shading is independent of opacity; nearest surface wins.
+    for (int i = 0; i < 3; i++)
+    {
+        float fi = float(i);
+        // Keep the fast orbit only in the geometry diagnostic.
+        float orbit_speed = (u_debug_state > 2.5 && u_debug_state < 3.5)
+            ? 1.0 : 0.22;
+        float phase = time * (0.42 + fi * 0.11) * orbit_speed + fi * 2.1;
+        float orbit_radius = 0.43 + fi * 0.09;
+        vec3 center = orbit_radius * (axis_u * cos(phase) + axis_v * sin(phase));
+        float moon_radius = (0.025 + fi * 0.006) * smoothstep(0.65, 1.0, assembly);
+        float depth = cosmic_sphere_depth(p, center, moon_radius);
+        if (moon_radius > 0.0001 && depth > closest)
+        {
+            vec3 normal = (vec3(p, depth) - center) / moon_radius;
+            float diffuse = max(dot(normal, light_dir), 0.0);
+            float toward_light = dot(-center, light_dir);
+            float miss = length(center + light_dir * max(toward_light, 0.0));
+            float eclipse = toward_light > 0.0
+                ? smoothstep(radius - 0.02, radius + 0.02, miss) : 1.0;
+            scene = cosmic_moon_material(normal, i, time) * (0.12 + 0.88 * diffuse * eclipse);
+            closest = depth;
+        }
+    }
+    return scene;
+}
+
+// Timed scaffold, not beat/phrase detection. One envelope drives contraction,
+// material projection and release, so elements cannot jump independently.
+float cosmic_handoff(float seconds, bool preview)
+{
+    float phase = mod(seconds, preview ? 40.0 : 140.0);
+    return preview
+        ? smoothstep(3.0, 11.0, phase) * (1.0 - smoothstep(24.0, 35.0, phase))
+        : smoothstep(24.0, 44.0, phase) * (1.0 - smoothstep(88.0, 112.0, phase));
+}
+
 void main()
 {
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
@@ -358,6 +529,38 @@ void main()
     // Correct for the window's aspect ratio.
     vec2 p = uv - 0.5;
     p.x *= u_resolution.x / u_resolution.y;
+
+    if (u_debug_state > 2.5 && u_debug_state < 3.5)
+    {
+        fragColor = vec4(isolated_cosmic_scene(p, vec3(0.0), 0.0, 1.0), 1.0);
+        return;
+    }
+
+    vec2 screen_p = p;
+    float cosmic_takeover = (u_debug_state < 0.5 || u_debug_state > 3.5)
+        ? cosmic_handoff(u_drift_time, u_debug_state > 3.5) : 0.0;
+    if (u_debug_state > 4.5) cosmic_takeover = 1.0;
+    float canvas_zoom = mix(3.4, 1.0, cosmic_takeover);
+    // Tiny music-driven pressure on the entire system, never independent
+    // planet/ring scaling. Bounded to two percent at full presence.
+    canvas_zoom *= 1.0 + cosmic_takeover * 0.02 * clamp(u_scale, 0.0, 1.0);
+    vec2 cosmic_p = screen_p / canvas_zoom;
+    vec2 disk = cosmic_p / 0.30;
+    vec3 surface_normal = vec3(disk, sqrt(max(0.0, 1.0 - dot(disk, disk))));
+    float surface_spin = u_drift_time * 0.035 * cosmic_takeover;
+    vec3 surface_point = vec3(
+        cos(surface_spin) * surface_normal.x + sin(surface_spin) * surface_normal.z,
+        surface_normal.y,
+        -sin(surface_spin) * surface_normal.x + cos(surface_spin) * surface_normal.z);
+    vec2 surface_domain = (surface_point.xy + surface_point.z * vec2(0.30, 0.12)) * 0.72;
+    // The source field contracts toward the sphere and wraps onto its surface.
+    float contraction = mix(1.0, 0.34, cosmic_takeover);
+    p = mix(screen_p / contraction, surface_domain,
+        cosmic_takeover * (1.0 - smoothstep(0.98, 1.03, length(disk))));
+    float gather_twist = sin(cosmic_takeover * 3.14159265) * 0.30
+        * exp(-length(screen_p));
+    p = mat2(cos(gather_twist), sin(gather_twist),
+        -sin(gather_twist), cos(gather_twist)) * p;
 
     float t = u_time * 0.18;
     float distortion = u_distortion;
@@ -421,8 +624,8 @@ void main()
     float geometric_weight = dwell(
         u_drift_time * 0.1337 + 4.2 + state_phase_jitter
     ) * clamp(impact * 1.4 + pressure * 0.5, 0.0, 1.0);
-    float cosmic_weight = dwell(u_drift_time * 0.0690 + 2.9 + state_phase_jitter)
-        * clamp(sparkle * 1.1, 0.0, 1.0);
+    // Cosmic is now a final depth-composited takeover, not a competing warp.
+    float cosmic_weight = 0.0;
 
     // Horizon/Pathway: a different spatial grammar -- forward, toward
     // a distant vanishing point, instead of always inward/outward.
@@ -469,12 +672,33 @@ void main()
     cosmic_weight = pow(cosmic_weight, 1.25);
     horizon_weight = pow(horizon_weight, 1.25);
 
+    if (u_debug_state > 0.5 && u_debug_state < 1.5) {
+        tunnel_weight = 0.0; fractal_weight = 0.0; geometric_weight = 0.0;
+        cosmic_weight = 0.0; horizon_weight = 0.0;
+    } else if (u_debug_state > 1.5 && u_debug_state < 2.5) {
+        tunnel_weight = 0.0; fractal_weight = 0.0; geometric_weight = 1.0;
+        cosmic_weight = 0.0; horizon_weight = 0.0;
+    } else if (u_debug_state > 2.5 && u_debug_state < 3.5) {
+        tunnel_weight = 0.0; fractal_weight = 0.0; geometric_weight = 0.0;
+        cosmic_weight = 1.0; horizon_weight = 0.0;
+    }
+
+    // Cosmic is an intentional world takeover: once it has weight, the
+    // other vocabularies recede so the planet, rings, and starfield can own
+    // the frame instead of blending into another abstract layer.
+    float cosmic_dominance = cosmic_weight * 0.88;
+    tunnel_weight *= 1.0 - cosmic_dominance;
+    fractal_weight *= 1.0 - cosmic_dominance;
+    geometric_weight *= 1.0 - cosmic_dominance;
+    horizon_weight *= 1.0 - cosmic_dominance;
+
     float total_transform = tunnel_weight + fractal_weight
         + geometric_weight + cosmic_weight + horizon_weight;
     // Keep a faint organic home-state thread during overlapping handoffs.
     // Alternate vocabularies may still dominate, but the world never loses
     // all continuity when several dwell windows coincide.
-    float organic_weight = max(0.08, 1.0 - total_transform);
+    float organic_floor = 0.08 * (1.0 - cosmic_weight);
+    float organic_weight = max(organic_floor, 1.0 - total_transform);
     float weight_sum = max(organic_weight + total_transform, 1.0);
 
     // Inversion needs spatial coordinates, not an ever-growing scroll offset.
@@ -596,7 +820,11 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         hash(shatter_cell + 11.3),
         hash(shatter_cell + 3.7)
     ) - 0.5) * 0.6;
-    vec2 cosmic_q = q * mix(0.32, 0.18, cosmic_maturity) + shatter_jitter;
+    float cosmic_camera = 0.5 + 0.5 * sin(u_drift_time * 0.008 + 0.8);
+    float cosmic_zoom = mix(0.82, 1.18, cosmic_camera)
+        * mix(1.0, 0.78, cosmic_maturity);
+    vec2 cosmic_q = q * mix(0.32, 0.18, cosmic_maturity) * cosmic_zoom
+        + shatter_jitter;
     q = mix(q, cosmic_q, cosmic_weight);
 
     // Compression correction: cosmic collapse and the fractal fold
@@ -815,6 +1043,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         + teal_amber_palette(body_value) * horizon_weight
     ) / weight_sum;
 
+
     // Horizon glow: a warm light band along the horizon line itself,
     // plus faint converging depth bands -- reads as a path stretching
     // away rather than a flat backdrop. Richer/more atmospheric the
@@ -887,7 +1116,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         * step(0.85, star_hash);
 
     color += vec3(0.86, 0.97, 1.00) * star_mask
-        * sparkle * (0.8 + cosmic_weight * 0.8);
+        * (0.18 * cosmic_weight + sparkle * (0.8 + cosmic_weight * 0.8));
 
     // Secondary morphology variation: slowly-evolving parameters that
     // let the living artifacts drift between different structural
@@ -1162,10 +1391,16 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     membrane_color += vec3(0.95, 0.42, 0.62) * blossom;
     color = mix(color, membrane_color * u_intensity, organic_weight / weight_sum);
 
+
     // Oil-paint tonemap: compress extreme brightness toward the
     // palette's saturated colors instead of collapsing into white.
     float peak = max(color.r, max(color.g, color.b));
     color = color / (1.0 + peak * 0.6);
 
+    if (cosmic_takeover > 0.0)
+    {
+        vec3 world = isolated_cosmic_scene(cosmic_p, color, 1.0, cosmic_takeover);
+        color = mix(color, world, cosmic_takeover);
+    }
     fragColor = vec4(color, 1.0);
 }

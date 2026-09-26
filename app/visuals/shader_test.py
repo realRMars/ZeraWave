@@ -2,6 +2,8 @@ import math
 import argparse
 import hashlib
 import json
+import struct
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -10,15 +12,28 @@ import moderngl
 
 from renderer import Renderer, VERTEX_SHADER
 
+STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5}
 
-def capture(output, seconds, profile="standard"):
+
+def save_png(path, pixels):
+    """Write RGB captures using the standard library; no image dependency."""
+    height, width, _ = pixels.shape
+    def chunk(kind, data):
+        return struct.pack('!I', len(data)) + kind + data + struct.pack('!I', zlib.crc32(kind + data) & 0xffffffff)
+    raw = b''.join(b'\x00' + row.tobytes() for row in pixels)
+    path.write_bytes(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('!2I5B', width, height, 8, 2, 0, 0, 0))
+        + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''))
+
+
+def capture(output, seconds, profile="standard", debug_state=0):
     """Save a reproducible synthetic frame and GPU-evaluated state weights."""
     output.mkdir(parents=True, exist_ok=True)
     renderer = Renderer(width=640, height=360, title="DreamWave capture")
     source = (Path(__file__).parent / "shaders/dream.frag").read_text(encoding="utf-8")
     values = dict(u_time=seconds * .75, u_drift_time=seconds,
                   u_resolution=(640., 360.), u_scale=.3, u_flux=.2,
-                  u_sparkle=.2, u_impact=.05, u_intensity=1., u_distortion=1.)
+                  u_sparkle=.2, u_impact=.05, u_intensity=1., u_distortion=1.,
+                  u_debug_state=float(debug_state))
     if profile == "quiet":
         values.update(u_scale=.05, u_flux=.02, u_sparkle=.05, u_impact=0.)
     elif profile == "active":
@@ -36,11 +51,14 @@ def capture(output, seconds, profile="standard"):
         stem = output / f"frame-{seconds:g}"
         stem.with_suffix(".ppm").write_bytes(
             b"P6\n640 360\n255\n" + pixels[::-1].tobytes())
+        save_png(stem.with_suffix('.png'), pixels[::-1])
         weights = {}
         anchor = "fragColor = vec4(color, 1.0);"
         assert source.count(anchor) == 1
-        for name in ("organic", "tunnel", "fractal", "geometric", "cosmic", "horizon", "root_mix"):
-            expression = "root_mix" if name == "root_mix" else f"{name}_weight / weight_sum"
+        # Cosmic returns before the blend weights exist; do not label its
+        # rendered RGB as a state-weight probe.
+        for name in (() if debug_state == 3 else ("organic", "tunnel", "fractal", "geometric", "cosmic", "horizon", "root_mix", "cosmic_takeover")):
+            expression = name if name in ("root_mix", "cosmic_takeover") else f"{name}_weight / weight_sum"
             probe = renderer.ctx.program(vertex_shader=VERTEX_SHADER,
                 fragment_shader=source.replace(anchor,
                     f"fragColor = vec4({expression}, 0.0, 0.0, 1.0);"))
@@ -110,26 +128,81 @@ def sweep(output):
         renderer.close()
 
 
-def main():
+def handoff_test(output):
+    """Exercise the actual transition branch, including boundaries and hold."""
+    output.mkdir(parents=True, exist_ok=True)
+    renderer = Renderer(width=640, height=360, title="Cosmic handoff test")
+    def frame(seconds):
+        renderer.render(elapsed_time=seconds)
+        return np.frombuffer(renderer.ctx.screen.read(components=3),
+            dtype=np.uint8).reshape(360, 640, 3).copy()
+    try:
+        glfw.init()
+        glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
+        renderer.create()
+        renderer.debug_state = 4
+        renderer.parameters.intensity = 1.0
+        renderer.parameters.distortion = 1.0
+        renderer.parameters.scale = .45
+        renderer.parameters.movement = .45
+        renderer.parameters.sparkle = .25
+        renderer.parameters.flux = .45
+        # Reset renderer time integration for independent reproducible samples.
+        captures = []
+        for seconds in (0., 7., 11., 18., 24., 29., 35., 40., 47.):
+            renderer.last_render_time = 0.0
+            renderer.flow_time = 0.0
+            pixels = frame(seconds)
+            assert pixels.std() > 3, f'Blank frame at {seconds}'
+            save_png(output / f'stage-{seconds:g}.png', pixels[::-1])
+            captures.append(pixels[::-1])
+            if seconds in (11.,18.,24.):
+                # During hold the original foreground cannot fill deep space.
+                corner = pixels[:60, :60]
+                assert (corner.max(axis=2) < 12).mean() > .8, 'Foreground leaks into space'
+        sheet = np.concatenate([np.concatenate(captures[i:i+3], axis=1)
+            for i in (0,3,6)], axis=0)
+        save_png(output / 'contact-sheet.png', sheet)
+        jumps = []
+        for boundary in (3., 11., 24., 35., 40.):
+            renderer.last_render_time = 0.0
+            renderer.flow_time = 0.0
+            # Probe the boundary limit (2 ms apart), not ordinary animation
+            # motion: the fractal source can change rapidly over a whole frame.
+            a = frame(boundary - .001)
+            b = frame(boundary + .001)
+            delta = float(np.abs(a.astype(float)-b.astype(float)).mean())
+            assert delta < 4., f'Transition discontinuity at {boundary}s: {delta}'
+            jumps.append((boundary, delta))
+        (output / 'verification.json').write_text(json.dumps(dict(
+            boundary_mean_pixel_deltas=jumps, frames=19,
+            note='Synthetic GPU transition test; not live audio or aesthetic acceptance.'), indent=2))
+        print(f'PASS: 19 transition GPU frames, space isolation and boundary continuity; {output}')
+    finally:
+        renderer.close()
+
+
+def main(debug_state=0):
     renderer = Renderer(
         width=1280,
         height=720,
-        title="DreamWave - Parameter Test",
+        title="DreamWave - " + next(name for name, value in STATES.items() if value == debug_state),
     )
+    print(f"State preview active: {debug_state}", flush=True)
 
     try:
         renderer.create()
+        renderer.debug_state = debug_state
 
         while not renderer.should_close():
             current_time = renderer.get_time()
 
-            renderer.parameters.intensity = 0.5 + 0.5 * math.sin(
-                current_time * 1.5
-            )
-
-            renderer.parameters.movement = 2.0
-            renderer.parameters.distortion = 2.0
-            renderer.parameters.scale = 2.0
+            renderer.parameters.intensity = 1.0
+            renderer.parameters.movement = 0.45
+            renderer.parameters.distortion = 1.0
+            renderer.parameters.scale = 0.45
+            renderer.parameters.sparkle = 0.25
+            renderer.parameters.flux = 0.45
             renderer.render()
             renderer.swap_buffers()
             renderer.poll_events()
@@ -141,13 +214,18 @@ def main():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--sweep", type=Path)
+    parser.add_argument("--handoff-test", type=Path)
     parser.add_argument("--capture", type=Path)
     parser.add_argument("--seconds", type=float, default=100.)
     parser.add_argument("--profile", choices=("standard", "quiet", "active"), default="standard")
+    parser.add_argument("--state", choices=tuple(STATES), default="blend")
     args = parser.parse_args()
-    if args.capture:
-        capture(args.capture, args.seconds, args.profile)
+    if args.handoff_test:
+        handoff_test(args.handoff_test)
+    elif args.capture:
+        capture(args.capture, args.seconds, args.profile,
+                STATES[args.state])
     elif args.sweep:
         sweep(args.sweep)
     else:
-        main()
+        main(STATES[args.state])

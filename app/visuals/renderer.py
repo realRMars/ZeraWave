@@ -43,6 +43,7 @@ class Renderer:
         self.flow_time = 0.0
         self.flow_rate = self.FLOW_FLOOR
         self.parameters = VisualParameters()
+        self.debug_state = 0
 
     def create(self):
         if not glfw.init():
@@ -149,6 +150,7 @@ class Renderer:
         self.program["u_sparkle"].value = self.parameters.sparkle
         self.program["u_impact"].value = self.impact_envelope
         self.program["u_flux"].value = self.parameters.flux
+        self.program["u_debug_state"].value = float(self.debug_state)
         self.vao.render(mode=moderngl.TRIANGLE_STRIP)
 
     def should_close(self):

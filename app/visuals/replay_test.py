@@ -16,14 +16,15 @@ for path in (VISUALS_PATH, AUDIO_PATH):
         sys.path.insert(0, str(path))
 
 from analyzer import AudioAnalyzer
-from live_visual_test import analyze_samples
+from live_visual_test import LIVE_STATES, analyze_samples
 from onset_detector import OnsetDetector
 from parameter_mapper import VisualParameterMapper
 from renderer import Renderer
 from signal_processor import SignalProcessor, VisualSignalConditioner
 
 
-def replay(path, speed=12.0, max_seconds=None, metrics_path=None):
+def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend"):
+    debug_state = LIVE_STATES[state]
     with wave.open(str(path), "rb") as audio:
         rate = audio.getframerate()
         channels = audio.getnchannels()
@@ -37,6 +38,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None):
         mapper = VisualParameterMapper()
         detectors = {name: OnsetDetector(threshold=0.2) for name in ("bass", "mids", "highs")}
         renderer = Renderer(title="DreamWave WAV Replay")
+        renderer.debug_state = debug_state
         rows = []
         chunk = 2048
         song_time = 0.0
@@ -60,7 +62,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None):
                 renderer.render(elapsed_time=song_time)
                 renderer.swap_buffers()
                 renderer.poll_events()
-                rows.append({"seconds": song_time, "bass": frame.bass, "mids": frame.mids,
+                rows.append({"seconds": song_time, "state": state, "bass": frame.bass, "mids": frame.mids,
                              "highs": frame.highs, "flux": frame.flux, **result})
                 song_time += len(samples) / rate
                 if speed > 0:
@@ -84,8 +86,9 @@ def main():
     parser.add_argument("--speed", type=float, default=12.0, help="Playback pacing multiplier (0 = no pacing).")
     parser.add_argument("--max-seconds", type=float, default=None)
     parser.add_argument("--metrics", type=Path, default=None)
+    parser.add_argument("--state", choices=tuple(LIVE_STATES), default="blend")
     args = parser.parse_args()
-    seconds, rows = replay(args.wav, args.speed, args.max_seconds, args.metrics)
+    seconds, rows = replay(args.wav, args.speed, args.max_seconds, args.metrics, args.state)
     print(f"Replay complete: {seconds:.1f}s song time, {len(rows)} analyzed frames")
 
 

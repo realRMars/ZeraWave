@@ -1,3 +1,4 @@
+import argparse
 import sys
 from pathlib import Path
 
@@ -15,6 +16,8 @@ from onset_detector import OnsetDetector
 from parameter_mapper import VisualParameterMapper
 from renderer import Renderer
 from signal_processor import SignalProcessor, VisualSignalConditioner
+
+LIVE_STATES = {"blend": 0, "transition": 4, "canvas": 5}
 
 
 def make_bar(value, width=30):
@@ -130,7 +133,7 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors):
     return frame
 
 
-def main():
+def main(state="blend"):
     capture = AudioCapture()
     analyzer = AudioAnalyzer()
     processor = SignalProcessor(smoothing=0.5)
@@ -139,7 +142,8 @@ def main():
     # every small fluctuation, per the "more threshold to breathe" ask.
     conditioner = VisualSignalConditioner(quiet_threshold=0.06)
     mapper = VisualParameterMapper()
-    renderer = Renderer()
+    renderer = Renderer(title=f"DreamWave - live {state}")
+    renderer.debug_state = LIVE_STATES[state]
 
     detectors = {
         "bass": OnsetDetector(threshold=0.2),
@@ -161,7 +165,7 @@ def main():
     device = capture.find_device()
 
     print(f"Using: {device}")
-    print("Play music in Opera.")
+    print(f"Live state: {state}. Play music through your default audio output.")
     print("Listening until the window closes...")
     print()
 
@@ -194,6 +198,7 @@ def main():
                 "\033[H\033[J"
                 "DreamWave Live Visualizer\n"
                 "=========================\n"
+                f"Live state: {state}\n"
                 f"Scale    [{make_bar(result['scale'])}] "
                 f"{result['scale']:.2f}\n"
                 f"Movement [{make_bar(result['movement'])}] "
@@ -229,4 +234,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="DreamWave with live system audio.")
+    parser.add_argument("--state", choices=tuple(LIVE_STATES), default="blend",
+                        help="blend: normal flow; canvas: hold planet; transition: 40-second diagnostic cycle")
+    args = parser.parse_args()
+    main(args.state)
