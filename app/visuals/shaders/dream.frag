@@ -1151,8 +1151,14 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     membrane_color *= 0.25 + membrane_body * 0.75;
     membrane_color += vec3(0.18, 0.50, 0.55) * membrane_ridge
         * (0.15 + sparkle * 0.35 + impact * 0.15);
+    // Blossoms have a small internal lifecycle: bud, open bloom, and a
+    // quiet return. Root continuity remains intact while the flowers breathe.
+    float blossom_cycle = 0.5 + 0.5 * sin(membrane_time * 0.12 + 1.4);
+    float blossom_life = smoothstep(0.18, 0.38, blossom_cycle)
+        * (1.0 - smoothstep(0.78, 0.96, blossom_cycle));
     float blossom = blossom_field(root_position, membrane_time)
-        * root_mix * (0.35 + sparkle * 0.35 + impact * 0.30);
+        * root_mix * blossom_life
+        * (0.35 + sparkle * 0.35 + impact * 0.30);
     membrane_color += vec3(0.95, 0.42, 0.62) * blossom;
     color = mix(color, membrane_color * u_intensity, organic_weight / weight_sum);
 
