@@ -327,6 +327,30 @@ float root_network(vec2 position, float phase, float activity)
     return nearest;
 }
 
+// Small blossom clusters in root-space: a few five-petal flowers, kept
+// deliberately sparse so the mycelium remains the primary form.
+float blossom_field(vec2 position, float phase)
+{
+    float glow = 0.0;
+    for (int i = 0; i < 6; i++)
+    {
+        float fi = float(i);
+        vec2 center = (vec2(
+            hash(vec2(fi, 19.0)),
+            hash(vec2(fi, 37.0))
+        ) - 0.5) * vec2(1.7, 1.25);
+        center += vec2(sin(phase * 0.35 + fi), cos(phase * 0.27 + fi * 1.4)) * 0.035;
+        vec2 local = position - center;
+        float angle = atan(local.y, local.x);
+        float radius = length(local);
+        float petals = 0.5 + 0.5 * cos(angle * 5.0 + phase * 0.08);
+        float petal_shape = smoothstep(0.16, 0.02, abs(radius - (0.075 + petals * 0.035)));
+        float center_glow = smoothstep(0.045, 0.0, radius);
+        glow = max(glow, petal_shape * 0.8 + center_glow);
+    }
+    return clamp(glow, 0.0, 1.0);
+}
+
 void main()
 {
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
@@ -436,6 +460,14 @@ void main()
         max(tunnel_maturity, fractal_maturity),
         max(geometric_maturity, max(cosmic_maturity, horizon_maturity))
     );
+
+    // Sharpen overlapping handoffs so one vocabulary leads instead of
+    // several equally loud layers blending into an indistinct average.
+    tunnel_weight = pow(tunnel_weight, 1.25);
+    fractal_weight = pow(fractal_weight, 1.25);
+    geometric_weight = pow(geometric_weight, 1.25);
+    cosmic_weight = pow(cosmic_weight, 1.25);
+    horizon_weight = pow(horizon_weight, 1.25);
 
     float total_transform = tunnel_weight + fractal_weight
         + geometric_weight + cosmic_weight + horizon_weight;
@@ -1119,6 +1151,9 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     membrane_color *= 0.25 + membrane_body * 0.75;
     membrane_color += vec3(0.18, 0.50, 0.55) * membrane_ridge
         * (0.15 + sparkle * 0.35 + impact * 0.15);
+    float blossom = blossom_field(root_position, membrane_time)
+        * root_mix * (0.35 + sparkle * 0.35 + impact * 0.30);
+    membrane_color += vec3(0.95, 0.42, 0.62) * blossom;
     color = mix(color, membrane_color * u_intensity, organic_weight / weight_sum);
 
     // Oil-paint tonemap: compress extreme brightness toward the
