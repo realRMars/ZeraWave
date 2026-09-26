@@ -1029,6 +1029,45 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     }
     color += laser_color * laser_mask * 1.4;
 
+    // Organic membrane: its own connected folds in the pre-scroll domain.
+    // Slow deformation preserves the form while bass changes its physical
+    // tension and highs reveal fine ridges. Other states keep their image.
+    vec2 membrane_q = fractal_domain * (2.2 + bass_pressure * 0.25);
+    float membrane_time = t * 0.35;
+    vec2 membrane_warp = vec2(
+        fbm(membrane_q + vec2(membrane_time, 2.7)),
+        fbm(membrane_q + vec2(5.3, -membrane_time * 0.8))
+    );
+    vec2 membrane_space = membrane_q + (membrane_warp - 0.5) * 1.8;
+    // Musical change flexes the surface locally without accelerating its
+    // clock. Quiet inputs preserve the accepted resting shape exactly.
+    float membrane_activity = smoothstep(0.08, 0.65, flux);
+    float membrane_event = smoothstep(0.10, 0.65, impact);
+    vec2 membrane_gesture = vec2(
+        sin(membrane_space.y * 3.2 - t * 1.3),
+        cos(membrane_space.x * 2.8 + t * 1.1)
+    );
+    membrane_space += membrane_gesture * membrane_activity * 0.16;
+    float membrane_phase = membrane_space.y * 5.0
+        + sin(membrane_space.x * 2.5 + membrane_time) * 2.0
+        + fbm(membrane_space * 1.7) * 3.0;
+    membrane_phase += sin(length(membrane_q) * 8.0 - t * 2.0)
+        * membrane_event * 0.35;
+    float membrane_fold = 0.5 + 0.5 * sin(membrane_phase);
+    float membrane_body = smoothstep(0.22, 0.78, membrane_fold);
+    float membrane_ridge = pow(max(0.0, 1.0 - abs(membrane_fold - 0.72) * 7.0), 3.0);
+    float membrane_value = clamp(0.12 + membrane_body * 0.55
+        + membrane_ridge * 0.18, 0.0, 1.0);
+    vec3 membrane_color = mix(
+        electric_blue_palette(membrane_value),
+        lavender_pearl_palette(membrane_value),
+        smoothstep(0.25, 0.75, membrane_warp.x)
+    );
+    membrane_color *= 0.25 + membrane_body * 0.75;
+    membrane_color += vec3(0.18, 0.50, 0.55) * membrane_ridge
+        * (0.15 + sparkle * 0.35 + impact * 0.15);
+    color = mix(color, membrane_color * u_intensity, organic_weight / weight_sum);
+
     // Oil-paint tonemap: compress extreme brightness toward the
     // palette's saturated colors instead of collapsing into white.
     float peak = max(color.r, max(color.g, color.b));
