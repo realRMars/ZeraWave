@@ -1,10 +1,12 @@
 import sys
 from pathlib import Path
 
-AUDIO_PATH = Path(__file__).resolve().parent.parent / "audio"
+VISUALS_PATH = Path(__file__).resolve().parent
+AUDIO_PATH = VISUALS_PATH.parent / "audio"
 
-if str(AUDIO_PATH) not in sys.path:
-    sys.path.insert(0, str(AUDIO_PATH))
+for path in (VISUALS_PATH, AUDIO_PATH):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 from analyzer import AudioAnalyzer
 from audio_frame import AudioFrame

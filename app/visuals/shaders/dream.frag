@@ -258,6 +258,27 @@ vec3 gold_sun_palette(float v)
     return color;
 }
 
+// Geometric Dream: violet -> cyan -> hot pink -> gold -> bright highlight ramp.
+// Used exclusively for the geometric manifestation so it reads as its
+// own distinct visual ecosystem, separate from the fractal/crystal palette.
+vec3 geometric_dream_palette(float v)
+{
+    vec3 deep = vec3(0.015, 0.008, 0.030);
+    vec3 violet = vec3(0.280, 0.090, 0.480);
+    vec3 cyan = vec3(0.060, 0.580, 0.680);
+    vec3 hot_pink = vec3(0.900, 0.160, 0.580);
+    vec3 gold = vec3(0.960, 0.680, 0.180);
+    vec3 bright = vec3(1.000, 0.960, 0.880);
+
+    vec3 color = mix(deep, violet, smoothstep(0.0, 0.28, v));
+    color = mix(color, cyan, smoothstep(0.22, 0.50, v));
+    color = mix(color, hot_pink, smoothstep(0.45, 0.72, v));
+    color = mix(color, gold, smoothstep(0.68, 0.90, v));
+    color = mix(color, bright, smoothstep(0.85, 1.0, v));
+
+    return color;
+}
+
 // Slow square-ish dwell wave: stays near 0 or 1 for a real stretch of
 // time, easing continuously between, rather than a plain sine blip.
 float dwell(float phase)
@@ -381,6 +402,11 @@ void main()
     float organic_weight = max(0.0, 1.0 - total_transform);
     float weight_sum = max(organic_weight + total_transform, 1.0);
 
+    // Inversion needs spatial coordinates, not an ever-growing scroll offset.
+    // Preserve this domain so overlapping tunnel/horizon states cannot make
+    // the fractal fold converge to the same value across the whole screen.
+    vec2 fractal_domain = q;
+
     // Wormhole/tunnel: reproject into (angle, depth) corridor space.
     float pre_radius = length(q);
     float pre_angle = atan(q.y, q.x);
@@ -404,10 +430,10 @@ void main()
     q = mix(q, horizon_q, horizon_weight);
 
     // Fractal: cheap recursive inversion fold (Kleinian-style).
-    vec2 fractal_q = q;
+    vec2 fractal_q = fractal_domain;
     for (int fi = 0; fi < 4; fi++)
     {
-        fractal_q = abs(fractal_q) / dot(fractal_q, fractal_q)
+        fractal_q = abs(fractal_q) / max(dot(fractal_q, fractal_q), 0.0001)
             - vec2(
                 0.9 + flux * 0.15 + fractal_maturity * 0.10
                     + bass_pressure * 0.08,
@@ -426,19 +452,68 @@ void main()
     vec2 room_q = room_cell / max(room_box, 0.001) * (0.6 + 0.4 * room_box);
     q = mix(q, room_q, room_gate * 0.55);
 
-    // Geometric: hexagonal kaleidoscope fold with quantized facets.
-    float geo_radius = length(q);
-    float geo_sides = mix(
-        6.0, 10.0, clamp(geometric_maturity + bass_pressure * 0.3, 0.0, 1.0)
-    );
-    float geo_angle = abs(
-        mod(atan(q.y, q.x), 6.2832 / geo_sides) - 3.1416 / geo_sides
-    );
-    float facet_radius = floor(geo_radius * geo_sides) / geo_sides
-        + 0.5 / geo_sides;
-    vec2 geo_q = vec2(cos(geo_angle), sin(geo_angle))
-        * mix(geo_radius, facet_radius, 0.5);
-    q = mix(q, geo_q, geometric_weight);
+    // Geometric Dream: evolving mandala/crystalline/kaleidoscopic forms.
+// Smoothly morphs between radial, mandala-symmetric, crystalline, and
+// faceted kaleidoscope structures. Bass drives mass and rotation, flux
+// drives fine detail and mutation. Color follows a distinct
+// violet -> cyan -> pink -> gold -> highlight ramp, kept dark in
+// negative space.
+float geo_radius = length(q);
+float geo_angle = atan(q.y, q.x);
+
+// Evolution: drift time + flux + maturity drive smooth morphing.
+float geo_evolve = u_drift_time * 0.04 + flux * 0.25 + geometric_maturity * 0.15;
+float geo_form = fract(geo_evolve * 0.12);
+
+// Side count: maturity and bass pressure evolve the symmetry order.
+float geo_sides = mix(
+    6.0, 18.0,
+    clamp(geometric_maturity * 0.5 + bass_pressure * 0.5, 0.0, 1.0)
+);
+
+// Rotation: drift time drives slow rotation, bass adds pulse.
+float geo_rotation = t * (0.15 + geometric_maturity * 0.4 + bass_pressure * 0.4);
+float geo_rotated = geo_angle + geo_rotation;
+
+// Kaleidoscopic fold: mandala symmetry with quantized angular sectors.
+float geo_fold = abs(
+    mod(geo_rotated, 6.2832 / geo_sides) - 3.1416 / geo_sides
+);
+
+// Radial structure: bass pressure pulses the radial field.
+float geo_radial = geo_radius * (1.0 - bass_pressure * 0.12);
+
+// Crystalline facets: quantize radius into faceted rings.
+float geo_facet = floor(geo_radial * geo_sides * 0.5) / (geo_sides * 0.5)
+    + 1.0 / geo_sides;
+
+// Mandala bloom: mix radial and faceted based on evolution.
+float geo_mandala = mix(geo_radial, geo_facet,
+    clamp(geo_form + geometric_maturity * 0.25, 0.0, 1.0)
+);
+
+// Fine crystalline detail: flux adds high-frequency structure.
+float geo_detail = fbm(q * (6.0 + flux * 10.0) + vec2(t * 0.3, -t * 0.2));
+float geo_crystalline = geo_mandala * (1.0 - flux * 0.25)
+    + geo_detail * flux * 0.12;
+
+// Position: directional vector from folded angle, scaled by radius.
+vec2 geo_dir = vec2(cos(geo_fold), sin(geo_fold));
+vec2 geo_q = geo_dir * geo_crystalline;
+
+// Radial offset: bass pulls structure outward for a blooming mandala.
+geo_q += normalize(q + vec2(0.0001))
+    * bass_pressure * geo_radius * 0.08;
+
+q = mix(q, geo_q, geometric_weight);
+
+// Color: distinct violet -> cyan -> pink -> gold -> highlight ramp,
+// modulated by form evolution and bass so the palette breaths with music.
+float geo_color_phase = clamp(
+    geo_form * 0.7 + geometric_maturity * 0.2 + bass_pressure * 0.25,
+    0.0, 1.0
+);
+vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
 
     // Cosmic: radial collapse with per-cell fragmentation.
     vec2 shatter_cell = floor(q * 8.0);
@@ -454,9 +529,14 @@ void main()
     // samples the same tiny neighborhood and the screen floods into
     // one flat color. Counter-zoom back out so structure keeps
     // resolving -- "rushing into a world," not "zooming into a pixel."
+    // Tunnel compression also shrinks q toward the origin; without a
+    // matching counter-zoom the tunnel collapses the whole field into a
+    // single flat color. Include tunnel_weight here so the zoom-out
+    // keeps resolving structure even at maximum wormhole compression.
     float collapse_amount = clamp(
         cosmic_weight * mix(0.6, 1.0, cosmic_maturity)
-            + fractal_weight * mix(0.35, 0.55, fractal_maturity),
+            + fractal_weight * mix(0.35, 0.55, fractal_maturity)
+            + tunnel_weight * 0.55,
         0.0, 1.0
     );
     q *= mix(1.0, 3.4, collapse_amount);
@@ -501,10 +581,17 @@ void main()
     // Combine the structures.
     // Crunch/turbulence responds to physical bass pressure and to
     // spectral flux (change), not to loudness alone.
+    // Tunnel fracture: during strong wormhole compression the field
+    // would otherwise flatten into a uniform gradient. A radial/angular
+    // interference pattern gated by tunnel_weight keeps edge structure,
+    // contrast, and depth visible even at the near-point.
+    float tunnel_fracture = sin(radius * 26.0 - u_drift_time * 14.0)
+        * cos(atan(q.y, q.x) * 6.0 + u_drift_time * 7.0);
     float field = n * 0.65
         + waves * (0.22 + pressure * 0.08)
         + ring * 0.13
-        + crunch * (pressure * 0.6 + flux * 0.4) * 0.10;
+        + crunch * (pressure * 0.6 + flux * 0.4) * 0.10
+        + tunnel_fracture * tunnel_weight * 0.16;
 
     // The center/"eye" is one place in the world, not the whole
     // world: its focal point wanders between hashed waypoints instead
@@ -537,8 +624,12 @@ void main()
     // permanent bullseye. Its boundary is an asymmetric, rippling
     // ring, not a hard timer, so it never reads as an obvious preset.
     float eye_breathe = dwell(u_drift_time * 0.047 + 2.1);
+    // During strong tunnel compression the eye would clamp shut and
+    // leave the screen with no focal contrast. Keep the aperture
+    // partially open so a rim and interior gradient survive.
     float eye_open = clamp(
-        eye_breathe * 0.55 + bass_pressure * 0.4 + kick_trigger * 0.35,
+        eye_breathe * 0.55 + bass_pressure * 0.4 + kick_trigger * 0.35
+            + tunnel_weight * 0.5,
         0.0, 1.0
     );
     vec2 eye_shape_q = focus_q;
@@ -643,7 +734,8 @@ void main()
     vec3 color = (
         organic_color * organic_weight
         + ocean_palette(body_value) * tunnel_weight
-        + crystal_palette(body_value) * (fractal_weight + geometric_weight)
+        + crystal_palette(body_value) * fractal_weight
+        + geo_dream_color * geometric_weight
         + ember_palette(body_value) * cosmic_weight
         + teal_amber_palette(body_value) * horizon_weight
     ) / weight_sum;
@@ -722,6 +814,17 @@ void main()
     color += vec3(0.86, 0.97, 1.00) * star_mask
         * sparkle * (0.8 + cosmic_weight * 0.8);
 
+    // Secondary morphology variation: slowly-evolving parameters that
+    // let the living artifacts drift between different structural
+    // families (blobs, petals, rings, shards, eyes, lattice) without
+    // hard-coded states. Each stream samples a different noise
+    // coordinate so they evolve independently; slowly enough to
+    // feel stable, slowly enough to surprise.
+    float secondary_morph = noise(vec2(u_drift_time * 0.012, 1.0));
+    float secondary_density = noise(vec2(u_drift_time * 0.009, 3.0));
+    float secondary_spin = noise(vec2(u_drift_time * 0.011, 5.0));
+    float secondary_focal = noise(vec2(u_drift_time * 0.008, 7.0));
+
     // Living artifacts: sparse procedural droplets/shards/sparks
     // embedded in the same transformed space, so tunnel/fractal/
     // geometric/cosmic states drag, fold, and scatter them naturally
@@ -732,8 +835,14 @@ void main()
 
     float art_seed = hash(art_cell + 5.2);
     float sparkle_reveal = smoothstep(0.65, 1.0, sparkle);
+    // Presence threshold lowered during tunnel compression so
+    // secondary structure persists when the macro field collapses
+    // toward a pinpoint -- residual artifacts provide edge and
+    // contrast even inside the wormhole.
     float art_presence = step(
-        0.90 - any_maturity * 0.08 - sparkle_reveal * 0.10, art_seed
+        0.90 - any_maturity * 0.08 - sparkle_reveal * 0.10
+            - tunnel_weight * 0.14,
+        art_seed
     );
 
     float art_life_phase = fract(
@@ -747,14 +856,32 @@ void main()
     art_local.x *= mix(1.0, 0.35, art_stretch);
     art_local.y *= mix(1.0, 2.2, art_stretch);
 
+    // Shape family: the base angular facet modulation is extended
+    // with a continuously-evolving morphological parameter so cells
+    // drift between petal, ring, shard, and eye forms rather than
+    // repeating the same blob. All variation is continuous -- no
+    // hard-coded states.
     float art_jag = clamp(impact * 0.6 + geometric_weight * 0.5, 0.0, 1.0);
-    float art_facet = cos(
-        atan(art_local.y, art_local.x) * mix(1.0, 6.0, art_jag)
-        + art_seed * 6.2832
+    float art_petals = mix(2.0, 9.0,
+        fract(art_seed + secondary_morph * 0.6)
     );
+    float art_rotation = secondary_spin * 6.2832;
+    float art_facet = cos(
+        atan(art_local.y, art_local.x) * mix(1.0, 6.0, art_jag) * art_petals
+            + art_seed * 6.2832 + art_rotation
+    );
+    // Radial/ring modulation: a second concentric structure layer
+    // adds orbital-band character, strength driven by secondary_density.
+    float art_ring = cos(length(art_local) * 16.0
+        + secondary_morph * 3.0 + t * 0.4)
+        * secondary_density * 0.25;
+    art_facet = mix(art_facet, art_facet + art_ring, 0.35);
 
+    // Scale variation: secondary_density modulates size so artifact
+    // density and scale drift together over time.
     float art_size = (0.09 + hash(art_cell + 2.1) * 0.10)
-        * (0.4 + art_life * 0.9);
+        * (0.4 + art_life * 0.9)
+        * (0.85 + secondary_density * 0.40);
     float art_dist = length(art_local) - art_facet * art_jag * 0.03;
     float art_mask = smoothstep(art_size, art_size * 0.15, art_dist)
         * art_presence * art_life;
@@ -786,7 +913,20 @@ void main()
         art_color = electric_blue_palette(0.85);
     }
 
-    color += art_color * art_mask * (0.55 + sparkle * 0.55);
+    color += art_color * art_mask * (0.55 + sparkle * 0.55
+        + tunnel_weight * 0.35);
+
+    // Secondary edge highlight: a concentrated candy accent on
+    // artifact edges, driven by the generative morph stream so the
+    // accent varies independently across time and cells. Keeps the
+    // existing palette picker and adds a bright rim rather than
+    // flooding the frame.
+    float art_edge = smoothstep(art_size, art_size * 0.35, art_dist)
+        - art_mask;
+    vec3 art_accent = geometric_dream_palette(
+        clamp(secondary_morph * 0.5 + art_seed + 0.3, 0.0, 1.0)
+    );
+    color += art_accent * art_edge * (0.35 + geometric_weight * 0.30);
 
     // Falling/drifting world elements: unlocked strongly by the
     // horizon state, but audio decides what populates it -- highs for
