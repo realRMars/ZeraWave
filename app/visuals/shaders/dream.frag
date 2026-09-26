@@ -287,6 +287,46 @@ float dwell(float phase)
     return smoothstep(0.35, 0.65, raw);
 }
 
+// A small tapered branching tree, evaluated in the membrane's warped space.
+// Children inherit their parent's endpoint so branches stay connected.
+float root_network(vec2 position, float phase, float activity)
+{
+    vec2 tips[31];
+    vec2 directions[31];
+    float lengths[31];
+    float widths[31];
+    float nearest = 10.0;
+    for (int i = 0; i < 31; i++)
+    {
+        vec2 base;
+        if (i == 0)
+        {
+            base = vec2(0.0, -1.35);
+            directions[i] = vec2(0.0, 1.0);
+            lengths[i] = 0.85;
+            widths[i] = 0.065;
+        }
+        else
+        {
+            int parent = (i - 1) / 2;
+            base = tips[parent];
+            float side = (i % 2 == 0) ? 1.0 : -1.0;
+            float bend = side * (0.48 + 0.13 * sin(float(i) * 2.7))
+                + sin(phase + float(i) * 1.7) * (0.06 + activity * 0.10);
+            directions[i] = mat2(cos(bend), sin(bend),
+                                  -sin(bend), cos(bend)) * directions[parent];
+            lengths[i] = lengths[parent] * 0.72;
+            widths[i] = widths[parent] * 0.64;
+        }
+        tips[i] = base + directions[i] * lengths[i];
+        float along = clamp(dot(position - base, directions[i]) / lengths[i], 0.0, 1.0);
+        float distance_to_branch = length(position - mix(base, tips[i], along));
+        float taper = mix(widths[i], widths[i] * 0.64, along);
+        nearest = min(nearest, distance_to_branch - taper);
+    }
+    return nearest;
+}
+
 void main()
 {
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
@@ -1056,6 +1096,16 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     float membrane_fold = 0.5 + 0.5 * sin(membrane_phase);
     float membrane_body = smoothstep(0.22, 0.78, membrane_fold);
     float membrane_ridge = pow(max(0.0, 1.0 - abs(membrane_fold - 0.72) * 7.0), 3.0);
+    // One Organic form replaces another gradually, rather than stacking light.
+    // Dwelling lets both the broad membrane and the roots hold their identity.
+    float root_mix = dwell(u_drift_time * 0.04 - 1.8);
+    vec2 root_position = membrane_space * 0.85;
+    float root_distance = root_network(root_position, membrane_time, membrane_activity);
+    float root_aa = max(fwidth(root_distance), 0.001);
+    float root_body = 1.0 - smoothstep(-root_aa, root_aa, root_distance);
+    float root_ridge = exp(-abs(root_distance) * 65.0) * root_body;
+    membrane_body = mix(membrane_body, root_body, root_mix);
+    membrane_ridge = mix(membrane_ridge, root_ridge, root_mix);
     float membrane_value = clamp(0.12 + membrane_body * 0.55
         + membrane_ridge * 0.18, 0.0, 1.0);
     vec3 membrane_color = mix(

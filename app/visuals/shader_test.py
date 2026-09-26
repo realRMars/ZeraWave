@@ -39,10 +39,11 @@ def capture(output, seconds, profile="standard"):
         weights = {}
         anchor = "fragColor = vec4(color, 1.0);"
         assert source.count(anchor) == 1
-        for name in ("organic", "tunnel", "fractal", "geometric", "cosmic", "horizon"):
+        for name in ("organic", "tunnel", "fractal", "geometric", "cosmic", "horizon", "root_mix"):
+            expression = "root_mix" if name == "root_mix" else f"{name}_weight / weight_sum"
             probe = renderer.ctx.program(vertex_shader=VERTEX_SHADER,
                 fragment_shader=source.replace(anchor,
-                    f"fragColor = vec4({name}_weight / weight_sum, 0.0, 0.0, 1.0);"))
+                    f"fragColor = vec4({expression}, 0.0, 0.0, 1.0);"))
             vao = None
             try:
                 vao = renderer.ctx.simple_vertex_array(probe, renderer.vertices, "in_position")
