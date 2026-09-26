@@ -439,7 +439,10 @@ void main()
 
     float total_transform = tunnel_weight + fractal_weight
         + geometric_weight + cosmic_weight + horizon_weight;
-    float organic_weight = max(0.0, 1.0 - total_transform);
+    // Keep a faint organic home-state thread during overlapping handoffs.
+    // Alternate vocabularies may still dominate, but the world never loses
+    // all continuity when several dwell windows coincide.
+    float organic_weight = max(0.08, 1.0 - total_transform);
     float weight_sum = max(organic_weight + total_transform, 1.0);
 
     // Inversion needs spatial coordinates, not an ever-growing scroll offset.

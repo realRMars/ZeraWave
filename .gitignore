@@ -17,3 +17,7 @@ htmlcov/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Private development audio and generated diagnostic captures
+/test_audio/
+/work/

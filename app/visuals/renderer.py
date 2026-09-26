@@ -93,7 +93,7 @@ class Renderer:
 
         self.start_time = time.perf_counter()
 
-    def render(self):
+    def render(self, elapsed_time=None):
         if self.window is None:
             raise RuntimeError("Renderer has not been created")
 
@@ -101,7 +101,11 @@ class Renderer:
 
         self.ctx.viewport = (0, 0, width, height)
 
-        current_time = time.perf_counter() - self.start_time
+        # Replay advances in song time; live callers retain the wall clock.
+        current_time = (
+            time.perf_counter() - self.start_time
+            if elapsed_time is None else elapsed_time
+        )
         if self.last_render_time is None:
             delta_time = 0.0
         else:

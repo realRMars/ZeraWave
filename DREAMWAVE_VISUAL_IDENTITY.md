@@ -466,3 +466,36 @@ A failed experiment should be allowed to fail without forcing the entire system 
 # 15. DreamWave in One Sentence
 
 > **DreamWave is a living visual instrument where music becomes movement, atmosphere, emotion, and moment — with the ability to express the same musical soul through different visual forms.**
+
+## 16. Vision evolution: music becomes a dream
+
+Recorded 2026-09-25 from the supplied post-Stage-0 brainstorm and streamlined
+development plan. This extends the identity above; it does not authorize a
+renderer replacement or commit to a particular implementation.
+
+DreamWave should allow forms and worlds to emerge, dwell, mature, and transform.
+A dream can linger while the music animates its internal life. Elapsed time alone
+should not force rapid changes. Transitions may be ambiguous: a branch may begin
+to suggest a fractal, then a galaxy, without a hard scene cut.
+
+The first visual-vocabulary milestone focuses on Organic, Geometric, and Cosmic.
+They must differ in recognizable structure, not just palette or distortion of
+the same field. Broader aspirations include landscapes, life, fantasy, faces,
+and suggestive forms that the viewer discovers through pareidolia.
+
+The eye is one possible emergent phenomenon, not a compulsory permanent center.
+Color belongs throughout the world, not only inside the eye. The vivid taffy
+identity remains important, alongside the possibility of softer, darker, cosmic,
+or luminous material treatments. Dark space should feel intentional.
+
+Future imagery or silhouettes should become part of the form rather than pasted
+pictures. Assets, particles, feedback, and geometry are possible techniques, not
+current architectural requirements.
+
+Interaction should remain minimal. A future Bonk control could shake up a
+lingering dream; a tap/Dance control could encourage movement. These are deferred
+ideas, not features to implement in the current repair.
+
+Creative acceptance: DreamWave should produce different visual experiences that
+can sustain interest and evolve within their identity, rather than repeatedly
+warping one tunnel or cycling effects rapidly.
