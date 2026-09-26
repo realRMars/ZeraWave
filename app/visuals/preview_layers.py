@@ -29,6 +29,11 @@ EFFECTS = {
     'fire_coals': ('Coals', 'Fire details', ('fire',)),
     'fire_embers': ('Embers', 'Fire details', ('fire',)),
     'fire_seams': ('Hot seams', 'Fire details', ('fire',)),
+    'fire_ash': ('Ash', 'Fire details', ('fire',)),
+    'blast_flash': ('Inversion flash', 'Aftershock details', ('fire',)),
+    'blast_dust': ('Dust shockwaves', 'Aftershock details', ('fire',)),
+    'blast_fire': ('Ground fire', 'Aftershock details', ('fire',)),
+    'blast_aurora': ('Aurora', 'Aftershock details', ('fire',)),
 }
 BITS = {key: 1 << i for i, key in enumerate(EFFECTS)}
 MODES = {'authored': 'Authored', 'together': 'Selected together', 'cycle': 'Cycle list'}
@@ -75,7 +80,7 @@ def world_for_state(state):
     if state in (3, 5): return 'cosmic'
     if state == 4: return 'transition'
     if 6 <= state <= 10 or state == 13: return 'water'
-    if state == 14: return 'fire'
+    if state in (14, 15, 16, 17, 18): return 'fire'
     return 'blend'
 
 

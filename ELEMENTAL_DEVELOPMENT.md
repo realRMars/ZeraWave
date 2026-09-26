@@ -3,6 +3,316 @@
 Updated 2026-09-26. Base checkpoint: `aa44d54`, accepted Geometric material
 gathering. Read AGENTS.md and the current DREAMWAVE_HANDOFF.md entry first.
 
+## Accepted Fire development checkpoint and curved horizon
+
+The user accepted Aftershock's distinct plume hues/material-negative flash,
+requested a subtle planetary horizon curve, and explicitly authorized committing
+the accumulated Fire work. This checkpoint extends accepted Flame sheets with
+Molten flow, Firescape, and Aftershock, plus their Studio controls and tests.
+
+Aftershock now applies a shallow bounded screen-space arc to its complete
+projection: ground, haze, aurora, clouds and flash share the same curvature.
+The 16:9 horizon drops about nine pixels from center to each edge at 360p. This
+is a subtle visual projection, not a spherical planet simulation. The flash
+capture was inspected; the final Aftershock suite passed 216 exact preservation
+comparisons for states 0-17 and 660 actual renderer frames, including existing
+hue, depth, flash, aurora and musical-ring checks. Evidence:
+work/elemental/aftershock/{horizon-checks,horizon-preview}.
+
+The Fire form cycle still melds Flame sheets / Molten flow / Firescape over
+84 seconds. Aftershock is an accepted held form available in Studio and the
+general Elements leaf cycle; it has not been added to that native meld or the
+main blend. Finishing Fire integration is the next separate task. Other worlds,
+Living artifacts' original palette and continuous Cosmic star drift are preserved.
+Final Studio standalone tests, Python compilation and git diff --check passed.
+No new live-loopback test was run for the horizon adjustment.
+
+Earlier entries below are chronological development history. Their pending-review,
+uncommitted, prior-threshold and prior-cycle statements describe those earlier
+passes and are superseded by this checkpoint and the latest implementation.
+
+## Aftershock distinct plume hues and material-negative flash
+
+The user accepted the depth/aurora refinement and requested distinct plume hues
+and a flash that inverts Living artifacts/the incoming material. Each ground-zero
+ID now receives a stable, separated hue; no animation clock rotates all plumes
+together. Luminance from the existing cloud shading retains volume, rolling ash,
+and depth haze. This recoloring is local to Aftershock clouds, not Living artifacts.
+
+The expanding flash now samples the incoming fire_material canvas before its
+muted ground treatment, applies local 1.6 exposure and RGB inversion, and fades
+back into the scene using the accepted two-second envelope. Material colors and
+artifact shapes become visible as a photographic negative, rather than merely
+inverting the nearly neutral ground. The source respects the existing material
+composition; no new material, layer, or control was introduced. Aurora, cloud
+ordering, camera and restrained musical rings are unchanged.
+
+Changed dream.frag, the existing shader_test.py checks and development notes.
+The Aftershock GPU suite passed 216 exact state 0-17 preservation comparisons,
+660 renderer frames, six distinct site-tint probes, known RGB negative probes,
+and existing ordering/flash/aurora/ring checks. Synthetic overlapping-plume and
+flash frames were visually inspected. A final silent Balloon replay covered
+60.032 seconds / 1,407 frames and two detonations, with 12 captures and no sampled
+clipping. Evidence: work/elemental/aftershock/{hue-checks,hue-preview,
+negative-preview,hue-music}. No live audio test or new Studio test was needed for
+this shader-only behavior change; controls and audio analysis were not changed.
+Git diff --check and Python compilation passed. Uncommitted; review this look
+before finishing Fire integration. HEAD remains 8be9d4e.
+
+## Aftershock depth, flash, restrained hits and aurora refinement
+
+The user accepted the initial Aftershock direction and requested correct distant/
+near plume overlap, a longer inversion fade, fewer musical aftershocks and a
+trippy aurora that bends at detonation. Visible clouds now sort by actual world
+Z depth, not birth ID. Only the latest three sites can have living clouds within
+the existing 86-second lifetime. This fixes the farther-every-third-site ordering
+without changing camera, timing, or existing worlds.
+
+Inversion retains its fast expanding front but now decays over two seconds,
+with a smooth final fade (previously .65 seconds). Musical rings require impact
+>= .40 and a three-second cooldown; the .14 rearm and eight-second lifetime stay.
+The first attempted .55 threshold suppressed all Balloon hits (maximum .487),
+so it was corrected using the actual replay range, without retuning audio analysis.
+The new cooldown permits at most three simultaneous musical rings versus six
+observed previously. On the same first 100 seconds, average counts fell from
+4.06 to 1.55 (Balloon), 4.47 to 1.76 (Chasing You), and 4.34 to 1.30 (Warbot Jazz).
+
+Three green/cyan/violet aurora curtains drift and fold behind the plumes, with
+fine warped filaments. A localized, damped sky bend originates over each new
+ground zero and settles independently of beat-driven rings. Aurora is separately
+switchable under Aftershock details (new appended bit; existing IDs preserved).
+
+Checks passed: 216 exact unchanged-state GPU comparisons, 660 renderer frames,
+actual GPU depth-order cases at 120/156/192 seconds, longer flash/expiry, aurora
+isolation and blast-bend/settling comparison, event sensitivity/cooldown/expiry,
+and Studio selection/session/effect/replay tests. Three final silent real-track
+replays each ran 130 seconds / 3,047 frames (9,141 total), with 39 captures, max
+three rings and no sampled clipping. GPU timing sample: about 1.7 ms at 720p;
+this is not end-to-end live FPS. Final sky/overlap and music frames were inspected.
+Evidence: work/elemental/aftershock/{sky-checks,sky-preview,sky-music}.
+Live loopback/audio playback was not tested. Changes remain uncommitted on
+8be9d4e; Aftershock stays isolated from the existing Fire meld/main blend.
+
+## Aftershock: isolated Fire flyover (review pending)
+
+The user accepted Firescape's side-scrolling growth/burn/crumble pass and asked
+for one final Fire scene: a flyover of rising mushroom clouds, expanding inverted
+flashes and musical dust/ash shockwaves followed by ground fire. `aftershock`
+(state 18) is now selectable in Studio: Elements / Fire / Aftershock.
+
+The camera advances steadily through charcoal terrain, ash and pale-gold plumes.
+Detonations begin at 5 seconds and repeat every 36 seconds; every third is farther
+away near the horizon. Layered shaded cloud lobes rise and spread, smoke rolls
+through the column, and old volumes fade or pass the camera. These are projected
+procedural volumes, not fluid simulation or physical destruction. Existing source
+material lightly stains the ground without changing Living artifacts' palette.
+
+The existing renderer holds at most eight visual events, lasting eight seconds.
+Impact >= .30 triggers a ring after rearming below .14, with 1.25-second cooldown.
+The event stores timestamp, latest ground-zero ID and strength. Sustained input
+cannot retrigger continuously. Dust leads ragged amber fire; flux adds local
+curl. The inversion is a short expanding detonation flash, not an every-beat
+screen flash. Studio has Inversion flash, Dust shockwaves and Ground fire under
+Aftershock details. Coals controls crater shading; Ash/Embers/Hot seams remain
+specific to their existing forms. The renderer lifecycle/audio analysis and
+existing monotonic flow/star clocks remain unchanged. Replay metadata now records
+event counts and capture-time event lists for verification.
+
+Validation: `shader_test.py --aftershock-test` passed 216 exact baseline frame
+comparisons covering states 0-17, 660 actual renderer frames, sustained-hit,
+rearm/cooldown, bounded history, expiry, independent rings, effect isolation and
+expanding/expiring flash checks. A 60-frame 1280x720 GPU timing sample measured
+about 1.9 ms/draw (not a live end-to-end FPS guarantee). Timeline and final music
+frames were visually inspected. Three final decoded-track replays (Balloon,
+Chasing You, Warbot Jazz) each covered 100 seconds / 2,344 frames: 7,032 total,
+30 captures, max six simultaneous rings and no clipping in sampled captures.
+Studio standalone tests also passed recursive selection, new effect controls,
+session round-trips, replay metadata/pacing and continuous GPU clocks. Python
+compilation and git diff --check passed. These were silent offline replays,
+not audible playback or live loopback.
+Evidence: `work/elemental/aftershock/checks/` and `final-music/`.
+
+Initial checks found overlapping-ring clipping; local tone mapping fixed it.
+Visual inspection found a half-column hard edge from signed GLSL pow input;
+explicit absolute input fixed it, followed by fresh tests and all three replays.
+The initial module-style test launch failed because this repository uses standalone
+script imports; the standalone entry point was used for successful checks.
+
+HEAD remains `8be9d4e`. Accepted Molten/Firescape and this review-pending Aftershock
+are uncommitted. No commit or main-blend integration was performed. The existing
+84-second three-form Fire meld remains intact and does not yet include Aftershock;
+select its leaf explicitly (the general Elements leaf cycle also reaches it).
+Recommendation: four Fire concepts are enough; review Aftershock, then finish
+Fire transitions/main integration rather than adding a fifth form.
+
+## Firescape side-scroller and scenery life cycles
+
+The user requested more natural trees, sprouting/growth followed by burning to
+ground, a side-scrolling game-like scene, and buildings that rise then crumble.
+Firescape now uses elapsed-time parallax: far hills, buildings and three forest
+layers move left at increasing speeds. Seeded objects remain anchored to world
+cells and retain their age while scrolling; neighbor cells prevent clipped
+crowns, and each tree root uses its own ground height. The existing psychedelic
+palette, mids-driven hue rate, impact brightness and ash/embers are retained.
+
+Trees have curved trunks, six branch forks and irregular broad leaf clusters.
+Their 64-second seeded lives grow through the first quarter, mature, then burn
+from crown to trunk; stumps clear before the next sprout. Buildings rise floor
+by floor (six rows / 18 blocks), then staggered blocks rotate, fall and shrink
+into rubble before clearing. This is procedural animation, not rigid-body or
+combustion simulation, and objects do not accumulate permanently. Timing stays
+steady rather than twitching with audio. There are no new controls or layers.
+
+The first life-cycle probe found faint sprouts below the visibility threshold.
+Their opacity now rises early while geometry stays small; the same test passes
+without weakening its threshold. At nine sampled ages the tree goes from zero
+to 156 sprout pixels, 5,699 mature pixels, then 76 stump pixels and zero. The
+building rises from zero to 11,880 pixels and its rubble height falls from 160
+to 31 probe pixels before clearing. The life-cycle contact sheet was inspected.
+A GPU foreground-scroll probe matches an exact one-pixel translated hill.
+Scene wrap checks pass (max mean change .447/255), and the integrated color/motion
+check remains smooth (max .470/255). All five effect responses and beat
+brightness pass; the fixed hit raises mean brightness by 9.766/255.
+
+--firescape-test passed 576 exact old-state comparisons, all held Fire checks,
+Molten orbit/branches, 18 Firescape input/time samples and all three transitions.
+Evidence: work/elemental/firescape/lifecycle-check/. before-lifecycle.frag is the
+saved previous Firescape; before.frag remains the old-world comparison baseline.
+This pass changes dream.frag, shader_test.py and three development notes only.
+Studio/renderer/audio interfaces are unchanged; Studio tests were not rerun.
+Python compilation and git diff --check pass. No live-loopback test. Main blend
+still excludes Fire; this refinement and the prior expansion remain uncommitted.
+Final corrected-sapling replay: first 90 seconds each of Balloon, Chasing You
+and Warbot Jazz, held Firescape, 6,330 frames and 18 captures. All capture
+structure/headroom checks passed with zero clipping. Balloon at 45s was visually
+inspected with trees at several life stages and buildings assembling/crumbling.
+Evidence: work/elemental/firescape/lifecycle-final-music/. The earlier
+lifecycle-music/ runs preceded the sapling opacity correction. These are silent
+excerpts, not full songs or live-loopback validation. Unrelated files untouched.
+
+## Psychedelic Firescape (state 17), three-form Fire cycle
+
+The user accepted the branching Molten landscape with "perfect" and requested
+the next form: energetic forest/land/city fire, airborne ash/embers, psychedelic
+color cycling at an audio-dependent rate, and big beats affecting brightness.
+This was interpreted as a new Firescape form; accepted Flame sheets and Molten
+palettes remain unchanged. Living artifacts and its original palette remain
+intact. Molten acceptance supersedes the older pending-review language below.
+
+Firescape layers three wooded hills with curling multicolored flame sheets,
+a distant block skyline, 40 bright ember trajectories and 24 softer ash
+trajectories. Local palette phase uses u_time*.38: the existing continuously
+integrated mids-driven clock makes hue speed responsive without phase jumps.
+Impact brightens the flame sheets; bass increases their extent/strength, flux
+curls them and influences ash, sparkle reveals seams/embers. Quiet still moves.
+New fire_ash bit 1048576 appends to existing IDs. It is independently selectable
+in Fire details and currently only used by Firescape. Existing Fire layers
+remain applicable. No new uniforms, renderer/audio changes or dependencies.
+
+Studio blank Fire now cycles Flame sheets → Molten flow → Firescape → repeat
+in 84 seconds (19s holds / 9s transitions). Held IDs 14 and 15 are unchanged;
+16 remains the native cycle, 17 is Firescape. Elements' generic diagnostic
+cycle now visits eight leaves. Three-way coordinate and composition weights
+sum to one. When Firescape is absent, the original Molten/Flame arithmetic is
+retained: the first simplified sum version failed exact preservation by one
+8-bit step in a Molten pixel. Restoring the original route fixed it without
+weakening the comparison. A malformed Studio test path was also corrected.
+
+--firescape-test passed 576 exact comparisons for states 0–15 against the saved
+accepted Molten shader. All existing flame ignition/lava, Molten orbit/branch,
+layer and audio checks pass. Eight cycle endpoints match held forms; 24 boundary
+checks and 813 transition frames pass (max mean step .699/255). New form: 18
+input/time samples, zero clipping, contrast 29.36–46.49, dark fraction .47–.56.
+All five effects visibly contribute. Strong impact raises mean brightness by
+11/255 in the fixed comparison. 360 real-renderer frames verify continuous
+clock rates .3508 quiet / 1.1446 strong mids (over 3x), max step .386/255.
+Initial image and beat comparison were visually inspected. Evidence:
+work/elemental/firescape/check/; before.frag is the accepted uncommitted Molten
+landscape before this new form. Committed HEAD remains 8be9d4e.
+
+studio_test.py passed after the test-path correction: Firescape selection,
+Ash addition, saved profile round-trip, existing UI lifecycle, replay metadata,
+pacing and continuous GPU clocks. All three 90-second fire_cycle replays passed
+(6,330 frames / 18 captures), covering all three forms and return to Flame sheets.
+Structure/headroom checks passed with zero clipped capture pixels. One 60s
+Firescape frame per track was visually inspected; different songs produce
+different hues at the same elapsed time through the integrated mids clock.
+Evidence: work/elemental/firescape/music/. These are silent accelerated excerpts;
+full-song/live-loopback tests were not run. Python compilation and diff checks
+passed. Nine tracked development files contain the accumulated uncommitted
+Molten/Firescape work; no commits or pushes in this pass.
+
+This is layered procedural scenery, not combustion/particle simulation or a
+rendered 3D city. Main blend remains unchanged. Current expansion is uncommitted
+and awaits review. Existing unrelated scratch/research remains untouched.
+
+## Molten landscape refinement: branching rivers and aerial orbit
+
+The user requested splitting/new rivers, a slowly rotating aerial view, and
+an understated forest/mountain silhouette. The camera now intersects a ground
+plane from an elevated orbit at .008 radians/second (about 13 minutes per turn).
+Gravity/horizon stay level; the river and distant angular silhouettes change
+with the viewpoint. Two simple mountain layers, conifer-shaped tree-line teeth
+and distance haze provide context without detailed scenery.
+
+Four side channels separate from the parent at fixed upstream junctions.
+Slow staggered phases extend/recede their downstream hot fronts. This is a
+bounded procedural branching network, not simulated erosion or permanently
+accumulating lava. Flow remains steady; no audio-driven camera jumps. The
+existing material, Fire layers and two-form timing remain intact. Flame sheets
+and states 0–14 still match checkpoint 8be9d4e exactly in 540 comparisons.
+
+Extended --molten-test passed the existing 18 profile/time samples, four audio
+responses, four layer responses, silent motion, six held-form cycle endpoints,
+24 boundary checks and 542 meld frames (max mean step .517/255). Nine views span
+an entire orbit and retain visible lava with smooth adjacent frames. A GPU
+probe of the actual channel mask at four times shows 3–4 channels across rows,
+1,338 changed mask pixels between 42/100s, and over 98% connected coverage from
+the parent in every sample. Orbit and branch-mask sheets were visually inspected.
+Evidence: work/elemental/molten/landscape-check/. Previous Molten shader saved
+as before-landscape.frag; original preservation baseline remains before.frag.
+All three 60-second held-Molten replays passed: 4,221 frames / 18 captures,
+zero clipped highlights, structure/dark-space checks passed. Balloon at 30s
+was visually inspected at 1280x720. Evidence: landscape-music/ under the same
+Molten work folder. Python compilation and git diff --check passed. Studio
+controls are unchanged, so UI tests were not rerun; no live-loopback retest.
+This refinement changes dream.frag, shader_test.py and the three development
+notes; it preserves the already-uncommitted Molten expansion. Nothing committed
+or pushed. Unrelated research/scratch files remain untouched.
+This refinement is uncommitted, isolated from main, and awaits motion review.
+
+## Molten flow expansion from accepted Fire checkpoint 8be9d4e
+
+The user accepted the Fire refinement, authorized its commit, and requested
+expansion. One additional form, Molten flow (15), supplies a contrasting
+composition: an oblique winding lava river beneath drifting dark crust islands.
+Foreshortening and surface-gradient shading give the banks depth. Elapsed time
+advects the material steadily; bass influences heat, flux modulates internal
+seams, sparkle exposes detail/embers, and impact heats two anchored vents.
+The vents are bounded glow responses, not a particle eruption simulation.
+
+Studio's blank Fire branch now uses fire_cycle (16): Flame sheets for 19s,
+a 9s eased transition, Molten flow for 19s, then a 9s return. Existing fire (14)
+stays held Flame sheets. Its shader appearance is preserved exactly. The meld
+interpolates material coordinates and crossfades the two compositions; it is
+not a physical camera traveling from the hearth into a lava landscape.
+All three states share the Fire layer profile and existing bits. Coals gates
+molten crust islands; Hot seams, Embers and Living artifacts remain selectable.
+No renderer/audio changes, dependencies, or main-blend integration.
+
+GPU expansion test passed 540 exact old-state comparisons, including held
+Flame sheets. All earlier Fire motion/ignition checks pass. New form: 18
+quiet/moderate/full samples, four independent audio responses, four visible
+layers and silent motion. Six cycle endpoints match held forms exactly;
+24 boundary checks and 542 transition frames pass (max step .517/255).
+Evidence: work/elemental/molten/check/, baseline before.frag from 8be9d4e.
+The new form and both transition contact sheets were visually inspected.
+Studio tests and all three 60-second native-cycle replays passed (4,221 frames,
+18 captures). One Molten frame per track was inspected. Maximum clipping was
+11 pixels of a 1280x720 image in the small Molten vents; this passed the bound
+but is not zero. Live loopback and full-song runs were not repeated.
+This expansion is uncommitted and awaits user review.
+
 ## Fire refinement: lava rhythm, licking tips and ignition
 
 The user liked the foundation and requested a steadily flowing lava base,

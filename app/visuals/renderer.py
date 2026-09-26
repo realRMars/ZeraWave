@@ -49,12 +49,32 @@ class Renderer:
         self.debug_state = 0
         self.debug_sequence = ()
         self.layer_profiles = {}
+        # Bounded visual event history, driven by the existing onset parameter.
+        self.shockwaves = []
+        self.shockwave_armed = True
+        self.last_shockwave = -1000.0
 
     def state_at(self, seconds):
         """Development-only holds; ordinary rendering keeps its existing state."""
         if self.debug_sequence:
             return self.debug_sequence[int(max(0.0, seconds) // 28.0) % len(self.debug_sequence)]
         return self.debug_state
+
+    def update_shockwaves(self, seconds):
+        """Remember strong-hit rings; no audio analysis or second simulation."""
+        self.shockwaves = [event for event in self.shockwaves
+                           if 0. <= seconds - event[0] < 8.]
+        impact = max(0., min(1., self.parameters.impact))
+        if impact < .14:
+            self.shockwave_armed = True
+        if (self.state_at(seconds) == 18 and seconds >= 5.
+                and impact >= .40 and self.shockwave_armed
+                and seconds - self.last_shockwave >= 3.0):
+            site = math.floor((seconds - 5.) / 36.)
+            self.shockwaves.append((seconds, float(site), impact, 0.))
+            self.shockwaves = self.shockwaves[-8:]
+            self.last_shockwave = seconds
+            self.shockwave_armed = False
 
     def create(self):
         if not glfw.init():
@@ -179,6 +199,9 @@ class Renderer:
         mode, mask = layers_at(self.layer_profiles, self.state_at(current_time), current_time)
         self.program['u_layer_mode'].value = mode
         self.program['u_layer_mask'].value = mask
+        self.update_shockwaves(current_time)
+        self.program['u_shockwaves'].value = self.shockwaves + [
+            (-1000., 0., 0., 0.)] * (8 - len(self.shockwaves))
         self.vao.render(mode=moderngl.TRIANGLE_STRIP)
 
     def should_close(self):

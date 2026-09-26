@@ -13,7 +13,7 @@ import moderngl
 
 from renderer import Renderer, VERTEX_SHADER
 
-STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14}
+STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18}
 
 
 def save_png(path, pixels):
@@ -810,7 +810,7 @@ def water_integration_test(baseline_path, output):
         renderer.close()
 
 
-def fire_test(baseline_path, output):
+def fire_test(baseline_path, output, molten_expansion=False, firescape_expansion=False):
     """Real GPU preservation, Fire headroom, layers and continuous-clock checks."""
     from preview_layers import BITS
     output.mkdir(parents=True, exist_ok=True)
@@ -833,7 +833,7 @@ def fire_test(baseline_path, output):
             (vao if old else renderer.vao).render(mode=moderngl.TRIANGLE_STRIP)
             return np.frombuffer(renderer.ctx.screen.read(components=3),dtype=np.uint8).reshape(180,320,3).copy()
         preserved=0
-        for state in range(14):
+        for state in range(16 if firescape_expansion else 15 if molten_expansion else 14):
             for seconds in (0.,42.,126.,147.,266.,686.):
                 for level in (.05,.5,.95):
                     for mode,mask in ((0,0),(1,1)):
@@ -888,6 +888,183 @@ def fire_test(baseline_path, output):
         assert cooling_metrics[1]['blue']>cooling_metrics[2]['blue']+10,cooling_metrics
         assert cooling_metrics[2]['pale_pixels']<cooling_metrics[0]['pale_pixels'],cooling_metrics
         save_png(output/'cooling.png',np.concatenate(cooling,axis=0))
+        if molten_expansion:
+            molten_samples=[];molten_images=[]
+            for level in (0.,.45,1.):
+                for seconds in (0.,13.,42.,87.,160.,300.):
+                    pixels=frame(15,seconds,level)
+                    contrast=float(pixels.astype(float).std(axis=(0,1)).mean())
+                    dark=float((pixels.max(axis=2)<35).mean())
+                    clipped=float((pixels.max(axis=2)>=250).mean())
+                    assert contrast>12 and .25<dark<.95 and clipped<.001,(level,seconds,contrast,dark,clipped)
+                    molten_samples.append(dict(level=level,seconds=seconds,contrast=contrast,dark=dark,clipped=clipped))
+                    if seconds==42.:molten_images.append(pixels[::-1])
+            save_png(output/'molten-profiles.png',np.concatenate(molten_images,axis=0))
+            molten_response={};base=frame(15,42.,0.)
+            for key in ('u_scale','u_flux','u_sparkle','u_impact'):
+                pixels=frame(15,42.,0.,overrides={key:1.})
+                molten_response[key]=float(np.abs(pixels.astype(float)-base).mean())
+                assert molten_response[key]>.02,(key,molten_response[key])
+            molten_motion=float(np.abs(frame(15,44.,0.).astype(float)-base).mean())
+            assert molten_motion>.2,molten_motion
+            molten_effects={}
+            for key in ('artifacts','fire_coals','fire_embers','fire_seams'):
+                off=frame(15,42.,.7,1,0);on=frame(15,42.,.7,1,BITS[key])
+                molten_effects[key]=float(np.abs(on.astype(float)-off).mean())
+                assert molten_effects[key]>.005,(key,molten_effects[key])
+            for seconds,state in ((0.,14),(10.,14),(28.,15),(40.,15),(56.,17),(68.,17),(84.,14),(94.,14)):
+                assert np.array_equal(frame(16,seconds),frame(state,seconds)),(seconds,state)
+            joins=[]
+            for level in (.05,.5,.95):
+                for seconds in (19.,28.,47.,56.,75.,84.,103.,112.):
+                    delta=float(np.abs(frame(16,seconds+.01,level).astype(float)-frame(16,seconds-.01,level)).mean())
+                    assert delta<2.,(level,seconds,delta)
+                    joins.append(delta)
+            steps=[];meld_images=[]
+            for start in (19.,47.,75.):
+                previous=None
+                for i in range(271):
+                    seconds=start+i/30.
+                    pixels=frame(16,seconds,.6)
+                    if previous is not None:
+                        step=float(np.abs(pixels.astype(float)-previous).mean())
+                        assert step<3.,(seconds,step)
+                        steps.append(step)
+                    previous=pixels.astype(float)
+                    if i in (0,135,270):meld_images.append(pixels[::-1])
+            save_png(output/'meld.png',np.concatenate(meld_images,axis=0))
+            # A whole orbit must keep lava visible and the distant silhouette
+            # stable; fixed elapsed-time tests include the far side of the river.
+            orbit=[];orbit_images=[]
+            for seconds in (0.,98.,196.,294.,392.,490.,588.,686.,784.):
+                pixels=frame(15,seconds,.45)
+                bright=float((pixels.max(axis=2)>70).mean())
+                assert bright>.015,(seconds,bright)
+                orbit.append(dict(seconds=seconds,bright_fraction=bright))
+                orbit_images.append(pixels[::-1])
+                delta=float(np.abs(frame(15,seconds+.02,.45).astype(float)-pixels).mean())
+                assert delta<3.,(seconds,delta)
+            save_png(output/'orbit.png',np.concatenate([
+                np.concatenate(orbit_images[i:i+3],axis=1) for i in (0,3,6)],axis=0))
+            # Inspect the actual shader's channel mask with the camera removed:
+            # branching must change over time and remain connected to its parent.
+            source=(Path(__file__).parent/'shaders/dream.frag').read_text(encoding='utf-8')
+            probe_source=source.replace('fragColor = vec4(color, 1.0);',
+                'fragColor = vec4(vec3(1.-smoothstep(.78,1.22,molten_channel((uv-.5)*vec2(16.,24.)).x/.76)),1.);')
+            probe=renderer.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=probe_source)
+            probe_vao=renderer.ctx.simple_vertex_array(probe,renderer.vertices,'in_position')
+            masks=[];branch_counts=[]
+            try:
+                for seconds in (0.,42.,100.,170.):
+                    for name,value in dict(u_drift_time=seconds,u_resolution=(320.,180.),u_debug_state=15.).items():
+                        if name in probe:probe[name].value=value
+                    probe_vao.render(mode=moderngl.TRIANGLE_STRIP)
+                    mask=np.frombuffer(renderer.ctx.screen.read(components=3),dtype=np.uint8).reshape(180,320,3)[:,:,0]>100
+                    counts=(mask[:,1:] & ~mask[:,:-1]).sum(axis=1)
+                    assert counts.max()>=3,(seconds,counts.max())
+                    # Flood from a central parent pixel across the entire mask.
+                    reached=np.zeros_like(mask);y,x=np.argwhere(mask)[len(np.argwhere(mask))//2];reached[y,x]=True
+                    while True:
+                        expanded=reached.copy()
+                        expanded[1:]|=reached[:-1];expanded[:-1]|=reached[1:]
+                        expanded[:,1:]|=reached[:,:-1];expanded[:,:-1]|=reached[:,1:]
+                        expanded &= mask
+                        if np.array_equal(expanded,reached):break
+                        reached=expanded
+                    assert reached.sum()/mask.sum()>.98,(seconds,reached.sum(),mask.sum())
+                    masks.append(mask);branch_counts.append(int(counts.max()))
+                changed=int(np.count_nonzero(masks[1]!=masks[2]))
+                assert changed>100,changed
+                save_png(output/'branches.png',np.concatenate([
+                    np.repeat((m.astype(np.uint8)*255)[:,:,None],3,axis=2)[::-1] for m in masks],axis=1))
+            finally:probe_vao.release();probe.release()
+            molten_report=dict(samples=molten_samples,audio_response=molten_response,
+                effect_response=molten_effects,quiet_motion=molten_motion,
+                cycle_endpoint_checks=8,cycle_boundary_checks=len(joins),max_join=max(joins),
+                meld_frames=813,max_meld_step=max(steps),orbit=orbit,
+                max_row_channels=branch_counts,changed_channel_pixels=changed)
+            (output/'molten.json').write_text(json.dumps(molten_report,indent=2),encoding='utf-8')
+            print('PASS Molten: '+json.dumps(molten_report),flush=True)
+        if firescape_expansion:
+            wild_samples=[];wild_images=[]
+            for level in (0.,.45,1.):
+                for seconds in (0.,13.,42.,87.,160.,300.):
+                    pixels=frame(17,seconds,level)
+                    contrast=float(pixels.astype(float).std(axis=(0,1)).mean())
+                    dark=float((pixels.max(axis=2)<35).mean())
+                    clipped=float((pixels.max(axis=2)>=250).mean())
+                    assert contrast>15 and .15<dark<.9 and clipped<.001,(level,seconds,contrast,dark,clipped)
+                    wild_samples.append(dict(level=level,seconds=seconds,contrast=contrast,dark=dark,clipped=clipped))
+                    if seconds==42.:wild_images.append(pixels[::-1])
+            save_png(output/'firescape-profiles.png',np.concatenate(wild_images,axis=0))
+            wild_effects={}
+            for key in ('artifacts','fire_coals','fire_embers','fire_seams','fire_ash'):
+                a=frame(17,42.,.7,1,0);b=frame(17,42.,.7,1,BITS[key])
+                wild_effects[key]=float(np.abs(a.astype(float)-b).mean())
+                assert wild_effects[key]>.005,(key,wild_effects[key])
+            base=frame(17,42.,.45,overrides={'u_impact':0.})
+            hit=frame(17,42.,.45,overrides={'u_impact':.5})
+            brightness=float(hit.mean()-base.mean())
+            assert brightness>2.,brightness
+            assert (hit.max(axis=2)>=250).mean()<.001
+            save_png(output/'beat.png',np.concatenate([base[::-1],hit[::-1]],axis=1))
+            # Fixed world/time with a later integrated color phase must change hue.
+            later=frame(17,42.,.45,overrides={'u_time':42.*.75+6.,'u_impact':0.})
+            hue_change=float(np.abs(later.astype(float)-base).mean())
+            assert hue_change>5.,hue_change
+            # Actual scenery functions, fixed seed and camera: independently
+            # verify sprouting, maturity, burning, collapse and an empty reset.
+            source=(Path(__file__).parent/'shaders/dream.frag').read_text(encoding='utf-8')
+            probe_source=source.replace('fragColor = vec4(color, 1.0);',
+                'vec2 life_shape = uv.x < .5 ? firescape_tree(vec2((uv.x*2.-.5)*1.8,(uv.y-.1)*1.5),.37,fract(u_drift_time/64.)) : firescape_building(vec2(((uv.x-.5)*2.-.5)*1.2,(uv.y-.1)*1.2),.37,fract(u_drift_time/64.)); fragColor = vec4(life_shape,0.,1.);')
+            probe=renderer.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=probe_source)
+            probe_vao=renderer.ctx.simple_vertex_array(probe,renderer.vertices,'in_position')
+            life_images=[];life_metrics=[]
+            try:
+                for age in (0.,.08,.20,.38,.56,.70,.84,.94,.999):
+                    for name,value in dict(u_drift_time=age*64.,u_resolution=(320.,180.),u_debug_state=17.).items():
+                        if name in probe:probe[name].value=value
+                    probe_vao.render(mode=moderngl.TRIANGLE_STRIP)
+                    pixels=np.frombuffer(renderer.ctx.screen.read(components=3),dtype=np.uint8).reshape(180,320,3).copy()
+                    tree=pixels[:,:160,0]>100;building=pixels[:,160:,0]>100
+                    life_metrics.append(dict(age=age,tree_pixels=int(tree.sum()),building_pixels=int(building.sum()),
+                        building_height=int(np.argwhere(building)[:,0].max()) if building.any() else 0))
+                    # Neutral silhouettes plus hot edges for readable evidence.
+                    display=np.repeat(pixels[:,:,0:1],3,axis=2).astype(float)*.65
+                    display[:,:,0]+=pixels[:,:,1]*.65;display[:,:,1]+=pixels[:,:,1]*.2
+                    life_images.append(np.clip(display,0,255).astype(np.uint8)[::-1])
+            finally:probe_vao.release();probe.release()
+            assert life_metrics[0]['tree_pixels']==life_metrics[0]['building_pixels']==0
+            assert life_metrics[-1]['tree_pixels']==life_metrics[-1]['building_pixels']==0
+            for key in ('tree_pixels','building_pixels'):
+                assert 0<life_metrics[1][key]<life_metrics[2][key]<life_metrics[3][key],(key,life_metrics)
+                assert life_metrics[6][key]<life_metrics[3][key],(key,life_metrics)
+            assert life_metrics[7]['building_height']<life_metrics[3]['building_height']*.35,life_metrics
+            save_png(output/'life-cycle.png',np.concatenate([
+                np.concatenate(life_images[i:i+3],axis=1) for i in (0,3,6)],axis=0))
+            # A pixel shift tracking the foreground camera must keep the hill
+            # rooted to the same world position. Test via a GPU hill probe.
+            scroll_source=source.replace('fragColor = vec4(color, 1.0);',
+                'fragColor = vec4(vec3(firescape_hill(screen_p.x+firescape_scroll(1.55),2.)+.5),1.);')
+            probe=renderer.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=scroll_source)
+            probe_vao=renderer.ctx.simple_vertex_array(probe,renderer.vertices,'in_position')
+            scroll_images=[]
+            try:
+                for seconds in (0.,(1./180.)/(.014*1.55)):
+                    for name,value in dict(u_drift_time=seconds,u_resolution=(320.,180.),u_debug_state=17.).items():
+                        if name in probe:probe[name].value=value
+                    probe_vao.render(mode=moderngl.TRIANGLE_STRIP)
+                    scroll_images.append(np.frombuffer(renderer.ctx.screen.read(components=3),dtype=np.uint8).reshape(180,320,3).copy())
+                assert np.array_equal(scroll_images[0][:,1:],scroll_images[1][:,:-1]), 'Foreground terrain slides away from its world coordinate'
+            finally:probe_vao.release();probe.release()
+            wrap_steps=[]
+            for seconds in (63.99,64.,64.01,127.99,128.):
+                delta=float(np.abs(frame(17,seconds+.01,.45).astype(float)-frame(17,seconds-.01,.45)).mean())
+                assert delta<3.,(seconds,delta)
+                wrap_steps.append(delta)
+            wild_report=dict(samples=wild_samples,effect_response=wild_effects,
+                beat_brightness_increase=brightness,phase_color_change=hue_change,
+                lifecycle=life_metrics,max_wrap_step=max(wrap_steps))
         # Actual renderer integration: rise, impact and release, no clock reset.
         renderer.debug_state=14
         previous=None;max_step=0.;hit_step=0.;last_clock=-1.;last_star=-1.
@@ -908,6 +1085,28 @@ def fire_test(baseline_path, output):
             previous=pixels
         assert max_step<3.,max_step
         assert hit_step<12.,hit_step  # Deliberate onset flash, not ordinary motion.
+        if firescape_expansion:
+            # Actual renderer: the same monotonic clock must settle to a faster
+            # hue rate with stronger mids, without a jump/reset on the change.
+            renderer.debug_state=17;rate_samples=[];previous_time=renderer.flow_time
+            previous_pixels=None;wild_step=0.
+            for index in range(360):
+                renderer.parameters.movement=0. if index<180 else 1.
+                renderer.parameters.scale=.45;renderer.parameters.flux=.35
+                renderer.parameters.sparkle=.45;renderer.parameters.impact=0.
+                renderer.render(elapsed_time=6.+(index+1)/60.)
+                delta=renderer.flow_time-previous_time
+                assert 0.<delta<.02,delta
+                if index in (179,359):rate_samples.append(delta*60.)
+                previous_time=renderer.flow_time
+                pixels=np.frombuffer(renderer.ctx.screen.read(components=3),dtype=np.uint8).astype(float)
+                if previous_pixels is not None:wild_step=max(wild_step,float(np.abs(pixels-previous_pixels).mean()))
+                previous_pixels=pixels
+            assert rate_samples[1]>rate_samples[0]*2.5,rate_samples
+            assert wild_step<3.,wild_step
+            wild_report.update(color_clock_rates=rate_samples,integrated_frames=360,max_step=wild_step)
+            (output/'firescape.json').write_text(json.dumps(wild_report,indent=2),encoding='utf-8')
+            print('PASS Firescape: '+json.dumps(wild_report),flush=True)
         report=dict(preserved_cases=preserved,samples=samples,audio_response=response,
             quiet_motion=quiet_motion,effect_response=effects,integrated_frames=361,max_step=max_step,
             lava_motion=lava_motion,cooling=cooling_metrics,hit_step=hit_step)
@@ -950,8 +1149,148 @@ def main(debug_state=0, states=None, layers=None):
         renderer.close()
 
 
+def aftershock_test(baseline_path, output):
+    """GPU preservation and persistent, bounded musical blast events."""
+    output.mkdir(parents=True, exist_ok=True)
+    r=Renderer(width=320,height=180)
+    r.debug_state=18
+    r.parameters.impact=.35;r.update_shockwaves(5.);assert not r.shockwaves
+    # Sustained input creates one ring; new onsets require rearming/cooldown.
+    r.parameters.impact=.8;r.update_shockwaves(5.)
+    r.update_shockwaves(7.);assert len(r.shockwaves)==1
+    r.parameters.impact=0.;r.update_shockwaves(7.1)
+    r.parameters.impact=.7;r.update_shockwaves(8.2)
+    assert len(r.shockwaves)==2
+    for i in range(100):
+        t=9.+i*.2;r.parameters.impact=.9 if i%2 else 0.;r.update_shockwaves(t)
+        assert len(r.shockwaves)<=3
+        assert all(b[0]-a[0]>=3.0 for a,b in zip(r.shockwaves,r.shockwaves[1:]))
+        assert all(0<=t-e[0]<8 for e in r.shockwaves)
+    r.parameters.impact=0.;r.update_shockwaves(50.);assert not r.shockwaves
+    r.debug_state=14;r.parameters.impact=1.;r.update_shockwaves(51.);assert not r.shockwaves
+    r.debug_state=18
+    old=vao=None
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text(encoding='utf-8'))
+        vao=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        def frame(state,t,level=.4,previous=False,events=(),mask=None):
+            pr=old if previous else r.program
+            values=dict(u_time=t*.75,u_star_time=t,u_drift_time=t,u_resolution=(320.,180.),
+                u_scale=level,u_flux=level,u_sparkle=level,u_impact=level*.5,
+                u_intensity=1.,u_distortion=1.,u_debug_state=float(state),
+                u_layer_mode=int(mask is not None),u_layer_mask=mask or 0)
+            for k,v in values.items():
+                if k in pr:pr[k].value=v
+            if 'u_shockwaves' in pr:pr['u_shockwaves'].value=list(events)+[(-1000.,0.,0.,0.)]*(8-len(events))
+            (vao if previous else r.vao).render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(180,320,3).copy()
+        count=0
+        for state in range(18):
+            for t in (5.,28.,51.,79.,147.,266.):
+                for level in (.05,.9):
+                    assert np.array_equal(frame(state,t,level),frame(state,t,level,True)),(state,t,level)
+                    count+=1
+        images=[]
+        for t in (5.03,7.,12.,24.,42.,49.,58.,77.04,90.):
+            events=[(t-1.,float(max(0,math.floor((t-5.)/36.))),.9,0.),(t-2.5,float(max(0,math.floor((t-5.)/36.))),.8,0.)]
+            pixels=frame(18,t,events=events)
+            assert pixels.max()<250 and pixels.std()>8,(t,pixels.max(),pixels.std())
+            images.append(pixels[::-1])
+        save_png(output/'timeline.png',np.concatenate([np.concatenate(images[i:i+3],axis=1) for i in (0,3,6)],axis=0))
+        silent=frame(18,24.)
+        one=frame(18,24.,events=[(23.,0.,1.,0.)])
+        two=frame(18,24.,events=[(23.,0.,1.,0.),(21.,0.,1.,0.)])
+        assert np.abs(one.astype(float)-silent).mean()>.05
+        assert np.abs(two.astype(float)-one).mean()>.05
+        assert np.array_equal(silent,frame(18,24.,events=[(15.,0.,1.,0.)]))
+        for bit,t in ((2097152,5.04),(4194304,8.),(8388608,8.),(16777216,24.)):
+            assert np.abs(frame(18,t,mask=bit).astype(float)-frame(18,t,mask=0)).mean()>.03,(bit,t)
+        flash_area=[]
+        for t in (5.02,5.15,7.1):
+            delta=np.abs(frame(18,t,mask=2097152).astype(float)-frame(18,t,mask=0))
+            flash_area.append(int((delta.max(axis=2)>10).sum()))
+        assert 0<flash_area[0]<flash_area[1] and flash_area[2]==0,flash_area
+        assert np.abs(frame(18,5.8,mask=2097152).astype(float)-frame(18,5.8,mask=0)).mean()>1.
+        source=(Path(__file__).parent/'shaders/dream.frag').read_text(encoding='utf-8')
+        probe=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=source.replace(
+            'fragColor = vec4(color, 1.0);','fragColor = vec4(blast_cloud_order(u_drift_time)/255.,1.);'))
+        probe_vao=r.ctx.simple_vertex_array(probe,r.vertices,'in_position')
+        try:
+            for t,expected in ((120.,(2,3,1)),(156.,(2,4,3)),(192.,(5,4,3))):
+                probe['u_drift_time'].value=t
+                probe_vao.render(mode=moderngl.TRIANGLE_STRIP)
+                assert tuple(r.ctx.screen.read(components=3)[:3])==expected,(t,expected)
+        finally:
+            probe_vao.release();probe.release()
+        # Fixed site hues must differ, and the flash must invert source RGB.
+        for expression,expected in (
+                ('blast_material_negative(vec3(.5,.25,0.))',(51,153,255)),
+                ('blast_material_negative(vec3(0.,.25,.5))',(255,153,51))):
+            check=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=source.replace(
+                'fragColor = vec4(color, 1.0);',f'fragColor = vec4({expression},1.);'))
+            check_vao=r.ctx.simple_vertex_array(check,r.vertices,'in_position')
+            try:
+                check_vao.render(mode=moderngl.TRIANGLE_STRIP)
+                actual=tuple(r.ctx.screen.read(components=3)[:3])
+                assert all(abs(a-b)<=1 for a,b in zip(actual,expected)),actual
+            finally:
+                check_vao.release();check.release()
+        tint=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=source.replace(
+            'fragColor = vec4(color, 1.0);','fragColor = vec4(blast_plume_tint(floor(u_drift_time)),1.);'))
+        tint_vao=r.ctx.simple_vertex_array(tint,r.vertices,'in_position')
+        try:
+            colors=[]
+            for i in range(6):
+                tint['u_drift_time'].value=float(i)
+                tint_vao.render(mode=moderngl.TRIANGLE_STRIP)
+                colors.append(np.array(tuple(r.ctx.screen.read(components=3)[:3]),dtype=float))
+            assert all(np.linalg.norm(a-b)>90 for a,b in zip(colors,colors[1:]))
+        finally:
+            tint_vao.release();tint.release()
+        unbent=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=source.replace('bend=.045*','bend=0.*'))
+        unbent_vao=r.ctx.simple_vertex_array(unbent,r.vertices,'in_position')
+        bending=[]
+        try:
+            for t in (5.8,24.):
+                normal=frame(18,t)
+                for key in unbent:
+                    if key.startswith('u_') and key in r.program:
+                        unbent[key].value=r.program[key].value
+                unbent_vao.render(mode=moderngl.TRIANGLE_STRIP)
+                straight=np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(180,320,3)
+                bending.append(float(np.abs(normal.astype(float)-straight).mean()))
+            assert bending[0]>.05 and bending[1]<.01,bending
+        finally:
+            unbent_vao.release();unbent.release()
+        # Real renderer path uploads history and maintains both continuous clocks.
+        r.shockwaves=[];r.shockwave_armed=True;r.last_shockwave=-1000.
+        for i in range(600):
+            r.parameters.impact=.8 if i%45==0 else 0.
+            before=(r.flow_time,r.star_time);r.render(i/60.+5.)
+            assert r.flow_time>=before[0] and r.star_time>=before[1]
+        assert len(r.shockwaves)>1
+        glfw.set_window_size(r.window,1280,720);r.poll_events();r.render(50.)
+        query=r.ctx.query(time=True)
+        with query:
+            for i in range(60):r.render(50.+(i+1)/60.)
+        r.ctx.finish()
+        gpu_ms=query.elapsed/1e6/60.
+        report=dict(preserved_frames=count,renderer_frames=660,gpu_ms_720p=gpu_ms,event_history='passed',
+            independent_rings='passed',expiry='passed',effects='passed',gpu=r.ctx.info['GL_RENDERER'])
+        (output/'checks.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print(report)
+    finally:
+        if vao is not None:vao.release()
+        if old is not None:old.release()
+        r.close()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--aftershock-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
+    parser.add_argument("--firescape-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
+    parser.add_argument("--molten-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--fire-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--sweep", type=Path)
     parser.add_argument("--layer-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
@@ -972,7 +1311,13 @@ if __name__ == "__main__":
     parser.add_argument("--states", nargs="+", choices=tuple(STATES), help="Development cycle: hold each state for 28 seconds.")
     parser.add_argument("--layers", type=parse_layers, default={}, help="Development per-world effect settings as JSON.")
     args = parser.parse_args()
-    if args.fire_test:
+    if args.aftershock_test:
+        aftershock_test(*args.aftershock_test)
+    elif args.firescape_test:
+        fire_test(*args.firescape_test,molten_expansion=True,firescape_expansion=True)
+    elif args.molten_test:
+        fire_test(*args.molten_test,molten_expansion=True)
+    elif args.fire_test:
         fire_test(*args.fire_test)
     elif args.water_integration_test:
         water_integration_test(*args.water_integration_test)

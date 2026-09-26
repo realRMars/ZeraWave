@@ -14,6 +14,7 @@ uniform float u_debug_state;
 // Optional development isolation. Zero keeps every authored expression intact.
 uniform int u_layer_mode;
 uniform int u_layer_mask;
+uniform vec4 u_shockwaves[8];
 float effect(int bit) {
     return u_layer_mode == 0 || (u_layer_mask & bit) != 0 ? 1.0 : 0.0;
 }
@@ -1417,9 +1418,443 @@ vec3 isolated_fire_scene(vec2 p, vec3 canvas) {
     return 1.-exp(-light*1.65);
 }
 
+// A separate held form and a development-only three-form meld. Held Fire (14)
+// retains its exact accepted route; the source material clock never resets.
+float molten_weight() {
+    if (u_debug_state > 14.5 && u_debug_state < 15.5) return 1.;
+    if (u_debug_state < 15.5 || u_debug_state > 16.5) return 0.;
+    float phase=mod(u_drift_time,84.);
+    return smoothstep(19.,28.,phase)*(1.-smoothstep(47.,56.,phase));
+}
+
+float firescape_weight() {
+    if (u_debug_state > 16.5 && u_debug_state < 17.5) return 1.;
+    if (u_debug_state < 15.5 || u_debug_state > 16.5) return 0.;
+    float phase=mod(u_drift_time,84.);
+    return smoothstep(47.,56.,phase)*(1.-smoothstep(75.,84.,phase));
+}
+
+// A slow elevated orbit: horizontal world heading changes, gravity stays down.
+vec2 molten_ground(vec2 p) {
+    float heading=.34+u_drift_time*.008;
+    vec2 forward=vec2(sin(heading),cos(heading));
+    vec2 right=vec2(forward.y,-forward.x);
+    float down=.408-p.y*1.46;
+    vec2 ray=forward*(.913+p.y*.653)+right*p.x*1.6;
+    return -forward*9.+ray*(4./max(.035,down));
+}
+
+// Return cross-stream distance and the parent center. Branches begin on the
+// parent river and their hot fronts grow downstream; there are no random cuts.
+vec2 molten_channel(vec2 ground) {
+    float center=.65*sin(ground.y*.34)+.28*sin(ground.y*.77);
+    float distance=abs(ground.x-center);
+    for(int i=0;i<4;i++) {
+        float id=float(i);
+        float split=5.-id*3.8;
+        float downstream=max(0.,split-ground.y);
+        float side=mod(id,2.)<.5 ? -1. : 1.;
+        float spread=side*(1.-exp(-downstream*.32))*(2.4+id*.55);
+        float branch=center+spread+.22*sin(downstream*.85+id)*smoothstep(0.,2.,downstream);
+        float life=.5+.5*sin(u_drift_time*.035+id*1.9);
+        float front=1.5+life*12.;
+        float growth=smoothstep(0.,.8,downstream)*(1.-smoothstep(front,front+2.,downstream));
+        float width=.68*growth;
+        float branch_distance=abs(ground.x-branch)+(1.10-width);
+        distance=min(distance,branch_distance);
+    }
+    return vec2(distance,center);
+}
+
+vec2 molten_domain(vec2 p) {
+    vec2 q=molten_ground(p);
+    q.x-=.65*sin(q.y*.34)+.28*sin(q.y*.77);
+    q.y+=u_drift_time*.11;
+    q.x+=.09*sin(q.y*1.3+q.x);
+    return q;
+}
+
+vec3 molten_backdrop(vec2 p) {
+    float bearing=.34+u_drift_time*.008+atan(p.x*1.6,.913);
+    float ridge=.315+.038*sin(bearing*5.)+.032*sin(bearing*11.+2.)
+        +.015*sin(bearing*23.);
+    vec3 sky=mix(vec3(.032,.045,.068),vec3(.065,.067,.082),
+        1.-smoothstep(.26,.50,p.y));
+    vec3 scene=mix(sky,vec3(.031,.038,.050),1.-smoothstep(ridge-.003,ridge+.003,p.y));
+    float near_ridge=.26+.025*sin(bearing*7.+1.)+.012*sin(bearing*19.);
+    scene=mix(scene,vec3(.018,.029,.030),1.-smoothstep(near_ridge-.002,near_ridge+.002,p.y));
+    // Simple conifer teeth, only a silhouette. World bearing ties the tree
+    // line to the terrain instead of pinning it to the screen during orbit.
+    float cell=bearing*140.;
+    float seed=hash(vec2(floor(cell),4.2));
+    float crown=pow(max(0.,1.-abs(fract(cell)*2.-1.)),1.35);
+    float trees=.224+.014*sin(bearing*9.)+crown*(.012+seed*.021);
+    return mix(scene,vec3(.009,.019,.018),1.-smoothstep(trees-.001,trees+.001,p.y));
+}
+
+vec3 isolated_molten_scene(vec2 p,vec3 canvas) {
+    float bass=clamp(u_scale,0.,1.),flux=clamp(u_flux,0.,1.);
+    float spark=clamp(u_sparkle,0.,1.),impact=clamp(u_impact,0.,1.);
+    vec2 ground=molten_ground(p), q=molten_domain(p);
+    float width=.76+.10*sin(ground.y*.42);
+    float bank=molten_channel(ground).x/width;
+    float river=1.-smoothstep(.78,1.22,bank);
+    // Molten folds travel with the river; banks stay fixed in ground space.
+    float fold=fbm(q*vec2(3.8,2.1));
+    float threads=.5+.5*sin(q.x*30.+fold*12.+q.y*1.8
+        +flux*.7*sin(q.y*2.3));
+    float islands=smoothstep(.46,.61,fold)*effect(131072);
+    float liquid=river*(1.-islands*.96);
+    float rock=fbm(ground*3.2);
+    float height=(1.-river)*(.25+rock*.3)+islands*river*.13;
+    vec3 normal=normalize(vec3(-dFdx(height)*u_resolution.y*.55,
+        -dFdy(height)*u_resolution.y*.55,1.));
+    float shade=.25+.75*max(0.,dot(normal,normalize(vec3(-.4,.6,1.))));
+    vec3 light=vec3(.015,.017,.026)*shade*(.5+rock);
+    float glow=exp(-pow((bank-1.)*2.3,2.));
+    light+=vec3(.085,.011,.006)*glow*(.45+rock);
+    vec3 pigment=canvas/(1.+max(canvas.r,max(canvas.g,canvas.b)));
+    vec3 heat=mix(vec3(.45,.025,.004),vec3(1.05,.32,.025),threads*.65+fold*.25);
+    heat=mix(heat,pigment*1.1,.22);
+    light+=heat*liquid*(.75+bass*.18);
+    float seams=pow(threads,10.)*liquid*(.13+spark*.23)
+        +exp(-pow((fold-.48)*38.,2.))*river*.25;
+    light+=vec3(1.,.43,.055)*seams*effect(524288);
+    // Two anchored vents brighten on impacts, leaving the transport steady.
+    float vent=exp(-dot(ground-vec2(.2,-.9),ground-vec2(.2,-.9))*18.)
+        +exp(-dot(ground-vec2(.35,1.2),ground-vec2(.35,1.2))*23.);
+    light+=mix(vec3(.80,.15,.01),vec3(1.2,.8,.3),smoothstep(.35,.5,impact))
+        *vent*river*smoothstep(.12,.48,impact)*(1.+flux*.3);
+    // Sparse embers drift above the channel with a separate apparent height.
+    for(int i=0;i<16;i++) {
+        float seed=hash(vec2(float(i),9.3));
+        float age=fract(u_drift_time*.045+seed*9.);
+        vec2 pos=vec2((seed-.5)*.52,.45-age*.9);
+        pos.x+=.12*sin(pos.y*8.+seed*4.);
+        vec2 d=p-pos;
+        float ember=exp(-dot(d*vec2(330.,220.),d*vec2(330.,220.)));
+        float life=smoothstep(0.,.15,age)*(1.-smoothstep(.7,1.,age));
+        light+=vec3(.9,.25,.035)*ember*life*(.2+spark*.8)*effect(262144);
+    }
+    vec3 terrain=1.-exp(-light*1.8);
+    float distance=length(ground);
+    float haze=smoothstep(15.,65.,distance)*.82;
+    terrain=mix(terrain,vec3(.016,.026,.027),haze);
+    float horizon=smoothstep(.185,.255,p.y);
+    return mix(terrain,molten_backdrop(p),horizon);
+}
+
+// Its own color vocabulary. The existing integrated movement clock controls
+// hue speed continuously; amplitude never multiplies elapsed time directly.
+vec3 firescape_palette(float phase) {
+    vec3 wave=.5+.5*cos(phase+vec3(0.,2.1,4.2));
+    return .025+pow(wave,vec3(1.7))*.95;
+}
+vec2 firescape_domain(vec2 p) {
+    return vec2(p.x*2.5+.12*sin(p.y*6.-u_time*.25),p.y*.85-u_time*.095);
+}
+// World-space scenery moves through fixed cells. Each seed keeps its own
+// growth/burn phase as the camera scrolls; no frame-to-frame random choices.
+float firescape_scroll(float depth) { return u_drift_time*.014*depth; }
+float firescape_life(float seed) { return fract(u_drift_time/64.+seed); }
+float firescape_hill(float x,float z) {
+    return .06-z*.19+.035*sin(x*3.+z*2.)+.027*sin(x*8.+z*.7);
+}
+float firescape_segment(vec2 p,vec2 a,vec2 b,float width) {
+    vec2 d=b-a;
+    float t=clamp(dot(p-a,d)/dot(d,d),0.,1.);
+    return 1.-smoothstep(width,width+.018,length(p-a-d*t));
+}
+vec2 firescape_tree(vec2 local,float seed,float age) {
+    if (local.y < -.03 || local.y > 1.3 || abs(local.x) > .9) return vec2(0.);
+    float grow=smoothstep(.015,.27,age);
+    float clear=1.-smoothstep(.91,.995,age);
+    vec2 q=local/max(.025,grow);
+    float bend=(seed-.5)*.20;
+    q.x-=bend*q.y*q.y+.012*sin(u_drift_time*.5+seed*20.)*q.y;
+    float crown=0.,wood=firescape_segment(q,vec2(0.),vec2(.02,.78),.029);
+    for(int i=0;i<6;i++) {
+        float id=float(i),r=hash(vec2(seed*17.+id,3.4));
+        float side=mod(id,2.)<.5 ? -1. : 1.;
+        vec2 root=vec2(.01,.28+id*.055);
+        vec2 tip=vec2(side*(.18+r*.17),.57+id*.055+r*.10);
+        wood=max(wood,firescape_segment(q,root,tip,.011));
+        vec2 leaf=(q-tip)/vec2(.19+r*.07,.16+r*.06);
+        float edge=length(leaf)+.065*sin(atan(leaf.y,leaf.x)*9.+seed*20.);
+        crown=max(crown,1.-smoothstep(.85,1.02,edge));
+    }
+    // The burn front descends through foliage, then the bare trunk, to ground.
+    float front=1.18*(1.-smoothstep(.48,.91,age));
+    float unburnt=1.-smoothstep(front-.055,front+.055,q.y);
+    float foliage=crown*unburnt*(1.-smoothstep(.64,.79,age));
+    float charred=wood*(1.-smoothstep(front+.02,front+.13,q.y));
+    float presence=smoothstep(0.,.035,age)*clear;
+    float body=max(foliage,charred)*presence;
+    float ignition=exp(-pow((q.y-front)*20.,2.))*max(crown,wood)
+        *smoothstep(.47,.55,age)*clear*presence;
+    return vec2(body,ignition);
+}
+vec2 firescape_building(vec2 local,float seed,float age) {
+    float grow=smoothstep(.02,.30,age);
+    float clear=1.-smoothstep(.94,.995,age);
+    float body=0.,seams=0.;
+    // Eighteen masonry blocks acquire independent delays before falling.
+    for(int row=0;row<6;row++) for(int col=0;col<3;col++) {
+        float r=float(row),c=float(col);
+        float jitter=hash(vec2(seed*31.+r,c+8.));
+        float fall=smoothstep(.61+jitter*.13,.93,age);
+        vec2 center=vec2((c-1.)*.24,(r+.5)*.16);
+        float built=smoothstep(center.y-.09,center.y+.05,grow);
+        center.y=mix(center.y,.025+jitter*.025,fall*fall);
+        center.x+=(jitter-.5)*fall*.6;
+        vec2 q=local-center;
+        float angle=(jitter-.5)*fall*2.;
+        q=mat2(cos(angle),sin(angle),-sin(angle),cos(angle))*q;
+        vec2 box=abs(q)-vec2(.113,.074)*mix(1.,.35,fall);
+        float d=max(box.x,box.y);
+        float block=(1.-smoothstep(-.008,.008,d))*built*clear;
+        body=max(body,block);
+        seams=max(seams,exp(-abs(d)*100.)*built*clear*fall);
+    }
+    return vec2(body,seams);
+}
+
+vec3 isolated_firescape_scene(vec2 p,vec3 canvas) {
+    float bass=clamp(u_scale,0.,1.),flux=clamp(u_flux,0.,1.);
+    float spark=clamp(u_sparkle,0.,1.),impact=clamp(u_impact,0.,1.);
+    float clock=u_time*.40+u_drift_time*.025;
+    float hue=u_time*.38;
+    float beat=smoothstep(.16,.50,impact);
+    vec3 pigment=canvas/(1.+max(canvas.r,max(canvas.g,canvas.b)));
+    vec3 sky=vec3(.008,.010,.023);
+    float distant=p.x+firescape_scroll(.18);
+    float ridge=.22+.027*sin(distant*5.+1.)+.021*sin(distant*11.);
+    vec3 scene=mix(sky,vec3(.012,.019,.030),1.-smoothstep(ridge-.002,ridge+.002,p.y));
+    // Buildings rise floor by floor and crumble in a slower background layer.
+    float city_x=p.x+firescape_scroll(.40);
+    float block=city_x*8.+3.;
+    float seed=hash(vec2(floor(block),6.2));
+    float city_base=.105+.012*sin(city_x*4.);
+    float building_height=.10+seed*.14;
+    vec2 city=firescape_building(vec2((fract(block)-.5)*1.25,
+        (p.y-city_base)/building_height),seed,firescape_life(seed));
+    scene+=firescape_palette(hue+1.4)*exp(-pow((p.y-.19)*8.,2.))*.045;
+    scene=mix(scene,vec3(.005,.008,.016),city.x);
+    scene+=firescape_palette(hue+1.4)*city.y*.16;
+    for(int layer=0;layer<3;layer++) {
+        float z=float(layer);
+        float world_x=p.x+firescape_scroll(.65+z*.45);
+        float base=firescape_hill(world_x,z);
+        float h=(p.y-base)/(.27+bass*.045+z*.015);
+        float x=world_x*(1.+z*.2)+z*.37;
+        float rise=clock+z*3.2;
+        float fold=fbm(vec2(x*5.,h*2.4-rise));
+        float curl=(fold-.5)*h*(.12+flux*.18)+sin(h*5.-rise)*h*.08;
+        float strand=x+curl;
+        float tips=.40+.38*(.5+.5*sin(strand*22.+fold*5.+z))
+            +.13*sin(strand*11.-rise*.6);
+        float fire=smoothstep(-.025,.045,h)*(1.-smoothstep(tips-.17,tips+.08,h));
+        float edge=.5+.5*sin(strand*47.+fold*9.);
+        float veil=.24+.76*pow(edge,1.8);
+        vec3 tint=firescape_palette(hue+z*1.4+h*1.3+fold*.6);
+        tint=mix(tint,pigment*1.4,.18);
+        float glow=exp(-pow((h-.12)*2.8,2.))*.08;
+        scene+=tint*(fire*veil*(.65+z*.08)+glow)*(.78+bass*.20+beat*.68);
+        scene+=firescape_palette(hue+z*1.4+.6)*pow(edge,15.)*fire
+            *(.10+spark*.22)*effect(524288);
+        // Neighbor cells let crowns extend naturally beyond their planting
+        // interval. Roots use their own fixed hill height, never pixel height.
+        float density=8.-z*1.2;
+        float cell=floor(world_x*density);
+        float forest=1.-smoothstep(base-.018,base-.014,p.y);
+        vec3 bark=vec3(.008,.016,.015);
+        vec2 trees=vec2(0.);
+        for(int neighbor=-1;neighbor<=1;neighbor++) {
+            float id=cell+float(neighbor);
+            float tree_seed=hash(vec2(id,z+3.));
+            float center=(id+.4+tree_seed*.2)/density;
+            float tree_height=(.075+tree_seed*.075)*(1.+z*.15);
+            float age=firescape_life(tree_seed);
+            vec2 local=vec2(world_x-center,p.y-firescape_hill(center,z))/tree_height;
+            vec2 tree=firescape_tree(local,tree_seed,age);
+            if (tree.x > trees.x) bark=mix(vec3(.008,.020,.015),vec3(.006,.008,.012),smoothstep(.5,.75,age));
+            trees=max(trees,tree);
+        }
+        forest=max(forest,trees.x);
+        scene=mix(scene,bark*(1.+z*.15),forest*.96);
+        scene+=firescape_palette(hue+z*1.4)*trees.y*(.25+beat*.20);
+        float soil=exp(-pow((p.y-base+.018)*40.,2.));
+        scene+=firescape_palette(hue+z)*soil*(.06+.12*noise(vec2(x*25.,rise*.15)))
+            *effect(131072);
+    }
+    // Seeded trajectories: ash is broad and soft, embers small and luminous.
+    // Both lift diagonally off the landscape and fade before wrapping.
+    for(int i=0;i<64;i++) {
+        float id=float(i),seed=hash(vec2(id,7.8));
+        float age=fract(clock*(.10+seed*.07)+seed*13.);
+        float depth=.5+.5*hash(vec2(id,2.6));
+        vec2 pos=vec2((hash(vec2(id,3.1))-.5)*1.65,-.33+age*.95);
+        pos.x+=age*.30+.055*sin(clock*.8+seed*25.+age*5.);
+        vec2 d=p-pos;
+        float life=smoothstep(0.,.10,age)*(1.-smoothstep(.75,1.,age));
+        if(i<40) {
+            float ember=exp(-dot(d*vec2(340.,190.)/depth,d*vec2(340.,190.)/depth));
+            scene+=firescape_palette(hue+seed*5.)*ember*life*(.35+spark*.7+beat*.4)
+                *effect(262144);
+        } else {
+            float ash=exp(-dot(d*vec2(150.,240.)/depth,d*vec2(150.,240.)/depth));
+            scene+=vec3(.19,.20,.24)*ash*life*(.5+flux*.3)*effect(1048576);
+        }
+    }
+    return 1.-exp(-scene*1.65);
+}
+
+// Aftershock: projected ground and layered, shaded ash volumes. Event timestamps
+// preserve musical shockwaves independently of the decaying impact envelope.
+vec2 blast_site(float id) {
+    return vec2((hash(vec2(id,8.7))-.5)*12.,20.+id*10.8+
+        (mod(id,3.)>1.5 ? 42. : 0.));
+}
+// Only three scheduled clouds can be alive within the 86-second lifetime.
+// Sort actual world depth, since distant sites do not follow birth order.
+vec3 blast_cloud_order(float clock) {
+    float latest=floor((clock-5.)/36.);
+    float ids[3];ids[0]=latest;ids[1]=latest-1.;ids[2]=latest-2.;
+    for(int pass=0;pass<2;pass++) for(int i=0;i<2;i++) {
+        if(blast_site(ids[i]).y<blast_site(ids[i+1]).y) {
+            float swap=ids[i];ids[i]=ids[i+1];ids[i+1]=swap;
+        }
+    }
+    return vec3(ids[0],ids[1],ids[2]);
+}
+vec3 blast_aurora(vec2 p,float clock,float camera,float camx) {
+    float id=floor((clock-5.)/36.),age=clock-(5.+id*36.);
+    float bend=0.;
+    if(id>=0.) {
+        vec2 site=blast_site(id);
+        float center=(site.x-camx)/max(4.,(site.y-camera)*1.6);
+        bend=.045*smoothstep(0.,.18,age)*exp(-age*.6)
+            *sin(age*2.4-abs(p.x-center)*5.)*exp(-pow((p.x-center)*1.5,2.));
+    }
+    vec3 light=vec3(0.);
+    for(int i=0;i<3;i++) {
+        float layer=float(i),x=p.x+layer*.7;
+        float ridge=.265+layer*.065+.035*sin(x*4.+clock*.065)
+            +.017*sin(x*10.-clock*.09)+bend;
+        float y=p.y-ridge;
+        float ribbon=exp(-abs(y)*mix(65.,12.,step(0.,y)));
+        float pleats=(.35+.65*pow(.5+.5*sin(x*160.+sin(x*11.+clock*.08)*6.
+            +y*25.+sin(y*30.+x*3.)*2.),2.))*(.55+.45*noise(vec2(x*13.,clock*.035)));
+        vec3 tint=.5+.5*cos(vec3(0.,2.,4.)+layer*1.8+x*.9+clock*.035);
+        light+=tint*vec3(.45,.85,.9)*ribbon*pleats*.24;
+    }
+    return light*smoothstep(.19,.25,p.y)*effect(16777216);
+}
+// Stable per-site color: no shared clock can rotate all plume hues together.
+vec3 blast_plume_tint(float id) {
+    return .24+.76*(.5+.5*cos(vec3(0.,2.094395,4.18879)+id*2.399963+.6));
+}
+vec3 blast_material_negative(vec3 material) {
+    // Invert the actual incoming material, before its muted soil treatment.
+    return 1.-clamp(material*1.6,0.,1.);
+}
+vec3 blast_ring(vec2 ground, float id, float age, float strength) {
+    if(age<0. || age>8.) return vec3(0.);
+    vec2 d=ground-blast_site(id);
+    float r=length(d), radius=age*2.8;
+    float fade=smoothstep(0.,.12,age)*(1.-smoothstep(4.,8.,age))*strength;
+    float irregular=noise(d*.7+vec2(u_drift_time*.12,0.));
+    float curl=noise(d*2.8-vec2(u_time*.7,u_time*.3));
+    float dust=exp(-pow((r-radius+(irregular-.5)*.24)/(.22+age*.065),2.))
+        *(.65+irregular*.55);
+    float tongue=pow(curl,3.)*(.6+clamp(u_flux,0.,1.)*.5);
+    float flame=exp(-pow((r-radius+.55+irregular*.35+tongue)/(.12+curl*.16),2.));
+    return fade*(vec3(.30,.27,.21)*dust*effect(4194304)
+        +vec3(.95,.28,.035)*flame*(.4+irregular*.9)*effect(8388608));
+}
+vec3 isolated_aftershock_scene(vec2 p,vec3 canvas) {
+    // A shallow planetary arc shared by ground, sky and projected plumes.
+    p.y+=.045*p.x*p.x/(1.+.5*p.x*p.x);
+    float clock=u_drift_time, camera=clock*.30;
+    float camx=sin(clock*.025)*1.2;
+    float rayy=p.y*1.6-.32;
+    float groundDepth=6./max(.012,-rayy);
+    vec2 ground=vec2(camx+p.x*1.6*groundDepth,camera+groundDepth);
+    float haze=exp(-groundDepth*.019);
+    vec3 scene=mix(vec3(.045,.060,.073),vec3(.14,.125,.10),
+        exp(-pow((p.y-.19)*8.,2.)));
+    if(rayy<0.) {
+        float terrain=noise(ground*.45)*.6+noise(ground*1.8)*.4;
+        vec3 soil=vec3(.038,.032,.029)+terrain*vec3(.063,.047,.029);
+        soil+=canvas*.055*effect(1);
+        scene=mix(vec3(.14,.125,.10),soil,haze);
+        float recent=floor((clock-5.)/36.);
+        for(int j=0;j<3;j++) {
+            float id=recent-float(j),age=clock-(5.+id*36.);
+            if(id>=0.) {
+                float r=length(ground-blast_site(id));
+                scene*=1.-.6*exp(-r*r*.7)*smoothstep(0.,2.,age)*effect(131072);
+                scene+=blast_ring(ground,id,age,1.2)*haze;
+            }
+        }
+        for(int j=0;j<8;j++) {
+            vec4 e=u_shockwaves[j];
+            if(e.z>0.) scene+=blast_ring(ground,e.y,clock-e.x,e.z)*haze;
+        }
+    }
+    scene+=blast_aurora(p,clock,camera,camx);
+    vec3 cloudOrder=blast_cloud_order(clock);
+    for(int j=0;j<3;j++) {
+        float id=cloudOrder[j],age=clock-(5.+id*36.);
+        vec2 site=blast_site(id);float dz=site.y-camera;
+        if(id>=0. && age>0. && age<86. && dz>1.) {
+            float life=smoothstep(0.,.5,age)*(1.-smoothstep(64.,86.,age))
+                *smoothstep(1.,4.,dz);
+            vec2 local=vec2(p.x*dz*1.6+camx-site.x,(p.y*1.6-.32)*dz+6.);
+            float height=7.5*(1.-exp(-age*.075));
+            float width=.35+2.9*(1.-exp(-age*.075));
+            float stemW=(.23+.48*(1.-exp(-age*.1)))*(1.+.24*sin(local.y*4.+clock*.18));
+            float bend=sin(local.y*.65+clock*.12)*.15*local.y/8.;
+            float stem=exp(-pow(abs((local.x-bend)/stemW),4.))
+                *smoothstep(0.,.3,local.y)*(1.-smoothstep(height-.2,height+.5,local.y));
+            float density=stem*.85;
+            float rolls=noise(local*vec2(4.,2.)-vec2(0.,clock*.25));
+            vec3 cloud=mix(vec3(.085,.088,.087),vec3(.38,.32,.23),rolls)
+                +vec3(.22,.075,.008)*exp(-age*.06);
+            float skirt=exp(-pow(abs(local.x/(.8+width*.75)),4.)-pow((local.y-.25)/.42,2.));
+            density=max(density,skirt*.65);
+            for(int k=0;k<9;k++) {
+                float a=float(k)*2.39996;
+                vec2 center=vec2(cos(a)*width*.66,height+sin(a)*width*.18);
+                vec2 q=(local-center)/vec2(width*.48,width*.36);
+                float n=noise(local*2.+vec2(clock*.10,id));
+                float rr=dot(q,q)+(n-.5)*.22;
+                float puff=1.-smoothstep(.70,1.05,rr);
+                float light=clamp(.50+.25*(-q.x+q.y)+.3*sqrt(max(0.,1.-rr)),0.,1.);
+                vec3 shade=mix(vec3(.085,.09,.092),vec3(.55,.46,.31),light);
+                shade+=vec3(.50,.13,.015)*exp(-age*.13)*(1.-light);
+                cloud=mix(cloud,shade,puff);density=max(density,puff);
+            }
+            float cloudHaze=exp(-dz*.012);
+            cloud*=.78+.40*noise(local*3.-vec2(0.,clock*.10));
+            float luminance=dot(cloud,vec3(.2126,.7152,.0722));
+            cloud=mix(cloud,luminance*blast_plume_tint(id)*1.7,.88);
+            scene=mix(scene,mix(vec3(.14,.125,.10),cloud,cloudHaze),density*life);
+        }
+    }
+    scene=1.-exp(-scene*1.5);
+    // One short outward inversion per detonation, separate from musical rings.
+    float id=floor((clock-5.)/36.),age=clock-(5.+id*36.);
+    if(id>=0. && age>=0. && age<2. && rayy<0.) {
+        float front=1.-smoothstep(age*180.,age*180.+2.,length(ground-blast_site(id)));
+        scene=mix(scene,blast_material_negative(canvas),front*exp(-age*1.8)*(1.-smoothstep(1.5,2.,age))*.9*effect(2097152));
+    }
+    return clamp(scene,0.,1.);
+}
+
 void main()
 {
-    bool fire_mode = u_debug_state > 13.5 && u_debug_state < 14.5;
+    bool fire_mode = u_debug_state > 13.5 && u_debug_state < 18.5;
     float debug_state = fire_mode ? 1.0 : (u_debug_state > 10.5 && u_debug_state < 12.5) ? 1.0 : u_debug_state;
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
 
@@ -1466,7 +1901,12 @@ void main()
     p = mat2(cos(gather_twist), sin(gather_twist),
         -sin(gather_twist), cos(gather_twist)) * p;
 
-    if (fire_mode) p = fire_domain(screen_p);
+    if (fire_mode) {
+        float molten=molten_weight(), wild=firescape_weight();
+        p=mix(fire_domain(screen_p),molten_domain(screen_p)*.4,molten);
+        if (wild > 0.) p=fire_domain(screen_p)*(1.-molten-wild)
+            +molten_domain(screen_p)*.4*molten+firescape_domain(screen_p)*wild;
+    }
 
     float t = u_time * 0.18;
     float distortion = u_distortion;
@@ -2399,6 +2839,20 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         if (forms.w > 0.0) liquid = mix(liquid,water_falls(falls,color),forms.w);
         color = mix(color,liquid,water_takeover);
     }
-    if (fire_mode) color = isolated_fire_scene(screen_p, fire_material);
+    if (fire_mode) {
+        float molten=molten_weight(), wild=firescape_weight();
+        if (u_debug_state > 17.5) {
+            color=isolated_aftershock_scene(screen_p,fire_material);
+        } else if (wild <= 0.) {
+            if (molten < 1.) color=isolated_fire_scene(screen_p,fire_material);
+            if (molten > 0.) color=mix(color,isolated_molten_scene(screen_p,fire_material),molten);
+        } else {
+            float sheets=max(0.,1.-molten-wild);
+            color=vec3(0.);
+            if (sheets > 0.) color+=isolated_fire_scene(screen_p,fire_material)*sheets;
+            if (molten > 0.) color+=isolated_molten_scene(screen_p,fire_material)*molten;
+            color+=isolated_firescape_scene(screen_p,fire_material)*wild;
+        }
+    }
     fragColor = vec4(color, 1.0);
 }

@@ -37,8 +37,11 @@ def main():
         try:validate_layers(invalid)
         except ValueError:pass
         else:raise AssertionError(invalid)
-    assert selection_states(['elements'])==['sea','dyes','rain','waterfall','currents','fire']
-    assert selection_states(['elements','fire'])==['fire']
+    assert selection_states(['elements'])==['sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock']
+    assert selection_states(['elements','fire'])==['fire_cycle']
+    assert selection_states(['elements','fire','molten'])==['molten']
+    assert selection_states(['elements','fire','firescape'])==['firescape']
+    assert selection_states(['elements','fire','aftershock'])==['aftershock']
     assert selection_states(['elements','fire','sheets'])==['fire']
     assert selection_states(['elements','water'])==['water']
     assert selection_states(['elements','water','rain'])==['rain']
@@ -51,7 +54,7 @@ def main():
     assert selection_states([])==['blend']
     # A second future branch must not truncate Water's descendants to one hold.
     with patch.dict(WORLD_TREE['elements']['children'], {'test-other':dict(label='Test',state='organic')}):
-        assert selection_states(['elements'])==['sea','dyes','rain','waterfall','currents','fire','organic']
+        assert selection_states(['elements'])==['sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock','organic']
     assert selection_states(['future'], {'future':dict(children={
         'a':dict(children={'b':dict(children={'c':dict(state='rain')})}),
         'd':dict(state='sea')})})==['rain','sea']
@@ -140,12 +143,33 @@ def main():
                 assert widget.winfo_y()+widget.winfo_height()<=app.layers_tab.winfo_height(), widget
             app.select(['elements','fire','sheets'])
             app.effect_category.set('Fire details');app.refresh_effect_picker()
-            assert set(app.effect_box['values'])=={'Coals','Embers','Hot seams'}
+            assert set(app.effect_box['values'])=={'Coals','Embers','Hot seams','Ash'}
             app.effect_choice.set('Embers');app.add_layer()
             app.layer_mode.set('Cycle list');app.change_layer_playback()
             app.session_path=folder/'fire-layers.json';app.save()
             restored=validate_session(json.loads(app.session_path.read_text(encoding='utf-8')))
             assert restored['state']=='fire'
+            app.select(['elements','fire','molten'])
+            assert app.layer_profiles['fire']==restored['layers']['fire']
+            assert app.values()['state']=='molten'
+            assert layers_at(restored['layers'],15,0)==(1,BITS['fire_embers'])
+            assert layers_at(restored['layers'],16,0)==(1,BITS['fire_embers'])
+            app.select(['elements','fire','firescape'])
+            app.effect_category.set('Fire details');app.refresh_effect_picker()
+            app.effect_choice.set('Ash');app.add_layer()
+            app.session_path=folder/'firescape-layers.json';app.save()
+            wild=validate_session(json.loads(app.session_path.read_text(encoding='utf-8')))
+            app.select(['elements','fire','aftershock'])
+            app.effect_category.set('Aftershock details');app.refresh_effect_picker()
+            assert set(app.effect_box['values'])=={'Inversion flash','Dust shockwaves','Ground fire','Aurora'}
+            app.effect_choice.set('Dust shockwaves');app.add_layer()
+            app.session_path=folder/'aftershock-layers.json';app.save()
+            blast=validate_session(json.loads(app.session_path.read_text(encoding='utf-8')))
+            assert blast['state']=='aftershock'
+            assert blast['layers']['fire']['items'][-1]['id']=='blast_dust'
+            assert wild['state']=='firescape'
+            assert wild['layers']['fire']['items'][-1]['id']=='fire_ash'
+            assert layers_at(wild['layers'],17,0)==(1,BITS['fire_embers'])
             assert layers_at(restored['layers'],14,0)==(1,BITS['fire_embers'])
             assert restored['layers']['water']['mode']=='cycle'
             app.tabs.select(app.preview)

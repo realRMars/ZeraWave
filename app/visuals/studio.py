@@ -41,8 +41,11 @@ WORLD_TREE = {
             'waterfall': dict(label='Waterfall', state='waterfall'),
             'currents': dict(label='Currents', state='currents'),
         }),
-        'fire': dict(label='Fire', cycle='fire', children={
+        'fire': dict(label='Fire', cycle='fire_cycle', children={
             'sheets': dict(label='Flame sheets', state='fire'),
+            'molten': dict(label='Molten flow', state='molten'),
+            'firescape': dict(label='Firescape', state='firescape'),
+            'aftershock': dict(label='Aftershock', state='aftershock'),
         }),
     }),
 }

@@ -31,8 +31,8 @@ Only one child per Studio runs at a time. Setting changes apply to the next run.
 
 Visual world contains Organic, Geometric, Cosmic, Transition, and Elements.
 Elements expands to Water, then Sea, Liquid dyes, Rain & ripples, Waterfall,
-and Currents. Elements also contains Fire → Flame sheets (isolated development
-foundation, not yet in the main blend).
+and Currents. Elements also contains Fire → Flame sheets / Molten flow / Firescape / Aftershock (isolated development
+forms, not yet in the main blend).
 Cosmic expands to Planet canvas and Geometry study. Organic expands to Membrane
 and Roots; blank Form keeps their original authored meld. Geometric expands to
 Neon corridor. Transition remains the existing Cosmic handoff diagnostic.
@@ -41,7 +41,7 @@ No unimplemented elements are exposed.
 Every selector offers a genuinely blank option:
 
 - Blank Visual world selects the normal main blend.
-- Elements with blank Category visits all five Water forms, then Fire, in
+- Elements with blank Category visits all five Water forms, then all four Fire forms, in
   28-second development holds. These are direct switches, not authored melds.
 - Elements → Water with blank Form runs Water's existing authored meld.
 - Selecting Sea, Rain & ripples, etc. holds only that form.
@@ -211,9 +211,74 @@ fixtures. Standalone checks do not replace subjective listening/visual review.
 
 Restart Studio and select Elements → Fire → Flame sheets. Start with Authored;
 Fire details offers Coals, Embers and Hot seams. Material offers the existing
-Living artifacts, with its original palette. Blank Fire form currently holds
-its single implemented composition. The main blend does not yet include Fire.
+Living artifacts, with its original palette. Blank Fire form melds Flame sheets, Molten flow and Firescape on an 84-second
+cycle: 19-second holds and nine-second eased transitions between forms. The main blend does not yet include Fire.
 Test tracks and acceleration work through the same controls as Water.
 
 Standalone GPU regression (baseline saved before this pass):
 `.venv\Scripts\python.exe app/visuals/shader_test.py --fire-test work/elemental/fire/before.frag work/elemental/fire/check`
+
+Molten flow holds branching lava rivers with dark crust islands, lit banks,
+flowing seams and two small impact-heated vents. A slow aerial orbit reveals
+the branches opening downstream, backed by simple forest/mountain silhouettes. It shares Fire's layer list:
+Coals controls the crust islands, Hot seams the fine glow, Embers the sparse
+sparks, and Living artifacts the inherited material. Held Flame sheets keeps
+its approved appearance. CLI --state fire still means held Flame sheets;
+--state molten holds lava, and --state fire_cycle runs the authored meld.
+A saved blank Fire branch now includes all three forms; a saved Flame sheets leaf
+continues holding that form. Older flat fire sessions also hold Flame sheets.
+
+Expansion regression:
+`.venv\Scripts\python.exe app/visuals/shader_test.py --molten-test work/elemental/molten/before.frag work/elemental/molten/check`
+
+## Psychedelic Firescape
+
+Select Elements → Fire → Firescape to hold multicolored flames across wooded
+hills and a distant city silhouette. The existing audio-driven movement clock
+sets the hue cycle rate (mids), and strong impacts lift flame brightness.
+Ash is an additional Fire detail, separate from bright Embers. Ash currently
+applies only to Firescape. All Fire forms share the saved layer list; accepted
+Flame sheets and Molten flow retain their existing palettes. This new palette
+does not replace Living artifacts. CLI: --state firescape; blank Fire uses
+--state fire_cycle. The main blend is still unchanged.
+
+Verification:
+`.venv\Scripts\python.exe app/visuals/shader_test.py --firescape-test work/elemental/firescape/before.frag work/elemental/firescape/check`
+
+Firescape now scrolls left in depth layers, like a side-scrolling landscape.
+Trees sprout and develop irregular crowns, then burn down to stumps; buildings
+rise floor by floor and crumble into falling blocks/rubble. Each object keeps
+its seeded 64-second life while moving through the view. Hold Firescape for
+60–90 seconds to see several overlapping stages. These scenery changes use the
+same controls and do not change Flame sheets or Molten flow.
+
+## Aftershock preview
+
+Select **Elements / Fire / Aftershock** for the new detonation flyover. Strong
+hits produce independent expanding dust/fire rings; quiet input retains camera
+motion, scheduled detonations and growing clouds. Under **Aftershock details**,
+Inversion flash, Dust shockwaves, Ground fire and Aurora can be added/removed
+or cycled.
+Authored restores the complete composition. Coals controls crater shading;
+Embers, Ash and Hot seams retain their other Fire-form uses.
+
+Aftershock is accepted as a separate held form. Fire's existing All / cycle still uses
+the accepted Flame sheets / Molten flow / Firescape meld; the broader Elements
+leaf cycle includes Aftershock. It is not in the main blend yet. Replay metrics
+include shockwave_count and capture metadata includes event lists, making
+multiple-hit behavior inspectable with the existing accelerated tracks.
+
+Aftershock refinement: clouds now draw in actual distance order. The inversion
+fades over two seconds; musical rings use a higher .40 threshold and three-second
+cooldown, allowing at most three simultaneous rings. Aurora curtains gently
+bend at scheduled detonations and settle; this motion is independent of musical
+ring triggers. Restart an existing preview to load the shader changes.
+
+Aftershock plumes now retain a distinct hue per ground zero. Inversion flash
+reveals a negative of the incoming material (including enabled Living artifacts)
+before it is muted into the ground. Its existing two-second fade and effect
+control are unchanged; the original material palette is not modified.
+
+The accepted Aftershock projection has a subtle planetary horizon arc shared
+by the ground, sky, plumes and flash. Fire integration into the main blend and
+adding Aftershock to the native Fire meld remain separate follow-up work.
