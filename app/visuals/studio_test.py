@@ -40,11 +40,16 @@ def main():
     assert selection_states(['elements'])==['water']
     assert selection_states(['elements','water'])==['water']
     assert selection_states(['elements','water','rain'])==['rain']
+    assert selection_states(['elements','water','currents'])==['currents']
+    water_layers=validate_layers({'water':dict(mode='cycle',seconds=4.,items=[
+        dict(id='water_rain',enabled=True),dict(id='water_ripples',enabled=True)])})
+    assert layers_at(water_layers,13,0)==(1,BITS['water_rain'])
+    assert layers_at(water_layers,13,4)==(1,BITS['water_ripples'])
     assert selection_states(['cosmic'])==['canvas','cosmic']
     assert selection_states([])==['blend']
     # A second future branch must not truncate Water's descendants to one hold.
     with patch.dict(WORLD_TREE['elements']['children'], {'test-other':dict(label='Test',state='organic')}):
-        assert selection_states(['elements'])==['sea','dyes','rain','waterfall','organic']
+        assert selection_states(['elements'])==['sea','dyes','rain','waterfall','currents','organic']
     assert selection_states(['future'], {'future':dict(children={
         'a':dict(children={'b':dict(children={'c':dict(state='rain')})}),
         'd':dict(state='sea')})})==['rain','sea']
@@ -118,6 +123,19 @@ def main():
             for widget in app.layers_tab.winfo_children():
                 assert widget.winfo_y()+widget.winfo_height()<=app.layers_tab.winfo_height(), widget
                 assert widget.winfo_x()+widget.winfo_width()<=app.layers_tab.winfo_width(), widget
+            app.select(['elements','water','currents'])
+            app.effect_category.set('Water details');app.refresh_effect_picker()
+            assert len(app.effect_box['values'])==5
+            app.effect_choice.set('Rain streaks');app.add_layer()
+            app.effect_choice.set('Ripple rings');app.add_layer()
+            app.layer_mode.set('Cycle list');app.change_layer_playback()
+            assert [item['id'] for item in app.layer_profiles['water']['items']]==['water_rain','water_ripples']
+            app.session_path=folder/'water-layers.json';app.save()
+            restored=validate_session(json.loads(app.session_path.read_text(encoding='utf-8')))
+            assert restored['state']=='currents' and restored['layers']['water']['mode']=='cycle'
+            root.update()
+            for widget in app.layers_tab.winfo_children():
+                assert widget.winfo_y()+widget.winfo_height()<=app.layers_tab.winfo_height(), widget
             app.tabs.select(app.preview)
             app.select(['elements'])
             assert len(app.selector_rows)==2 and app.selector_rows[1][0].get()==''

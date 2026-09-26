@@ -39,6 +39,7 @@ WORLD_TREE = {
             'dyes': dict(label='Liquid dyes', state='dyes'),
             'rain': dict(label='Rain & ripples', state='rain'),
             'waterfall': dict(label='Waterfall', state='waterfall'),
+            'currents': dict(label='Currents', state='currents'),
         }),
     }),
 }
@@ -365,7 +366,7 @@ class Studio:
         note += 'Up / Down sets cycle order. Together keeps the shader’s composition order.\n'
         note += 'Effects retain their audio response and lifecycle; cycling uses song time in replay.'
         if self.vars['state'].get() == 'cosmic': note += '\nGeometry study uses only World details; use Planet canvas for material effects.'
-        if world == 'water': note += '\nWater structure, rain and ripples belong to its forms; Living artifacts controls inherited dye shapes.'
+        if world == 'water': note += '\nWater details are independent layers. Rain/rings apply to surface forms; foam, mist and highlights also apply to the waterfall.'
         self.layer_note.set(note)
 
     def change_layer_playback(self):

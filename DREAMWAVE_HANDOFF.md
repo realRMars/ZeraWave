@@ -2,6 +2,91 @@
 
 Updated: 2026-09-26
 
+## Water completion checkpoint: details, Currents and main integration
+
+Base is accepted commit 6875fb9. The user accepted the Water continuation and
+asked to finish Water before committing. This checkpoint exposes five existing
+Water effects, adds Currents, and integrates all five forms into the main blend.
+Other elements will be developed one at a time; none was started in this pass.
+
+Studio → Elements → Water → Currents (state 13) holds broad colored streams
+bending through two eddies, with dark channels and fine reflected ribbons.
+Existing source imagery supplies the moving material. Bass broadens pressure,
+flux controls local shear, sparkle reveals fine light, and impact creates a
+bounded disturbance. Quiet passages still move. The existing renderer and
+positive clocks are reused; this is a procedural coordinate field, not fluid
+simulation. The accepted sea's height equations are unchanged.
+
+Water details category: Rain streaks, Ripple rings, Crest foam / cliff lip,
+Mist & distance haze, Surface highlights. These append stable bits to the
+existing catalog/uniform interface. Rain/rings can independently populate
+surface forms, including Currents; the waterfall supports its own lip,
+highlights and haze. Foam needs steep crests and haze depends on distance.
+Authored mode preserves existing held forms; custom lists explicitly select
+the new details. No dependencies, audio changes or renderer lifecycle edits.
+
+Water's isolated development cycle (state 6) now includes Currents after
+Waterfall: five 28-second slots, 140 seconds total. Each has a roughly
+19-second hold followed by a 9-second eased change. The isolated Water music
+launcher also uses this expanded cycle. Main blend (state 0) holds one form
+through each Water visit, then advances while Water is hidden: Sea, Currents,
+Waterfall, Rain & ripples, Liquid dyes. The existing entry/full/release times
+116/126/144/158 seconds and 140-second visit spacing are unchanged. Animation
+and material clocks never reset. This prevents a 140-second five-form cycle
+locking onto the same phase every visit, and avoids concurrent form-camera
+changes during Water's exit. A trial continuous main form schedule failed a
+transition bound (3.3923/255 at 284s); that version was replaced, not accepted.
+Currents also delays the returning spatial grammar with a cubic release
+envelope. Long advected material coordinates otherwise amplified recursive
+folds during exit (5.1639/255 at 287s). Held forms and imagery outside Water
+remain unchanged; the corrected version passed the same comparison bound.
+
+Final integration test passed 222 preservation cases (all held forms, Studio's
+cycle and main imagery outside Water), all five distinct main visits, and 90
+entrance/dwell/release comparisons at quiet/moderate/strong fixed inputs.
+The comparison retains a pre-existing extreme-input frame-change spike at
+256s / .95 input: 53.8261/255 vs baseline 53.8225/255. This is not a claim that
+every legacy transition is smooth; the regression allowance is relative to
+the accepted baseline. Broad retuning of the accepted background was excluded.
+Evidence: work/elemental/currents/integration/ (before-integration.frag is the
+accepted Currents preview before main scheduling changed).
+The complete Warbot Jazz main-blend replay then finished: 299.3 song seconds,
+7,015 frames and 20 captures. Both full-Water captures (Sea at 135s, Currents at
+270s) passed structure/dark-space checks with zero clipped pixels. Currents at
+270s and its release at 285s were visually inspected. Non-Water captures retain
+existing highlight clipping, up to 1.5805% in this replay. Evidence is in
+work/elemental/currents/integration-music/. Live loopback was not rerun.
+Python compilation and git diff --check passed. The nine-file completion pass
+is the requested checkpoint; unrelated research/scratch files remain excluded.
+
+Changed files: dream.frag, preview_layers.py, Studio's catalog/note, live state
+map, shader_test.py, studio_test.py, and Water/Studio/handoff documentation.
+No changes to the existing audio pipeline, renderer implementation or replay
+implementation. Unrelated root scratch files/research remain untouched.
+
+Development verification before main integration:
+- Detail-only stage: 132 exact pixel preservation cases and 40 visible
+  effect/world combinations.
+- Final currents-test: 144 exact prior-world/held-form/main-blend comparisons,
+  44 effect/world combinations, 28 Currents input/time samples, four independent
+  audio responses, motion with silent inputs, 20 eased cycle boundaries, and
+  361 renderer-integrated frames. Maximum mean changes .8273/255 at joins and
+  1.1756/255 across the integrated envelope; no headroom/structure failures.
+- studio_test.py passed hierarchy, new state registration, session migration,
+  table operations, replay metadata/pacing and continuous GPU clocks. Focused
+  real Tk checks passed Currents selection, all five Water-detail options,
+  add/cycle/save round-trip and minimum 680x700 layout.
+- Accelerated real audio: first 60 seconds each of Balloon, Chasing You and
+  Warbot Jazz, 4,221 frames total, 18 captures. All capture structure/dark-space
+  checks passed with zero clipped pixels. Synthetic contact sheet and one
+  captured music frame per track were visually inspected.
+
+Evidence is under work/elemental/currents/{check,music}/, with the saved
+pre-change shader at before.frag. Excerpts are not full-song or live-loopback
+testing. The user accepted Currents and authorized finishing this checkpoint.
+Reopen Studio, select Currents, and use Authored first; then try individual
+Water details. No other element should be started until the next request.
+
 ## Accepted checkpoint: Water and Development Studio
 
 The user accepted the Water refinements and Studio form/effect isolation, then

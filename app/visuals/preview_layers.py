@@ -21,6 +21,11 @@ EFFECTS = {
     'stars': ('Drifting starfield', 'World details', ('blend', 'cosmic', 'transition')),
     'rings': ('Planet rings', 'World details', ('blend', 'cosmic', 'transition')),
     'moons': ('Moons & dust wakes', 'World details', ('blend', 'cosmic', 'transition')),
+    'water_rain': ('Rain streaks', 'Water details', ('blend', 'water')),
+    'water_ripples': ('Ripple rings', 'Water details', ('blend', 'water')),
+    'water_foam': ('Crest foam / cliff lip', 'Water details', ('blend', 'water')),
+    'water_mist': ('Mist & distance haze', 'Water details', ('blend', 'water')),
+    'water_glints': ('Surface highlights', 'Water details', ('blend', 'water')),
 }
 BITS = {key: 1 << i for i, key in enumerate(EFFECTS)}
 MODES = {'authored': 'Authored', 'together': 'Selected together', 'cycle': 'Cycle list'}
@@ -66,7 +71,7 @@ def world_for_state(state):
     if state == 2: return 'geometric'
     if state in (3, 5): return 'cosmic'
     if state == 4: return 'transition'
-    if 6 <= state <= 10: return 'water'
+    if 6 <= state <= 10 or state == 13: return 'water'
     return 'blend'
 
 

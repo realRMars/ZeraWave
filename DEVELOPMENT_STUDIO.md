@@ -30,7 +30,8 @@ Only one child per Studio runs at a time. Setting changes apply to the next run.
 ## World hierarchy and isolation
 
 Visual world contains Organic, Geometric, Cosmic, Transition, and Elements.
-Elements expands to Water, then Sea, Liquid dyes, Rain & ripples, and Waterfall.
+Elements expands to Water, then Sea, Liquid dyes, Rain & ripples, Waterfall,
+and Currents.
 Cosmic expands to Planet canvas and Geometry study. Organic expands to Membrane
 and Roots; blank Form keeps their original authored meld. Geometric expands to
 Neon corridor. Transition remains the existing Cosmic handoff diagnostic.
@@ -106,13 +107,20 @@ Available categories:
   for now, with a stable ID that can later be migrated to a dedicated world.
 - World details: Root blossoms, Corridor glyph rain, Drifting starfield,
   Planet rings, Moons & dust wakes, where applicable.
+- Water details: Rain streaks, Ripple rings, Crest foam / cliff lip,
+  Mist & distance haze, Surface highlights.
 
 World-specific effects require their geometry: blossoms appear on Roots;
 Cosmic Geometry study uses only World details. Select Planet canvas to inspect
 its inherited material effects. Custom material layers are explicitly preserved
 over the Organic surface before planet/corridor projection. Water exposes its
-inherited Living artifacts; its waves, rain/ripples and waterfall are still
-forms with their own authored structure, not independently removable layers.
+inherited Living artifacts and the Water details category. Rain streaks and
+ripple rings can be added independently to surface forms, including Currents.
+They do not appear on the vertical waterfall; its own highlights, cliff lip
+and haze can be controlled separately. Foam needs steep storm crests, and
+distance haze is subtle in close views. Geometry and wave motion stay part of
+the form. Custom lists must explicitly include desired details; Authored keeps
+their original behavior. Existing bit IDs and version-3 sessions remain valid.
 
 Main blend has its own preview profile. It does not import the individual world
 lists into production. The normal live launcher supplies no overrides.
@@ -138,9 +146,22 @@ decoded files are reused without moving or converting them.
 
 ## Water and integration
 
-`water` melds sea, dye currents, rain/ripples and waterfall over a 112-second
-cycle. Each holds for about 19 seconds and blends over about 9 seconds.
-`sea`, `dyes`, `rain`, and `waterfall` hold an individual form for comparison.
+`water` now previews sea, liquid dyes, rain/ripples, waterfall and Currents over
+a 140-second cycle. Each holds for about 19 seconds and blends over about 9
+seconds. `sea`, `dyes`, `rain`, `waterfall` and `currents` hold an individual form.
+Currents (state 13) is an overhead flowing composition with two broad eddies,
+advected source colors, dark channels and selective fine reflected ribbons.
+Bass broadens the flow, flux changes local shear, sparkle reveals fine light,
+and impact disturbs a bounded region. Quiet input still transports material.
+It uses existing integrated clocks and a procedural inverse coordinate field,
+not a physical fluid simulation or a second renderer.
+
+The normal main blend now includes all five accepted forms. Each Water visit
+holds one form through its entrance and release; successive visits use Sea,
+Currents, Waterfall, Rain & ripples, then Liquid dyes, repeating. Selection
+advances while Water is hidden, avoiding overlapping camera/form/world changes.
+Physical animation and material clocks continue without reset. Studio and the
+isolated Water launcher retain their continuous five-form meld.
 The accepted sea height/current equations remain unchanged.
 The waterfall moves between a wide river-to-cliff view and an immersive close
 view of water falling out of frame; there is no bottom pond. Restart an already
@@ -149,7 +170,7 @@ running preview after shader changes to load the revised waterfall.
 The main blend now admits Water after the original Cosmic release: first
 entrance at 116 seconds, full Water at 126–144, release by 158. Subsequent
 visits repeat every 140 seconds. The initial startup is unchanged. Water's
-independent form cycle gives later visits different forms. These are timed
+visit selection gives later visits different forms. These are timed
 scaffolds, not music phrase detection. Music drives expression within them.
 
 New vocabularies are still implemented and verified in the existing shader.
@@ -164,13 +185,19 @@ Use the existing virtual environment:
 
 ```powershell
 .\.venv\Scripts\python.exe app/visuals/studio_test.py
-.\.venv\Scripts\python.exe app/visuals/shader_test.py --layer-test work/development/layers/before.frag work/development/layers/check
+.\.venv\Scripts\python.exe app/visuals/shader_test.py --currents-test work/elemental/currents/before.frag work/elemental/currents/check
+.\.venv\Scripts\python.exe app/visuals/shader_test.py --water-integration-test work/elemental/currents/before-integration.frag work/elemental/currents/integration
 .\.venv\Scripts\python.exe app/visuals/shader_test.py --water-test work/elemental/check
 .\.venv\Scripts\python.exe app/visuals/shader_test.py --water-family-test work/elemental/water-family/before.frag work/elemental/family-check
 .\.venv\Scripts\python.exe app/visuals/shader_test.py --waterfall-test work/elemental/waterfall-perspective/before.frag work/elemental/waterfall-check
 ```
 
-The comparison commands need their saved pre-change shaders. They check
+The comparison commands need their matching saved pre-change shaders. The
+older layer-test against the original layer baseline predates the intentional
+five-form development cycle; currents-test handles this expansion. The
+water-integration-test verifies all five main visits, their handoffs, every
+held form and pixels outside Water. Older main-blend comparisons against a
+pre-integration shader intentionally differ during Water visits. They check
 held-world pixel preservation, form visibility, meld boundaries and live
 integration. The layer check covers every previous state and verifies visible
 effect toggles against a base form. The waterfall check also sweeps the camera at 60 Hz and verifies

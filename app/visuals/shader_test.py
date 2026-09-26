@@ -13,7 +13,7 @@ import moderngl
 
 from renderer import Renderer, VERTEX_SHADER
 
-STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12}
+STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13}
 
 
 def save_png(path, pixels):
@@ -606,7 +606,7 @@ def preservation_test(baseline_path):
         renderer.close()
 
 
-def layer_test(baseline_path, output):
+def layer_test(baseline_path, output, water_expansion=False):
     """Real GPU preservation plus visible effect isolation, including Water."""
     from preview_layers import BITS
     output.mkdir(parents=True, exist_ok=True)
@@ -627,9 +627,13 @@ def layer_test(baseline_path, output):
             geometry.render(mode=moderngl.TRIANGLE_STRIP)
             return np.frombuffer(renderer.ctx.screen.read(components=3), dtype=np.uint8).reshape(270,480,3)[::-1].copy()
         preserved=0; maximum=0
-        for state in range(11):
+        for state in (tuple(s for s in range(13) if s != 6) if water_expansion else range(11)):
             for level in (.05,.45,.95):
                 for seconds in (18.,67.,100.,140.):
+                    # Water integration intentionally changes its own main-blend
+                    # visits; water_integration_test checks the joins and coverage.
+                    if water_expansion and state == 0 and seconds >= 116. and 4. < (seconds-112.) % 140. < 46.:
+                        continue
                     a=frame(state,seconds,level,before=True); b=frame(state,seconds,level)
                     delta=int(np.abs(a.astype(int)-b.astype(int)).max())
                     assert delta<=1,(state,seconds,level,delta)
@@ -641,7 +645,15 @@ def layer_test(baseline_path, output):
         targets={'artifacts':(2,5,11,7),'sparkles':(2,5,11),'flecks':(2,5,11),
                  'beams':(2,5,11),'tunnel':(2,5,11),'fractal':(2,5,11),
                  'horizon':(2,5,11),'blossoms':(12,), 'glyphs':(2,),
-                 'stars':(3,5),'rings':(3,5),'moons':(3,5)}
+                 'stars':(3,5),'rings':(3,5),'moons':(3,5),
+                 'water_rain':(9,7),'water_ripples':(9,7),
+                 'water_foam':(7,10),'water_mist':(7,10),
+                 'water_glints':(7,10)}
+        if water_expansion:
+            targets['water_rain'] += (13,)
+            targets['water_ripples'] += (13,)
+            targets['water_glints'] += (13,)
+            targets['artifacts'] += (13,)
         records=[]
         for effect, states in targets.items():
             for state in states:
@@ -664,6 +676,137 @@ def layer_test(baseline_path, output):
     finally:
         if vao is not None: vao.release()
         if baseline is not None: baseline.release()
+        renderer.close()
+
+
+def currents_test(baseline_path, output):
+    """Existing forms stay intact; the new flow stays alive, bounded and continuous."""
+    layer_test(baseline_path, output/'preservation', water_expansion=True)
+    renderer=Renderer(width=640,height=360,title='Currents verification')
+    records=[]; captures=[]
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);renderer.create()
+        def frame(seconds, values=(.05,.02,.05,0.), state=13):
+            for name,value in dict(u_time=seconds*.75,u_star_time=seconds,u_drift_time=seconds,
+                    u_resolution=(640.,360.),u_debug_state=float(state),u_scale=values[0],
+                    u_flux=values[1],u_sparkle=values[2],u_impact=values[3],
+                    u_intensity=1.,u_distortion=1.,u_layer_mode=0,u_layer_mask=0).items():
+                renderer.program[name].value=value
+            renderer.vao.render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(renderer.ctx.screen.read(components=3),dtype=np.uint8).reshape(360,640,3)[::-1].copy()
+        def delta(a,b):return float(np.abs(a.astype(float)-b.astype(float)).mean())
+        for name,values in (('silence',(0.,0.,0.,0.)),('quiet',(.05,.02,.05,0.)),
+                            ('active',(.45,.45,.25,.25)),('chorus',(.85,.95,.8,.55))):
+            for seconds in (0.,18.,67.,100.,180.,300.,600.):
+                pixels=frame(seconds,values)
+                contrast=float(pixels.astype(float).std(axis=(0,1)).mean())
+                dark=float((pixels.max(axis=2)<35).mean())
+                clipped=float((pixels.max(axis=2)>=250).mean())
+                assert contrast>5 and dark>.08 and clipped<.005,(name,seconds,contrast,dark,clipped)
+                records.append(dict(profile=name,seconds=seconds,contrast=contrast,dark=dark,clipped=clipped))
+                if seconds in (18.,67.,180.):
+                    save_png(output/f'{name}-{seconds:g}.png',pixels);captures.append(pixels)
+        response={}
+        base=frame(18.)
+        for name,values in (('bass',(.85,.02,.05,0.)),('flux',(.05,.9,.05,0.)),
+                            ('sparkle',(.05,.02,.9,0.)),('impact',(.05,.02,.05,.9))):
+            response[name]=delta(base,frame(18.,values))
+            assert response[name]>.10,(name,'No visible response',response[name])
+        silence_motion=delta(frame(18.,(0.,0.,0.,0.)),frame(20.,(0.,0.,0.,0.)))
+        assert silence_motion>.1,('Frozen silence',silence_motion)
+        assert delta(base,frame(18.,state=8))>5.,'Currents duplicates Liquid dyes'
+        # Both ends of each eased boundary, including the new fall/current/sea joins.
+        boundaries=[]
+        for cycle in (0.,140.):
+            for start in (19.04,28.,47.04,56.,75.04,84.,103.04,112.,131.04,140.):
+                seconds=cycle+start
+                step=delta(frame(seconds-1/120.,(.65,)*4,state=6),frame(seconds+1/120.,(.65,)*4,state=6))
+                assert step<3.,('Cycle jump',seconds,step)
+                boundaries.append(step)
+        # Actual integrated renderer clocks with independent bounded audio envelopes.
+        renderer.debug_state=13; previous=None; motion=[]
+        for i in range(361):
+            seconds=i/60.;energy=.5-.5*math.cos(seconds*math.pi/3.)
+            renderer.parameters.scale=energy*.85;renderer.parameters.movement=energy
+            renderer.parameters.flux=energy*.95;renderer.parameters.sparkle=energy*.8
+            renderer.parameters.impact=max(0.,1.-abs(seconds-3.)*5.)*.6
+            renderer.render(elapsed_time=seconds)
+            pixels=np.frombuffer(renderer.ctx.screen.read(components=3),dtype=np.uint8).copy()
+            if previous is not None:motion.append(delta(previous,pixels))
+            previous=pixels
+        assert max(motion)<3.,('Integrated jump',max(motion))
+        save_png(output/'contact-sheet.png',np.concatenate([np.concatenate(captures[i:i+3],axis=1) for i in (0,3,6,9)],axis=0))
+        report=dict(samples=records,audio_response=response,silence_motion=silence_motion,
+            max_boundary_delta=max(boundaries),max_integrated_delta=max(motion))
+        (output/'currents.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print('PASS: Currents structure/headroom, independent audio responses, quiet motion, '
+              '20 cycle boundaries and 361 integrated GPU frames.',flush=True)
+        print(json.dumps({k:v for k,v in report.items() if k!='samples'},indent=2))
+    finally:renderer.close()
+
+
+def water_integration_test(baseline_path, output):
+    """Preserve isolated worlds/outside Water; prove five distinct main visits."""
+    output.mkdir(parents=True,exist_ok=True)
+    renderer=Renderer(width=640,height=360,title='Complete Water integration')
+    baseline=vao=None
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);renderer.create()
+        baseline=renderer.ctx.program(vertex_shader=VERTEX_SHADER,
+            fragment_shader=baseline_path.read_text(encoding='utf-8-sig'))
+        vao=renderer.ctx.simple_vertex_array(baseline,renderer.vertices,'in_position')
+        def frame(state,seconds,level=.45,old=False):
+            program,geometry=(baseline,vao) if old else (renderer.program,renderer.vao)
+            for name,value in dict(u_time=seconds*.75,u_star_time=seconds,u_drift_time=seconds,
+                    u_resolution=(640.,360.),u_debug_state=float(state),u_scale=level,u_flux=level,
+                    u_sparkle=level,u_impact=level*.4,u_intensity=1.,u_distortion=1.,
+                    u_layer_mode=0,u_layer_mask=0).items():
+                program[name].value=value
+            geometry.render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(renderer.ctx.screen.read(components=3),dtype=np.uint8).reshape(360,640,3)[::-1].copy()
+        preserved=0
+        for state in range(1,14):
+            for seconds in (18.,67.,100.,140.):
+                for level in (.05,.45,.95):
+                    delta=int(np.abs(frame(state,seconds,level).astype(int)-frame(state,seconds,level,True).astype(int)).max())
+                    assert delta<=1,('Held/Studio regression',state,seconds,level,delta)
+                    preserved+=1
+        outside=[0.,60.,100.,115.]
+        for visit in range(6):outside.extend([158.+140.*visit,180.+140.*visit,255.+140.*visit])
+        for seconds in outside:
+            for level in (.05,.45,.95):
+                delta=int(np.abs(frame(0,seconds,level).astype(int)-frame(0,seconds,level,True).astype(int)).max())
+                assert delta<=1,('Outside Water regression',seconds,level,delta)
+                preserved+=1
+        # At full entrance each of five visits must match a different held form.
+        held=(7,13,10,9,8);names=('Sea','Currents','Waterfall','Rain','Liquid dyes')
+        boundaries=[];images=[];boundary_records=[]
+        for visit,(state,name) in enumerate(zip(held,names)):
+            seconds=126.+140.*visit
+            for level in (.05,.45,.95):
+                pixels=frame(0,seconds,level)
+                delta=int(np.abs(pixels.astype(int)-frame(state,seconds,level).astype(int)).max())
+                assert delta<=1,('Form coverage',visit,name,level,delta)
+            pixels=frame(0,seconds);images.append(pixels)
+            save_png(output/f'visit-{visit+1}-{name.replace(" ","-")}.png',pixels)
+            for point in (116.,126.,135.8,144.,147.,158.):
+                t=point+140.*visit
+                for level in (.05,.65,.95):
+                    before=frame(0,t-1/120.,level);after=frame(0,t+1/120.,level)
+                    step=float(np.abs(before.astype(float)-after.astype(float)).mean())
+                    original=float(np.abs(frame(0,t-1/120.,level,True).astype(float)-frame(0,t+1/120.,level,True).astype(float)).mean())
+                    assert step<max(3.,original+.25),('Main Water discontinuity',t,level,step,original)
+                    boundaries.append(step)
+                    boundary_records.append(dict(seconds=t,level=level,mean_delta=step,baseline_delta=original))
+        save_png(output/'five-visits.png',np.concatenate(images,axis=0))
+        report=dict(preserved_cases=preserved,visit_forms=names,
+            boundary_cases=len(boundaries),max_boundary_delta=max(boundaries),
+            worst_boundary=max(boundary_records,key=lambda row:row['mean_delta']))
+        (output/'integration.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print('PASS: '+json.dumps(report),flush=True)
+    finally:
+        if vao is not None:vao.release()
+        if baseline is not None:baseline.release()
         renderer.close()
 
 
@@ -702,6 +845,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--sweep", type=Path)
     parser.add_argument("--layer-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
+    parser.add_argument("--currents-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
+    parser.add_argument("--water-integration-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--handoff-test", type=Path)
     parser.add_argument("--geometric-test", type=Path)
     parser.add_argument("--water-test", type=Path)
@@ -717,7 +862,11 @@ if __name__ == "__main__":
     parser.add_argument("--states", nargs="+", choices=tuple(STATES), help="Development cycle: hold each state for 28 seconds.")
     parser.add_argument("--layers", type=parse_layers, default={}, help="Development per-world effect settings as JSON.")
     args = parser.parse_args()
-    if args.layer_test:
+    if args.water_integration_test:
+        water_integration_test(*args.water_integration_test)
+    elif args.currents_test:
+        currents_test(*args.currents_test)
+    elif args.layer_test:
         layer_test(*args.layer_test)
     elif args.waterfall_test:
         water_family_test(*args.waterfall_test,waterfall_refinement=True)

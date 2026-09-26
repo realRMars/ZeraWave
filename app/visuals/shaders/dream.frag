@@ -868,22 +868,47 @@ float water_handoff(float seconds)
     return smoothstep(4.0, 14.0, phase) * (1.0 - smoothstep(32.0, 46.0, phase));
 }
 
-// Sea -> dye currents -> rain pool -> waterfall, with long rests and eased
+// Hold one form through each main-blend entrance and release. Advance only
+// while Water is hidden, without resetting any animation/material clocks.
+// Studio keeps its continuous five-form meld in compact 28-second slots.
+float water_form_phase()
+{
+    if (u_debug_state < .5)
+        return mod(floor(max(0.0,u_drift_time-112.0)/140.0)*4.0,5.0);
+    return mod(u_drift_time,140.0)/28.0;
+}
+
+float water_currents_weight()
+{
+    if (u_debug_state > 12.5 && u_debug_state < 13.5) return 1.0;
+    if (!(u_debug_state < .5 || (u_debug_state > 5.5 && u_debug_state < 6.5))) return 0.0;
+    float phase = water_form_phase();
+    float change = smoothstep(0.68, 1.0, fract(phase));
+    if (phase >= 4.0) return 1.0 - change;
+    if (phase >= 3.0) return change;
+    return 0.0;
+}
+
+// Sea -> liquid dyes -> rain pool -> waterfall -> currents, with eased
 // changes. Individual states hold one form for development and musical review.
 vec4 water_forms()
 {
+    if (u_debug_state > 12.5 && u_debug_state < 13.5) return vec4(0.0);
     if (u_debug_state > 6.5) {
         if (u_debug_state < 7.5) return vec4(1,0,0,0);
         if (u_debug_state < 8.5) return vec4(0,1,0,0);
         if (u_debug_state < 9.5) return vec4(0,0,1,0);
         return vec4(0,0,0,1);
     }
-    float phase = mod(u_drift_time, 112.0) / 28.0;
+    bool water_cycle = u_debug_state < .5 || (u_debug_state > 5.5 && u_debug_state < 6.5);
+    int count = water_cycle ? 5 : 4;
+    float phase = water_cycle ? water_form_phase() : mod(u_drift_time,112.0)/28.0;
     float change = smoothstep(0.68, 1.0, fract(phase));
     vec4 a = vec4(0.0), b = vec4(0.0);
     int index = int(floor(phase));
-    a[index] = 1.0;
-    b[(index + 1) % 4] = 1.0;
+    if (index < 4) a[index] = 1.0;
+    int next = (index + 1) % count;
+    if (next < 4) b[next] = 1.0;
     return mix(a, b, change);
 }
 
@@ -925,6 +950,32 @@ vec2 water_current(vec2 p)
     q.x += sin(q.y * 0.62 + clock * 0.16) * shear;
     q.y += sin(q.x * 0.48 - clock * 0.12) * shear * 0.55;
     return q;
+}
+
+// Inverse flow coordinates: two smooth local twists bend one continuous
+// stream. Longitudinal transport uses the existing positive integrated clock.
+// There is no random reseeding, particle history or audio-scaled time.
+vec2 currents_domain(vec2 p)
+{
+    float clock = u_time * .22 + u_drift_time * .028;
+    float flux = clamp(u_flux, 0.0, 1.0);
+    float bass = clamp(u_scale, 0.0, 1.0);
+    p = mat2(.94, .342, -.342, .94) * p;
+    p.x += .35 * sin(p.y * .48 + .12 * sin(clock * .13));
+    for (int i=0; i<2; i++) {
+        vec2 center = i == 0 ? vec2(-1.65,-.25) : vec2(2.2,1.8);
+        vec2 offset = p - center;
+        float reach = exp(-dot(offset,offset) * (.14 - bass*.025));
+        float turn = (i == 0 ? 1.0 : -1.0) * reach
+            * (3.8 + flux*.65 + .25*sin(clock*.11+float(i)*2.4));
+        p = center + mat2(cos(turn),sin(turn),-sin(turn),cos(turn))*offset;
+    }
+    p.y -= clock;
+    // Local, decaying pressure around one fixed disturbance site.
+    vec2 event = p - vec2(.4,-clock+.7);
+    p.x += sin(length(event)*5.0-clock*1.7)*exp(-dot(event,event)*.8)
+        * clamp(u_impact,0.0,1.0)*.12;
+    return p;
 }
 
 float water_height(vec2 p)
@@ -991,7 +1042,7 @@ vec3 water_environment(vec3 direction)
         elevation * 17.0 + u_drift_time * 0.001);
     float mist = fbm(cloud_q + vec2(5.3, 1.7));
     sky += lavender_pearl_palette(0.44) * (0.15 + mist * 0.22)
-        * exp(-abs(elevation - 0.025) * 22.0);
+        * exp(-abs(elevation - 0.025) * 22.0) * effect(32768);
     float left = exp(-pow((azimuth + 0.56) / 0.18, 2.0));
     float left_peak = exp(-pow((azimuth + 0.64) / 0.07, 2.0));
     float right = exp(-pow((azimuth - 0.51) / 0.25, 2.0));
@@ -1017,9 +1068,15 @@ WaterSurface water_surface(vec2 p)
     // Lift the view toward an open horizon; leave the accepted wave field and
     // its clocks unchanged. Near-horizontal rays meet atmospheric distance.
     vec4 forms = water_forms();
+    float currents = water_currents_weight();
     float pool = forms.y + forms.z;
     vec3 ray = normalize(mix(vec3(p.x * 1.5, p.y * 0.9 - 0.25, 1.3),
         vec3(p.x * 1.65, -1.45 + p.y * 0.42, 0.7 + p.y * 1.0), pool));
+    if (currents > 0.0) {
+        origin = mix(origin, vec3(0.0,5.6,-1.0), currents);
+        ray = normalize(mix(ray, normalize(vec3(p.x*1.65,-1.45+p.y*.42,p.y*1.3+.4)), currents));
+    }
+    float height_scale = mix(1.0,.16,currents);
     if (ray.y >= -0.012) {
         return WaterSurface(vec2(0.0), vec2(0.0), vec3(0.0, 1.0, 0.0), -ray, -1.0);
     }
@@ -1039,7 +1096,7 @@ WaterSurface water_surface(vec2 p)
         for (int i = 1; i <= 40; i++) {
             float sample_t = start + float(i) * step_size;
             vec3 point = origin + ray * sample_t;
-            if (point.y <= water_height(point.xz)) {
+            if (point.y <= water_height(point.xz)*height_scale) {
                 hi = sample_t;
                 break;
             }
@@ -1049,7 +1106,7 @@ WaterSurface water_surface(vec2 p)
     for (int i = 0; i < 14; i++) {
         float mid = (lo + hi) * 0.5;
         vec3 point = origin + ray * mid;
-        if (point.y > water_height(point.xz)) lo = mid;
+        if (point.y > water_height(point.xz)*height_scale) lo = mid;
         else hi = mid;
     }
     float distance = (lo + hi) * 0.5;
@@ -1059,11 +1116,13 @@ WaterSurface water_surface(vec2 p)
     vec2 gradient = vec2(
         water_height(position + vec2(e, 0.0)) - water_height(position - vec2(e, 0.0)),
         water_height(position + vec2(0.0, e)) - water_height(position - vec2(0.0, e))) / (2.0 * e);
-    vec3 normal = normalize(vec3(-gradient.x, 1.0, -gradient.y));
+    vec3 normal = normalize(vec3(-gradient.x*height_scale, 1.0, -gradient.y*height_scale));
     // Restrained refraction; gather the actual shared field along currents.
     vec2 current = water_current(position + normal.xz * 0.18);
     vec2 material = current * vec2(0.22, 0.27);
     material.x += 0.32 * sin(current.y * 0.8 + sin(current.x * 0.5));
+    if (currents > 0.0)
+        material = mix(material, currents_domain(position+normal.xz*.18)*vec2(.28,.12), currents);
     return WaterSurface(position, material, normal, -ray, distance);
 }
 
@@ -1073,12 +1132,14 @@ vec3 isolated_water_scene(WaterSurface surface, vec3 canvas)
     float spark = clamp(u_sparkle, 0.0, 1.0);
     vec4 forms = water_forms();
     vec2 q = water_current(surface.position);
+    float rain_weight = u_layer_mode == 0 ? forms.z : effect(4096);
+    float ripple_weight = u_layer_mode == 0 ? forms.z : effect(8192);
     // Rain perturbs reflected normals, keeping the accepted sea height intact.
-    if (forms.z > 0.0) {
+    if (ripple_weight > 0.0) {
         float e = 0.025;
         vec2 grad = vec2(water_ripples(surface.position+vec2(e,0))-water_ripples(surface.position-vec2(e,0)),
             water_ripples(surface.position+vec2(0,e))-water_ripples(surface.position-vec2(0,e))) / (2.0*e);
-        surface.normal = normalize(surface.normal + vec3(-grad.x,0,-grad.y)*forms.z*(0.025+spark*0.035));
+        surface.normal = normalize(surface.normal + vec3(-grad.x,0,-grad.y)*ripple_weight*(0.025+spark*0.035));
     }
     float channel = q.x * 0.8 + sin(q.y * 0.48) * 1.7
         + sin(q.y * 1.12 + q.x * 0.31) * 0.35;
@@ -1100,6 +1161,7 @@ vec3 isolated_water_scene(WaterSurface surface, vec3 canvas)
     vec3 reflected = lavender_pearl_palette(0.48) * silk * 0.48;
     reflected += mix(ocean_palette(0.80), gold_sun_palette(0.82), 0.36)
         * glint * (0.90 + spark * 1.4);
+    reflected *= effect(65536);
     vec3 scene = transmission * (1.0 - fresnel) + reflected;
     scene += water_environment(reflection) * fresnel * 0.85;
     scene += ocean_palette(0.22) * (0.12 + fresnel * 0.3);
@@ -1110,7 +1172,7 @@ vec3 isolated_water_scene(WaterSurface surface, vec3 canvas)
     float foam = water_storm() * crest * broken
         * (1.0 - smoothstep(0.68, 0.97, surface.normal.y));
     scene += mix(ocean_palette(0.85), lavender_pearl_palette(0.83), 0.35)
-        * foam * (0.40 + spark * 0.30);
+        * foam * (0.40 + spark * 0.30) * effect(16384);
     float distance_fade = exp(-max(surface.distance - 5.0, 0.0) * 0.065);
     scene *= distance_fade;
     // Preserve saturated dye and highlight headroom across all audio levels.
@@ -1125,10 +1187,35 @@ vec3 isolated_water_scene(WaterSurface surface, vec3 canvas)
     vec3 dye_color = ink_color*(.12+smoothstep(.25,.70,vein)*.9);
     dye_color += ink_color*fine*(.15+spark*.25)+reflected*.20;
     scene = mix(scene, dye_color, forms.y*.95);
-    if (forms.z > 0.0) {
+    float currents = water_currents_weight();
+    if (currents > 0.0) {
+        vec2 flow = currents_domain(surface.position);
+        float bass = clamp(u_scale,0.0,1.0), flux = clamp(u_flux,0.0,1.0);
+        float lane = flow.x*2.15 + .28*sin(flow.y*.65+flow.x*.6);
+        float body = smoothstep(.18-bass*.12,.80,.5+.5*sin(lane));
+        float phase = lane*11.0 + .6*sin(flow.y*1.4);
+        float resolved = 1.0-smoothstep(.65,2.1,fwidth(phase));
+        float thread = pow(.5+.5*sin(phase),12.0)*resolved;
+        float travel = .65+.35*sin(flow.y*2.0+sin(flow.x*3.1));
+        vec3 tint = mix(ocean_palette(.75),crimson_gold_palette(.78),
+            .5+.5*sin(flow.x*.85+.4*sin(flow.y*.25)));
+        vec3 carried = mix(pigment,tint,.44);
+        vec3 current_color = ocean_palette(.16)*.13
+            + carried*(.08+body*(.85+bass*.18))
+            + canvas*body*(1.25+travel*.50);
+        // Fine reflected ribbons keep dark channels and never form a white wash.
+        current_color += mix(carried,lavender_pearl_palette(.65),.22)
+            * thread*body*travel*(.25+spark*.7)*effect(65536);
+        current_color += reflected*.25;
+        current_color *= .82+.18*max(dot(surface.normal,surface.view),0.0);
+        scene = mix(scene,current_color,currents);
+    }
+    if (ripple_weight > 0.0) {
         float rings = water_ripples(surface.position);
         scene += mix(ocean_palette(.75),lavender_pearl_palette(.75),.3)
-            * max(rings,0.0)*forms.z*(.16+spark*.32);
+            * max(rings,0.0)*ripple_weight*(.16+spark*.32);
+    }
+    if (rain_weight > 0.0) {
         // Sparse foreground streaks, with independent seeded lifetimes.
         vec2 rain_q = surface.position*2.0;
         vec2 cell=floor(rain_q);
@@ -1137,11 +1224,11 @@ vec3 isolated_water_scene(WaterSurface surface, vec3 canvas)
         vec2 drop=fract(rain_q)-vec2(.3+seed*.4,1.2-age*1.6);
         float streak=exp(-drop.x*drop.x*4500.0-drop.y*drop.y*65.0)
             *smoothstep(.70,.95,seed)*smoothstep(.0,.1,age)*(1.0-smoothstep(.85,1.0,age));
-        scene += ocean_palette(.85)*streak*forms.z*(.12+spark*.25);
+        scene += ocean_palette(.85)*streak*rain_weight*(.12+spark*.25);
     }
     scene /= 1.0 + max(scene.r, max(scene.g, scene.b));
     float haze = 1.0 - exp(-pow(max(surface.distance - 9.0, 0.0) * 0.035, 1.45));
-    return mix(scene, water_environment(-surface.view), haze);
+    return mix(scene, water_environment(-surface.view), haze * effect(32768));
 }
 
 // One perspective camera views a horizontal river meeting an infinite vertical
@@ -1220,14 +1307,14 @@ vec3 water_falls(FallsSurface surface, vec3 material)
         vec3 light=normalize(vec3(-.22,.50,.86));
         float shine=pow(max(dot(reflected,light),0.0),65.0);
         liquid*=.85;
-        liquid+=tint*shine*(.8+spark*.6);
+        liquid+=tint*shine*(.8+spark*.6)*effect(65536);
         liquid+=water_environment(reflected)*.15;
     } else {
         // Continuous broad sheets, with broken smaller strands accelerating
         // down the face. No periodic horizontal bars or receiving basin.
         float streak=fbm(vec2(flow.x*8.0,flow.y*5.0));
         float veil=smoothstep(.25,.74,streak);
-        liquid+=tint*filament*(.18+spark*.23)*(.35+veil*.85);
+        liquid+=tint*filament*(.18+spark*.23)*(.35+veil*.85)*effect(65536);
         liquid+=tint*veil*body*(.10+flux*.16);
     }
     // Dark plateau banks and cleft cliff walls anchor the two water planes.
@@ -1239,10 +1326,10 @@ vec3 water_falls(FallsSurface surface, vec3 material)
     vec3 scene=mix(stone,liquid,water);
     // The turnover belongs to the same edge on both sides of the cliff.
     float lip=exp(-abs(path)*12.0)*water;
-    scene+=tint*lip*(.16+bass*.09+spark*.10);
+    scene+=tint*lip*(.16+bass*.09+spark*.10)*effect(16384);
     float haze=1.0-exp(-max(surface.distance-8.0,0.0)*.032);
     scene/=1.0+max(scene.r,max(scene.g,scene.b));
-    return mix(scene,water_environment(surface.ray),haze);
+    return mix(scene,water_environment(surface.ray),haze*effect(32768));
 }
 
 void main()
@@ -1422,10 +1509,15 @@ void main()
         if (debug_state > 0.5 && !(debug_state > 1.5 && debug_state < 2.5))
             geometric_weight = 0.0;
     }
-    tunnel_weight *= 1.0-water_takeover;
-    fractal_weight *= 1.0-water_takeover;
-    geometric_weight *= 1.0-water_takeover;
-    horizon_weight *= 1.0-water_takeover;
+    // Long advected Currents coordinates amplify recursive folds if the
+    // background grammar returns while liquid still owns nearly the frame.
+    // Ease it back later in the handoff; held forms and non-Water are unchanged.
+    float field_release = mix(1.0-water_takeover,
+        pow(1.0-water_takeover,3.0),water_currents_weight());
+    tunnel_weight *= field_release;
+    fractal_weight *= field_release;
+    geometric_weight *= field_release;
+    horizon_weight *= field_release;
 
     // Cosmic is an intentional world takeover: once it has weight, the
     // other vocabularies recede so the planet, rings, and starfield can own

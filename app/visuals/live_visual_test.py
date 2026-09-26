@@ -20,7 +20,7 @@ from signal_processor import SignalProcessor, VisualSignalConditioner
 
 LIVE_STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3,
                "transition": 4, "canvas": 5, "water": 6, "sea": 7,
-               "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12}
+               "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13}
 
 
 def make_bar(value, width=30):

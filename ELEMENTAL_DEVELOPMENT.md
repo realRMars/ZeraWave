@@ -5,6 +5,53 @@ gathering. Read AGENTS.md and the current DREAMWAVE_HANDOFF.md entry first.
 
 ## Creative composition
 
+### Water continuation from accepted checkpoint 6875fb9
+
+The user accepted and committed Water/Studio, then authorized continuing Water
+before developing other elements one at a time. This pass adds a distinct
+Currents form and isolates existing Water details. Earlier pending-acceptance
+statements below refer to the earlier development history.
+
+Currents uses an overhead view of colored streams passing through two broad
+eddies. Smooth local twists bend a shared inverse flow coordinate; longitudinal
+material transport uses the existing positive flow clock. Bass widens the
+eddies/streams, flux changes shear, sparkle reveals fine reflected threads,
+and impact causes a localized disturbance. Dark channels preserve depth.
+Quiet input retains slow advection. This is procedural liquid imagery, not a
+numerical fluid simulation. The accepted sea height equations remain intact;
+only this form reduces their surface displacement to emphasize current flow.
+
+State 13 / Studio → Elements → Water → Currents holds the new form. The isolated
+Water cycle (state 6) adds it after Waterfall, becoming 140 seconds. Its five
+forms have the same 19-second holds and 9-second eased transitions. The user
+accepted this expansion and asked to finish Water before committing. Main
+blend now holds one form for each Water visit, cycling Sea, Currents, Waterfall,
+Rain & ripples and Liquid dyes across successive visits. Selection advances
+while Water is hidden; physical clocks do not reset. The existing 116–158s
+Water window and 140s visit spacing remain intact. No other element was started.
+
+Water details are now optional effects: Rain streaks, Ripple rings, Crest foam /
+cliff lip, Mist & distance haze, and Surface highlights. Existing authored
+forms preserve their previous appearance. Custom lists can add rain/rings to
+surface forms, including Currents; the vertical waterfall instead supports
+its lip, highlights and haze. Foam still requires steep storm crests. Inherited
+Living artifacts remains independently selectable. IDs append to the existing
+effect bit catalog; no new uniforms, dependencies, renderer or audio changes.
+
+Pre-integration GPU verification: 144 preservation comparisons across prior held forms and
+main blend matched 6875fb9 exactly; 44 effect/world combinations visibly changed
+when enabled. Currents passed 28 quiet/active/chorus/time samples for structure,
+dark space and highlight headroom, all four independent audio-response checks,
+silent-input motion, 20 preview-cycle boundaries and 361 integrated frames.
+Maximum mean frame differences were .8273/255 at joins and 1.1756/255 in the
+integrated audio envelope. The synthetic contact sheet was visually inspected.
+Evidence: work/elemental/currents/check/. Accelerated first-60-second excerpts
+from all three tracks passed: 4,221 frames, 18 captures with no clipped pixels.
+One capture per track was visually inspected. Studio selector/effect/session
+checks passed, including minimum window bounds. These are excerpt replays,
+not full-track or live-loopback tests. The user accepted Currents after this
+review; final main-blend integration verification is recorded in the handoff.
+
 **Latest waterfall review:** the user accepted the other forms, including rain
 ripples, and requested a river running from a distant horizon to a nearer cliff
 lip, then falling indefinitely. The waterfall now projects horizontal river
