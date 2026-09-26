@@ -2,6 +2,96 @@
 
 Updated: 2026-09-26
 
+## Accepted Fire checkpoint
+
+The user reviewed the refined Fire, said "pass!", and explicitly authorized
+committing it before further expansion. This checkpoint contains the isolated
+Flame sheets form, Studio registration/layers, lava-base refinement, white/blue
+ignition, tests and documentation. Historical pending-review statements below
+are superseded by this acceptance. Main-blend integration remains future work.
+The user also authorized continuing Fire expansion after this checkpoint.
+
+## Fire refinement — user accepted the start and requested more character
+
+Still based on 38da96a; the Fire foundation and this refinement are uncommitted.
+The user requested a steady lava-like base, stronger licking tips, and a
+white-hot → blue → existing amber response on intense hits. Changes are limited
+to Fire's shader function, its existing GPU test and the two development notes.
+Coals retains its label/ID but now shows molten channels drifting on elapsed
+time with a slow rhythm, independent of abrupt audio. Rising Embers is unchanged.
+Upper tips have traveling curls/elongation. The ignition response follows the
+existing renderer's six-per-second impact decay, calibrated to real onsets near
+.5; it is restricted to folded flame roots. No renderer/audio/palette changes.
+
+The first wide white band was visually rejected and failed the generic motion
+bound at 22.79/255. Narrowing and ribbon-shaping it fixed the flat-band appearance.
+The final test distinguishes the requested onset flash (10.919/255, bound 12)
+from ordinary motion including decay (max 2.864/255, original bound 3 retained).
+GPU tests passed 504 exact preservation cases, 18 input/time captures, separate
+audio/layer responses, 361 integrated frames, continuous flow/star clocks,
+steady-but-moving lower lava pixels and white/blue/amber decay captures.
+Synthetic profiles and cooling triptych were visually inspected. Evidence:
+work/elemental/fire/refinement/, baseline before-refinement.frag. Existing
+foundation baseline before.frag still verifies all states 0–13.
+Accelerated replay then passed the first 60 seconds of all three tracks:
+4,221 frames, 18 captures, no clipped pixels; Balloon at 30s and Warbot Jazz at
+50s were visually inspected. Evidence: work/elemental/fire/refinement-music/.
+These remain silent excerpts rather than full-song or audible playback tests.
+Python compilation and diff whitespace checks passed. Studio code/controls
+are unchanged in this refinement, so its previously passing tests were not rerun.
+Live loopback is not tested. User should reopen Studio → Elements → Fire →
+Flame sheets for motion review. Still no main-blend integration or commit.
+
+## Fire foundation — isolated, uncommitted, awaiting visual review
+
+Current committed checkpoint is 38da96a (accepted Water completion). The user
+agreed to defer a metallic sibling material and authorized starting Fire.
+Living artifacts and its palette must remain intact. The metallic sibling may
+later have its own palette and alternate or coexist; it is not implemented.
+
+Studio → Elements → Fire → Flame sheets uses state 14. Three upward-advected
+sheets, a low coal bed, selective hot seams and ascending embers establish one
+composition. Existing material and Living artifacts are carried through it.
+Bass widens/raises the fire, flux curls folds, sparkle reveals seams/embers,
+impact heats a bounded lower region; silence still flows. Existing renderer,
+audio mapping and positive clocks are reused. This is procedural layered
+imagery, not a volumetric simulation. No new dependencies or uniforms.
+
+Fire's own layer profile exposes Living artifacts, Coals (131072), Embers
+(262144), Hot seams (524288). Existing bits are stable. Raw state 14 routes
+through a neutral Organic source field and final Fire composition; it cannot
+fall into the old >5.5 Water route. The existing artifact calculation/palette
+is unchanged. Fire captures its contribution before the Organic substitution.
+The production main blend is unchanged; Fire awaits review before integration.
+Elements with a blank child now visits all five Water leaves then Fire in
+28-second diagnostic holds. Fire's blank form holds its only current form.
+
+Executed validation:
+- shader_test.py --fire-test: 504 exact GPU pixel comparisons against 38da96a,
+  states 0–13, six times, three levels, authored and artifact-only modes.
+- 18 Fire input/time samples: contrast 25.25–40.63, dark fraction .64–.79,
+  zero clipped pixels. Four independently visible audio responses, silent
+  motion, and four independently visible effect toggles passed.
+- 361 actual-renderer frames across rise/impact/release; flow and star clocks
+  strictly advance. Largest mean frame change 2.8975/255, below bound 3.
+- studio_test.py passed, including real Tk Fire dropdowns/table/session,
+  existing UI lifecycle, hierarchy, replay pacing/metadata and GPU clocks.
+- First 60 seconds of each Balloon, Chasing You and Warbot Jazz: 4,221 frames,
+  18 captures, all structure/dark-space bounds passed, zero clipped pixels.
+  Synthetic quiet/moderate/full contact sheet and one 30s frame per track
+  visually inspected. These are silent accelerated replays, not full songs
+  or live-loopback verification; moving aesthetics still need user review.
+- Python compilation and git diff --check passed.
+
+Evidence: work/elemental/fire/{check,music}/; baseline before.frag. The shader
+regression lives in existing shader_test.py, Studio checks in studio_test.py.
+Nine modified tracked files: shader, live/synthetic state maps, layer catalog,
+Studio, its test, and DEVELOPMENT_STUDIO.md / ELEMENTAL_DEVELOPMENT.md / this
+handoff (shader_test.py contains both state map and GPU checks). No commit or
+push. Existing unrelated untracked research/scratch files remain untouched.
+Next: reopen Studio and review Fire with Authored first, then its isolated
+layers. Do not start another element or integrate Fire before that review.
+
 ## Water completion checkpoint: details, Currents and main integration
 
 Base is accepted commit 6875fb9. The user accepted the Water continuation and

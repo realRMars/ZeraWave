@@ -37,7 +37,9 @@ def main():
         try:validate_layers(invalid)
         except ValueError:pass
         else:raise AssertionError(invalid)
-    assert selection_states(['elements'])==['water']
+    assert selection_states(['elements'])==['sea','dyes','rain','waterfall','currents','fire']
+    assert selection_states(['elements','fire'])==['fire']
+    assert selection_states(['elements','fire','sheets'])==['fire']
     assert selection_states(['elements','water'])==['water']
     assert selection_states(['elements','water','rain'])==['rain']
     assert selection_states(['elements','water','currents'])==['currents']
@@ -49,7 +51,7 @@ def main():
     assert selection_states([])==['blend']
     # A second future branch must not truncate Water's descendants to one hold.
     with patch.dict(WORLD_TREE['elements']['children'], {'test-other':dict(label='Test',state='organic')}):
-        assert selection_states(['elements'])==['sea','dyes','rain','waterfall','currents','organic']
+        assert selection_states(['elements'])==['sea','dyes','rain','waterfall','currents','fire','organic']
     assert selection_states(['future'], {'future':dict(children={
         'a':dict(children={'b':dict(children={'c':dict(state='rain')})}),
         'd':dict(state='sea')})})==['rain','sea']
@@ -136,6 +138,16 @@ def main():
             root.update()
             for widget in app.layers_tab.winfo_children():
                 assert widget.winfo_y()+widget.winfo_height()<=app.layers_tab.winfo_height(), widget
+            app.select(['elements','fire','sheets'])
+            app.effect_category.set('Fire details');app.refresh_effect_picker()
+            assert set(app.effect_box['values'])=={'Coals','Embers','Hot seams'}
+            app.effect_choice.set('Embers');app.add_layer()
+            app.layer_mode.set('Cycle list');app.change_layer_playback()
+            app.session_path=folder/'fire-layers.json';app.save()
+            restored=validate_session(json.loads(app.session_path.read_text(encoding='utf-8')))
+            assert restored['state']=='fire'
+            assert layers_at(restored['layers'],14,0)==(1,BITS['fire_embers'])
+            assert restored['layers']['water']['mode']=='cycle'
             app.tabs.select(app.preview)
             app.select(['elements'])
             assert len(app.selector_rows)==2 and app.selector_rows[1][0].get()==''

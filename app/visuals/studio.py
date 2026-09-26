@@ -41,6 +41,9 @@ WORLD_TREE = {
             'waterfall': dict(label='Waterfall', state='waterfall'),
             'currents': dict(label='Currents', state='currents'),
         }),
+        'fire': dict(label='Fire', cycle='fire', children={
+            'sheets': dict(label='Flame sheets', state='fire'),
+        }),
     }),
 }
 DEFAULT_SELECTION = ['elements', 'water']

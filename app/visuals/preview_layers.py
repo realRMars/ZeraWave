@@ -6,7 +6,7 @@ do not reorder them. An absent profile preserves the authored shader exactly.
 import json
 import math
 
-WORLDS = ('blend', 'organic', 'geometric', 'cosmic', 'transition', 'water')
+WORLDS = ('blend', 'organic', 'geometric', 'cosmic', 'transition', 'water', 'fire')
 FIELD = ('blend', 'organic', 'geometric', 'cosmic', 'transition')
 EFFECTS = {
     'artifacts': ('Living artifacts', 'Material', WORLDS),
@@ -26,6 +26,9 @@ EFFECTS = {
     'water_foam': ('Crest foam / cliff lip', 'Water details', ('blend', 'water')),
     'water_mist': ('Mist & distance haze', 'Water details', ('blend', 'water')),
     'water_glints': ('Surface highlights', 'Water details', ('blend', 'water')),
+    'fire_coals': ('Coals', 'Fire details', ('fire',)),
+    'fire_embers': ('Embers', 'Fire details', ('fire',)),
+    'fire_seams': ('Hot seams', 'Fire details', ('fire',)),
 }
 BITS = {key: 1 << i for i, key in enumerate(EFFECTS)}
 MODES = {'authored': 'Authored', 'together': 'Selected together', 'cycle': 'Cycle list'}
@@ -72,6 +75,7 @@ def world_for_state(state):
     if state in (3, 5): return 'cosmic'
     if state == 4: return 'transition'
     if 6 <= state <= 10 or state == 13: return 'water'
+    if state == 14: return 'fire'
     return 'blend'
 
 

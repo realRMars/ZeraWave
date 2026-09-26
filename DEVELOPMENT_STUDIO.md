@@ -31,7 +31,8 @@ Only one child per Studio runs at a time. Setting changes apply to the next run.
 
 Visual world contains Organic, Geometric, Cosmic, Transition, and Elements.
 Elements expands to Water, then Sea, Liquid dyes, Rain & ripples, Waterfall,
-and Currents.
+and Currents. Elements also contains Fire → Flame sheets (isolated development
+foundation, not yet in the main blend).
 Cosmic expands to Planet canvas and Geometry study. Organic expands to Membrane
 and Roots; blank Form keeps their original authored meld. Geometric expands to
 Neon corridor. Transition remains the existing Cosmic handoff diagnostic.
@@ -40,7 +41,8 @@ No unimplemented elements are exposed.
 Every selector offers a genuinely blank option:
 
 - Blank Visual world selects the normal main blend.
-- Elements with blank Category currently runs Water, the only implemented element.
+- Elements with blank Category visits all five Water forms, then Fire, in
+  28-second development holds. These are direct switches, not authored melds.
 - Elements → Water with blank Form runs Water's existing authored meld.
 - Selecting Sea, Rain & ripples, etc. holds only that form.
 - A branch without an authored cycle visits all its implemented leaf states,
@@ -78,7 +80,7 @@ actual active state. Normal run_live_visualizer has no sequence and is unchanged
 Use **World** for a visual environment, **Form** for its main structure, and
 **Effect** for an optional treatment. **Layers** means the world's saved list
 of effects. Elements remains a grouping category; Water owns its own layer
-profile so future siblings can have independent settings.
+profile. Fire has its own independent profile.
 
 The Effects & layers tab follows the selected world. Its two dropdowns choose
 an effect category and effect. Add inserts it once; the table supports On/off,
@@ -204,3 +206,14 @@ effect toggles against a base form. The waterfall check also sweeps the camera a
 river/sky/falling-face coverage directly on the GPU.
 Generated evidence and decoded audio are ignored working assets, not committed
 fixtures. Standalone checks do not replace subjective listening/visual review.
+
+## Fire foundation review
+
+Restart Studio and select Elements → Fire → Flame sheets. Start with Authored;
+Fire details offers Coals, Embers and Hot seams. Material offers the existing
+Living artifacts, with its original palette. Blank Fire form currently holds
+its single implemented composition. The main blend does not yet include Fire.
+Test tracks and acceleration work through the same controls as Water.
+
+Standalone GPU regression (baseline saved before this pass):
+`.venv\Scripts\python.exe app/visuals/shader_test.py --fire-test work/elemental/fire/before.frag work/elemental/fire/check`

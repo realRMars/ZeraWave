@@ -3,6 +3,53 @@
 Updated 2026-09-26. Base checkpoint: `aa44d54`, accepted Geometric material
 gathering. Read AGENTS.md and the current DREAMWAVE_HANDOFF.md entry first.
 
+## Fire refinement: lava rhythm, licking tips and ignition
+
+The user liked the foundation and requested a steadily flowing lava base,
+more licking flame tips, and white-hot → blue → amber color on intense hits.
+The existing Coals layer now carries slowly advected molten channels between
+dark crusts. Its clock is elapsed time, its gentle rhythm is independent of
+bass/flux/impact, and its stable effect ID remains fire_coals. Embers still
+means the rising sparks. No additional controls or materials were introduced.
+
+Traveling curls increasingly bend the upper flame sheets; tongue heights also
+travel instead of remaining in a fixed comb. A narrow, ribbon-shaped root
+region responds to the existing decaying impact envelope: white near the real
+onset ceiling of .5, blue as it decays, and back to amber by about half a second.
+The response belongs to the base form, independent of optional Hot seams.
+It does not change the shared renderer envelope or audio normalization.
+
+The initial broad ignition band failed the previous generic frame-change
+bound (22.79/255) and looked too flat. It was narrowed and shaped around flame
+folds. Tests now distinguish the intentionally abrupt onset from ordinary
+motion: final onset 10.92/255 (bound 12), other frames at most 2.864/255 (bound 3).
+504 prior-state preservation cases still match exactly. Lower-bed pixels are
+identical between silent and full audio at fixed time and move over two seconds.
+Cooling captures verify a white peak, blue decay and return to amber. Evidence:
+work/elemental/fire/refinement/. Review remains isolated from main blend.
+
+## Fire foundation from accepted Water checkpoint 38da96a
+
+The user approved Fire as the next element, one at a time. State 14 is an
+isolated Studio foundation: three rising flame sheets above a low coal bed,
+with sparse ascending embers and controlled amber seams. A shared positive
+flow clock advects the folds upward. Bass broadens the base and height, flux
+curls the sheet edges, sparkle exposes seams/embers, and impact heats a bounded
+lower region. Silence retains slow motion. This is procedural layered imagery,
+not a volumetric combustion simulation. There is one form, Flame sheets.
+
+The existing source material is advected into the fire. Living artifacts keeps
+its existing generation and palette; only its new Fire presentation is warm.
+Its contribution, Coals, Embers and Hot seams can be independently enabled or
+cycled in Fire's layer profile. Existing layer bit positions are unchanged.
+The renderer, audio pipeline, clocks and production blend remain unchanged.
+Fire awaits user review before further forms or main-blend integration.
+
+Deferred user idea: a sibling metallic material with its own palette and
+apparent bevel/reflection depth, able to alternate with Living artifacts or
+appear together. Do not retune Living artifacts or its palette to implement it.
+Other future elements below remain concepts, to develop one at a time.
+
 ## Creative composition
 
 ### Water continuation from accepted checkpoint 6875fb9
@@ -308,7 +355,7 @@ threshold adjustment or normalization retuning was performed.
 
 ## Remaining Elemental directions
 
-- **Fire:** strongest next contrast. Vertical, translucent flame sheets rise
+- **Fire continuation:** the isolated flame-sheet foundation above is now implemented; further forms and integration await review. Original direction: Vertical, translucent flame sheets rise
   above a few dark coals. Remap the existing dye upward; bass widens the base,
   flux tears bounded sheet edges, sparkle reveals sparse embers, impact briefly
   exposes hot seams. Preserve cool/dark gaps instead of a full orange wash.

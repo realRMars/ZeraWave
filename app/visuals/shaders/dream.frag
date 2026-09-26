@@ -1332,9 +1332,95 @@ vec3 water_falls(FallsSurface surface, vec3 material)
     return mix(scene,water_environment(surface.ray),haze*effect(32768));
 }
 
+// Fire is an isolated development world. Three depth sheets share upward
+// transport; audio bends the field without multiplying/resetting its clock.
+vec2 fire_domain(vec2 p) {
+    float h = p.y + .40;
+    float clock = u_time*.32 + u_drift_time*.025;
+    float bend = sin(h*5.0-clock*.9)*h*.19
+        + (fbm(vec2(p.x*3.,h*3.-clock))-.5)*h*.32;
+    return vec2((p.x-bend)*1.7, h*.75-clock*.32);
+}
+
+vec3 isolated_fire_scene(vec2 p, vec3 canvas) {
+    float bass=clamp(u_scale,0.,1.), flux=clamp(u_flux,0.,1.);
+    float spark=clamp(u_sparkle,0.,1.), impact=clamp(u_impact,0.,1.);
+    float clock=u_time*.32+u_drift_time*.025;
+    vec3 light=vec3(.006,.008,.016);
+    // A low hearth in a dark chamber. Back sheets are cooler and dimmer.
+    for(int layer=0;layer<3;layer++) {
+        float z=float(layer);
+        float h=(p.y+.37+z*.024)/( .66+bass*.19);
+        float x=p.x*(1.0+z*.16)+.055*sin(z*3.1);
+        float rise=clock+z*4.7;
+        vec2 adv=vec2(x*4.,h*2.9-rise);
+        float fold=fbm(adv);
+        x+=(fold-.5)*(.10+flux*.15)*max(h,0.)
+            +sin(h*5.-rise+z)*h*.10;
+        // Tips lean, curl and draw out as a coherent traveling lick.
+        float tip=smoothstep(.20,.85,h);
+        x+=tip*(.045+.045*flux)*sin(h*9.-rise*1.7+z*1.9);
+        float tongues=.5+.5*sin(x*17.+sin(x*9.+z-rise*.65)*1.5
+            +z*2.3+sin(rise*.85+z)*.75);
+        float top=.39+.43*tongues+.20*fbm(vec2(x*8.,rise*.7));
+        float taper=1.-smoothstep(.12,1.,h);
+        float width=(.53+bass*.12)*max(.08,taper);
+        float edge=width-abs(x);
+        float silhouette=smoothstep(-.018,.055,edge)
+            *smoothstep(-.02,.025,h)*(1.-smoothstep(top-.16,top+.03,h));
+        float ribbons=.5+.5*sin(x*36.+fold*9.+h*3.);
+        float veil=.28+.72*pow(ribbons,1.5);
+        float heat=clamp(.78-h*.52+fold*.23+impact*.12*exp(-h*h*14.),0.,1.);
+        vec3 tint=mix(vec3(.50,.028,.035),vec3(1.,.30,.025),smoothstep(.30,.70,heat));
+        tint=mix(tint,vec3(1.,.72,.24),smoothstep(.78,1.,heat));
+        vec3 pigment=canvas/(1.+max(canvas.r,max(canvas.g,canvas.b)));
+        vec3 sheet=mix(tint,pigment*1.5,.27)*veil;
+        float seam=pow(ribbons,18.)*silhouette*(.10+spark*.24)
+            *effect(524288);
+        // Strong real onsets reach about .5. Existing envelope decay moves
+        // the short white core through blue and back to the amber sheets.
+        float hot=smoothstep(.12,.40,impact);
+        float white=smoothstep(.40,.50,impact);
+        float foot=exp(-pow((h-.085)*14.,2.))*silhouette
+            *(.12+.88*ribbons*ribbons);
+        vec3 ignition=mix(vec3(.025,.24,1.25),vec3(1.30,1.42,1.55),white);
+        light+=ignition*foot*hot*(.52-z*.12);
+        light+=sheet*silhouette*(.44-z*.10)
+            +vec3(1.,.53,.16)*seam;
+    }
+    // Slow lava threads between dark crusts. Elapsed time keeps this bed
+    // steady even when bass, flux or the integrated flame speed changes.
+    float lava_time=u_drift_time*.075;
+    vec2 bed=vec2(p.x*9.-lava_time,(p.y+.405)*30.);
+    bed.y+=.65*sin(bed.x*.8+lava_time*.35);
+    float coal_mask=exp(-pow((p.y+.402)*22.,2.))
+        *(1.-smoothstep(.46,.76,abs(p.x)));
+    float crust=fbm(bed);
+    float channels=exp(-pow((crust-.48)*19.,2.));
+    float rhythm=.88+.12*sin(u_drift_time*.65+p.x*3.);
+    vec3 molten=mix(vec3(.34,.025,.009),vec3(.95,.24,.025),channels);
+    light+=molten*coal_mask*(.12+channels*.60)*rhythm*effect(131072);
+    // Seeded ascending sparks fade at wrap boundaries; no frame randomness.
+    for(int i=0;i<22;i++) {
+        float seed=hash(vec2(float(i),8.9));
+        float age=fract(clock*(.10+seed*.07)+seed*7.);
+        float y=-.36+age*.97;
+        float x=(hash(vec2(float(i),3.2))-.5)*.95
+            +age*.12*sin(clock*.7+seed*31.);
+        vec2 d=p-vec2(x,y);
+        float fade=smoothstep(0.,.12,age)*(1.-smoothstep(.65,1.,age));
+        float dotlight=exp(-dot(d*vec2(280.,140.),d*vec2(280.,140.)));
+        light+=vec3(1.,.40,.075)*dotlight*fade*(.10+spark*.8)
+            *effect(262144);
+    }
+    // Soft shoulder preserves amber detail at full drive instead of white.
+    return 1.-exp(-light*1.65);
+}
+
 void main()
 {
-    float debug_state = (u_debug_state > 10.5 && u_debug_state < 12.5) ? 1.0 : u_debug_state;
+    bool fire_mode = u_debug_state > 13.5 && u_debug_state < 14.5;
+    float debug_state = fire_mode ? 1.0 : (u_debug_state > 10.5 && u_debug_state < 12.5) ? 1.0 : u_debug_state;
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
 
     // Correct for the window's aspect ratio.
@@ -1379,6 +1465,8 @@ void main()
         * exp(-length(screen_p));
     p = mat2(cos(gather_twist), sin(gather_twist),
         -sin(gather_twist), cos(gather_twist)) * p;
+
+    if (fire_mode) p = fire_domain(screen_p);
 
     float t = u_time * 0.18;
     float distortion = u_distortion;
@@ -1992,6 +2080,8 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         * (0.18 * cosmic_weight + sparkle * (0.8 + cosmic_weight * 0.8))
         * (1.0-water_takeover);
 
+    vec3 before_artifacts = color;
+
     // Secondary morphology variation: slowly-evolving parameters that
     // let the living artifacts drift between different structural
     // families (blobs, petals, rings, shards, eyes, lattice) without
@@ -2116,6 +2206,8 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     );
     color += art_accent * art_edge * effect(1) * (0.35 + geometric_weight * 0.30)
         * (1.0-water_takeover*.80);
+
+    vec3 fire_material = material_before_effects + color - before_artifacts;
 
     // Falling/drifting world elements: unlocked strongly by the
     // horizon state, but audio decides what populates it -- highs for
@@ -2307,5 +2399,6 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         if (forms.w > 0.0) liquid = mix(liquid,water_falls(falls,color),forms.w);
         color = mix(color,liquid,water_takeover);
     }
+    if (fire_mode) color = isolated_fire_scene(screen_p, fire_material);
     fragColor = vec4(color, 1.0);
 }

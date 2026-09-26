@@ -13,7 +13,7 @@ import moderngl
 
 from renderer import Renderer, VERTEX_SHADER
 
-STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13}
+STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14}
 
 
 def save_png(path, pixels):
@@ -810,6 +810,115 @@ def water_integration_test(baseline_path, output):
         renderer.close()
 
 
+def fire_test(baseline_path, output):
+    """Real GPU preservation, Fire headroom, layers and continuous-clock checks."""
+    from preview_layers import BITS
+    output.mkdir(parents=True, exist_ok=True)
+    renderer=Renderer(width=320,height=180,title='Fire foundation checks')
+    baseline=vao=None
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);renderer.create()
+        baseline=renderer.ctx.program(vertex_shader=VERTEX_SHADER,
+            fragment_shader=baseline_path.read_text(encoding='utf-8'))
+        vao=renderer.ctx.simple_vertex_array(baseline,renderer.vertices,'in_position')
+        def frame(state, seconds, level=.4, mode=0, mask=0, overrides=None, old=False):
+            program=baseline if old else renderer.program
+            values=dict(u_time=seconds*.75,u_star_time=seconds,u_drift_time=seconds,
+                u_resolution=(320.,180.),u_scale=level,u_flux=level,u_sparkle=level,
+                u_impact=level*.3,u_intensity=1.,u_distortion=1.,u_debug_state=float(state),
+                u_layer_mode=mode,u_layer_mask=mask)
+            values.update(overrides or {})
+            for key,value in values.items():
+                if key in program:program[key].value=value
+            (vao if old else renderer.vao).render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(renderer.ctx.screen.read(components=3),dtype=np.uint8).reshape(180,320,3).copy()
+        preserved=0
+        for state in range(14):
+            for seconds in (0.,42.,126.,147.,266.,686.):
+                for level in (.05,.5,.95):
+                    for mode,mask in ((0,0),(1,1)):
+                        a=frame(state,seconds,level,mode,mask)
+                        b=frame(state,seconds,level,mode,mask,old=True)
+                        assert np.array_equal(a,b),(state,seconds,level,mode,np.abs(a.astype(float)-b).max())
+                        preserved+=1
+        samples=[];pictures=[]
+        for level in (0.,.45,1.):
+            for seconds in (0.,13.,42.,87.,160.,300.):
+                pixels=frame(14,seconds,level)
+                contrast=float(pixels.astype(float).std(axis=(0,1)).mean())
+                dark=float((pixels.max(axis=2)<35).mean())
+                clipped=float((pixels.max(axis=2)>=250).mean())
+                assert contrast>12 and .25<dark<.97 and clipped<.001,(level,seconds,contrast,dark,clipped)
+                samples.append(dict(level=level,seconds=seconds,contrast=contrast,dark=dark,clipped=clipped))
+                if seconds==42.:
+                    save_png(output/f'level-{level}.png',pixels[::-1]);pictures.append(pixels[::-1])
+        save_png(output/'profiles.png',np.concatenate(pictures,axis=0))
+        response={}
+        base=frame(14,42.,0.)
+        for key in ('u_scale','u_flux','u_sparkle','u_impact'):
+            pixels=frame(14,42.,0.,overrides={key:1.})
+            response[key]=float(np.abs(pixels.astype(float)-base).mean())
+            assert response[key]>.02,(key,response[key])
+        quiet_motion=float(np.abs(frame(14,44.,0.).astype(float)-base).mean())
+        assert quiet_motion>.2,quiet_motion
+        effects={}
+        for key in ('artifacts','fire_coals','fire_embers','fire_seams'):
+            differences=[]
+            for seconds in (13.,42.,87.):
+                off=frame(14,seconds,.7,1,0)
+                on=frame(14,seconds,.7,1,BITS[key])
+                differences.append(float(np.abs(on.astype(float)-off).mean()))
+            effects[key]=max(differences)
+            assert effects[key]>.005,(key,differences)
+        # Below the flames, the lava bed must move but ignore abrupt audio.
+        calm=frame(14,42.,0.)[:8]
+        loud=frame(14,42.,1.,overrides={'u_impact':1.})[:8]
+        assert np.array_equal(calm,loud), 'Lava bed twitches with audio'
+        lava_motion=float(np.abs(frame(14,44.,0.)[:8].astype(float)-calm).mean())
+        assert lava_motion>.05,lava_motion
+        # Real onset amplitudes peak near .5; inspect its exponential cooling.
+        cooling=[];cooling_metrics=[]
+        for delay in (0.,.08,.5):
+            pixels=frame(14,42.+delay,.45,overrides={'u_impact':.5*math.exp(-6.*delay)})
+            cooling.append(pixels[::-1])
+            foot=pixels[24:48].astype(float)
+            cooling_metrics.append(dict(delay=delay,blue=float(foot[:,:,2].mean()),
+                pale_pixels=int(((foot.min(axis=2)>150)&(foot.max(axis=2)-foot.min(axis=2)<65)).sum())))
+        assert cooling_metrics[0]['pale_pixels']>50,cooling_metrics
+        assert cooling_metrics[1]['blue']>cooling_metrics[2]['blue']+10,cooling_metrics
+        assert cooling_metrics[2]['pale_pixels']<cooling_metrics[0]['pale_pixels'],cooling_metrics
+        save_png(output/'cooling.png',np.concatenate(cooling,axis=0))
+        # Actual renderer integration: rise, impact and release, no clock reset.
+        renderer.debug_state=14
+        previous=None;max_step=0.;hit_step=0.;last_clock=-1.;last_star=-1.
+        for index in range(361):
+            seconds=index/60.
+            level=.5-.5*math.cos(seconds*math.pi/3.)
+            renderer.parameters.scale=level;renderer.parameters.flux=level
+            renderer.parameters.sparkle=level;renderer.parameters.movement=level
+            renderer.parameters.impact=.6 if index==180 else 0.
+            renderer.render(elapsed_time=seconds)
+            assert renderer.flow_time>last_clock and renderer.star_time>last_star
+            last_clock,last_star=renderer.flow_time,renderer.star_time
+            pixels=np.frombuffer(renderer.ctx.screen.read(components=3),dtype=np.uint8).astype(float)
+            if previous is not None:
+                step=float(np.abs(pixels-previous).mean())
+                if index==180:hit_step=step
+                else:max_step=max(max_step,step)
+            previous=pixels
+        assert max_step<3.,max_step
+        assert hit_step<12.,hit_step  # Deliberate onset flash, not ordinary motion.
+        report=dict(preserved_cases=preserved,samples=samples,audio_response=response,
+            quiet_motion=quiet_motion,effect_response=effects,integrated_frames=361,max_step=max_step,
+            lava_motion=lava_motion,cooling=cooling_metrics,hit_step=hit_step)
+        (output/'fire.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print('PASS Fire: '+json.dumps(report),flush=True)
+    finally:
+        if vao is not None:vao.release()
+        if baseline is not None:baseline.release()
+        renderer.close()
+
+
 def main(debug_state=0, states=None, layers=None):
     renderer = Renderer(
         width=1280,
@@ -843,6 +952,7 @@ def main(debug_state=0, states=None, layers=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--fire-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--sweep", type=Path)
     parser.add_argument("--layer-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--currents-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
@@ -862,7 +972,9 @@ if __name__ == "__main__":
     parser.add_argument("--states", nargs="+", choices=tuple(STATES), help="Development cycle: hold each state for 28 seconds.")
     parser.add_argument("--layers", type=parse_layers, default={}, help="Development per-world effect settings as JSON.")
     args = parser.parse_args()
-    if args.water_integration_test:
+    if args.fire_test:
+        fire_test(*args.fire_test)
+    elif args.water_integration_test:
         water_integration_test(*args.water_integration_test)
     elif args.currents_test:
         currents_test(*args.currents_test)
