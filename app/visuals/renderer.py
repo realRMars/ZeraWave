@@ -6,6 +6,7 @@ import moderngl
 import math
 
 from parameters import VisualParameters
+from preview_layers import layers_at
 
 VERTEX_SHADER = """
 #version 330
@@ -46,6 +47,14 @@ class Renderer:
         self.star_rate = 1.0
         self.parameters = VisualParameters()
         self.debug_state = 0
+        self.debug_sequence = ()
+        self.layer_profiles = {}
+
+    def state_at(self, seconds):
+        """Development-only holds; ordinary rendering keeps its existing state."""
+        if self.debug_sequence:
+            return self.debug_sequence[int(max(0.0, seconds) // 28.0) % len(self.debug_sequence)]
+        return self.debug_state
 
     def create(self):
         if not glfw.init():
@@ -166,7 +175,10 @@ class Renderer:
         self.program["u_sparkle"].value = self.parameters.sparkle
         self.program["u_impact"].value = self.impact_envelope
         self.program["u_flux"].value = self.parameters.flux
-        self.program["u_debug_state"].value = float(self.debug_state)
+        self.program["u_debug_state"].value = float(self.state_at(current_time))
+        mode, mask = layers_at(self.layer_profiles, self.state_at(current_time), current_time)
+        self.program['u_layer_mode'].value = mode
+        self.program['u_layer_mask'].value = mask
         self.vao.render(mode=moderngl.TRIANGLE_STRIP)
 
     def should_close(self):

@@ -2,6 +2,8 @@
 
 import argparse
 import csv
+import json
+import math
 import sys
 import time
 import wave
@@ -20,10 +22,23 @@ from live_visual_test import LIVE_STATES, analyze_samples
 from onset_detector import OnsetDetector
 from parameter_mapper import VisualParameterMapper
 from renderer import Renderer
+from preview_layers import parse_layers, validate_layers, layers_at
 from signal_processor import SignalProcessor, VisualSignalConditioner
 
 
-def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend"):
+def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
+           capture_dir=None, capture_interval=15.0, states=None, layers=None):
+    if not math.isfinite(speed) or speed < 0:
+        raise ValueError("Speed must be finite and nonnegative")
+    if max_seconds is not None and (not math.isfinite(max_seconds) or max_seconds <= 0):
+        raise ValueError("Duration must be finite and positive")
+    if capture_dir is not None:
+        if capture_interval <= 0:
+            raise ValueError("Capture interval must be positive")
+        from shader_test import save_png
+        capture_dir.mkdir(parents=True, exist_ok=True)
+    captures = []
+    next_capture = 0.0
     debug_state = LIVE_STATES[state]
     with wave.open(str(path), "rb") as audio:
         rate = audio.getframerate()
@@ -39,12 +54,15 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend")
         detectors = {name: OnsetDetector(threshold=0.2) for name in ("bass", "mids", "highs")}
         renderer = Renderer(title="DreamWave WAV Replay")
         renderer.debug_state = debug_state
+        renderer.debug_sequence = tuple(LIVE_STATES[name] for name in (states or ()))
+        renderer.layer_profiles = validate_layers(layers or {})
         rows = []
         chunk = 2048
         song_time = 0.0
 
         try:
             renderer.create()
+            replay_start = time.perf_counter()
             while not renderer.should_close() and song_time < (max_seconds or float("inf")):
                 raw = audio.readframes(chunk)
                 if not raw:
@@ -59,14 +77,33 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend")
                 renderer.parameters.sparkle = result["sparkle"]
                 renderer.parameters.impact = result["impact"]
                 renderer.parameters.flux = frame.flux
+                active_state = states[int(song_time // 28.) % len(states)] if states else state
+                layer_mode, layer_mask = layers_at(renderer.layer_profiles, LIVE_STATES[active_state], song_time)
                 renderer.render(elapsed_time=song_time)
+                if capture_dir is not None and song_time >= next_capture:
+                    width, height = renderer.ctx.screen.size
+                    pixels = np.frombuffer(renderer.ctx.screen.read(components=3, alignment=1),
+                        dtype=np.uint8).reshape(height, width, 3)
+                    filename = f"frame-{song_time:08.3f}.png"
+                    save_png(capture_dir / filename, pixels[::-1])
+                    captures.append(dict(file=filename, seconds=song_time,
+                        state=active_state, layer_mode=layer_mode, layer_mask=layer_mask, bass=frame.bass, mids=frame.mids, highs=frame.highs,
+                        flux=frame.flux, **result,
+                        contrast=float(pixels.astype(float).std(axis=(0, 1)).mean()),
+                        dark_fraction=float((pixels.max(axis=2) < 35).mean()),
+                        clipped_fraction=float((pixels.max(axis=2) >= 250).mean())))
+                    next_capture += capture_interval
                 renderer.swap_buffers()
                 renderer.poll_events()
-                rows.append({"seconds": song_time, "state": state, "bass": frame.bass, "mids": frame.mids,
+                rows.append({"seconds": song_time, "state": active_state, "layer_mode": layer_mode, "layer_mask": layer_mask, "bass": frame.bass, "mids": frame.mids,
                              "highs": frame.highs, "flux": frame.flux, **result})
                 song_time += len(samples) / rate
                 if speed > 0:
-                    time.sleep(min(0.02, (len(samples) / rate) / speed))
+                    # Pace against song time, including drawing/capture overhead.
+                    # Never drop analysis chunks; slower GPUs simply run behind.
+                    delay = replay_start + song_time / speed - time.perf_counter()
+                    if delay > 0:
+                        time.sleep(delay)
         finally:
             renderer.close()
 
@@ -77,6 +114,12 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend")
             if writer:
                 writer.writeheader()
                 writer.writerows(rows)
+    if capture_dir is not None:
+        (capture_dir / "captures.json").write_text(json.dumps(dict(
+            source=str(path), state=state, states=states, layers=renderer.layer_profiles, song_seconds=song_time,
+            analyzed_frames=len(rows), captures=captures,
+            note="Decoded music through the real analysis and GPU pipeline; no audible playback."),
+            indent=2), encoding="utf-8")
     return song_time, rows
 
 
@@ -87,8 +130,13 @@ def main():
     parser.add_argument("--max-seconds", type=float, default=None)
     parser.add_argument("--metrics", type=Path, default=None)
     parser.add_argument("--state", choices=tuple(LIVE_STATES), default="blend")
+    parser.add_argument("--capture-dir", type=Path, help="Optional song-time PNG captures and input metadata.")
+    parser.add_argument("--capture-interval", type=float, default=15., help="Song seconds between captures.")
+    parser.add_argument("--states", nargs="+", choices=tuple(LIVE_STATES), help="Development cycle: hold each state for 28 song seconds.")
+    parser.add_argument("--layers", type=parse_layers, default={}, help="Development per-world effect settings as JSON.")
     args = parser.parse_args()
-    seconds, rows = replay(args.wav, args.speed, args.max_seconds, args.metrics, args.state)
+    seconds, rows = replay(args.wav, args.speed, args.max_seconds, args.metrics, args.state,
+                           args.capture_dir, args.capture_interval, args.states, args.layers)
     print(f"Replay complete: {seconds:.1f}s song time, {len(rows)} analyzed frames")
 
 

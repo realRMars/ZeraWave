@@ -15,9 +15,12 @@ from capture import AudioCapture
 from onset_detector import OnsetDetector
 from parameter_mapper import VisualParameterMapper
 from renderer import Renderer
+from preview_layers import parse_layers, validate_layers
 from signal_processor import SignalProcessor, VisualSignalConditioner
 
-LIVE_STATES = {"blend": 0, "transition": 4, "canvas": 5}
+LIVE_STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3,
+               "transition": 4, "canvas": 5, "water": 6, "sea": 7,
+               "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12}
 
 
 def make_bar(value, width=30):
@@ -27,7 +30,7 @@ def make_bar(value, width=30):
 
 
 def analyze_samples(samples, analyzer, processor, conditioner, detectors):
-    """Shared live/replay analysis; preserve the existing conditioning order."""
+    """Shared live/replay analysis; detect events before visual slew limiting."""
     if samples.ndim > 1:
         samples = samples.mean(axis=1)
 
@@ -96,6 +99,13 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors):
         1.0,
     )
 
+    # Detect normalized transients before visual conditioning caps each rise
+    # at 0.12, below the existing onset threshold of 0.2. Continuous controls
+    # still use exactly the same normalization, smoothing and conditioning.
+    bass_onset = detectors["bass"].detect(bass_processed)
+    mids_onset = detectors["mids"].detect(mids_processed)
+    highs_onset = detectors["highs"].detect(highs_processed)
+
     bass_processed = conditioner.condition(
         "bass",
         bass_processed,
@@ -107,18 +117,6 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors):
     highs_processed = conditioner.condition(
         "highs",
         highs_processed,
-    )
-
-    bass_onset = detectors["bass"].detect(
-        bass_processed
-    )
-
-    mids_onset = detectors["mids"].detect(
-        mids_processed
-    )
-
-    highs_onset = detectors["highs"].detect(
-        highs_processed
     )
 
     frame = AudioFrame(
@@ -133,7 +131,7 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors):
     return frame
 
 
-def main(state="blend"):
+def main(state="blend", states=None, layers=None):
     capture = AudioCapture()
     analyzer = AudioAnalyzer()
     processor = SignalProcessor(smoothing=0.5)
@@ -144,6 +142,8 @@ def main(state="blend"):
     mapper = VisualParameterMapper()
     renderer = Renderer(title=f"DreamWave - live {state}")
     renderer.debug_state = LIVE_STATES[state]
+    renderer.debug_sequence = tuple(LIVE_STATES[name] for name in (states or ()))
+    renderer.layer_profiles = validate_layers(layers or {})
 
     detectors = {
         "bass": OnsetDetector(threshold=0.2),
@@ -236,6 +236,8 @@ def main(state="blend"):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DreamWave with live system audio.")
     parser.add_argument("--state", choices=tuple(LIVE_STATES), default="blend",
-                        help="blend: normal flow; canvas: hold planet; transition: 40-second diagnostic cycle")
+                        help="blend: normal flow; canvas: hold planet; transition: 40-second diagnostic cycle; water: isolated liquid world")
+    parser.add_argument("--states", nargs="+", choices=tuple(LIVE_STATES), help="Development cycle: hold each state for 28 seconds.")
+    parser.add_argument("--layers", type=parse_layers, default={}, help="Development per-world effect settings as JSON.")
     args = parser.parse_args()
-    main(args.state)
+    main(args.state, args.states, args.layers)

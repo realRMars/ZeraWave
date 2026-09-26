@@ -2,11 +2,496 @@
 
 Updated: 2026-09-26
 
-## Current pass: Geometric material gathering (awaiting review)
+## Accepted checkpoint: Water and Development Studio
+
+The user accepted the Water refinements and Studio form/effect isolation, then
+explicitly requested this checkpoint commit. It builds on aa44d54 and includes
+the accumulated Water world, shared onset-order fix, accelerated replay,
+hierarchical selectors and per-world effect lists. Earlier uncommitted/pending
+review statements below describe the development history and are superseded
+by this acceptance. Unrelated research folders and root-level scratch scripts
+are excluded. No new feature work is part of the checkpoint.
+
+### Current development-tool pass: forms and effect layers
+
+User accepted cascading world isolation and requested a further separation of
+forms from optional effects, with add/remove, enable, solo, order and cycling.
+Terminology: World = environment; Form = main structure; Effect = treatment;
+Layers = a world's saved ordered effect list. Elements is a grouping category.
+This section supersedes the previous pass's "no order-list editor" statement.
+
+Studio exposes Organic → Membrane / Roots (blank retains native meld),
+Geometric → Neon corridor, and existing Cosmic/Water forms. Effects & layers
+has category/effect pickers, a table, On/off, Solo, Remove, Up/Down, and Authored /
+Selected together / Cycle list playback with a hold duration. Per-world lists
+survive selection changes and session save/load. Water has its own profile,
+independent of the Elements grouping. Main blend has a separate preview profile.
+Version 3 saves lists and paths; v1/v2 migrate with authored effects unchanged.
+Each run saves preview.json alongside its log for reproducibility.
+
+The new small preview_layers.py shares development IDs, validation and cycle
+selection among Studio and the existing entry points/renderer; it is not a new
+audio or visual parameter pipeline. Two optional shader uniforms gate existing
+effects. Default mode preserves authored appearance; custom mode holds selected
+spatial treatments and gates material/detail contributions. Custom material
+effects remain visible on Organic's surface before planet/corridor projection.
+Stars retain their continuously integrated clock even while hidden.
+
+Implemented controls: artifacts, sparkles, drifting flecks, radial beams,
+tunnel, fractal folds, horizon/pathway, root blossoms, corridor glyph rain,
+starfield, rings, moons with their dust wakes. Effects remain audio-responsive
+and keep their lifecycle. Root blossoms require Roots; Cosmic Geometry study
+uses only world details. Water's rain/waves/ripples/fall remain forms; its
+inherited artifacts can be isolated. Fractal remains a spatial treatment.
+
+List order is cycle order, not arbitrary shader/compositor order. Together
+retains the shader's established coordinate/material order. Cycle cuts are
+development diagnostics; song time drives replay regardless of acceleration.
+CLI --layers JSON works in live, replay, synthetic preview and fixed capture.
+Replay CSV/capture metadata includes the active layer mode/mask. Main live
+launcher has no overrides and does not import Studio's lists automatically.
+
+Verification executed: shader preservation_test passed 72 comparisons;
+layer_test passed 132 comparisons covering all previous states, with maximum
+channel deviation 1/255, two distinct held Organic forms and 30 visible
+effect/world combinations. Synthetic GPU base-form, artifact and fractal
+captures were visually inspected. studio_test passed actual Tk selectors,
+table/solo/reorder/save/load callbacks, per-world independence, v1/v2/v3
+migration/validation, minimum 680x700 layout bounds, child lifecycle, replay
+pacing parity, 9-second real audio layer cycling and 57-second form cycling,
+capture/CSV labels, and uninterrupted real GPU drift/star clocks. CLI help for
+all three entry points passed, including live/replay module invocation.
+Fixed-frame CLI capture verified the requested artifact mask and the resulting
+planet material was visually inspected. Python compilation and git diff --check
+passed (Git reports its normal LF-to-CRLF conversion notices).
+Live loopback and desktop screenshot review were not rerun for this pass.
+
+Evidence: work/development/layers/before.frag and check/ (ignored development
+artifacts). HEAD remains aa44d54; accumulated Water/Studio work is uncommitted.
+No dependency changes, deletion, renderer replacement or audio analysis edits
+in this pass. Restart Studio to load controls; changes apply on the next run.
+
+### Current development-tool pass: hierarchical isolation
+
+The user accepted the revised waterfall, then requested cascading world,
+category and deeper form selectors with blank selections cycling the chosen
+branch. Studio now has a recursive WORLD_TREE catalog: Organic, Geometric,
+Cosmic, Transition, Elements → Water → Sea / Liquid dyes / Rain & ripples /
+Waterfall. Cosmic exposes its existing canvas and geometry diagnostic. No
+unimplemented elements or order-list editor were added.
+
+Blank root uses main blend; blank Water uses its authored native meld. Elements
+currently delegates to its sole implemented Water child. Multi-branch groups
+without a native cycle flatten every descendant leaf in catalog order and
+hold each for 28 seconds. This prevents grandchildren from being skipped when
+future elements are added. These generic development switches are direct cuts.
+Native Water blending is unchanged. Select a leaf to isolate it.
+
+Parent edits clear stale children; nested dropdowns and Presets menus rebuild
+recursively, with a scrolling selector area for deeper paths. Session version 2
+saves stable selection IDs. Version 1 state sessions migrate to equivalent
+paths on load, without changing their selected held/native behavior.
+
+Files in this step: studio.py, studio_test.py, renderer.py, the existing live,
+replay and synthetic entry points, and development/handoff documentation.
+The renderer has an optional debug_sequence and elapsed-time state selector;
+its lifecycle, clocks, uniforms and normal default behavior are unchanged.
+All three entry points accept --states. Replay metadata/CSV records the actual
+active state, using song time regardless of acceleration. No shader/audio
+analysis changes, dependencies, new renderer or separate replay pipeline.
+
+Verification executed: studio_test.py passed recursive selection (including a
+temporary fourth level and multi-branch descendant coverage), blank semantics,
+ancestor clearing, all launch modes, v1 migration/v2 round-trip and invalid
+paths, actual Tk start/stop, replay pacing parity, a 57-second real audio/GPU
+group replay crossing two state boundaries, capture/CSV state labels, and
+actual GPU state uniforms with positive uninterrupted flow/star clocks. Minimum
+680x700 layout bounds were checked for root, parent and leaf selections; buttons
+remain visible. Live/synthetic CLI help accepts the new option. Live loopback
+and desktop screenshot review were not rerun for this control-only change.
+Restart Studio to load the hierarchical controls; existing previews keep their
+current settings. Nothing committed; aa44d54 remains HEAD.
+
+### Waterfall perspective refinement
+
+The user accepted the other Water forms and development controls, but asked
+to replace the waterfall's bottom pond/rings with an infinite fall fed by a
+river between a distant world horizon and a nearer cliff lip. Rain ripples
+were explicitly accepted and must remain unchanged.
+
+Only dream.frag's waterfall projection/shading/material mapping changed, with
+coverage added to the existing shader_test.py and documentation updates.
+FallsSurface analytically intersects a horizontal river and vertical cliff
+face meeting at the same edge. A slow camera approach lowers the viewpoint
+below the lip: the river appears broader/shorter, then river, cliff edge and
+sky move out of frame, leaving falling water. The camera retreats continuously.
+The material uses one continuous flow coordinate around the lip; downstream
+streaks stretch with fall distance. Existing wave normals shade the upstream
+river. The basin and its concentric rings are removed only from the waterfall.
+
+This remains stylized two-plane perspective shading, not fluid simulation or
+volumetric terrain. No renderer, audio, studio, state timing or other form edits.
+The held waterfall preset and existing family/main-blend routes all use it.
+Baseline: work/elemental/waterfall-perspective/before.frag.
+Initial wide/intermediate/close captures were visually inspected. Further
+verification for this pass is recorded below when complete.
+
+Final synthetic checks passed: --waterfall-test extends the family harness,
+comparing 108 unaffected-world/sea/dye/rain samples against the pre-refinement
+shader (at most 1/255 difference), 60 form samples and 20 family/live boundaries.
+An actual GPU sweep covers 4,802 camera frames at 60 Hz across approach and
+retreat, quiet and dense inputs. Maximum mean frame delta is 1.8122/255.
+GPU hit-classification probes confirm separate sky/river in the wide view,
+over 98% falling-face coverage in close-up, and no bottom pool intersection.
+Existing non-Water temporal changes remain as documented in earlier entries.
+
+The camera test initially found a magnified source-shape pop at 99.283s.
+Cell-edge fading alone was insufficient; the inherited hard appearance
+threshold also needed easing. Both changes are gated to the waterfall's
+weight, leaving rain, dyes and sea unchanged. Final wide/close and blended
+captures were visually inspected. Landscape and portrait target checks passed;
+earlier timing samples had concurrent GPU work and are not isolated performance
+measurements. Evidence: work/elemental/waterfall-perspective/final/.
+
+All three complete tracks were rerun through the corrected held waterfall:
+Balloon 5,316, Chasing You 3,136, Warbot Jazz 7,015 frames (15,467 total).
+Audio CSVs match the previous family runs exactly apart from the state label.
+All 84 periodic captures passed contrast/dark/headroom checks: minimum contrast
+9.256, minimum dark fraction 8.93%, no clipped pixels. The 18-image three-track
+contact sheet and final portrait capture were visually inspected. Evidence:
+work/elemental/waterfall-perspective/final-music/{review-sheet.png,verification.json}.
+The first pre-fix music runs remain separately under music/ as diagnostic data.
+git diff --check passed. Changes remain uncommitted; HEAD is still aa44d54.
+Next: choose waterfall in Studio and restart the preview for user review.
+The new waterfall is already used by Water family and main blend; no re-import.
+
+### Current expansion: Water family, development controls, main blend
+
+The user accepted the sea world ("Really Cool!") and explicitly requested
+more Water forms/melding, a useful development environment, and integration
+into run_live_visualizer after verification. This supersedes the older
+isolated-only/pending-world-acceptance statements below. No commit authorized.
+
+Water now cycles sea -> dye currents -> rain/ripples -> waterfall -> sea,
+with held debug states 7–10 for review and state 6 for the family. The accepted
+sea equations are intact. Pool views pitch down; dye exposes folded colored
+channels, rain uses seeded expanding rings and sparse streaks, waterfall uses
+a falling curtain and receiving basin. These are procedural effects, not fluid
+transport or simulated droplets. All reuse existing source material/palettes.
+
+The main blend now admits Water between Cosmic visits: initial 116–158s visit,
+full takeover 126–144, then every 140s. Startup and Cosmic's original timing
+remain unchanged. Water's independent 112s form cycle varies successive visits.
+The same shader runs through run_live_visualizer; no launcher switch is needed.
+
+New app/visuals/studio.py and run_development_studio.bat expose useful controls:
+state/source/track/speed/duration, captures, sessions, preset menu, review tab.
+Menus are functional; import/export means settings JSON, not arbitrary shaders.
+The existing replay/live/preview scripts remain the execution paths. No new
+dependencies. Replay pacing now accounts for work elapsed against song time;
+previous capped sleeps made the real-time option too fast. All chunks remain.
+See DEVELOPMENT_STUDIO.md for workflow and limitations.
+
+Executed checks so far:
+- Studio standalone checks passed: session round-trip and validation, every
+  state command, actual Tk start/stop callbacks with a real replay child,
+  identical real GPU/audio results at speed 1 and 0, real-time pacing floor.
+- Family GPU checks: 84 preserved-world/sea cases, 60 form/profile/time cases,
+  16 form/live boundaries, explicit live admission and restoration checks.
+  Held sea and unaffected accepted worlds differ by at most 1/255.
+- Water synthetic checks: 36 stills, four input responses, silent evolution,
+  181 integrated frames, 360 draws across four output sizes. 1080p sea draw
+  median 4.08 ms, p95 4.13 ms (GPU only, not all-form performance).
+- Dye, rain, waterfall and main-blend captures were visually inspected.
+
+The first boundary test flagged a 3.455/255 mean frame change at 158s; the
+original blend measured 3.455 as well. Later original blend boundaries change
+up to 19.662/255; the revised check allows existing temporal changes plus .25,
+while holding family-only boundaries below 3. This is preservation evidence,
+not a claim that existing blend motion is artifact-free. Family boundary max
+was .795/255. A startup wraparound was corrected before final replay.
+
+Desktop UI screenshot inspection timed out waiting for Computer Use app
+access. Tk functionality was tested, but desktop layout is not visually
+verified. Evidence so far: work/elemental/water-family/{verification,synthetic}/.
+
+Final verification: all three complete tracks ran through BOTH Water and the
+main blend (30,934 analyzed/rendered frames total). All audio CSV values matched
+the previous accepted-wave runs exactly, excluding the intended state label.
+All 168 sampled frames passed structure/headroom checks. Water captures had
+at least 33.95% dark pixels and no clipped pixels. Main blend had up to 1.50%
+clipped pixels, with maxima in the unchanged Cosmic dwell (e.g. 208s), not a
+claim of zero clipping throughout the existing blend. Both 18-frame contact
+sheets were visually inspected: work/elemental/water-family/music/.
+
+Held dye/rain/waterfall also passed 1080p and portrait draws; captures inspected.
+Their 1080p GPU medians were 4.80/5.54/4.43 ms respectively (measured while a
+replay was active, not isolated whole-app performance). Tk layout bounds and
+three-track deduplication were verified; the minimum window height now keeps
+buttons visible. Studio checks passed again after these changes.
+The finished Studio was opened on the desktop for user review. Nothing staged
+or committed; aa44d54 remains HEAD. git diff --check passes with line-ending
+notices. Next: user review of new forms, melding and Studio before checkpoint.
+
+### Water world built around the accepted waves
+
+The user accepted the rough-sea refinement ("okay much better") and requested
+the Water world. That supersedes the pending-acceptance wording in older entries.
+The new setting is an open night sea between distant rocky islands, with low
+mist, reflected atmospheric light, submerged colored currents and sparse foam
+on high, steep storm crests. Quiet passages retain slow currents and dark space.
+The camera now reveals the horizon. The accepted height field, current function,
+audio mapping, clocks and rough-sea response were preserved.
+
+This step changes only app/visuals/shaders/dream.frag, shader_test.py and these
+two development notes. The environment is Water-only procedural shading using
+existing palettes; no new renderer, uniforms, assets, dependency or audio edits.
+Distance haze and broader far-surface normal samples soften the distant sea.
+The islands are background silhouettes; foam is visual shading, not fluid
+simulation. Water remains isolated state 6, without scheduler changes.
+
+Verification executed for this world pass:
+- Water test: 36 still cases, independent input responses, silence motion,
+  181 integrated frames, 360 draws across landscape/portrait/ultrawide sizes.
+  Largest integrated mean frame delta 2.883/255. 1080p GPU draw median 4.414 ms,
+  p95 4.829 ms; these exclude audio capture and presentation.
+- New --water-world-test mode: exact accepted wave height AND motion fields
+  at nine profile/time combinations, stable background under audio changes,
+  responsive foreground and continuous storm threshold (.01787/255 mean delta).
+- All 72 other-world comparisons / 144 GPU frames are pixel-identical,
+  preserving Organic, Geometric and Cosmic appearance.
+- Full-size landscape, portrait and quiet captures were visually inspected.
+- All three complete music replays passed (15,467 frames); every audio CSV
+  field matched the accepted rough-sea runs exactly. All 45 sampled frames
+  retained contrast, at least 62.86% dark pixels, and zero clipped pixels.
+  The twelve-image music contact sheet was visually inspected.
+
+Evidence: work/elemental/water-world/{final,comparison}/. Baseline before this
+world pass: work/elemental/water-world/before.frag. The new composition still
+needs user review. No second element was started. HEAD remains aa44d54;
+accumulated Water/audio/replay changes remain uncommitted.
+Music captures and summary: work/elemental/water-world/music/.
+git diff --check passed (line-ending notices only). The new live Water window
+is open on BlackShark loopback; initial observed inputs were silence. Next:
+user music review of this composition, then explicit checkpoint approval.
+
+### Rough-sea response requested after live review
+
+The user likes the overall Water treatment and requested that intense music
+drive waves more like a raging sea. This supersedes preserving the previous
+high-energy wave amplitude, while retaining the accepted quiet appearance.
+
+Changes are confined to dream.frag's Water functions, shader_test.py comparison
+coverage, this handoff and ELEMENTAL_DEVELOPMENT.md. A smooth weighted
+bass/flux/sparkle envelope (60/25/15 percent, threshold .55 to .88) introduces
+taller and faster broad crossing swells beneath the existing fine ripples.
+Wave phases retain constant rates on the existing clocks; audio controls the
+added amplitudes rather than multiplying accumulated time. The surface bounds
+expand to contain the swells. Rough water scans up to 40 intervals to bracket
+a front crossing before the existing 14 refinements, so tall waves obscure
+distant troughs. Quiet water retains the original search and shading.
+No audio, renderer, shared clocks, other worlds or palette code changed.
+
+Verification executed for this refinement:
+- GPU before/after comparison: quiet and moderate images at 18, 67 and 180s
+  are pixel-identical. Chorus height standard deviation increased 2.55-3.36x;
+  temporal height change increased too (combined amplitude/movement measure,
+  not a literal speed ratio). The .55 boundary is continuous within a mean
+  pixel delta of .00921/255.
+- Existing-world comparison: all 72 cases / 144 GPU frames are pixel-identical
+  to the pre-refinement shader, including Organic, Geometric and Cosmic routes.
+- Water test passed all 36 still cases, four individual audio responses,
+  silence motion, 181 integrated frames and 360 draws across four sizes.
+  Largest integrated mean frame delta 5.101/255. High-energy 1080p GPU draw
+  median 4.59 ms / p95 5.87 ms; higher cost is the rough-water surface search.
+  This excludes audio capture and presentation.
+- Chorus captures at 18 and 67s and a full-size Balloon frame at 90s were
+  visually inspected: substantial rolling crests, dark troughs and inherited
+  colored material, rather than the previous nearly flat expanse.
+- All three complete music replays passed: Balloon 5,316 frames, Chasing You
+  3,136, Warbot Jazz 7,015 (15,467 total). Every CSV field matched the previous
+  onset-corrected run exactly, including impacts. All 45 periodic captures
+  retained structure/dark coverage without clipping; minimum dark fraction
+  53.3%. A twelve-frame, three-track contact sheet was visually inspected.
+
+Baseline: work/elemental/rough-sea/before.frag. Synthetic evidence:
+work/elemental/rough-sea/{first,comparison}/. This remains a procedural height
+field without breaking foam or fluid simulation. Music evidence and summary:
+work/elemental/rough-sea/music/{review-sheet.png,verification.json}. The user
+subsequently accepted the stronger motion. No commit has been made.
+The prior Water preview was closed normally and reopened with this shader.
+BlackShark loopback is receiving varying audio (including nonzero impacts);
+the updated window was left open for user review. git diff --check passed.
+
+### Approved onset-order correction: implemented and verified
+
+The user approved the proposed correction after the three-track discovery.
+Moved the three onset detector calls in app/visuals/live_visual_test.py to
+immediately after SignalProcessor normalization/smoothing, before
+VisualSignalConditioner's visual slew limit. No thresholds, normalization,
+continuous conditioning, shader code, renderer clocks or parameters changed
+in this correction. The shared function fixes both live input and WAV replay.
+
+Extended app/audio/onset_test.py with the real shared analysis path (FFT,
+normalization and conditioning) using isolated synthetic tones for all three
+bands, in mono and stereo. It first failed on the old ordering, then passed
+with the fix. Tests verify silent input, two separate attacks, stable sustain,
+release, absence of cross-band onsets, and unchanged 0.12 continuous slew bounds.
+signal_test.py, normalize_test.py, audio_frame_test.py and
+parameter_mapper_test.py assertions passed; multiband_onset_test.py was also run
+and its detector outputs inspected.
+
+All three COMPLETE song replays were rerun through Water: 15,467 GPU-rendered
+frames. Comparison with the pre-fix CSVs proved exact per-frame equality for
+every field except impact, including bass/mids/highs, scale/movement/sparkle,
+flux and song time. Restored event coverage:
+- Balloon: 732 nonzero impact frames / 633 consecutive-event clusters; max .4955.
+- Chasing You: 487 frames / 361 clusters; max .4963.
+- Warbot Jazz: 1,193 frames / 1,057 clusters; max .5000.
+These counts describe threshold crossings, not validated beats or distinct
+perceptual events. Frequent events during dense material need listening review.
+
+All 45 periodic Water captures retained structure and dark coverage without
+clipping at the existing thresholds. Another 45 GPU snapshots cover the
+strongest song event, about .256s later, and about 1.024s later in Organic,
+Geometric, Cosmic canvas, Water and normal blend. The actual renderer integrated
+every preceding CSV input; rasterization alone was skipped between snapshots.
+The three resulting contact sheets were visually inspected. All snapshot
+structure assertions and continuous positive star-clock checks passed.
+Warbot's maximum event occurs on its initial attack at song time zero.
+
+Regressions rerun: Geometric 423 frames passed (minimum contrast 4.946), Cosmic
+handoff 19 frames passed, moon opacity 122 frames passed (155 opaque lit centers,
+27 hidden centers). No attempt was made to keep event-driven output identical
+to the old zero-impact path; restoring those existing expressions is intentional.
+Actual synchronized listening to this corrected build remains user review.
+
+Evidence: work/elemental/onset-order/{balloon,chasing-you,warbot-jazz}/,
+comparison.json and event-frames.json. The fix adds app/audio/onset_test.py to
+the accumulated tracked Water changes. Handoff and Elemental notes updated;
+git diff --check passed with existing LF-to-CRLF notices. Nothing staged or
+committed; aa44d54 remains HEAD. Next: review restored events with live music,
+then seek explicit checkpoint approval. The earlier assistant-launched Water
+window was closed normally and reopened with this corrected code; BlackShark
+loopback initialization succeeded and initial observed inputs were silence.
+
+### Resumed review and three-track replay
+
+The user confirmed that Water's waves look fine. Preserve this accepted wave
+treatment; that statement is not blanket acceptance of every Water feature.
+The live Water window launched through the existing loopback pipeline on
+BlackShark V3 Pro BT; initial observed inputs were silence. It was left open
+for the user's review. Accelerated replay windows close at each track's end.
+
+Reused the existing decoded files and replay_test.py for complete Water runs:
+- Balloon: 226.8 song seconds, 5,316 analyzed/rendered frames, 16 captures.
+- Chasing You: 133.8 seconds, 3,136 frames, 9 captures.
+- Warbot Jazz: 299.3 seconds, 7,015 frames, 20 captures.
+
+Total: 659.9 seconds / 15,467 frames. The 45 sampled captures passed checks for
+spatial structure, retained dark areas and no clipped highlights. Minimum
+sample contrast across tracks was 16.803; minimum dark fraction 46.5%; maximum
+clipped fraction zero. Twelve representative frames in the review sheet and
+an additional full-size Balloon frame were visually inspected. The replay is
+decoded real music through the actual analyzer/renderer, without audible
+playback; it does not replace synchronized live listening or full-motion review.
+
+Added optional --capture-dir and --capture-interval to the existing
+app/visuals/replay_test.py, reusing shader_test.save_png. Capture defaults off;
+no renderer, shader, normalization or state scheduling changed in this resumed
+pass. Capture-enabled and default capture-disabled 24-frame smoke runs produced
+identical per-frame audio metrics. git diff --check passed with the existing
+LF-to-CRLF notices. No dependency changes or commits.
+
+Important discovered limitation: impact was zero on all three complete tracks.
+A first coverage assertion incorrectly required impacts from every track; the
+report now distinguishes continuous-control variation from absent event
+coverage. Read-only diagnosis found the actual structural cause: live/replay
+call onset detection AFTER VisualSignalConditioner, whose max_delta is 0.12,
+but the onset detector requires a rise greater than 0.2. Such an onset cannot
+occur. A synthetic alternating zero/full-scale reproduction confirmed maximum
+rise 0.12 and zero events. Earlier synthetic shader impact tests bypassed this
+audio path and therefore never verified real-song event delivery.
+
+Recommended next bounded task: review moving onset detection ahead of visual
+conditioning while preserving conditioned continuous controls and existing
+normalization. Verify all three tracks and regressions for the accepted worlds,
+because restoring impact would affect every world. No audio correction has
+been implemented at that time; the user subsequently approved it and the
+current correction entry above supersedes that status.
+
+Evidence: ignored work/elemental/music/{balloon,chasing-you,warbot-jazz}/,
+work/elemental/music/summary.json and review-sheet.png. Existing source MP3s
+and decoded WAVs were reused unchanged. Current tracked changes now also include
+app/visuals/replay_test.py; the rest of the Water file list below still applies.
+
+### Initial implementation and synthetic verification
+
+Checkpoint reconciliation: HEAD is `aa44d54` (Refine Geometric corridor material
+gathering). The user explicitly accepted that checkpoint and the preceding
+Cosmic/Geometric foundations. Pending-review labels in the historical entries
+below are superseded by that instruction; they are not current acceptance gates.
+Tracked files were clean before Water. Existing untracked research folders and
+root helper scripts were preserved. No commit has been made for Water.
+
+Water is an isolated oblique liquid expanse: the actual shared DreamWave field
+is gathered into submerged dye currents beneath a multi-scale wave surface.
+Surface normals drive selective reflections and small refractive offsets.
+Bass raises broad waves, flux shears currents, sparkle reveals fine ripples and
+reflections, and the existing impact envelope disturbs a bounded patch. Quiet
+and silence retain moving water and dark channels. The Organic membrane is not
+used as Water's surface. Normal blend scheduling remains unchanged.
+
+Changed: app/visuals/shaders/dream.frag, app/visuals/shader_test.py,
+app/visuals/live_visual_test.py, this handoff. Added: run_water_music.bat and
+ELEMENTAL_DEVELOPMENT.md. Renderer, uniforms, audio analysis, dependencies,
+Cosmic geometry/star code and Geometric surface code remain unchanged.
+Replay inherits the new live-state choice without a replay source edit.
+
+Verification actually executed in the existing .venv on the RTX 3070 Laptop GPU:
+- Water GPU test: 36 silence/quiet/active/chorus samples through 600 seconds;
+  spatial structure, dark-space coverage and highlight headroom assertions pass.
+  Four independent audio controls produce visible pixel changes. Silent motion,
+  a 1/60-second continuity sample and 181 renderer-integrated attack/release
+  frames pass. Largest integrated mean frame change: 3.494/255.
+- 360 additional Water draws across 1280x720, 1920x1080, 720x1280 and 2560x1080.
+  At 1080p, median GPU draw time 2.761 ms / p95 2.807 ms (80 timed samples after
+  warm-up). This excludes live capture, presentation and end-to-end latency.
+- Final quiet/active/chorus contact sheet, full-HD and portrait PNGs inspected.
+  These show a broken reflected-light path, submerged colored streaks, larger
+  chorus waves and retained dark channels. Captures are not live music review.
+- Accepted-shader comparison: 72 cases / 144 GPU frames across all six existing
+  state routes, three input levels and four times. Final maximum difference
+  1/255 per channel, within the test's explicit rounding tolerance.
+- Geometric regression: 423 frames pass, minimum contrast 4.946.
+- Cosmic handoff: 19 frames pass; moon opacity: 122 frames pass (155 opaque lit
+  centers, 27 hidden centers); blended sweep: 183 frames pass, minimum 10.038.
+- Parameter mapper parity test passed; live/replay CLI help confirms `water`.
+- git diff --check passed with existing LF-to-CRLF conversion warnings only.
+
+One intermediate highlight test failed narrowly at chorus/67s. Final Water
+tonemapping was corrected; the complete Water test then passed. Evidence and
+metrics are under ignored work/elemental/final; legacy regressions are in
+work/elemental/*-regression. The baseline shader is work/elemental/accepted.frag,
+exported from aa44d54 before edits.
+
+Review with run_water_music.bat (real system audio) or
+run_state_preview.bat water (fixed synthetic inputs). Neither was left running.
+At this initial stage live music and user aesthetic review were pending; the
+resumed review above supersedes that status. Procedural gathering has no frame history;
+no automatic Water transition or fluid simulation was added. Read
+ELEMENTAL_DEVELOPMENT.md for commands, limits and the five future directions.
+The optional second element was deferred to keep this pass focused on Water.
+
+Next: user reviews Water with music, then approves a commit if satisfied.
+Do not stage or commit pre-existing untracked research/helper files.
+
+## Historical pass: Geometric material gathering (accepted as aa44d54)
 
 The user accepted the preceding Geometric/star work and committed it as
 `d8053d6`. Historical pending-review statements below describe earlier work.
-This new pass is uncommitted; stop for visual review before further work.
+At the time of this historical entry the pass was uncommitted; the user has
+since accepted and committed it as aa44d54. See the current entry above.
 
 Changed files: app/visuals/shaders/dream.frag, app/visuals/shader_test.py,
 and this handoff. No renderer, uniforms, audio, dependencies, or launchers changed.

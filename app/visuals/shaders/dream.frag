@@ -11,6 +11,12 @@ uniform float u_sparkle;
 uniform float u_impact;
 uniform float u_flux;
 uniform float u_debug_state;
+// Optional development isolation. Zero keeps every authored expression intact.
+uniform int u_layer_mode;
+uniform int u_layer_mask;
+float effect(int bit) {
+    return u_layer_mode == 0 || (u_layer_mask & bit) != 0 ? 1.0 : 0.0;
+}
 
 out vec4 fragColor;
 
@@ -459,7 +465,7 @@ vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly
                 * alive * twinkle * trail_fade);
         }
     }
-    scene += star_layer;
+    scene += star_layer * effect(512);
 
     float radius = 0.30;
     vec3 light_dir = normalize(vec3(-0.5, 0.65, 1.0));
@@ -492,7 +498,7 @@ vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly
     vec3 dust_color = vec3(0.0);
     float dust = 0.0;
     float dust_near = 0.0;
-    for (int dust_i = 0; dust_i < 3; dust_i++)
+    for (int dust_i = 0; dust_i < 3 && effect(2048) > 0.0; dust_i++)
     {
         float fi = float(dust_i);
         // Inner moons complete an orbit faster; outer moons drift more slowly.
@@ -536,7 +542,7 @@ vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly
     ring_color = mix(ring_color, mix(ring_color, canvas, 0.38)
         * (0.85 + 0.3 * clamp(u_sparkle, 0.0, 1.0)), canvas_mix);
     ring_color = cosmic_vivid_material(ring_color, color_drive);
-    band_mask *= smoothstep(0.35, 0.90, assembly);
+    band_mask *= smoothstep(0.35, 0.90, assembly) * effect(1024);
 
     float closest = cosmic_sphere_depth(p, vec3(0.0), radius);
     if (closest > -99.0)
@@ -569,7 +575,7 @@ vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly
     }
 
     // Moon shading is independent of opacity; nearest surface wins.
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 3 && effect(2048) > 0.0; i++)
     {
         float fi = float(i);
         // Keep the fast orbit only in the geometry diagnostic.
@@ -822,7 +828,7 @@ vec3 isolated_geometric_scene(GeometricSurface surface, vec3 canvas, float canva
         metal += pigment * veins * (0.06 + spark * 0.10);
         if (kind > 2.5) metal *= 0.72;
         if (kind > 1.5 && kind < 2.5) metal *= 0.85;
-        vec3 rain = geo_rain(across, down, tint);
+        vec3 rain = geo_rain(across, down, tint) * effect(256);
         float fog = exp(-best_t * 0.18);
         scene = metal * fog;
         scene += rain * (0.65 + spark * 0.35) * fog;
@@ -853,26 +859,418 @@ float cosmic_handoff(float seconds, bool preview)
         : smoothstep(24.0, 44.0, phase) * (1.0 - smoothstep(88.0, 112.0, phase));
 }
 
+// Water occupies the gap between Cosmic visits; the original Cosmic clock
+// and full dwell remain intact. This is a timed scaffold, not phrase detection.
+float water_handoff(float seconds)
+{
+    if (seconds < 112.0) return 0.0;
+    float phase = mod(seconds - 112.0, 140.0);
+    return smoothstep(4.0, 14.0, phase) * (1.0 - smoothstep(32.0, 46.0, phase));
+}
+
+// Sea -> dye currents -> rain pool -> waterfall, with long rests and eased
+// changes. Individual states hold one form for development and musical review.
+vec4 water_forms()
+{
+    if (u_debug_state > 6.5) {
+        if (u_debug_state < 7.5) return vec4(1,0,0,0);
+        if (u_debug_state < 8.5) return vec4(0,1,0,0);
+        if (u_debug_state < 9.5) return vec4(0,0,1,0);
+        return vec4(0,0,0,1);
+    }
+    float phase = mod(u_drift_time, 112.0) / 28.0;
+    float change = smoothstep(0.68, 1.0, fract(phase));
+    vec4 a = vec4(0.0), b = vec4(0.0);
+    int index = int(floor(phase));
+    a[index] = 1.0;
+    b[(index + 1) % 4] = 1.0;
+    return mix(a, b, change);
+}
+
+// Seeded, bounded drop lifetimes. Every ring expands from a fixed impact
+// location; neighbouring cells are evaluated so circles do not clip at seams.
+float water_ripples(vec2 p)
+{
+    float rings = 0.0;
+    vec2 cell = floor(p / 2.2);
+    for (int y=-1; y<=1; y++) for (int x=-1; x<=1; x++) {
+        vec2 id = cell + vec2(x,y);
+        float seed = hash(id + 7.3);
+        float age = mod(u_drift_time * 0.55 + seed * 3.0, 3.0);
+        vec2 center = (id + vec2(0.18 + hash(id)*0.64, 0.18 + hash(id+4.7)*0.64))*2.2;
+        float r = length(p-center);
+        float rim = r - age * 0.72;
+        rings += sin(rim * 34.0) * exp(-rim*rim*90.0)
+            * smoothstep(0.0,0.12,age) * (1.0-smoothstep(1.0,2.6,age));
+    }
+    return rings;
+}
+
+// Elemental / Water: an oblique expanse of liquid. All coordinates are world
+// coordinates; waves, normals and submerged material share the same current.
+// This is a bounded procedural surface, not fluid simulation or frame history.
+float water_storm()
+{
+    float drive = 0.60 * clamp(u_scale, 0.0, 1.0)
+        + 0.25 * clamp(u_flux, 0.0, 1.0)
+        + 0.15 * clamp(u_sparkle, 0.0, 1.0);
+    return smoothstep(0.55, 0.88, drive);
+}
+
+vec2 water_current(vec2 p)
+{
+    float clock = u_time * 0.13 + u_drift_time * 0.025;
+    vec2 q = p - vec2(0.32, -0.16) * clock;
+    float shear = 0.22 + 0.32 * clamp(u_flux, 0.0, 1.0);
+    q.x += sin(q.y * 0.62 + clock * 0.16) * shear;
+    q.y += sin(q.x * 0.48 - clock * 0.12) * shear * 0.55;
+    return q;
+}
+
+float water_height(vec2 p)
+{
+    vec2 q = water_current(p);
+    float clock = u_time * 0.30 + u_drift_time * 0.045;
+    float bass = clamp(u_scale, 0.0, 1.0);
+    float flux = clamp(u_flux, 0.0, 1.0);
+    // Incommensurate, mainly parallel waves: long pressure swells underneath
+    // cross ripples. Audio changes amplitude, never multiplies elapsed time.
+    float h = sin(dot(q, vec2(0.65, 1.12)) - clock * 0.62)
+        * (0.045 + bass * 0.075);
+    h += sin(dot(q, vec2(-1.1, 1.8)) - clock * 0.83 + 1.4)
+        * (0.024 + bass * 0.032);
+    h += sin(q.y * 4.2 + sin(q.x * 1.3 + clock * 0.2) - clock * 1.1)
+        * (0.012 + flux * 0.019);
+    h += sin(dot(q, vec2(5.8, 3.2)) - clock * 1.45)
+        * (0.004 + clamp(u_sparkle, 0.0, 1.0) * 0.006);
+    h += sin(dot(q, vec2(-8.5, 6.1)) - clock * 1.7) * 0.003;
+    h += sin(q.y * 14.0 + sin(q.x * 3.2 - clock * 0.3) * 1.8 - clock * 1.9)
+        * (0.0025 + flux * 0.003);
+    h += sin(q.y * 23.0 + sin(q.x * 4.7 + clock * 0.2) * 2.4 - clock * 2.2)
+        * 0.0018;
+    // Intense passages lift fast, broad seas underneath the accepted ripples.
+    // Phase speeds are constant: audio reveals their amplitude rather than
+    // multiplying elapsed time and teleporting the surface on every beat.
+    float storm = water_storm();
+    float surge = dot(q, vec2(0.78, 1.15)) - clock * 2.8;
+    float crossing = dot(q, vec2(-1.35, 1.7)) - clock * 3.4 + 1.1;
+    h += storm * (0.28 * (sin(surge) + 0.22 * sin(2.0 * surge))
+        + 0.17 * sin(crossing)
+        + 0.055 * sin(q.y * 3.5 + sin(q.x * 1.1) - clock * 4.1));
+    // Reuse the renderer's decaying event envelope in a bounded patch.
+    float radius = length(p - vec2(0.8, 2.2));
+    h += sin(radius * 10.0 - clock * 2.4) * exp(-radius * radius * 0.45)
+        * clamp(u_impact, 0.0, 1.0) * 0.055;
+    return h;
+}
+
+struct WaterSurface {
+    vec2 position;
+    vec2 material;
+    vec3 normal;
+    vec3 view;
+    float distance;
+};
+
+// A distant environment belonging to this sea, sampled by both the view and
+// the water reflection. Angular silhouettes suggest offshore basalt islets;
+// they are not a second terrain renderer or a foreground obstruction.
+vec3 water_environment(vec3 direction)
+{
+    float azimuth = atan(direction.x, direction.z);
+    float elevation = direction.y / max(length(direction.xz), 0.001);
+    float horizon_glow = exp(-abs(elevation - 0.015) * 9.0);
+    vec3 sky = mix(vec3(0.002, 0.003, 0.009),
+        mix(lavender_pearl_palette(0.32), ocean_palette(0.38), 0.55) * 0.62,
+        horizon_glow);
+    float dusk = exp(-pow((azimuth + 0.28) * 1.9, 2.0));
+    sky += teal_amber_palette(0.50) * horizon_glow * dusk * 0.10;
+    sky += ember_palette(0.61) * horizon_glow * horizon_glow * dusk * 0.14;
+    // Horizontal, slowly traveling banks stay close to the horizon.
+    vec2 cloud_q = vec2(azimuth * 3.0 - u_drift_time * 0.003,
+        elevation * 17.0 + u_drift_time * 0.001);
+    float mist = fbm(cloud_q + vec2(5.3, 1.7));
+    sky += lavender_pearl_palette(0.44) * (0.15 + mist * 0.22)
+        * exp(-abs(elevation - 0.025) * 22.0);
+    float left = exp(-pow((azimuth + 0.56) / 0.18, 2.0));
+    float left_peak = exp(-pow((azimuth + 0.64) / 0.07, 2.0));
+    float right = exp(-pow((azimuth - 0.51) / 0.25, 2.0));
+    float ridge = (left * 0.070 + left_peak * 0.060 + right * 0.047)
+        * (0.76 + 0.24 * noise(vec2(azimuth * 37.0, 8.1)));
+    float aa = max(fwidth(elevation), 0.001);
+    float island = smoothstep(0.003, 0.008, ridge)
+        * (1.0 - smoothstep(ridge - aa, ridge + aa, elevation))
+        * smoothstep(-0.012, 0.002, elevation);
+    vec3 rock = vec3(0.004, 0.008, 0.018)
+        + ocean_palette(0.24) * 0.22 * exp(-abs(elevation) * 32.0);
+    float facets = noise(vec2(azimuth * 42.0 + elevation * 13.0,
+        elevation * 28.0));
+    rock += lavender_pearl_palette(0.29) * facets * 0.15
+        * exp(-max(ridge - elevation, 0.0) * 22.0);
+    sky = mix(sky, rock, island);
+    return sky;
+}
+
+WaterSurface water_surface(vec2 p)
+{
+    vec3 origin = vec3(0.0, 2.8, -4.0);
+    // Lift the view toward an open horizon; leave the accepted wave field and
+    // its clocks unchanged. Near-horizontal rays meet atmospheric distance.
+    vec4 forms = water_forms();
+    float pool = forms.y + forms.z;
+    vec3 ray = normalize(mix(vec3(p.x * 1.5, p.y * 0.9 - 0.25, 1.3),
+        vec3(p.x * 1.65, -1.45 + p.y * 0.42, 0.7 + p.y * 1.0), pool));
+    if (ray.y >= -0.012) {
+        return WaterSurface(vec2(0.0), vec2(0.0), vec3(0.0, 1.0, 0.0), -ray, -1.0);
+    }
+    // The bounds enclose quiet ripples plus the largest possible storm swell.
+    float storm = water_storm();
+    float bound = 0.4 + storm * 0.60;
+    float lo = (bound - origin.y) / ray.y;
+    float hi = (-bound - origin.y) / ray.y;
+    if (lo > 110.0) {
+        return WaterSurface(vec2(0.0), vec2(0.0), vec3(0.0, 1.0, 0.0), -ray, -1.0);
+    }
+    if (storm > 0.0) {
+        // Steep seas can cross a ray more than once. Bracket the first visible
+        // crest before refinement, so foreground waves hide distant troughs.
+        float step_size = (hi - lo) / 40.0;
+        float start = lo;
+        for (int i = 1; i <= 40; i++) {
+            float sample_t = start + float(i) * step_size;
+            vec3 point = origin + ray * sample_t;
+            if (point.y <= water_height(point.xz)) {
+                hi = sample_t;
+                break;
+            }
+            lo = sample_t;
+        }
+    }
+    for (int i = 0; i < 14; i++) {
+        float mid = (lo + hi) * 0.5;
+        vec3 point = origin + ray * mid;
+        if (point.y > water_height(point.xz)) lo = mid;
+        else hi = mid;
+    }
+    float distance = (lo + hi) * 0.5;
+    vec2 position = (origin + ray * distance).xz;
+    // Broader normal samples at distance suppress unresolved micro-ripples.
+    float e = max(0.012, distance * 0.65 / u_resolution.y);
+    vec2 gradient = vec2(
+        water_height(position + vec2(e, 0.0)) - water_height(position - vec2(e, 0.0)),
+        water_height(position + vec2(0.0, e)) - water_height(position - vec2(0.0, e))) / (2.0 * e);
+    vec3 normal = normalize(vec3(-gradient.x, 1.0, -gradient.y));
+    // Restrained refraction; gather the actual shared field along currents.
+    vec2 current = water_current(position + normal.xz * 0.18);
+    vec2 material = current * vec2(0.22, 0.27);
+    material.x += 0.32 * sin(current.y * 0.8 + sin(current.x * 0.5));
+    return WaterSurface(position, material, normal, -ray, distance);
+}
+
+vec3 isolated_water_scene(WaterSurface surface, vec3 canvas)
+{
+    if (surface.distance < 0.0) return water_environment(-surface.view);
+    float spark = clamp(u_sparkle, 0.0, 1.0);
+    vec4 forms = water_forms();
+    vec2 q = water_current(surface.position);
+    // Rain perturbs reflected normals, keeping the accepted sea height intact.
+    if (forms.z > 0.0) {
+        float e = 0.025;
+        vec2 grad = vec2(water_ripples(surface.position+vec2(e,0))-water_ripples(surface.position-vec2(e,0)),
+            water_ripples(surface.position+vec2(0,e))-water_ripples(surface.position-vec2(0,e))) / (2.0*e);
+        surface.normal = normalize(surface.normal + vec3(-grad.x,0,-grad.y)*forms.z*(0.025+spark*0.035));
+    }
+    float channel = q.x * 0.8 + sin(q.y * 0.48) * 1.7
+        + sin(q.y * 1.12 + q.x * 0.31) * 0.35;
+    float dye = smoothstep(-0.45, 0.8, sin(channel));
+    float depth = 0.45 + 1.9 * (1.0 - dye);
+    // Absorption leaves dark channels between luminous submerged material.
+    vec3 pigment = canvas / (0.35 + max(canvas.r, max(canvas.g, canvas.b)));
+    vec3 transmission = canvas * (0.85 + 2.4 * dye)
+        * exp(-depth * vec3(0.48, 0.24, 0.18));
+    transmission += pigment * pow(dye, 5.0) * 0.08;
+    float facing = clamp(dot(surface.normal, surface.view), 0.0, 1.0);
+    float fresnel = 0.035 + 0.70 * pow(1.0 - facing, 5.0);
+    vec3 reflection = reflect(-surface.view, surface.normal);
+    // Broad colored off-screen light reflected by the actual wave normals.
+    // No full-screen white layer: most reflected directions see dark space.
+    vec3 light = normalize(vec3(-0.25, 0.48, 0.86));
+    float glint = pow(max(dot(reflection, light), 0.0), 145.0);
+    float silk = pow(max(dot(reflection, light), 0.0), 32.0);
+    vec3 reflected = lavender_pearl_palette(0.48) * silk * 0.48;
+    reflected += mix(ocean_palette(0.80), gold_sun_palette(0.82), 0.36)
+        * glint * (0.90 + spark * 1.4);
+    vec3 scene = transmission * (1.0 - fresnel) + reflected;
+    scene += water_environment(reflection) * fresnel * 0.85;
+    scene += ocean_palette(0.22) * (0.12 + fresnel * 0.3);
+    // Sparse foam belongs to high, steep crests and travels in the same
+    // current coordinates. It vanishes completely as the sea settles.
+    float crest = smoothstep(0.26, 0.61, water_height(surface.position));
+    float broken = smoothstep(0.35, 0.78, noise(q * vec2(9.0, 14.0)));
+    float foam = water_storm() * crest * broken
+        * (1.0 - smoothstep(0.68, 0.97, surface.normal.y));
+    scene += mix(ocean_palette(0.85), lavender_pearl_palette(0.83), 0.35)
+        * foam * (0.40 + spark * 0.30);
+    float distance_fade = exp(-max(surface.distance - 5.0, 0.0) * 0.065);
+    scene *= distance_fade;
+    // Preserve saturated dye and highlight headroom across all audio levels.
+    // Dye pools expose connected submerged folds and broad empty channels.
+    vec2 ink = q * 1.6;
+    ink += vec2(sin(ink.y*.8+u_time*.05),cos(ink.x*.65-u_time*.04))*.85;
+    float fold = fbm(ink*.85+vec2(0,u_time*.03));
+    float vein = .5+.5*sin(ink.x*2.6+ink.y*.8+fold*15.0);
+    float fine = pow(.5+.5*sin(ink.x*12.0+ink.y*3.0+fold*48.0),12.0);
+    vec3 ink_color = mix(canvas*2.2, mix(ocean_palette(.63),crimson_gold_palette(.62),
+        smoothstep(.32,.67,fold)),.38);
+    vec3 dye_color = ink_color*(.12+smoothstep(.25,.70,vein)*.9);
+    dye_color += ink_color*fine*(.15+spark*.25)+reflected*.20;
+    scene = mix(scene, dye_color, forms.y*.95);
+    if (forms.z > 0.0) {
+        float rings = water_ripples(surface.position);
+        scene += mix(ocean_palette(.75),lavender_pearl_palette(.75),.3)
+            * max(rings,0.0)*forms.z*(.16+spark*.32);
+        // Sparse foreground streaks, with independent seeded lifetimes.
+        vec2 rain_q = surface.position*2.0;
+        vec2 cell=floor(rain_q);
+        float seed=hash(cell+13.0);
+        float age=fract(u_drift_time*.7+seed);
+        vec2 drop=fract(rain_q)-vec2(.3+seed*.4,1.2-age*1.6);
+        float streak=exp(-drop.x*drop.x*4500.0-drop.y*drop.y*65.0)
+            *smoothstep(.70,.95,seed)*smoothstep(.0,.1,age)*(1.0-smoothstep(.85,1.0,age));
+        scene += ocean_palette(.85)*streak*forms.z*(.12+spark*.25);
+    }
+    scene /= 1.0 + max(scene.r, max(scene.g, scene.b));
+    float haze = 1.0 - exp(-pow(max(surface.distance - 9.0, 0.0) * 0.035, 1.45));
+    return mix(scene, water_environment(-surface.view), haze);
+}
+
+// One perspective camera views a horizontal river meeting an infinite vertical
+// fall at z=0, y=0. The world horizon and cliff lip are distinct projected lines.
+// Moving below and toward the lip naturally moves river/sky out of the frame.
+struct FallsSurface {
+    vec2 position; // x and signed flow distance: positive upriver, negative downfall
+    vec3 ray;
+    float distance;
+    float kind; // 0 sky, 1 river/banks, 2 falling face/cliff
+};
+
+FallsSurface waterfall_surface(vec2 p)
+{
+    float approach = 0.5 - 0.5*cos((u_drift_time-84.0)*0.16);
+    approach = smoothstep(0.10,0.92,approach);
+    vec3 origin = vec3(sin(u_drift_time*.035)*.28,
+        mix(2.3,-0.85,approach), -mix(7.0,1.35,approach));
+    float pitch = mix(.30,-.10,approach);
+    vec3 ray = normalize(vec3(p.x,p.y-pitch,1.0));
+    if (origin.y > 0.0 && ray.y < -0.0001) {
+        float t = -origin.y/ray.y;
+        vec3 hit = origin + ray*t;
+        if (hit.z >= 0.0 && t < 160.0)
+            return FallsSurface(hit.xz,ray,t,1.0);
+    }
+    float t = -origin.z/ray.z;
+    vec3 hit = origin + ray*t;
+    if (hit.y <= 0.0)
+        return FallsSurface(hit.xy,ray,t,2.0);
+    return FallsSurface(vec2(0.0),ray,160.0,0.0);
+}
+
+vec2 waterfall_current(FallsSurface surface)
+{
+    float path = surface.position.y;
+    // Continuous coordinate/speed at the lip; falling streaks stretch as they
+    // accelerate downward. Neither audio nor camera resets this transport clock.
+    if (surface.kind > 1.5) path = 1.0-sqrt(1.0-2.0*min(path,0.0));
+    return vec2(surface.position.x,path+u_time*.72+u_drift_time*.08);
+}
+
+vec3 water_falls(FallsSurface surface, vec3 material)
+{
+    if (surface.kind < .5) return water_environment(surface.ray);
+    float bass=clamp(u_scale,0.0,1.0), spark=clamp(u_sparkle,0.0,1.0);
+    float flux=clamp(u_flux,0.0,1.0);
+    bool river=surface.kind < 1.5;
+    vec2 pos=surface.position;
+    vec2 flow=waterfall_current(surface);
+    float path=pos.y;
+    float bend=river ? sin(path*.16)*.50 : sin(-path*.8-u_time*.13)*min(-path*.018,.12);
+    float width=2.45 + bass*.20 + (river ? min(path*.025,1.2) : min(-path*.035,.25));
+    float edge=abs(pos.x-bend);
+    float aa=max(fwidth(edge),.008);
+    float water=1.0-smoothstep(width-.10-aa,width+.10+aa,edge);
+    // Cohesive sheets with smaller strands carried by the same flow coordinate.
+    vec2 sheet_q=vec2(flow.x*2.7,flow.y*1.5);
+    float fold=fbm(sheet_q);
+    float phase=flow.x*18.0+fold*(12.0+flux*3.0)
+        +sin(flow.y*.70+flow.x*.9)*2.0;
+    float resolved=1.0-smoothstep(.8,3.0,fwidth(phase));
+    float filament=pow(.5+.5*sin(phase),7.0)*resolved;
+    float body=smoothstep(.20,.78,fold);
+    vec3 tint=mix(ocean_palette(.72),lavender_pearl_palette(.75),.35);
+    vec3 liquid=material*(.65+body*1.20);
+    liquid+=tint*(.035+body*.08);
+    if (river) {
+        // Shared wave normals give the upstream river a reflected path of
+        // light, rather than a crossing grid drawn on the surface.
+        float e=max(.018,surface.distance*.7/u_resolution.y);
+        vec2 slope=vec2(water_height(pos+vec2(e,0))-water_height(pos-vec2(e,0)),
+            water_height(pos+vec2(0,e))-water_height(pos-vec2(0,e)))/(2.0*e);
+        vec3 normal=normalize(vec3(-slope.x,1.0,-slope.y));
+        vec3 reflected=reflect(surface.ray,normal);
+        vec3 light=normalize(vec3(-.22,.50,.86));
+        float shine=pow(max(dot(reflected,light),0.0),65.0);
+        liquid*=.85;
+        liquid+=tint*shine*(.8+spark*.6);
+        liquid+=water_environment(reflected)*.15;
+    } else {
+        // Continuous broad sheets, with broken smaller strands accelerating
+        // down the face. No periodic horizontal bars or receiving basin.
+        float streak=fbm(vec2(flow.x*8.0,flow.y*5.0));
+        float veil=smoothstep(.25,.74,streak);
+        liquid+=tint*filament*(.18+spark*.23)*(.35+veil*.85);
+        liquid+=tint*veil*body*(.10+flux*.16);
+    }
+    // Dark plateau banks and cleft cliff walls anchor the two water planes.
+    vec2 rock_q=river ? vec2(pos.x*.8,path*.4) : vec2(pos.x*1.5,path*.35);
+    float rock=fbm(rock_q);
+    float strata=.5+.5*sin(path*2.7+rock*6.0);
+    vec3 stone=mix(ocean_palette(.24),lavender_pearl_palette(.27),rock)
+        *(.20+rock*.30+strata*.10);
+    vec3 scene=mix(stone,liquid,water);
+    // The turnover belongs to the same edge on both sides of the cliff.
+    float lip=exp(-abs(path)*12.0)*water;
+    scene+=tint*lip*(.16+bass*.09+spark*.10);
+    float haze=1.0-exp(-max(surface.distance-8.0,0.0)*.032);
+    scene/=1.0+max(scene.r,max(scene.g,scene.b));
+    return mix(scene,water_environment(surface.ray),haze);
+}
+
 void main()
 {
+    float debug_state = (u_debug_state > 10.5 && u_debug_state < 12.5) ? 1.0 : u_debug_state;
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
 
     // Correct for the window's aspect ratio.
     vec2 p = uv - 0.5;
     p.x *= u_resolution.x / u_resolution.y;
 
-    if (u_debug_state > 2.5 && u_debug_state < 3.5)
+    if (debug_state > 2.5 && debug_state < 3.5)
     {
         fragColor = vec4(isolated_cosmic_scene(p, vec3(0.0), 0.0, 1.0), 1.0);
         return;
     }
 
     vec2 screen_p = p;
+    float water_takeover = debug_state > 5.5 ? 1.0
+        : (debug_state < .5 ? water_handoff(u_drift_time) : 0.0);
+    bool water_mode = water_takeover > 0.0;
+    vec4 forms = water_forms();
     float cosmic_takeover = (
-        u_debug_state < 0.5
-        || u_debug_state > 3.5
-    ) ? cosmic_handoff(u_drift_time, u_debug_state > 3.5) : 0.0;
-    if (u_debug_state > 4.5) cosmic_takeover = 1.0;
+        debug_state < 0.5
+        || debug_state > 3.5
+    ) ? cosmic_handoff(u_drift_time, debug_state > 3.5) : 0.0;
+    if (debug_state > 4.5) cosmic_takeover = 1.0;
+    if (water_mode) cosmic_takeover = 0.0;
     float canvas_zoom = mix(3.4, 1.0, cosmic_takeover);
     // Tiny music-driven pressure on the entire system, never independent
     // planet/ring scaling. Bounded to two percent at full presence.
@@ -1005,16 +1403,29 @@ void main()
     cosmic_weight = pow(cosmic_weight, 1.25);
     horizon_weight = pow(horizon_weight, 1.25);
 
-    if (u_debug_state > 0.5 && u_debug_state < 1.5) {
+    if ((debug_state > 0.5 && debug_state < 1.5) || debug_state > 5.5) {
         tunnel_weight = 0.0; fractal_weight = 0.0; geometric_weight = 0.0;
         cosmic_weight = 0.0; horizon_weight = 0.0;
-    } else if (u_debug_state > 1.5 && u_debug_state < 2.5) {
+    } else if (debug_state > 1.5 && debug_state < 2.5) {
         tunnel_weight = 0.0; fractal_weight = 0.0; geometric_weight = 1.0;
         cosmic_weight = 0.0; horizon_weight = 0.0;
-    } else if (u_debug_state > 2.5 && u_debug_state < 3.5) {
+    } else if (debug_state > 2.5 && debug_state < 3.5) {
         tunnel_weight = 0.0; fractal_weight = 0.0; geometric_weight = 0.0;
         cosmic_weight = 1.0; horizon_weight = 0.0;
     }
+
+    if (u_layer_mode != 0) {
+        tunnel_weight = effect(16);
+        fractal_weight = effect(32);
+        horizon_weight = effect(64);
+        // A held form owns its geometry; other scheduled worlds cannot leak in.
+        if (debug_state > 0.5 && !(debug_state > 1.5 && debug_state < 2.5))
+            geometric_weight = 0.0;
+    }
+    tunnel_weight *= 1.0-water_takeover;
+    fractal_weight *= 1.0-water_takeover;
+    geometric_weight *= 1.0-water_takeover;
+    horizon_weight *= 1.0-water_takeover;
 
     // Cosmic is an intentional world takeover: once it has weight, the
     // other vocabularies recede so the planet, rings, and starfield can own
@@ -1033,6 +1444,24 @@ void main()
     float organic_floor = 0.08 * (1.0 - cosmic_weight);
     float organic_weight = max(organic_floor, 1.0 - total_transform);
     float weight_sum = max(organic_weight + total_transform, 1.0);
+
+    WaterSurface water;
+    FallsSurface falls;
+    if (water_mode) {
+        water = water_surface(screen_p);
+        vec2 water_domain = water.material;
+        if (forms.w > 0.0) {
+            falls = waterfall_surface(screen_p);
+            vec2 fall_domain = waterfall_current(falls)*vec2(.28,.18);
+            water_domain = mix(water_domain,fall_domain,forms.w);
+        }
+        q = mix(q, water_domain, water_takeover);
+        // Localize inherited event color/forms to the same disturbed patch.
+        vec2 event_delta = water.position - vec2(0.8, 2.2);
+        float event_patch = exp(-dot(event_delta, event_delta) * 0.45);
+        impact *= mix(1.0,event_patch,water_takeover);
+        kick_trigger *= mix(1.0,event_patch,water_takeover);
+    }
 
     GeometricSurface geo_surface = GeometricSurface(vec2(0.0), 80.0, 0.0, 0.0);
     float geo_gather = smoothstep(0.0, 0.90, geometric_weight)
@@ -1466,8 +1895,10 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     float star_mask = smoothstep(star_size, 0.0, length(star_local))
         * step(0.85, star_hash);
 
-    color += vec3(0.86, 0.97, 1.00) * star_mask
-        * (0.18 * cosmic_weight + sparkle * (0.8 + cosmic_weight * 0.8));
+    vec3 material_before_effects = color;
+    color += vec3(0.86, 0.97, 1.00) * star_mask * effect(2)
+        * (0.18 * cosmic_weight + sparkle * (0.8 + cosmic_weight * 0.8))
+        * (1.0-water_takeover);
 
     // Secondary morphology variation: slowly-evolving parameters that
     // let the living artifacts drift between different structural
@@ -1485,6 +1916,8 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     // geometric/cosmic states drag, fold, and scatter them naturally
     // rather than pasting a generic particle system on top.
     vec2 art_space = q * (3.2 + bass_pressure * 1.6);
+    // Water stretches the existing forms into submerged streaks of dye.
+    art_space *= mix(vec2(1.0),vec2(0.22,1.8),water_takeover);
     vec2 art_cell = floor(art_space);
     vec2 art_local = fract(art_space) - 0.5;
 
@@ -1499,6 +1932,14 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
             - tunnel_weight * 0.14,
         art_seed
     );
+
+    // A close waterfall magnifies source cells. Fade at their boundaries so
+    // inherited colored shapes cannot pop across the entire falling sheet.
+    float fall_cell_edge = min(0.5-abs(art_local.x),0.5-abs(art_local.y));
+    float fall_threshold = 0.90-any_maturity*.08-sparkle_reveal*.10-tunnel_weight*.14;
+    float waterfall_art_presence = smoothstep(fall_threshold-.025,fall_threshold+.025,art_seed)
+        * smoothstep(0.0,0.18,fall_cell_edge);
+    art_presence = mix(art_presence,waterfall_art_presence,water_takeover*forms.w);
 
     float art_life_phase = fract(
         u_drift_time * (0.05 + art_seed * 0.12) + art_seed * 7.0
@@ -1568,7 +2009,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         art_color = electric_blue_palette(0.85);
     }
 
-    color += art_color * art_mask * (0.55 + sparkle * 0.55
+    color += art_color * art_mask * effect(1) * (0.55 + sparkle * 0.55
         + tunnel_weight * 0.35);
 
     // Secondary edge highlight: a concentrated candy accent on
@@ -1581,7 +2022,8 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     vec3 art_accent = geometric_dream_palette(
         clamp(secondary_morph * 0.5 + art_seed + 0.3, 0.0, 1.0)
     );
-    color += art_accent * art_edge * (0.35 + geometric_weight * 0.30);
+    color += art_accent * art_edge * effect(1) * (0.35 + geometric_weight * 0.30)
+        * (1.0-water_takeover*.80);
 
     // Falling/drifting world elements: unlocked strongly by the
     // horizon state, but audio decides what populates it -- highs for
@@ -1637,7 +2079,8 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         fall_color = gold_sun_palette(0.7 + fall_seed * 0.15);
     }
 
-    color += fall_color * fall_mask * (0.5 + sparkle * 0.5);
+    color += fall_color * fall_mask * effect(4) * (0.5 + sparkle * 0.5)
+        * (1.0-water_takeover);
 
     // Colored streak/laser events: sparse, temporary, radiating from
     // the core, gated by musical events rather than a constant grid.
@@ -1682,7 +2125,9 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     {
         laser_color = fire_palette(0.9);
     }
-    color += laser_color * laser_mask * 1.4;
+    color += laser_color * laser_mask * effect(8) * 1.4 * (1.0-water_takeover);
+
+    vec3 material_effects = color - material_before_effects;
 
     // Organic membrane: its own connected folds in the pre-scroll domain.
     // Slow deformation preserves the form while bass changes its physical
@@ -1714,6 +2159,8 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     // One Organic form replaces another gradually, rather than stacking light.
     // Dwelling lets both the broad membrane and the roots hold their identity.
     float root_mix = dwell(u_drift_time * 0.04 - 1.8);
+    if (u_debug_state > 10.5 && u_debug_state < 11.5) root_mix = 0.0;
+    if (u_debug_state > 11.5 && u_debug_state < 12.5) root_mix = 1.0;
     vec2 root_position = membrane_space * 0.85;
     float root_distance = root_network(root_position, membrane_time, membrane_activity);
     float root_aa = max(fwidth(root_distance), 0.001);
@@ -1739,8 +2186,12 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     float blossom = blossom_field(root_position, membrane_time)
         * root_mix * blossom_life
         * (0.35 + sparkle * 0.35 + impact * 0.30);
-    membrane_color += vec3(0.95, 0.42, 0.62) * blossom;
-    color = mix(color, membrane_color * u_intensity, organic_weight / weight_sum);
+    membrane_color += vec3(0.95, 0.42, 0.62) * blossom * effect(128);
+    color = mix(color, membrane_color * u_intensity, (organic_weight / weight_sum)*(1.0-water_takeover));
+    // Explicit custom layers remain visible on the held Organic material too.
+    // Authored mode keeps the accepted Organic substitution unchanged.
+    if (u_layer_mode != 0)
+        color += material_effects * (organic_weight / weight_sum) * (1.0-water_takeover);
 
 
     // Oil-paint tonemap: compress extreme brightness toward the
@@ -1758,6 +2209,11 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     {
         vec3 world = isolated_cosmic_scene(cosmic_p, color, 1.0, cosmic_takeover);
         color = mix(color, world, cosmic_takeover);
+    }
+    if (water_mode) {
+        vec3 liquid = isolated_water_scene(water, color);
+        if (forms.w > 0.0) liquid = mix(liquid,water_falls(falls,color),forms.w);
+        color = mix(color,liquid,water_takeover);
     }
     fragColor = vec4(color, 1.0);
 }
