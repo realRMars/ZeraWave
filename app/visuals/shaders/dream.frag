@@ -2186,6 +2186,20 @@ vec4 air_forms() {
     int next=(id+1)%4;
     return mix(a,vec4(next==0,next==1,next==2,next==3),x);
 }
+// Broad regions exchange ownership without fading every surface uniformly.
+vec4 air_territory(vec2 p) {
+    float drift=u_drift_time*.055;
+    float bank=.18*sin(p.x*3.1+drift)+.09*sin(p.y*4.-drift*.6);
+    return vec4(p.y*.65+bank,
+        .45-abs(p.x+.14*sin(p.y*3.+drift))*.9-p.y*.12,
+        .55-length(p*vec2(.85,1.))*1.5,
+        -p.y*.75-bank*.5);
+}
+vec4 air_coverage(vec2 p,vec4 forms) {
+    if(max(max(forms.x,forms.y),max(forms.z,forms.w))>=1.)return forms;
+    vec4 score=forms*forms*exp(air_territory(p)*4.);
+    return score/max(dot(score,vec4(1.)),1e-12);
+}
 float air_box(vec3 p,vec3 b) {
     vec3 q=abs(p)-b;return length(max(q,0.))+min(max(q.x,max(q.y,q.z)),0.);
 }
@@ -2377,7 +2391,12 @@ vec2 air_material_domain(vec2 p,vec4 form) {
     vec2 disk=(p-vec2(0.,-5.18))/5.;
     vec3 n=vec3(disk,sqrt(max(0.,1.-dot(disk,disk))));
     vec3 surface=vec3(cos(spin*.18)*n.x+sin(spin*.18)*n.z,n.y,-sin(spin*.18)*n.x+cos(spin*.18)*n.z);
-    return mix(whirl,vec2(surface.x*2.,n.z*4.-.65)+surface.z*vec2(.30,.12),form.w/max(form.z+form.w,.00001));
+    vec2 planet=vec2(surface.x*2.,n.z*4.-.65)+surface.z*vec2(.30,.12);
+    // Finite flight projection: gathering never interpolates a runaway scroll.
+    vec2 flight=(p-vec2(0.,.10))/(.35+length(p-vec2(0.,.10)))*1.7;
+    flight.x+=.18*sin(flight.y*2.+u_time*.10);
+    vec2 weather=vec2(flight.x*.8,flight.y*1.3);
+    return flight*form.x+weather*form.y+whirl*form.z+planet*form.w;
 }
 
 vec3 air_scene(vec2 p,vec3 material,vec4 form) {
@@ -2458,6 +2477,11 @@ vec3 air_scene(vec2 p,vec3 material,vec4 form) {
             float mask=(1.-smoothstep(.32+n*.4,1.2+n*.5,dot(cloudUV,cloudUV)+lobes))
                 *smoothstep(.12,.6,z)*(1.-smoothstep(13.,17.,z));
             vec3 tint=mix(vec3(.13,.22,.32),vec3(.52,.58,.65),n);
+            if(shared_spatial()) {
+                // Color travels through the lit cloud interior, not its silhouette.
+                float weave=smoothstep(.18,.62,n)*(.22+.18*energy);
+                tint=mix(tint,material*(.55+n*.55),weave);
+            }
             sky=mix(sky,tint,mask*(.60+.18*n)*form.x*effect(134217728));
         }
         // Reuse the accepted corridor's turns and perspective with cloud surfaces.
@@ -2469,11 +2493,17 @@ vec3 air_scene(vec2 p,vec3 material,vec4 form) {
             archP.x+=.018*sin(p.y*9.+clock*.4);
             GeometricSurface corridor=geometric_surface(archP,1.);
             vec2 uv=corridor.uv;
-            float billow=fbm(uv*vec2(.65,2.3)+vec2(-clock*.7,clock*.15));
-            float detail=fbm(uv*vec2(2.4,5.)+billow*2.);
+            vec2 weatherUV=uv;
+            if(shared_spatial())weatherUV=mix(uv,spatial_carrier(uv*.22)/.22,.28);
+            float billow=fbm(weatherUV*vec2(.65,2.3)+vec2(-clock*.7,clock*.15));
+            float detail=fbm(weatherUV*vec2(2.4,5.)+billow*2.);
             float rib=pow(.5+.5*cos(uv.x*1.7+billow*4.),5.);
             vec3 cloud=mix(vec3(.018,.035,.065),vec3(.30,.24,.39),smoothstep(.22,.70,billow));
             cloud*=.6+.4*detail;cloud+=vec3(.045,.08,.13)*rib;
+            if(shared_spatial()) {
+                float lining=smoothstep(.28,.70,billow)*(.38+.18*energy);
+                cloud=mix(cloud,material*(.48+.65*detail),lining);
+            }
             float seed=floor(u_air_flash_id),cell=floor(uv.x/3.);
             float origin=cell*3.+.7+fract(sin(cell*17.+seed)*437.)*1.6;
             float boltPath=origin+.11*sin(uv.y*17.+seed)+.055*sin(uv.y*47.+cell);
@@ -2711,6 +2741,7 @@ vec3 air_scene(vec2 p,vec3 material,vec4 form) {
             vec3 fabric=air_palette(serial*.13+pattern*.9+clock*.11+.18*sin(inward))*(.22+.78*sqrt(max(0.,1.-r*r)));
             fabric+=vec3(.25,.20,.14)*pow(max(0.,1.-length(q-vec2(-.28,.30))),12.);
             fabric=mix(fabric,pigment,.16);
+            if(shared_spatial())fabric=mix(fabric,material*(.35+.8*sqrt(max(0.,1.-r*r))),.38);
             fabric*=.8+u_impact*.35+.2*cos(atan(textureUV.y,textureUV.x)*7.-spin*2.);
             float fade=smoothstep(.16,.4,z)*(1.-smoothstep(55.,64.,z));
             sky=mix(sky,fabric,shell*fade*form.x);
@@ -2798,7 +2829,9 @@ void main()
     float air_gather=directed ? u_air_weight : (held_air ? 1. : 0.);
     if(air_gather>0.) {
         vec4 air_shape=air_forms();
-        p=mix(p,air_material_domain(screen_p,air_shape),air_gather*(air_shape.z+air_shape.w));
+        // Authored held forms preserve their accepted source projection.
+        float gather=shared_spatial() ? 1. : air_shape.z+air_shape.w;
+        p=mix(p,air_material_domain(screen_p,air_shape),air_gather*gather);
     }
 
     float t = u_time * 0.18;
@@ -3849,11 +3882,17 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     float air_amount=directed ? u_air_weight : (held_air ? 1. : 0.);
     if(air_amount>0.) {
         vec4 af=air_forms();
-        // Shared geometry evolves with form weights; soft cloud edge owns the handoff.
-        float edge=.12*sin(screen_p.x*4.+u_drift_time*.08)+screen_p.y*.35;
-        float score=air_amount*air_amount*exp(edge*3.);
-        float coverage=score/max(score+pow(1.-air_amount,2.),.000001);
-        color=mix(color,air_scene(screen_p,expressive_canvas,af),coverage);
+        vec4 regions=air_coverage(screen_p,af);
+        vec3 sky=vec3(0.);
+        // Each physical scene retains its own camera/depth while regions meld.
+        if(af.x>0.)sky+=air_scene(screen_p,expressive_canvas,vec4(1,0,0,0))*regions.x;
+        if(af.y>0.)sky+=air_scene(screen_p,expressive_canvas,vec4(0,1,0,0))*regions.y;
+        if(af.z>0.)sky+=air_scene(screen_p,expressive_canvas,vec4(0,0,1,0))*regions.z;
+        if(af.w>0.)sky+=air_scene(screen_p,expressive_canvas,vec4(0,0,0,1))*regions.w;
+        float edge=dot(af,air_territory(screen_p));
+        float score=air_amount*air_amount*air_amount*exp(edge*4.);
+        float coverage=score/max(score+pow(1.-air_amount,3.),.000001);
+        color=mix(color,sky,coverage);
     }
     fragColor = vec4(color, 1.0);
 }

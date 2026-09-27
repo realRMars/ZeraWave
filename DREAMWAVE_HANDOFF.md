@@ -2,6 +2,39 @@
 
 Updated: 2026-09-27
 
+## Accepted Air material and transition integration
+
+User visually accepted this pass and explicitly authorized its commit.
+
+Base checkpoint c552f81 is accepted Air. This pass applies Water/Fire's regional
+coverage approach to Air: wind sweeps, storm passage, central vortex and lower
+planet territories. Air forms render with their own camera/depth and exchange
+coverage, rather than interpolating unrelated scene geometry. Raw form weights
+still gather the shared material coordinates continuously. Main's outer Air
+handoff uses the same form-specific territories. The existing director is unchanged.
+
+In Main or explicit effect playback, Windstreams gathers materials into its
+flight projection, cloud interiors and balloon fabric. Stormfront carries
+materials in lit cloud regions and lets the existing spatial carrier fold cloud
+detail coordinates. Vortex and Citadel retain their accepted material mapping.
+Castle depth, balloon silhouettes, lightning roots and star clocks are unchanged.
+Held Authored forms remain the comparison view; the Air native cycle receives
+the new regional handoffs. Daddy Long Legs stays inactive by default.
+
+Validation: Air GPU suite passed 57 preservation comparisons (46 authored frames
+within one 8-bit level / mean <.005, 11 custom non-Air frames exact), 36 material/
+spatial-effect visibility checks, 140 handoff checks, 244 production-renderer
+frames, and the existing lightning/eye/history checks. Initial exact authored
+comparison exposed sparse one-level GPU rounding differences; tolerance is now
+explicit. Director CPU suite passed. WarbotJazz replay: full Air cycle 145.024s /
+3399 frames and Main seed 0 65.024s /1524 frames. Captures inspected across all Air
+handoffs and Windstreams-to-Firescape in Main. Replays use decoded music and GPU
+rendering, not audible live playback. Evidence: work/air-meld. No audio pipeline,
+normalization, renderer interface, Studio catalog or dependency changes.
+Short 720p GPU timing samples: current held scenes 9.3-13.1ms median; sampled
+overlaps 10.8-17.4ms. Citadel-to-Windstreams increased from 16.2 to 17.4ms in
+this sample; not a full-session frame-rate guarantee. Final diff check passed.
+
 ## Accepted Air checkpoint
 
 User accepted the final inner-rim lightning correction and explicitly authorized

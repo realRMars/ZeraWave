@@ -145,15 +145,16 @@ def air_test(baseline_path, output):
         glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
         old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text())
         mesh=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
-        def frame(state,t=40.,energy=.7,hit=0.,weights=None,previous=False,disabled=None,flash_id=2.,afterglow=None,trails=None,experiment=0.):
+        def frame(state,t=40.,energy=.7,hit=0.,weights=None,previous=False,disabled=None,flash_id=2.,afterglow=None,trails=None,experiment=0.,material=(1.,0.,0.),layer_mask=None):
             pr,vao=(old,mesh) if previous else (r.program,r.vao)
             values=dict(u_time=t*.75,u_star_time=t,u_drift_time=t,u_resolution=(480.,270.),
                 u_scale=energy,u_flux=energy,u_sparkle=energy,u_impact=hit,
                 u_intensity=1.,u_distortion=1.,u_debug_state=float(state),u_event_blasts=0,
                 u_layer_mode=0 if disabled is None else 1,
                 u_layer_mask=2147483647 if disabled is None else 2147483647^BITS.get(disabled,0),
-                u_material_mix=(1.,0.,0.),u_air_flash_id=flash_id,u_air_afterglow=hit if afterglow is None else afterglow,u_daddy_long_legs=experiment,
+                u_material_mix=material,u_air_flash_id=flash_id,u_air_afterglow=hit if afterglow is None else afterglow,u_daddy_long_legs=experiment,
                 **world_uniforms(weights or {},enabled=weights is not None))
+            if layer_mask is not None:values.update(u_layer_mode=1,u_layer_mask=layer_mask)
             for key,value in values.items():
                 if key in pr:pr[key].value=value
             if 'u_shockwaves' in pr:pr['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
@@ -161,12 +162,35 @@ def air_test(baseline_path, output):
             vao.render(mode=moderngl.TRIANGLE_STRIP)
             return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)[::-1].copy()
         preserved=0
-        # Only Vortex changes in this pass; all other held forms stay exact.
-        for state in (*range(21),22):
+        # Air integration preserves all authored held forms, including Vortex.
+        for state in range(23):
             for t in (17.,83.):
                 a=frame(state,t);b=frame(state,t,previous=True)
-                assert np.array_equal(a,b),('existing scene changed',state,t,np.abs(a.astype(float)-b).max())
+                delta=np.abs(a.astype(float)-b)
+                assert delta.max()<=1 and delta.mean()<.005,('existing scene changed',state,t,delta.max(),delta.mean())
                 preserved+=1
+        # Custom non-Air worlds must also remain unchanged.
+        for state in (2,5,7,8,9,10,13,14,15,17,18):
+            a=frame(state,layer_mask=2147483647)
+            b=frame(state,layer_mask=2147483647,previous=True)
+            assert np.array_equal(a,b),('custom non-Air changed',state)
+            preserved+=1
+        effect_checks=0
+        details=sum(BITS[k] for k in ('air_clouds','air_balloons','air_lightning','air_citadel','stars'))
+        for state in (19,20,21,22):
+            tiles=[]
+            for material,key in (((1.,0.,0.),'artifacts'),((0.,1.,0.),'alloy'),((0.,0.,1.),'lattice')):
+                mask=details+BITS[key]
+                base=frame(state,material=material,layer_mask=mask)
+                row=[base]
+                for spatial in ('tunnel','fractal','horizon'):
+                    pixels=frame(state,material=material,layer_mask=mask+BITS[spatial])
+                    delta=float(np.abs(pixels.astype(float)-base).mean())
+                    assert delta>.03,('Air effect invisible',state,key,spatial,delta)
+                    assert (pixels.min(axis=2)>250).mean()<.015,('Air effect glare',state,key,spatial)
+                    row.append(pixels);effect_checks+=1
+                tiles.append(np.concatenate(row,axis=1))
+            save_png(output/f'effects-{state}.png',np.concatenate(tiles,axis=0))
         for state in (19,20,21,22):
             tiles=[]
             for energy,hit in ((.03,0.),(.8,0.),(.8,.7)):
@@ -266,7 +290,7 @@ fragColor=vec4(vec3(.5+air_castle_map(p).x),1.);}
         r.parameters.impact=0.;r.render(elapsed_time=16.)
         assert r.air_afterglow<.01
         assert all(strength<.01 for _,strength in r.air_trails)
-        report=dict(preserved_frames=preserved,handoff_checks=checks,renderer_frames=244,
+        report=dict(preserved_frames=preserved,effect_checks=effect_checks,handoff_checks=checks,renderer_frames=244,
             note='Synthetic GPU and production-renderer tests; real music replay separate.')
         (output/'checks.json').write_text(json.dumps(report,indent=2));print(report,flush=True)
     finally:

@@ -2,6 +2,12 @@
 
 ## Air / Wind (2026-09-27)
 
+Accepted Air integration: Main Blend and explicit effect playback carry selected
+materials through Windstreams' clouds/balloons and Stormfront's cloud interiors.
+Tunnel, Fractal folds and Horizon act on material/detail coordinates. Held
+Authored forms retain the accepted presentation. The native Air cycle now uses
+broad moving regions to blend scenes; each scene keeps its own camera and depth.
+
 Accepted Air checkpoint: Windstreams flies past fractal balloons and clouds
 above patchwork land. Stormfront follows a curved, mirrored cloud corridor.
 Vortex combines rotating material, wall lightning and free jagged discharges
