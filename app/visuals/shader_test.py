@@ -135,6 +135,183 @@ def sweep(output):
         renderer.close()
 
 
+def director_test():
+    """Exercise production selection with synthetic parameters, without graphics."""
+    def run(seed,profile,duration=600.,fps=20):
+        r=Renderer(seed=seed);previous=None;target=None;events=[]
+        for i in range(int(duration*fps)+1):
+            t=i/fps
+            energy=(.12 if profile=='quiet' else .85 if profile=='heavy'
+                else (.15 if t%48<20 else .9))
+            r.parameters.scale=r.parameters.movement=r.parameters.flux=energy
+            r.parameters.impact=.8 if profile!='quiet' and i%(fps//2)==0 else 0.
+            r.update_blend(t,0. if i==0 else 1/fps)
+            v=r.blend_values;w=np.array(v['u_world_mix'])
+            assert (w>=0).all() and w.sum()<=1.000001
+            assert sum(w>0)<=2,('stacked takeovers',t,w)
+            assert abs(sum(v['u_water_mix'])+v['u_current_mix']-(1. if w[2]>0 else 0.))<1e-6
+            assert abs(sum(v['u_fire_mix'])-(1. if w[3]>0 else 0.))<1e-6
+            if previous is not None:assert np.abs(w-previous).max()<.03
+            if target is not None and r.director_target is not None:
+                assert target==r.director_target,('handoff interrupted',t)
+            target=r.director_target;previous=w
+        events=r.director_history
+        assert all(a['state']!=b['state'] for a,b in zip(events,events[1:]))
+        assert all(b['seconds']-a['seconds']>=12. for a,b in zip(events,events[1:]))
+        return r,events
+    quiet,q=run(42,'quiet');heavy,h=run(42,'heavy');music,m=run(42,'sections')
+    assert m==run(42,'sections')[1], 'Seeded replay not repeatable'
+    assert [e['state'] for e in q]!=[e['state'] for e in h], 'Audio does not affect choices'
+    assert len(h)>len(q), 'Quiet passages do not breathe longer'
+    assert any(e['reason'] in ('energy lift','release') for e in m)
+    assert {2,5}.issubset({e['state'] for e in h if e['seconds']<180.}), 'Favorite anchors starved'
+    openings={run(seed,'sections',duration=0.)[1][0]['state'] for seed in range(16)}
+    assert len(openings)>=5,openings
+    # Same sampled section/onset pattern at two frame rates should pick the same forms.
+    higher=run(42,'sections',fps=40)[1]
+    assert [e['state'] for e in m]==[e['state'] for e in higher]
+    assert max(abs(a['seconds']-b['seconds']) for a,b in zip(m,higher))<.5
+    before=music.director_time;history=list(music.director_history)
+    music.update_blend(900.,300.,False)
+    assert music.director_time==before and music.director_history==history
+    assert music.blend_values['u_directed']==0
+    report=dict(quiet_visits=len(q),heavy_visits=len(h),section_visits=len(m),
+        openings=sorted(openings),section_history=m)
+    print('Director CPU checks passed:',report,flush=True)
+    return report
+
+
+def ownership_test(baseline_path, output):
+    """Real GPU preservation and normalized, continuous regional coverage."""
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270);resources=[]
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        source=Path(__file__).with_name('shaders').joinpath('dream.frag').read_text()
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text());resources.append(old)
+        oldvao=r.ctx.simple_vertex_array(old,r.vertices,'in_position');resources.append(oldvao)
+        def set_values(pr,values):
+            for key,value in values.items():
+                if key in pr:pr[key].value=value
+        def frame(weights,previous=False):
+            pr,vao=(old,oldvao) if previous else (r.program,r.vao)
+            r.ctx.screen.use()
+            values=dict(u_time=105.,u_star_time=140.,u_drift_time=140.,
+                u_resolution=(480.,270.),u_directed=1,u_debug_state=0.,
+                u_world_mix=tuple(weights),u_world_warp=0.,u_scale=.75,u_flux=.6,
+                u_sparkle=.5,u_impact=.15,u_intensity=1.,u_distortion=1.,
+                u_layer_mode=2,u_layer_mask=134217727,u_material_mix=(1.,0.,0.),
+                u_water_mix=(1.,0.,0.,0.),u_current_mix=0.,u_fire_mix=(0.,0.,1.,0.),
+                u_root_mix=0.,u_event_blasts=0)
+            set_values(pr,values);pr['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+            vao.render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)[::-1].copy()
+        worlds=np.concatenate((np.zeros((1,4)),np.eye(4)))
+        for w in worlds:assert np.array_equal(frame(w),frame(w,True)),('held world changed',w)
+        main="""void main(){vec2 p=gl_FragCoord.xy/u_resolution-.5;
+        p.x*=u_resolution.x/u_resolution.y;fragColor=world_coverage(u_world_mix,p);}"""
+        probe=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=source[:source.index('void main()')]+main);resources.append(probe)
+        vao=r.ctx.simple_vertex_array(probe,r.vertices,'in_position');resources.append(vao)
+        fbo=r.ctx.simple_framebuffer((64,36),components=4,dtype='f4');resources.append(fbo)
+        probes=0;midpoints=[]
+        for a in range(5):
+            for b in range(a+1,5):
+                previous=None
+                for t in np.linspace(0.,1.,101):
+                    w=worlds[a]*(1.-t)+worlds[b]*t
+                    fbo.use();set_values(probe,dict(u_resolution=(64.,36.),u_drift_time=140.,u_world_mix=tuple(w)))
+                    vao.render(mode=moderngl.TRIANGLE_STRIP)
+                    d=np.frombuffer(fbo.read(components=4,dtype='f4'),np.float32).reshape(36,64,4).copy()
+                    home=1.-d.sum(axis=2,keepdims=True);all_weights=np.concatenate((home,d),axis=2)
+                    assert np.isfinite(d).all() and d.min()>=0. and home.min()>-1e-6
+                    if previous is not None:
+                        assert (all_weights[:,:,b]>=previous[:,:,b]-1e-6).all(),('nonmonotonic',a,b,t)
+                        assert np.abs(all_weights-previous).max()<.10,('abrupt coverage',a,b,t)
+                    if abs(t-.5)<1e-6:midpoints.append(float((all_weights.max(axis=2)>.8).mean()))
+                    previous=all_weights;probes+=1
+        # At equal global weight, substantial regions must belong to one world;
+        # a uniform crossfade would leave every pixel at 50/50.
+        assert min(midpoints)>.30,('coverage is still uniform',midpoints)
+        for a,b,name in ((0,1,'organic-corridor'),(1,2,'corridor-planet'),(2,3,'planet-sea'),(3,4,'sea-firescape'),(4,2,'firescape-planet')):
+            rows=[]
+            for t in (.15,.35,.5,.65,.85):
+                w=worlds[a]*(1.-t)+worlds[b]*t
+                rows.append(np.concatenate((frame(w,True),frame(w)),axis=1))
+            save_png(output/f'{name}.png',np.concatenate(rows,axis=0))
+        # Supplemental Planet can overlap two scheduled worlds.
+        for w in ((.2,.35,.45,0.),(0.,.3,.3,.4),(.25,.25,.25,.25)):
+            pixels=frame(w);assert pixels.std()>2
+        report=dict(held_exact=5,coverage_probes=probes,midpoint_dominant_fractions=midpoints,
+            note='Synthetic GPU captures; visual review required, not live audio acceptance.')
+        (output/'checks.json').write_text(json.dumps(report,indent=2));print(report,flush=True)
+    finally:
+        for item in reversed(resources):item.release()
+        r.close()
+
+
+def corridor_clearance_test(baseline_path,output):
+    """Probe physical hit distance: image contrast alone misses flat-wall clipping."""
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270);resources=[]
+    # Reconstructed from Warbot Jazz's actual mapped audio/clock at 130.005s.
+    fixture=dict(u_time=191.33928449385124,u_star_time=130.21263867972164,
+        u_drift_time=130.00533333332754,u_scale=.9999999932109299,
+        u_flux=.44514636959664877,u_sparkle=.9434865190292586,
+        u_impact=.40443898880256096,u_intensity=1.,u_distortion=1.,
+        u_debug_state=0.,u_layer_mode=2,u_layer_mask=134217727,
+        u_material_mix=(.8334501385688782,0.,.16654987633228302),
+        u_event_blasts=0,u_directed=1,u_world_mix=(1.,0.,0.,0.),
+        u_water_mix=(0.,0.,0.,0.),u_current_mix=0.,u_fire_mix=(0.,0.,0.,0.),
+        u_root_mix=0.,u_world_warp=0.,u_resolution=(480.,270.))
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        source=Path(__file__).with_name('shaders').joinpath('dream.frag').read_text()
+        baseline=baseline_path.read_text()
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline);resources.append(old)
+        old_vao=r.ctx.simple_vertex_array(old,r.vertices,'in_position');resources.append(old_vao)
+        def set_values(program,values):
+            for key,value in values.items():
+                if key in program:program[key].value=value
+        frames=[]
+        for program,vao in ((old,old_vao),(r.program,r.vao)):
+            r.ctx.screen.use();set_values(program,fixture)
+            program['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+            vao.render(mode=moderngl.TRIANGLE_STRIP)
+            frames.append(np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3).copy())
+        save_png(output/'recorded-failure-before-after.png',np.concatenate([x[::-1] for x in frames],axis=1))
+        main="""void main(){vec2 p=gl_FragCoord.xy/u_resolution-.5;
+        p.x*=u_resolution.x/u_resolution.y;GeometricSurface s=geometric_surface(p);
+        fragColor=vec4(s.distance,s.kind,s.height,1.);}"""
+        fbo=r.ctx.simple_framebuffer((64,36),components=4,dtype='f4');resources.append(fbo)
+        probes=[]
+        for text in (baseline,source):
+            program=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=text[:text.index('void main()')]+main)
+            resources.append(program);vao=r.ctx.simple_vertex_array(program,r.vertices,'in_position');resources.append(vao)
+            probes.append((program,vao))
+        def distances(pair,values):
+            program,vao=pair;fbo.use();set_values(program,dict(values,u_resolution=(64.,36.)))
+            vao.render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(fbo.read(components=4,dtype='f4'),np.float32).reshape(36,64,4)[:,:,0].copy()
+        old_distance=float(np.median(distances(probes[0],fixture)))
+        new_distance=float(np.median(distances(probes[1],fixture)))
+        assert old_distance<.03 and new_distance>1.0,(old_distance,new_distance)
+        minimum=100.;count=0;worst=None
+        for scale,flux,impact in ((.05,.02,0.),(.45,.45,.25),(1.,.45,.8),(1.,1.,1.)):
+            for seconds in np.arange(0.,600.01,.25):
+                values=dict(fixture,u_time=float(seconds*.75),u_drift_time=float(seconds),
+                    u_scale=scale,u_flux=flux,u_impact=impact)
+                d=distances(probes[1],values);median=float(np.median(d));count+=1
+                if median<minimum:minimum=median;worst=(float(seconds),scale,flux,impact)
+                assert np.isfinite(d).all() and median>.20,(seconds,scale,flux,impact,median)
+        report=dict(recorded_old_median=old_distance,recorded_new_median=new_distance,
+            sweep_frames=count,minimum_median=minimum,worst=worst)
+        (output/'checks.json').write_text(json.dumps(report,indent=2))
+        print('Corridor clearance passed:',report,flush=True)
+    finally:
+        for item in reversed(resources):item.release()
+        r.close()
+
+
 def geometric_test(output):
     """Guard isolated corridor visibility through both turn directions."""
     output.mkdir(parents=True, exist_ok=True)
@@ -146,6 +323,8 @@ def geometric_test(output):
         renderer.create()
         renderer.render()
         renderer.program['u_debug_state'].value = 2.0
+        renderer.program['u_directed'].value = 0
+        renderer.program['u_layer_mode'].value = 0
         for profile, scale, flux, sparkle, impact in (
             ('quiet', .05, .02, .05, 0.),
             ('active', .45, .45, .25, .25),
@@ -1390,7 +1569,7 @@ def materials_test(baseline_path, output):
 def blend_test(baseline_path, output, changed_states=()):
     """Main-default coverage, GPU handoffs and accepted held-world preservation."""
     output.mkdir(parents=True,exist_ok=True)
-    r=Renderer(width=480,height=270); old=vao=None
+    r=Renderer(width=480,height=270,seed=42); old=vao=None
     try:
         glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
         old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text(encoding='utf-8'))
@@ -1418,20 +1597,8 @@ def blend_test(baseline_path, output, changed_states=()):
             assert ids.count(2)==4 and ids[1]==2
             assert all(a!=b for a,b in zip(ids,ids[1:]))
             if chapter:assert blend_chapter(chapter-1)[0][-1]!=ids[0]
-        schedule_renderer=Renderer()
-        schedule_renderer.parameters.scale=.9
-        schedule_renderer.parameters.movement=.9
-        schedule_renderer.parameters.flux=.9
-        corridor_seconds=0
-        for i in range(3600):
-            seconds=i*.1
-            schedule_renderer.blend_values=blend_uniforms(seconds)
-            original=schedule_renderer.blend_values['u_world_mix'][0]
-            schedule_renderer.update_planet(seconds,.1)
-            if original>.99:
-                assert schedule_renderer.blend_values['u_world_mix'][0]>.989
-                corridor_seconds+=.1
-        assert corridor_seconds>30.,corridor_seconds
+        # Live Main uses the audio director; fixed chapters above are fixtures.
+        director_test()
         differences=[];preserved=0
         for state in range(19):
             if state in changed_states:continue # Explicitly changed forms tested by the calling suite.
@@ -1579,16 +1746,8 @@ def response_test(baseline_path, output):
     held=Renderer();held.debug_state=18;held.parameters.impact=1.
     for i in range(100):held.update_blasts(i*.05)
     assert held.blast_serial==1 and held.blast_hits<=1
-    for i in range(3001):
-        t=i*.1
-        for obj,energy in ((r,.85),(quiet,0.)):
-            obj.parameters.scale=energy;obj.parameters.movement=energy;obj.parameters.flux=energy
-            obj.blend_values=blend_uniforms(t)
-            obj.update_planet(t,.1)
-            assert 0<=sum(obj.blend_values['u_world_mix'])<=1.000001
-        if r.planet_visits!=previous:visits.append(t);previous=r.planet_visits
-    assert quiet.planet_visits==0 and len(visits)>=4
-    assert all(gap>=minimum-.11 for gap,minimum in zip(np.diff(visits[:4]),(45.,55.,85.))),visits
+    director_test()
+    visits=[] # Visit cadence is now audio-selected rather than a fixed timer.
     old=vao=None;r=Renderer(width=480,height=270)
     try:
         glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
@@ -1626,7 +1785,7 @@ def response_test(baseline_path, output):
             if i in (600,960,1100):
                 pixels=np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)
                 save_png(output/f'main-{t:g}.png',pixels[::-1])
-        assert rate_quiet<.36 and peak_rate>3. and seen_visit,(rate_quiet,peak_rate)
+        assert rate_quiet<.36 and peak_rate>3.,(rate_quiet,peak_rate)
         # Force eight overlapping events and exercise the real depth-sorted shader.
         r.debug_state=18
         r.blast_events=[(60.+i*1.8,float(i),(-1 if i%2 else 1)*(2.+i*1.8),32.+i*5.) for i in range(8)]
@@ -1791,6 +1950,7 @@ def spatial_test(output):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--spatial-test", type=Path)
+    parser.add_argument("--corridor-clearance-test", nargs=2,type=Path)
     parser.add_argument("--color-test", nargs=2, type=Path)
     parser.add_argument("--response-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--motion-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
@@ -1818,7 +1978,18 @@ if __name__ == "__main__":
     parser.add_argument("--state", choices=tuple(STATES), default="blend")
     parser.add_argument("--states", nargs="+", choices=tuple(STATES), help="Development cycle: hold each state for 28 seconds.")
     parser.add_argument("--layers", type=parse_layers, default={}, help="Development per-world effect settings as JSON.")
+    parser.add_argument("--ownership-test", nargs=2, type=Path)
+    parser.add_argument("--director-test", action="store_true")
     args = parser.parse_args()
+    if args.director_test:
+        director_test()
+        raise SystemExit(0)
+    if args.ownership_test:
+        ownership_test(*args.ownership_test)
+        raise SystemExit(0)
+    if args.corridor_clearance_test:
+        corridor_clearance_test(*args.corridor_clearance_test)
+        raise SystemExit(0)
     if args.color_test:
         color_test(*args.color_test)
         raise SystemExit(0)

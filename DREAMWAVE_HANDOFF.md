@@ -2,6 +2,159 @@
 
 Updated: 2026-09-26
 
+## Accepted cleanup checkpoint
+
+User accepted the Corridor clearance repair, regional transition ownership and
+musical Main director, then approved checkpointing this cleanup before the next
+color-expression pass. All three sections below are included in this checkpoint;
+their uncommitted/HEAD references describe the development sequence only.
+Relevant synthetic, GPU, Studio and real-track replay checks passed as recorded
+below. Unrelated untracked research and scripts are excluded from the commit.
+Next proposed work: bounded musical color expression, preserving palettes,
+dark space and Planet's accepted vivid response. No new color changes are in
+this checkpoint.
+
+## Musical Main director (uncommitted)
+
+User accepted regional ownership and authorized the next timing pass. HEAD is
+still 5136362. Earlier Corridor/ownership edits remain in this working tree.
+This pass changes renderer.py, replay_test.py, shader_test.py and these notes;
+the shader is unchanged from the accepted regional-ownership version.
+
+Live Main now uses Renderer.update_blend instead of a fixed seeded itinerary
+plus a supplemental Planet timer. It interprets existing mapped scale/movement/
+flux and impact only: .7s vs 8s energy envelopes detect lift/release, and a
+hysteresis gate admits distinct strong hits. These are opportunities, not chorus
+or beat-grid detection. A world holds at least 12-19s after arrival (first14s),
+then can respond; quiet/steady input has a 32-48s breathing deadline (first40s).
+Handoffs last6-9s, release8-11s, complete before another can begin, and reuse the
+existing uniform contract and regional shader gathering. No stacked extra
+Planet; at most two selected forms share a transition. Planet's material/color
+response and all motion/star clocks remain unchanged.
+
+World choice balances an energy preference, absence/novelty and38s reuse
+cooldown. Overdue Corridor/Planet visits receive increasing preference during
+suitable energy; Planet also favors lifts. This is weighted variation, not a
+shuffle bag, guaranteed all-world tour, or a promise of a particular visit time.
+Fresh sessions use SystemRandom entropy. Renderer(seed=...) and replay --seed
+provide reproducibility; replay capture metadata records the seed and bounded
+64-entry decision history with reasons. Held Studio selections pause director
+time. Existing blend_chapter/blend_uniforms remain deterministic shader fixtures;
+world_uniforms packs both paths into the same shader interface.
+
+Validation: synthetic --director-test passed quiet/heavy/section scenarios,
+seed repeatability,7 distinct openings across16 seeds, normalized Water/Fire
+weights, uninterrupted pairwise transitions, hold bounds, anchor presence,
+20vs40Hz agreement and disabled-mode freeze. Quiet visited13 worlds versus27
+heavy over600s. Existing Main suite passed114 exact Authored frames,144 fixture
+handoffs and721 production-renderer frames including forward star drift and all
+three materials. Historical tests asserting the removed Planet timer were
+replaced with director tests. Studio tests passed recursive isolation, sessions,
+launch modes, UI lifecycle, replay metadata/pacing and continuous GPU clocks.
+Python compilation and git diff --check passed.
+
+Recorded Balloon/Warbot inputs with seeds42/73 produce different routes; seed42
+Corridor/Planet arrivals start at83.2/107.0s on Balloon and59.8/82.8s on Warbot.
+Real Warbot replay through analysis and GPU completed210s /4,922 frames; inspected
+all53 captures at4s spacing. Clearly held Flame/Corridor/Planet visits and smooth
+regional releases appear in the sequence. This is sampled frame inspection,
+not continuous audible playback or live-input acceptance. Evidence:
+work/musical-director (track-decisions.json, warbot, blend).
+
+Next review should judge live pacing across songs and new starts. Short intense
+music can still select the next scene soon after minimum hold; quiet can wait
+longer. Broader vividness tuning and within-family handoff refinement remain
+future passes. No new worlds, palettes, normalization or dependencies added.
+No commit requested or made.
+
+## Regional transition ownership (uncommitted)
+
+User reviewed the Corridor repair and authorized this next focused pass.
+HEAD remains 5136362; both passes remain uncommitted. Only dream.frag,
+shader_test.py and this handoff are modified; unrelated untracked files stay.
+
+Main previously interpolated full-screen world RGB with spatially uniform
+weights, giving transparent overlapping horizons. Added world_coverage in the
+existing shader: normalized cubic global weights with broad smooth spatial
+preferences (central Corridor/Planet, curved rising Water, upward Fire). This
+only controls final composite coverage. Existing coordinate gathering, geometry,
+material palettes, clocks, audio mapping and itinerary remain unchanged. No new
+uniforms, render passes, dependencies or renderer architecture. Fully held worlds
+short-circuit to their original coverage. Up to four world families plus Organic
+can share normalized coverage during supplemental Planet overlaps.
+
+Research inspiration: NVIDIA GPU Gems 3, Ryan Geiss, procedural density fields
+and low-frequency domain variation:
+https://developer.nvidia.com/gpugems/gpugems3/part-i-geometry/chapter-1-generating-complex-procedural-terrains-using-gpu
+This is an adaptation to screen-region composition, not terrain meshing, fluid
+simulation or true depth morphing. Quilez's smooth-min page returned HTTP403;
+no code copied or attributed from that inaccessible page. Noise dithering and a
+new multi-pass depth system were unnecessary for this bounded change.
+
+Validation: --ownership-test BASELINE OUTPUT exercises actual GPU weights for
+all ten family pairs (1,010 progress samples), finite normalized coverage,
+monotonic progress with fixed spatial field, bounded steps, five exact held-world
+comparisons and three multi-world render samples. Equal-weight pairs have
+34-71% of pixels at >80% ownership by one scene instead of uniform 50/50.
+Five before/after sequence sheets inspect Organic/Corridor, Corridor/Planet,
+Planet/Sea, Sea/Firescape and Firescape/Planet. Main regression passed all 114
+exact Authored frames, 144 handoff checks and 721 renderer frames, including
+forward star drift. Separate Planet handoff passed all 19 frames.
+
+Limits: this is regional compositing with soft borders, not physical geometry
+morphing. Some shared material haze remains. Within-Water and within-Fire form
+blends retain their existing behavior. Musical scheduling, varied starts and
+quiet-to-hit vividness are the next reviewed pass, not implemented here.
+Replayed Warbot through the real audio-analysis/renderer path to 200.1 seconds
+without pacing; inspected all 25 two-second captures from 150-198 seconds.
+Firescape releases around Planet and Sea takes over without the previous broad
+Planet ghost. Some three-world overlap remains at 182-186s, consistent with the
+unchanged supplemental Planet scheduler. This was frame-sequence inspection,
+not continuous audible or live-input viewing. Python compilation and
+git diff --check passed. No commit made.
+Evidence: work/transition-ownership; baseline includes the accepted Corridor fix.
+
+## Corridor camera clearance repair (uncommitted)
+
+Actual checkpoint is 5136362 (Integrate material trio and restore expressive
+main-world blending). The spatial color recovery and earlier restored forms
+below were accepted and committed there; their old uncommitted/HEAD statements
+are historical. Unrelated untracked user files remain untouched.
+
+User approved incremental repair following independent Balloon/Warbot viewing.
+This first pass addresses the Warbot 130.005s flat-frame defect only. GPU distance
+probing reproduced the camera inside a corridor wall (median hit distance .01).
+The turn now reaches the junction before lateral movement; low bays lower the
+camera for headroom. The junction back wall sits at the side passage's outer
+edge instead of cutting across its centerline. Recorded median distance is now
+1.6303. Existing materials, color, audio normalization and scheduling are unchanged.
+
+Changed shader plus existing shader_test.py: new --corridor-clearance-test
+BASELINE OUTPUT uses the recorded uniform fixture and 9,604 synthetic GPU probes
+across 600 seconds/four audio profiles. Minimum median distance .236875; threshold
+.20. The existing Geometric test now explicitly disables directed Main mode so
+its 423 frames actually exercise isolated Corridor. All passed. Main regression
+passed 90 exact preserved Authored frames, 144 transition checks and 721 renderer
+frames including continuous forward star drift. Authored states 0/2/4/5 contain
+Corridor (including legacy Planet/Transition underlays), so those are deliberately
+excluded from exact-image preservation; initial assertions identified these
+expected differences. Separate Planet handoff suite passed 19 frames, isolation
+and boundary continuity. Compilation and git diff --check passed.
+
+Replayed Warbot through actual audio analysis and renderer to 134.1s (no pacing),
+inspected 16 half-second captures from 126-134s and the recorded before/after.
+Depth is restored at 130.005s; this is frame-sequence visual inspection, not
+continuous audible/live playback or exhaustive aesthetic acceptance. Evidence:
+work/corridor-clearance. No commit requested or made in this pass.
+
+Next, after review: improve transition ownership/gathering instead of ghosted
+crossfades, then evolve the existing scheduling toward musical opportunities,
+varied openings, breathing and earned takeovers. Preserve especially Planet's
+brief vivid quiet-to-hit response; local color/contrast should support it.
+Research transition approaches when beginning that pass. No new worlds or broad
+architecture replacement planned. User permits revising recent choices where
+necessary, but prefers small reviewable steps.
+
 ## Spatial color recovery (uncommitted)
 
 User accepted the restored forms but found spatial overlap washed out/translucent

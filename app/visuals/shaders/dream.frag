@@ -762,11 +762,14 @@ GeometricSurface geometric_surface(vec2 p)
     float w_here = geo_width(walk);
     float w_next = w_here;
     float h_next = geo_tall(walk);
-    float slide = next_turn * turn_u * (w_here + w_next);
-    // Reach the junction before sliding into its side passage. Otherwise
-    // the old lateral-only camera starts inside a wall during a turn.
+    // Advance into the junction before crossing the inner corner. Early
+    // lateral motion can put the camera inside the pressure-bowed side wall.
+    float slide = next_turn * smoothstep(.45,1.0,turn_u) * (w_here + w_next);
+    // Move forward with the turn, keeping the opening ahead of the camera.
     float junction_approach = (SPAN - local) * smoothstep(0.0, 0.55, turn_u);
     vec3 ro = vec3(slide, 0.48, junction_approach);
+    // Keep headroom in low bays; their floor and ceiling bow symmetrically.
+    ro.y=min(ro.y,.5*min(h_next,geo_tall(walk+ro.z)));
     vec3 rd = normalize(vec3(p.x * 0.90, (p.y - 0.10) * 0.72, 1.12));
     rd = vec3(cs * rd.x + sn * rd.z, rd.y, -sn * rd.x + cs * rd.z);
     float bass = clamp(u_scale, 0.0, 1.0);
@@ -824,7 +827,10 @@ GeometricSurface geometric_surface(vec2 p)
             float floor_y = bow * mid;
             float ceil_y = base_h - bow * mid;
             float halfw = max(base_w - bow * sin(3.14159265 * y01), 0.14);
-            float blocked = turning * step(corner, q.z) * step(q.x * next_turn, w_here * 0.2);
+            // The junction ends at the branch's outer wall, not its centerline.
+            float blocked = turning
+                * step(corner + max(w_next - bow, 0.14), q.z)
+                * step(q.x * next_turn, w_here * 0.25);
             if (q.y <= floor_y) hit_kind = 2.0;
             else if (q.y >= ceil_y) hit_kind = 3.0;
             else if (blocked > 0.5) hit_kind = 1.0;
@@ -2046,6 +2052,27 @@ vec3 prismatic_lattice(vec2 q,float bass,float flux,float sparkle,float impact) 
     return tint*(wire*(.45+sparkle*.22+impact*.10)+glow+max(inside,insideBack)*.075)*presence*resolved;
 }
 
+// Final coverage only: material gathering and each world's geometry keep their
+// existing continuous envelopes. A shared broad field gives scenes territory
+// rather than averaging unrelated horizons over the entire screen.
+vec4 world_coverage(vec4 weights, vec2 p)
+{
+    float organic = max(0.,1.-dot(weights,vec4(1.)));
+    if (max(max(weights.x,weights.y),max(weights.z,weights.w)) >= 1.
+        || organic >= 1.) return weights;
+    float flow = u_drift_time*.075;
+    float bend = .16*sin(p.x*3.1+flow)+.07*sin(p.y*4.3-flow*.7);
+    float radius = length(p*vec2(.82,1.));
+    vec4 territory = vec4(
+        .65-length(p*vec2(.55,1.6)), // Corridor opens around its vanishing point.
+        .65-radius*1.5,              // Planet gathers centrally, then owns space.
+        -p.y+bend,                   // Liquid rises in broad connected currents.
+        p.y+.16*sin(p.x*4.1-flow));  // Fire climbs in sheets.
+    vec4 score = weights*weights*weights*exp(territory*5.);
+    float home = organic*organic*organic*exp((-territory.y)*3.);
+    return score/max(home+dot(score,vec4(1.)),1e-12);
+}
+
 void main()
 {
     bool directed = u_directed == 1;
@@ -3126,23 +3153,24 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     color = color / (1.0 + peak * 0.6);
 
     vec3 shared_canvas = color;
+    vec4 coverage = directed ? world_coverage(u_world_mix,screen_p) : u_world_mix;
     if (geometric_weight > 0.0)
     {
         float geo_canvas = 0.85 + 0.15 * clamp(u_flux, 0.0, 1.0);
         vec3 geo_world = isolated_geometric_scene(geo_surface, color, geo_canvas);
-        float amount = directed ? geometric_weight/max(1.-water_takeover-cosmic_takeover-fire_takeover,.000001) : geometric_weight;
+        float amount = directed ? coverage.x/max(1.-coverage.z-coverage.y-coverage.w,.000001) : geometric_weight;
         color = mix(color, geo_world, clamp(amount,0.,1.));
     }
     if (cosmic_takeover > 0.0)
     {
         vec3 world = isolated_cosmic_scene(cosmic_p, directed ? shared_canvas : color, 1.0, cosmic_takeover);
-        float amount = directed ? cosmic_takeover/max(1.-water_takeover-fire_takeover,.000001) : cosmic_takeover;
+        float amount = directed ? coverage.y/max(1.-coverage.z-coverage.w,.000001) : cosmic_takeover;
         color = mix(color, world, clamp(amount,0.,1.));
     }
     if (water_mode) {
         vec3 liquid = isolated_water_scene(water, directed ? shared_canvas : color);
         if (forms.w > 0.0) liquid = mix(liquid,water_falls(falls,directed ? shared_canvas : color),forms.w);
-        float amount = directed ? water_takeover/max(1.-fire_takeover,.000001) : water_takeover;
+        float amount = directed ? coverage.z/max(1.-coverage.w,.000001) : water_takeover;
         color = mix(color,liquid,clamp(amount,0.,1.));
     }
     if (fire_mode) {
@@ -3167,7 +3195,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
             if (molten > 0.) color+=isolated_molten_scene(screen_p,fire_material)*molten;
             color+=isolated_firescape_scene(screen_p,fire_material)*wild;
         }
-        if (directed) color=mix(before_fire,color,fire_takeover);
+        if (directed) color=mix(before_fire,color,coverage.w);
     }
     fragColor = vec4(color, 1.0);
 }

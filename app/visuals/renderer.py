@@ -22,7 +22,7 @@ void main()
 """
 
 
-# A repeatable shuffled itinerary, independent of audio/render frame rate.
+# Deterministic itinerary retained for shader fixtures; live Main uses update_blend.
 # Each chapter visits every implemented form once; holds vary and overlap.
 BLEND_FORMS = (11, 12, 2, 5, 7, 8, 9, 10, 13, 14, 15, 17, 18)
 
@@ -61,6 +61,11 @@ def blend_uniforms(seconds, enabled=True):
     x = max(0., min(1., (phase / spans[index] - fade_start) / (1.-fade_start)))
     x = x*x*(3.-2.*x)
     weights = {ids[index]: 1.-x, following: x}
+    return world_uniforms(weights, x, enabled)
+
+
+def world_uniforms(weights, progress=0., enabled=True):
+    """Shared packing for the live director and deterministic shader fixtures."""
     world = [weights.get(2,0.), weights.get(5,0.),
              sum(weights.get(i,0.) for i in (7,8,9,10,13)),
              sum(weights.get(i,0.) for i in (14,15,17,18))]
@@ -71,7 +76,7 @@ def blend_uniforms(seconds, enabled=True):
     root = weights.get(12,0.)
     return dict(u_directed=int(enabled), u_world_mix=tuple(world), u_water_mix=water,
                 u_current_mix=weights.get(13,0.)/max(world[2],1e-12),
-                u_fire_mix=fire, u_root_mix=root, u_world_warp=math.sin(math.pi*x))
+                u_fire_mix=fire, u_root_mix=root, u_world_warp=math.sin(math.pi*progress))
 
 
 class Renderer:
@@ -80,7 +85,7 @@ class Renderer:
     FLOW_CEILING = 1.15
     FLOW_SMOOTHING_SECONDS = 0.6
 
-    def __init__(self, width=1280, height=720, title="DreamWave"):
+    def __init__(self, width=1280, height=720, title="DreamWave", seed=None):
         self.width = width
         self.height = height
         self.title = title
@@ -107,10 +112,23 @@ class Renderer:
         self.shockwave_armed = True
         self.last_shockwave = -1000.0
         self.blend_values = blend_uniforms(0., False)
-        self.planet_start = -1000.
-        self.next_planet = 45.
+        # Session entropy varies live openings; explicit seeds reproduce test runs.
+        self.director_seed = random.SystemRandom().getrandbits(64) if seed is None else seed
+        self.director_rng = random.Random(self.director_seed)
+        self.director_time = 0.
+        self.director_current = None
+        self.director_target = None
+        self.director_since = 0.
+        self.director_transition = 0.
+        self.director_duration = 8.
+        self.director_min_hold = 14.
+        self.director_max_hold = 40.
+        self.director_fast = None
+        self.director_slow = None
+        self.director_armed = True
+        self.director_last_seen = {}
+        self.director_history = []
         self.planet_visits = 0
-        self.heavy_seconds = 0.
         self.blast_events = []
         self.blast_serial = 0
         self.blast_hits = 0
@@ -124,28 +142,81 @@ class Renderer:
             return self.debug_sequence[int(max(0.0, seconds) // 28.0) % len(self.debug_sequence)]
         return self.debug_state
 
-    def update_planet(self, seconds, delta):
-        """A sustained-energy opportunity, not a claim of chorus detection."""
-        if not self.blend_values['u_directed']:
-            self.heavy_seconds = 0.
+    def choose_world(self, energy, lift=False):
+        # Preference, not a playlist: quiet worlds remain possible at high energy.
+        preferred = {11:.25,12:.4,2:.75,5:.65,7:.65,8:.3,9:.25,
+                     10:.55,13:.25,14:.7,15:.5,17:.8,18:.9}
+        choices=[];scores=[]
+        for state in BLEND_FORMS:
+            if state == self.director_current:continue
+            last=self.director_last_seen.get(state)
+            absence=240. if last is None else self.director_time-last
+            if absence<38.:continue
+            fit=.15+math.exp(-((energy-preferred[state])/.30)**2)
+            novelty=.5+min(absence,180.)/90.
+            anchor=1.
+            if state in (2,5) and energy>.48:
+                waiting=self.director_time-(last if last is not None else 0.)
+                anchor=1.6+min(24.,(max(0.,waiting-35.)/18.)**2)
+            if state==5 and lift:anchor*=2.5
+            choices.append(state);scores.append(fit*novelty*anchor)
+        return self.director_rng.choices(choices,weights=scores,k=1)[0]
+
+    def update_blend(self, seconds, delta, enabled=True):
+        """Audio opportunities choose one complete handoff; never stack takeovers."""
+        if not enabled:
+            self.blend_values=world_uniforms({},enabled=False)
             return
-        drive = .45*self.parameters.scale + .35*self.parameters.movement + .20*self.parameters.flux
-        self.heavy_seconds = min(3., self.heavy_seconds+delta) if drive>.58 else max(0.,self.heavy_seconds-delta*2.)
-        aftershock = self.blend_values['u_world_mix'][3]*self.blend_values['u_fire_mix'][3]
-        # Let the other favorite complete its visit instead of covering it up.
-        if seconds>=self.next_planet and self.heavy_seconds>=1.5 and aftershock<.10 and self.blend_values['u_world_mix'][0]<.10:
-            self.planet_start = seconds
-            self.planet_visits += 1
-            self.next_planet = seconds + (45.,55.,85.)[(self.planet_visits-1)%3]
-        age = seconds-self.planet_start
-        def ease(x):
-            x=max(0.,min(1.,x));return x*x*(3.-2.*x)
-        presence = ease(age/6.)*(1.-ease((age-18.)/9.))
-        # An already-running extra Planet also releases for a corridor arrival.
-        presence *= 1.-ease(self.blend_values['u_world_mix'][0])
-        weights = self.blend_values['u_world_mix']
-        self.blend_values['u_world_mix'] = tuple(w*(1.-presence)+(presence if i==1 else 0.) for i,w in enumerate(weights))
-        self.blend_values['u_world_warp'] = max(self.blend_values['u_world_warp']*(1.-presence),math.sin(math.pi*presence))
+        dt=max(0.,delta)
+        self.director_time+=dt
+        now=self.director_time
+        energy=max(0.,min(1.,.45*self.parameters.scale
+            +.35*self.parameters.movement+.20*self.parameters.flux))
+        if self.director_fast is None:
+            self.director_fast=self.director_slow=energy
+        self.director_fast+=(energy-self.director_fast)*(1.-math.exp(-dt/.7))
+        self.director_slow+=(energy-self.director_slow)*(1.-math.exp(-dt/8.))
+        impact=max(0.,min(1.,self.parameters.impact))
+        hit=impact>.35 and self.director_armed
+        if impact<.12:self.director_armed=True
+        elif hit:self.director_armed=False
+        lift=self.director_fast-self.director_slow>.12
+        release=self.director_slow-self.director_fast>.12
+        if self.director_current is None:
+            self.director_current=self.choose_world(energy)
+            self.director_since=now
+            self.director_last_seen[self.director_current]=now
+            self.planet_visits+=int(self.director_current==5)
+            self.director_history.append(dict(seconds=seconds,state=self.director_current,reason='opening'))
+        if self.director_target is not None:
+            progress=min(1.,max(0.,(now-self.director_transition)/self.director_duration))
+            if progress>=1.:
+                self.director_last_seen[self.director_current]=now
+                self.director_current=self.director_target;self.director_target=None
+                self.director_since=now
+                self.director_min_hold=self.director_rng.uniform(12.,19.)
+                self.director_max_hold=self.director_rng.uniform(32.,48.)
+            else:
+                progress=progress*progress*(3.-2.*progress)
+                self.blend_values=world_uniforms({self.director_current:1.-progress,
+                    self.director_target:progress},progress)
+                return
+        age=now-self.director_since
+        reason=None
+        if age>=self.director_min_hold:
+            if lift:reason='energy lift'
+            elif release:reason='release'
+            elif hit and self.director_fast>.45:reason='strong hit'
+            elif age>=self.director_max_hold:reason='breathing interval'
+        if reason:
+            self.director_target=self.choose_world(energy if release else max(energy,self.director_fast),lift)
+            self.director_transition=now
+            self.director_duration=self.director_rng.uniform(6.,9.) if reason!='release' else self.director_rng.uniform(8.,11.)
+            self.planet_visits+=int(self.director_target==5)
+            self.director_last_seen[self.director_target]=now
+            self.director_history.append(dict(seconds=seconds,state=self.director_target,reason=reason))
+            self.director_history=self.director_history[-64:]
+        self.blend_values=world_uniforms({self.director_current:1.})
 
     def update_blasts(self, seconds):
         """Eight bounded sites, groups of four onsets, ten-second quiet fallback."""
@@ -313,8 +384,7 @@ class Renderer:
         self.program['u_layer_mask'].value = mask
         self.program['u_material_mix'].value = materials_at(
             self.layer_profiles, self.state_at(current_time), current_time)
-        self.blend_values = blend_uniforms(current_time, self.state_at(current_time) == 0 and mode != 0)
-        self.update_planet(current_time, delta_time)
+        self.update_blend(current_time, delta_time, self.state_at(current_time) == 0 and mode != 0)
         self.update_blasts(current_time)
         self.program['u_event_blasts'].value = 1
         self.program['u_blast_events'].value = self.blast_events + [(-1000.,-1.,0.,0.)]*(8-len(self.blast_events))

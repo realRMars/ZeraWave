@@ -27,7 +27,7 @@ from signal_processor import SignalProcessor, VisualSignalConditioner
 
 
 def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
-           capture_dir=None, capture_interval=15.0, states=None, layers=None):
+           capture_dir=None, capture_interval=15.0, states=None, layers=None, seed=None):
     if not math.isfinite(speed) or speed < 0:
         raise ValueError("Speed must be finite and nonnegative")
     if max_seconds is not None and (not math.isfinite(max_seconds) or max_seconds <= 0):
@@ -52,7 +52,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
         conditioner = VisualSignalConditioner(quiet_threshold=0.06)
         mapper = VisualParameterMapper()
         detectors = {name: OnsetDetector(threshold=0.2) for name in ("bass", "mids", "highs")}
-        renderer = Renderer(title="DreamWave WAV Replay")
+        renderer = Renderer(title="DreamWave WAV Replay", seed=seed)
         renderer.debug_state = debug_state
         renderer.debug_sequence = tuple(LIVE_STATES[name] for name in (states or ()))
         renderer.layer_profiles = validate_layers(layers or {})
@@ -118,6 +118,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
         (capture_dir / "captures.json").write_text(json.dumps(dict(
             source=str(path), state=state, states=states, layers=renderer.layer_profiles, song_seconds=song_time,
             analyzed_frames=len(rows), captures=captures,
+            director_seed=renderer.director_seed, director_history=renderer.director_history,
             note="Decoded music through the real analysis and GPU pipeline; no audible playback."),
             indent=2), encoding="utf-8")
     return song_time, rows
@@ -134,9 +135,10 @@ def main():
     parser.add_argument("--capture-interval", type=float, default=15., help="Song seconds between captures.")
     parser.add_argument("--states", nargs="+", choices=tuple(LIVE_STATES), help="Development cycle: hold each state for 28 song seconds.")
     parser.add_argument("--layers", type=parse_layers, default={}, help="Development per-world effect settings as JSON.")
+    parser.add_argument("--seed", type=int, help="Repeatable visual choices for development replay.")
     args = parser.parse_args()
     seconds, rows = replay(args.wav, args.speed, args.max_seconds, args.metrics, args.state,
-                           args.capture_dir, args.capture_interval, args.states, args.layers)
+                           args.capture_dir, args.capture_interval, args.states, args.layers, args.seed)
     print(f"Replay complete: {seconds:.1f}s song time, {len(rows)} analyzed frames")
 
 
