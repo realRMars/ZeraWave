@@ -1,6 +1,172 @@
 # DreamWave working handoff
 
-Updated: 2026-09-26
+Updated: 2026-09-27
+
+## Checkpoint: accepted color, Water handoffs and reactive Fire
+
+The user authorized committing these accumulated passes after correcting
+Firescape's mid-song slowdown. Historical "uncommitted" / "review pending"
+statements below describe each pass at the time; this checkpoint supersedes them.
+
+Firescape now supplements shared-clock scrolling with integrated missing travel
+from sustained bass/mids/highs energy, using a .25s attack and 3s release. This
+prevents low flux or brief band dips from draining scene momentum. The extra
+travel is confined to scenery scroll; other world clocks, star drift, audio
+normalization and tree/building lifecycle timing are unchanged. One shader
+uniform extends the existing renderer interface; zero preserves static fixtures.
+
+Validation: Fire expression test passed, including sustained bass, half-second
+dip retention, settling after silence, onset timing and 60 GPU handoffs. Main
+regression passed 102 exact reference frames, 144 transition checks and 721
+renderer frames. WarbotJazz replay completed 28 seconds / 657 analyzed frames;
+Firescape captures inspected. These are synthetic and recorded-audio checks,
+not a claim of audible live verification of this final adjustment. Prior user
+acceptance covers the remaining color, Water and Fire changes. Only renderer.py,
+dream.frag, shader_test.py and this handoff belong to this checkpoint; unrelated
+untracked research and root test/helper files remain untouched.
+
+## Fire timing and motion follow-up (uncommitted)
+
+User accepted the reactive Fire pass and requested faster Firescape, taller/wider
+plumes, and tighter flash alignment. Firescape's integrated audio travel coefficient
+is now .070 (was .038); steady drift and lifecycle behavior are preserved. Live
+Aftershock plumes continue rising at .50 age units (was .32) and widening at .065
+(was .028), with accepted scattering, decay and diagnostic fallback growth intact.
+
+Blast births now require a fresh detected onset: strong hits can qualify directly,
+otherwise three onsets accumulate. Cooldown expiry and the old ten-second quiet
+fallback can no longer trigger off-hit flashes. The existing 1.5-second cooldown,
+eight-site cap and twenty-second lifetime remain. No audio normalization changes.
+
+Validation: existing Fire expression test passed with new queued-hit, quiet and
+sustained-input timing assertions, 49 bounded births and 60 GPU handoff checks.
+WarbotJazz accelerated replay rendered 56 seconds / 1,313 analyzed frames; captured
+Firescape/Aftershock sequences inspected. Replaying its recorded impacts produced
+12 blast births, all on detected onset frames. This checks detector alignment,
+not audible live playback latency or BPM-grid synchronization. Blend regression
+passed: 96 exact preserved frames, 144 transition checks and 721 renderer frames.
+Git diff whitespace check passed (repository CRLF conversion warnings only). HEAD remains
+907f613; earlier accepted uncommitted work is preserved.
+
+## Reactive Fire and within-Fire handoffs (uncommitted)
+
+User accepted Water handoffs and explicitly requested stronger response across
+all four Fire forms. HEAD907f613 remains the checkpoint; approved color/Water
+passes are still uncommitted. This pass changes dream.frag, renderer.py,
+shader_test.py and these notes. No audio analysis, dependencies, world director,
+Water/Cosmic/Organic/Geometric geometry or continuous star-clock changes.
+
+Flame sheets: energy controls height/width from a near-extinguished hearth to
+frame-filling sheets; stronger flux/energy curl and tip deflection, faster travel,
+more saturated crimson/amber/violet edges. Existing white-blue ignition is kept,
+with the warm bed's slow independent rhythm. Molten: pressure/impact opens wider
+channels, exposes liquid through crust, brightens seams, and accelerates branch
+lifecycles via the integrated clock. Existing camera orbit remains. Firescape:
+scroll and tree/building lifecycles use integrated u_time plus a small steady
+clock, so existing smoothed audio acceleration/coasting changes travel and age
+without multiplying elapsed time by instantaneous amplitude.
+
+Aftershock: plume height keeps growing through life; stems/skirts dissipate and
+cloud edges become less solid. Births use three distinct hits instead of four,
+minimum1.5s and eight-live-site cap retained; hit rings allow2s instead of3s and
+rotate across available sites via a serial counter. Twenty bounded candidate
+sites are scored for both world and projected separation. Wider lateral/depth
+range spreads events instead of repeatedly choosing neighboring random sites.
+This reduces overlap but is not a geometric no-overlap guarantee. Depth sorting,
+per-site hue, horizon curve, aurora and the existing inversion flash remain.
+
+fire_coverage adds normalized regional blending between all four forms in Main;
+the native three-form Fire cycle uses the same composition. Each pure form keeps
+its own route. This is soft regional composition, not physical geometry morphing.
+
+--fire-expression-test passed: quiet/medium/full GPU samples of all four forms,
+white-glare bounds,60 handoff continuity checks (12 directions), and120s of
+synthetic event updates. Flame lit coverage2.3% quiet versus99.8% full; molten
+mean brightness about2.2x under full versus quiet input at the fixed sample.
+49 event births, minimum sampled world-site separation10.32, at most eight
+sites/rings. These are test observations, not global guarantees. Existing Main
+suite passed84 exact non-Fire Authored frames,144 transition checks,721 actual
+renderer frames and director CPU checks. All five Fire states intentionally
+excluded from exact preservation. Python compilation and git diff --check pass.
+
+Real Warbot replay cycled held Flame/Molten/Firescape/Aftershock over112s,
+2,626 analyzed-rendered frames. Inspected all38 captures at3s spacing, plus
+quiet/full and handoff comparison sheets. Strong low/high flame contrast and
+broader event distribution are visible. This is sampled image review, not
+continuous audible playback or subjective beat-sync acceptance. Evidence:
+work/fire-expression. User live review pending; no commit made.
+
+## Within-Water handoffs (uncommitted)
+
+User accepted the musical color pass and authorized the next step. HEAD remains
+907f613; approved color work remains uncommitted alongside this pass. Only the
+existing shader, shader_test.py and handoff are modified. Fire handoffs are a
+separate future pass, not included here.
+
+water_coverage uses normalized squared form weights and broad moving bands to
+let dyes/currents occupy distinct connected regions during their handoffs.
+Waterfall coverage advances from the upper view downward. Raw weights still
+control camera, wave field, material coordinates and waterfall geometry; no
+per-pixel geometric warp, camera replacement, palettes, clocks or audio changes.
+The previous dye-then-current composition underweighted dyes; the remaining
+surface is now normalized before Current/Falls coverage is applied. Pure forms
+short-circuit to their accepted weights. Rain/ripple custom effect selections
+retain their explicit behavior; Authored rain details follow the local form.
+This is regional material compositing, not fluid simulation or a physical
+projection morph between the sea and cliff cameras.
+
+Added --water-meld-test BASELINE OUTPUT to existing shader_test.py. All20
+ordered pairings under quiet/intense input passed200 GPU progress/continuity
+checks. Ten fully held comparisons are pixel-identical. Maximum change for a
+.0001 progress step was.735/255 mean. Inspected Dye/Current, Rain/Falls and
+Falls/Current before/after sequence sheets. Existing Main suite passed108 exact
+Authored preservation frames,144 handoff checks,721 production-renderer frames
+and director CPU checks. Only the intentionally changed native Water cycle was
+excluded from exact comparison; held Water and other worlds remain protected.
+Python compilation and git diff --check passed. Evidence: work/water-meld;
+before.frag includes the accepted musical color pass. Real Balloon replay in
+native Water completed142s /3,329 analyzed-rendered frames, covering the full
+five-form cycle and return to Sea. Inspected all36 captures at4s spacing;
+Rain/Falls, Falls/Currents and Currents/Sea remain readable with connected
+material regions. This is sampled visual review, not continuous audible/live
+acceptance. User review pending. No commit made.
+
+## Musical material color expression (uncommitted)
+
+Starting checkpoint907f613 is the user-accepted cleanup. User authorized the
+next color pass. Changes are confined to shaders/dream.frag, shader_test.py and
+these notes; renderer/audio, palettes, clocks, geometry and scheduling unchanged.
+
+musical_material adds bounded chroma and peak lift to the existing Organic/
+Corridor/Water material canvas before world lighting. A small sustained drive
+uses existing scale/flux; a larger accent uses u_impact and its existing renderer
+decay exp(-6*dt). No new envelope or normalization. Near-black material <=.025
+is untouched; near-neutral/hot highlights taper out; peak lift is bounded and
+ratios retained instead of channel-wise clipping. Quiet drive returns the input.
+Planet receives its original canvas and keeps its accepted vividness response.
+Fire's established white-blue-hot response is also untouched: the first attempt
+at lifting its input slightly reduced saturation through its pigment mixes, so
+that part was removed before final validation. Some Water responses are subtle
+because physical shading/reflections still determine the visible surface.
+
+Added --musical-color-test BASELINE OUTPUT to the existing standalone shader
+suite.45 same-input GPU before/after pairs passed, including27 quiet/Planet/Fire
+preservation cases (<=1 channel rounding, <=12 differing channel values), dark
+retention, bounded clipping and stronger hit than sustained response. Samples at
+77s: lit-pixel saturation gain about9-10 percentage points Organic/Corridor,
+1-5.5points Water. Hit peak gains roughly17-18/255 Organic/Corridor,2-10/255 Water.
+These are fixed-input samples, not all-song guarantees. Inspected Corridor,
+Currents and Organic before/after captures. Main regression passed42 exact
+unchanged Authored frames,144 transition checks and721 production-renderer frames
+including forward star drift; changed Organic/Water/Corridor/partial Transition
+states are deliberately excluded from exact active preservation. Director CPU
+checks passed through that suite. Python compilation and git diff --check passed.
+Real Warbot replay (seed42) completed125s /2,930 analyzed-rendered frames.
+Inspected all42 captures at3s spacing, covering Rain, Organic, Flame, Corridor,
+Planet and Currents. Dark areas remain readable as negative space; Corridor
+accents are visibly richer. This is sampled image review, not continuous audible
+playback or proof of subjective beat synchronization. Evidence:
+work/musical-color. No commit made; user live review pending.
 
 ## Accepted cleanup checkpoint
 

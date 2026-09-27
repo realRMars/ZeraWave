@@ -1,6 +1,7 @@
 #version 330
 
 uniform float u_time;
+uniform float u_firescape_travel;
 uniform float u_star_time;
 uniform float u_drift_time;
 uniform vec2 u_resolution;
@@ -983,6 +984,26 @@ vec4 water_forms()
     return mix(a, b, change);
 }
 
+// Material coverage follows broad connected flow bands during a form handoff.
+// Raw weights still drive the common camera/surface, so a border cannot tear
+// geometry. Single forms retain exactly their accepted appearance.
+vec4 water_coverage(vec2 p, out float currents)
+{
+    vec4 forms=water_forms();
+    currents=water_currents_weight();
+    if (max(max(forms.x,forms.y),max(forms.z,forms.w))>=1. || currents>=1.)
+        return forms;
+    float clock=u_drift_time*.06;
+    float stream=sin(p.x*3.2+.6*sin(p.y*2.1-clock));
+    vec4 territory=vec4(-p.y*.6,stream*.55,-stream*.35,
+        p.y*1.5+.12*sin(p.x*3.1+clock));
+    vec4 score=forms*forms*exp(territory*3.5);
+    float current_score=currents*currents*exp((-stream*.55+p.y*.2)*3.5);
+    float total=max(dot(score,vec4(1.))+current_score,1e-12);
+    currents=current_score/total;
+    return score/total;
+}
+
 // Seeded, bounded drop lifetimes. Every ring expands from a fixed impact
 // location; neighbouring cells are evaluated so circles do not clip at seams.
 float water_ripples(vec2 p)
@@ -1197,11 +1218,10 @@ WaterSurface water_surface(vec2 p)
     return WaterSurface(position, material, normal, -ray, distance);
 }
 
-vec3 isolated_water_scene(WaterSurface surface, vec3 canvas)
+vec3 isolated_water_scene(WaterSurface surface, vec3 canvas, vec4 forms, float currents)
 {
     if (surface.distance < 0.0) return water_environment(-surface.view);
     float spark = clamp(u_sparkle, 0.0, 1.0);
-    vec4 forms = water_forms();
     vec2 detail_position = surface.position;
     if (shared_spatial()) detail_position=spatial_carrier(surface.position*.28)/.28;
     vec2 q = water_current(detail_position);
@@ -1259,8 +1279,9 @@ vec3 isolated_water_scene(WaterSurface surface, vec3 canvas)
         smoothstep(.32,.67,fold)),.38);
     vec3 dye_color = ink_color*(.12+smoothstep(.25,.70,vein)*.9);
     dye_color += ink_color*fine*(.15+spark*.25)+reflected*.20;
-    scene = mix(scene, dye_color, forms.y*.95);
-    float currents = water_currents_weight();
+    // Normalize the remaining surface before Currents and Falls take coverage.
+    float dye_amount=forms.y/max(1.-currents-forms.w,.000001);
+    scene = mix(scene, dye_color, clamp(dye_amount,0.,1.)*.95);
     if (currents > 0.0) {
         vec2 flow = currents_domain(detail_position);
         float bass = clamp(u_scale,0.0,1.0), flux = clamp(u_flux,0.0,1.0);
@@ -1281,7 +1302,7 @@ vec3 isolated_water_scene(WaterSurface surface, vec3 canvas)
             * thread*body*travel*(.25+spark*.7)*effect(65536);
         current_color += reflected*.25;
         current_color *= .82+.18*max(dot(surface.normal,surface.view),0.0);
-        scene = mix(scene,current_color,currents);
+        scene = mix(scene,current_color,clamp(currents/max(1.-forms.w,.000001),0.,1.));
     }
     if (ripple_weight > 0.0) {
         float rings = water_ripples(detail_position);
@@ -1425,34 +1446,36 @@ vec2 fire_domain(vec2 p) {
 vec3 isolated_fire_scene(vec2 p, vec3 canvas) {
     float bass=clamp(u_scale,0.,1.), flux=clamp(u_flux,0.,1.);
     float spark=clamp(u_sparkle,0.,1.), impact=clamp(u_impact,0.,1.);
-    float clock=u_time*.32+u_drift_time*.025;
+    float clock=u_time*.62+u_drift_time*.025;
+    float rage=smoothstep(.10,.85,.38*bass+.42*flux+.20*spark);
+    float surge=max(rage,smoothstep(.12,.55,impact)*.8);
     vec3 light=vec3(.006,.008,.016);
     // A low hearth in a dark chamber. Back sheets are cooler and dimmer.
     for(int layer=0;layer<3;layer++) {
         float z=float(layer);
-        float h=(p.y+.37+z*.024)/( .66+bass*.19);
+        float h=(p.y+.46+z*.024)/mix(.085,1.75,surge);
         float x=p.x*(1.0+z*.16)+.055*sin(z*3.1);
         float rise=clock+z*4.7;
         vec2 adv=vec2(x*4.,h*2.9-rise);
         float fold=fbm(adv);
-        x+=(fold-.5)*(.10+flux*.15)*max(h,0.)
-            +sin(h*5.-rise+z)*h*.10;
+        x+=(fold-.5)*(.04+surge*.65)*max(h,0.)
+            +sin(h*5.-rise+z)*h*(.015+surge*.32);
         // Tips lean, curl and draw out as a coherent traveling lick.
         float tip=smoothstep(.20,.85,h);
-        x+=tip*(.045+.045*flux)*sin(h*9.-rise*1.7+z*1.9);
+        x+=tip*(.015+.27*surge)*sin(h*9.-rise*1.7+z*1.9);
         float tongues=.5+.5*sin(x*17.+sin(x*9.+z-rise*.65)*1.5
             +z*2.3+sin(rise*.85+z)*.75);
         float top=.39+.43*tongues+.20*fbm(vec2(x*8.,rise*.7));
         float taper=1.-smoothstep(.12,1.,h);
-        float width=(.53+bass*.12)*max(.08,taper);
+        float width=mix(.22,2.3,surge)*max(.16,taper);
         float edge=width-abs(x);
         float silhouette=smoothstep(-.018,.055,edge)
             *smoothstep(-.02,.025,h)*(1.-smoothstep(top-.16,top+.03,h));
         float ribbons=.5+.5*sin(x*36.+fold*9.+h*3.);
         float veil=.28+.72*pow(ribbons,1.5);
         float heat=clamp(.78-h*.52+fold*.23+impact*.12*exp(-h*h*14.),0.,1.);
-        vec3 tint=mix(vec3(.50,.028,.035),vec3(1.,.30,.025),smoothstep(.30,.70,heat));
-        tint=mix(tint,vec3(1.,.72,.24),smoothstep(.78,1.,heat));
+        vec3 tint=mix(vec3(.32,.018,.24),vec3(1.15,.20,.018),smoothstep(.20,.67,heat));
+        tint=mix(tint,vec3(1.20,.62,.08),smoothstep(.78,1.,heat));
         vec3 pigment=canvas/(1.+max(canvas.r,max(canvas.g,canvas.b)));
         vec3 sheet=mix(tint,pigment*1.5,.27)*veil;
         float seam=pow(ribbons,18.)*silhouette*(.10+spark*.24)
@@ -1465,8 +1488,8 @@ vec3 isolated_fire_scene(vec2 p, vec3 canvas) {
             *(.12+.88*ribbons*ribbons);
         vec3 ignition=mix(vec3(.025,.24,1.25),vec3(1.30,1.42,1.55),white);
         light+=ignition*foot*hot*(.52-z*.12);
-        light+=sheet*silhouette*(.44-z*.10)
-            +vec3(1.,.53,.16)*seam;
+        light+=sheet*silhouette*(.44-z*.10)*(.10+surge*1.35)
+            +vec3(1.,.35,.08)*seam*(.12+surge);
     }
     // Slow lava threads between dark crusts. Elapsed time keeps this bed
     // steady even when bass, flux or the integrated flame speed changes.
@@ -1490,7 +1513,7 @@ vec3 isolated_fire_scene(vec2 p, vec3 canvas) {
         vec2 d=p-vec2(x,y);
         float fade=smoothstep(0.,.12,age)*(1.-smoothstep(.65,1.,age));
         float dotlight=exp(-dot(d*vec2(280.,140.),d*vec2(280.,140.)));
-        light+=vec3(1.,.40,.075)*dotlight*fade*(.10+spark*.8)
+        light+=vec3(1.,.40,.075)*dotlight*fade*(.015+surge*(.15+spark*.8))
             *effect(262144);
     }
     // Soft shoulder preserves amber detail at full drive instead of white.
@@ -1498,7 +1521,7 @@ vec3 isolated_fire_scene(vec2 p, vec3 canvas) {
 }
 
 // A separate held form and a development-only three-form meld. Held Fire (14)
-// retains its exact accepted route; the source material clock never resets.
+// retains its individual route; the source material clock never resets.
 float molten_weight() {
     if (u_directed == 1) return u_fire_mix.y;
     if (u_debug_state > 14.5 && u_debug_state < 15.5) return 1.;
@@ -1538,7 +1561,7 @@ vec2 molten_channel(vec2 ground) {
         float side=mod(id,2.)<.5 ? -1. : 1.;
         float spread=side*(1.-exp(-downstream*.32))*(2.4+id*.55);
         float branch=center+spread+.22*sin(downstream*.85+id)*smoothstep(0.,2.,downstream);
-        float life=.5+.5*sin(u_drift_time*.035+id*1.9);
+        float life=.5+.5*sin(u_time*.055+u_drift_time*.02+id*1.9);
         float front=1.5+life*12.;
         float growth=smoothstep(0.,.8,downstream)*(1.-smoothstep(front,front+2.,downstream));
         float width=.68*growth;
@@ -1578,14 +1601,16 @@ vec3 isolated_molten_scene(vec2 p,vec3 canvas) {
     float bass=clamp(u_scale,0.,1.),flux=clamp(u_flux,0.,1.);
     float spark=clamp(u_sparkle,0.,1.),impact=clamp(u_impact,0.,1.);
     vec2 ground=molten_ground(p), q=molten_domain(p);
-    float width=.76+.10*sin(ground.y*.42);
+    float pressure=smoothstep(.12,.9,.55*bass+.45*flux);
+    float pulse=smoothstep(.1,.55,impact);
+    float width=(.58+.10*sin(ground.y*.42))*(1.+pressure*.85+pulse*.18);
     float bank=molten_channel(ground).x/width;
     float river=1.-smoothstep(.78,1.22,bank);
     // Molten folds travel with the river; banks stay fixed in ground space.
     float fold=fbm(q*vec2(3.8,2.1));
     float threads=.5+.5*sin(q.x*30.+fold*12.+q.y*1.8
         +flux*.7*sin(q.y*2.3));
-    float islands=smoothstep(.46,.61,fold)*effect(131072);
+    float islands=smoothstep(.38+pressure*.12,.56+pressure*.12,fold)*effect(131072);
     float liquid=river*(1.-islands*.96);
     float rock=fbm(ground*3.2);
     float height=(1.-river)*(.25+rock*.3)+islands*river*.13;
@@ -1598,9 +1623,9 @@ vec3 isolated_molten_scene(vec2 p,vec3 canvas) {
     vec3 pigment=canvas/(1.+max(canvas.r,max(canvas.g,canvas.b)));
     vec3 heat=mix(vec3(.45,.025,.004),vec3(1.05,.32,.025),threads*.65+fold*.25);
     heat=mix(heat,pigment*1.1,.22);
-    light+=heat*liquid*(.75+bass*.18);
+    light+=heat*liquid*(.30+pressure*.95+pulse*.45);
     float seams=pow(threads,10.)*liquid*(.13+spark*.23)
-        +exp(-pow((fold-.48)*38.,2.))*river*.25;
+        +exp(-pow((fold-.48)*38.,2.))*river*(.12+pressure*.35+pulse*.55);
     light+=vec3(1.,.43,.055)*seams*effect(524288);
     // Two anchored vents brighten on impacts, leaving the transport steady.
     float vent=exp(-dot(ground-vec2(.2,-.9),ground-vec2(.2,-.9))*18.)
@@ -1637,8 +1662,8 @@ vec2 firescape_domain(vec2 p) {
 }
 // World-space scenery moves through fixed cells. Each seed keeps its own
 // growth/burn phase as the camera scrolls; no frame-to-frame random choices.
-float firescape_scroll(float depth) { return u_drift_time*.014*depth; }
-float firescape_life(float seed) { return fract(u_drift_time/64.+seed); }
+float firescape_scroll(float depth) { return (u_time*.070+u_firescape_travel+u_drift_time*.005)*depth; }
+float firescape_life(float seed) { return fract(u_time/100.+u_drift_time/180.+seed); }
 float firescape_hill(float x,float z) {
     return .06-z*.19+.035*sin(x*3.+z*2.)+.027*sin(x*8.+z*.7);
 }
@@ -1927,25 +1952,27 @@ vec3 isolated_aftershock_scene(vec2 p,vec3 canvas) {
                 *smoothstep(1.,4.,dz);
             vec2 local=vec2(p.x*dz*1.6+camx-site.x,(p.y*1.6-.32)*dz+6.);
             float growth=u_event_blasts==1 ? .22 : .075;
-            float height=7.5*(1.-exp(-age*growth));
-            float width=.35+2.9*(1.-exp(-age*growth));
+            float height=5.5*(1.-exp(-age*growth))+age*(u_event_blasts==1 ? .50 : .09);
+            float width=.35+2.6*(1.-exp(-age*growth))+age*(u_event_blasts==1 ? .065 : .028);
             float stemW=(.23+.48*(1.-exp(-age*.1)))*(1.+.24*sin(local.y*4.+clock*.18));
             float bend=sin(local.y*.65+clock*.12)*.15*local.y/8.;
             float stem=exp(-pow(abs((local.x-bend)/stemW),4.))
                 *smoothstep(0.,.3,local.y)*(1.-smoothstep(height-.2,height+.5,local.y));
-            float density=stem*.85;
+            float unravel=1.-smoothstep(lifeEnd*.35,lifeEnd*.85,age);
+            float density=stem*.85*unravel;
             float rolls=noise(local*vec2(4.,2.)-vec2(0.,clock*.25));
             vec3 cloud=mix(vec3(.085,.088,.087),vec3(.38,.32,.23),rolls)
                 +vec3(.22,.075,.008)*exp(-age*.06);
             float skirt=exp(-pow(abs(local.x/(.8+width*.75)),4.)-pow((local.y-.25)/.42,2.));
-            density=max(density,skirt*.65);
+            density=max(density,skirt*.65*unravel);
             for(int k=0;k<9;k++) {
                 float a=float(k)*2.39996;
                 vec2 center=vec2(cos(a)*width*.66,height+sin(a)*width*.18);
                 vec2 q=(local-center)/vec2(width*.48,width*.36);
                 float n=noise(local*2.+vec2(clock*.10,id));
                 float rr=dot(q,q)+(n-.5)*.22;
-                float puff=1.-smoothstep(.70,1.05,rr);
+                float puff=(1.-smoothstep(.70,1.05,rr))
+                    *mix(.45+.55*noise(local*1.8-vec2(0.,clock*.3)),1.,unravel);
                 float light=clamp(.50+.25*(-q.x+q.y)+.3*sqrt(max(0.,1.-rr)),0.,1.);
                 vec3 shade=mix(vec3(.085,.09,.092),vec3(.55,.46,.31),light);
                 shade+=vec3(.50,.13,.015)*exp(-age*.13)*(1.-light);
@@ -2050,6 +2077,35 @@ vec3 prismatic_lattice(vec2 q,float bass,float flux,float sparkle,float impact) 
     float presence=smoothstep(.30,.48,seed);
     float resolved=1.-smoothstep(.10,.35,length(fwidth(space)));
     return tint*(wire*(.45+sparkle*.22+impact*.10)+glow+max(inside,insideBack)*.075)*presence*resolved;
+}
+
+vec4 fire_coverage(vec4 weights,vec2 p)
+{
+    if(max(max(weights.x,weights.y),max(weights.z,weights.w))>=1.) return weights;
+    float fold=.14*sin(p.x*4.+sin(p.y*3.-u_drift_time*.08));
+    vec4 territory=vec4(p.y+fold,-p.y-fold,p.y*.35-fold,
+        .35-length(p*vec2(.8,1.3)));
+    vec4 score=weights*weights*exp(territory*4.);
+    return score/max(dot(score,vec4(1.)),1e-12);
+}
+
+// Musical pigment expression, before world lighting. Reuse the existing short
+// impact envelope; near-black cavities and already-hot highlights stay intact.
+vec3 musical_material(vec3 material)
+{
+    float body=.18*smoothstep(.35,.85,clamp(.5*u_scale+.5*u_flux,0.,1.));
+    float accent=.82*smoothstep(.08,.65,clamp(u_impact,0.,1.));
+    float drive=body+accent;
+    float peak=max(material.r,max(material.g,material.b));
+    if (drive<=0. || peak<=.025) return material;
+    float saturation=(peak-min(material.r,min(material.g,material.b)))/peak;
+    float presence=smoothstep(.025,.18,peak)*(1.-smoothstep(.8,1.5,peak))
+        *smoothstep(.04,.35,saturation)*drive;
+    float gray=dot(material,vec3(.2126,.7152,.0722));
+    vec3 pigment=max(vec3(0.),material+(material-gray)*(.5*presence));
+    float pigment_peak=max(pigment.r,max(pigment.g,pigment.b));
+    float target=min(max(peak,.98),peak*(1.+.45*presence));
+    return pigment*(target/max(pigment_peak,.0001));
 }
 
 // Final coverage only: material gathering and each world's geometry keep their
@@ -3152,7 +3208,9 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     float peak = max(color.r, max(color.g, color.b));
     color = color / (1.0 + peak * 0.6);
 
-    vec3 shared_canvas = color;
+    vec3 shared_canvas = color; // Planet retains its accepted pigment response.
+    vec3 expressive_canvas = musical_material(color);
+    color = mix(color,expressive_canvas,1.-cosmic_takeover);
     vec4 coverage = directed ? world_coverage(u_world_mix,screen_p) : u_world_mix;
     if (geometric_weight > 0.0)
     {
@@ -3168,33 +3226,24 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         color = mix(color, world, clamp(amount,0.,1.));
     }
     if (water_mode) {
-        vec3 liquid = isolated_water_scene(water, directed ? shared_canvas : color);
-        if (forms.w > 0.0) liquid = mix(liquid,water_falls(falls,directed ? shared_canvas : color),forms.w);
+        float liquid_currents;
+        vec4 liquid_forms=water_coverage(screen_p,liquid_currents);
+        vec3 liquid = isolated_water_scene(water, directed ? expressive_canvas : color,liquid_forms,liquid_currents);
+        if (forms.w > 0.0) liquid = mix(liquid,water_falls(falls,directed ? expressive_canvas : color),liquid_forms.w);
         float amount = directed ? coverage.z/max(1.-coverage.w,.000001) : water_takeover;
         color = mix(color,liquid,clamp(amount,0.,1.));
     }
     if (fire_mode) {
         float molten=molten_weight(), wild=firescape_weight();
         vec3 before_fire=color;
-        if (directed) {
-            vec4 weights=u_fire_mix;
-            color=vec3(0.);
-            if(weights.x>0.) color+=isolated_fire_scene(screen_p,fire_material)*weights.x;
-            if(weights.y>0.) color+=isolated_molten_scene(screen_p,fire_material)*weights.y;
-            if(weights.z>0.) color+=isolated_firescape_scene(screen_p,fire_material)*weights.z;
-            if(weights.w>0.) color+=isolated_aftershock_scene(screen_p,fire_material)*weights.w;
-        } else if (u_debug_state > 17.5) {
-            color=isolated_aftershock_scene(screen_p,fire_material);
-        } else if (wild <= 0.) {
-            if (molten < 1.) color=isolated_fire_scene(screen_p,fire_material);
-            if (molten > 0.) color=mix(color,isolated_molten_scene(screen_p,fire_material),molten);
-        } else {
-            float sheets=max(0.,1.-molten-wild);
-            color=vec3(0.);
-            if (sheets > 0.) color+=isolated_fire_scene(screen_p,fire_material)*sheets;
-            if (molten > 0.) color+=isolated_molten_scene(screen_p,fire_material)*molten;
-            color+=isolated_firescape_scene(screen_p,fire_material)*wild;
-        }
+        vec4 weights=directed ? u_fire_mix : (u_debug_state>17.5 ? vec4(0,0,0,1)
+            : vec4(max(0.,1.-molten-wild),molten,wild,0.));
+        weights=fire_coverage(weights,screen_p);
+        color=vec3(0.);
+        if(weights.x>0.) color+=isolated_fire_scene(screen_p,fire_material)*weights.x;
+        if(weights.y>0.) color+=isolated_molten_scene(screen_p,fire_material)*weights.y;
+        if(weights.z>0.) color+=isolated_firescape_scene(screen_p,fire_material)*weights.z;
+        if(weights.w>0.) color+=isolated_aftershock_scene(screen_p,fire_material)*weights.w;
         if (directed) color=mix(before_fire,color,coverage.w);
     }
     fragColor = vec4(color, 1.0);

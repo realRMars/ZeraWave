@@ -100,6 +100,8 @@ class Renderer:
         self.last_render_time = None
         self.impact_envelope = 0.0
         self.flow_time = 0.0
+        self.firescape_rate = self.FLOW_FLOOR
+        self.firescape_travel = 0.0
         self.flow_rate = self.FLOW_FLOOR
         self.star_time = 0.0
         self.star_rate = 1.0
@@ -110,6 +112,7 @@ class Renderer:
         # Bounded visual event history, driven by the existing onset parameter.
         self.shockwaves = []
         self.shockwave_armed = True
+        self.shockwave_serial = 0
         self.last_shockwave = -1000.0
         self.blend_values = blend_uniforms(0., False)
         # Session entropy varies live openings; explicit seeds reproduce test runs.
@@ -218,8 +221,19 @@ class Renderer:
             self.director_history=self.director_history[-64:]
         self.blend_values=world_uniforms({self.director_current:1.})
 
+    def update_firescape_travel(self, delta_time):
+        """Keep scenery moving through sustained music and short band dips."""
+        energy = max(0., min(1., max(self.parameters.scale,
+            self.parameters.movement, self.parameters.sparkle*.65)))
+        target = self.FLOW_FLOOR + 3.*energy*energy
+        tau = .25 if target>self.firescape_rate else 3.
+        ease = 1.-math.exp(-max(0.,delta_time)/tau)
+        self.firescape_rate += (target-self.firescape_rate)*ease
+        # Add only the missing travel to the existing integrated clock.
+        self.firescape_travel += max(0.,delta_time)*max(0.,self.firescape_rate-self.flow_rate)*.070
+
     def update_blasts(self, seconds):
-        """Eight bounded sites, groups of four onsets, ten-second quiet fallback."""
+        """Eight bounded sites; births stay on fresh onsets, never timer expiry."""
         self.blast_events = [e for e in self.blast_events if 0.<=seconds-e[0]<20.]
         visible = self.state_at(seconds)==18 or (self.blend_values['u_directed']
             and self.blend_values['u_world_mix'][3]*self.blend_values['u_fire_mix'][3]>.15)
@@ -228,12 +242,23 @@ class Renderer:
         if not visible:
             self.blast_hits=0
             return
-        if impact>=.20 and self.blast_armed and seconds-self.last_blast_hit>=.22:
+        new_hit = impact>=.20 and self.blast_armed and seconds-self.last_blast_hit>=.22
+        if new_hit:
             self.blast_hits+=1;self.last_blast_hit=seconds;self.blast_armed=False
-        ready = self.blast_hits>=4 or seconds-self.last_blast>=10.
-        if ready and seconds-self.last_blast>=1.5 and len(self.blast_events)<8:
+        ready = self.blast_hits>=3 or impact>=.40
+        if new_hit and ready and seconds-self.last_blast>=1.5 and len(self.blast_events)<8:
             rng=random.Random(41+self.blast_serial*47)
-            self.blast_events.append((seconds,float(self.blast_serial),rng.uniform(-22.,22.),seconds*.30+rng.uniform(12.,65.)))
+            # Pick the most separated of bounded candidates in projected ground
+            # space as well as world space, so far/near events do not pile up.
+            candidates=[(rng.uniform(-30.,30.),seconds*.30+rng.uniform(14.,76.)) for _ in range(20)]
+            def separation(site):
+                x,z=site;depth=max(4.,z-seconds*.30)
+                return min((min(((x-e[2])/9.)**2+((z-e[3])/12.)**2,
+                    ((x/depth-e[2]/max(4.,e[3]-seconds*.30))/.22)**2
+                    +((6./depth-6./max(4.,e[3]-seconds*.30))/.12)**2)
+                    for e in self.blast_events),default=1.)
+            x,z=max(candidates,key=separation)
+            self.blast_events.append((seconds,float(self.blast_serial),x,z))
             self.blast_serial+=1;self.last_blast=seconds;self.blast_hits=0
 
     def update_shockwaves(self, seconds):
@@ -246,9 +271,10 @@ class Renderer:
         if ((self.state_at(seconds) == 18 or (self.blend_values['u_directed']
                 and self.blend_values['u_world_mix'][3]*self.blend_values['u_fire_mix'][3] > .15)) and seconds >= 5.
                 and impact >= .40 and self.shockwave_armed
-                and seconds - self.last_shockwave >= 3.0):
-            site = self.blast_events[-1][1] if self.blast_events else math.floor((seconds - 5.) / 36.)
+                and seconds - self.last_shockwave >= 2.0):
+            site = self.blast_events[self.shockwave_serial%len(self.blast_events)][1] if self.blast_events else math.floor((seconds - 5.) / 36.)
             self.shockwaves.append((seconds, float(site), impact, 0.))
+            self.shockwave_serial += 1
             self.shockwaves = self.shockwaves[-8:]
             self.last_shockwave = seconds
             self.shockwave_armed = False
@@ -350,6 +376,7 @@ class Renderer:
 
         self.flow_rate += (target_rate - self.flow_rate) * ease
         self.flow_time += delta_time * self.flow_rate
+        self.update_firescape_travel(delta_time)
         visual_time = self.flow_time
 
         # Star motion has its own positive, eased clock. Chorus energy can
@@ -366,6 +393,7 @@ class Renderer:
         self.star_time += delta_time * self.star_rate
 
         self.program["u_time"].value = visual_time
+        self.program["u_firescape_travel"].value = self.firescape_travel
         self.program["u_star_time"].value = self.star_time
         self.program["u_drift_time"].value = current_time
         self.program["u_resolution"].value = (

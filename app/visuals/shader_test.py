@@ -135,6 +135,184 @@ def sweep(output):
         renderer.close()
 
 
+def fire_expression_test(output):
+    from renderer import world_uniforms
+    output.mkdir(parents=True,exist_ok=True)
+    # Sustained bass with little spectral change must keep scenery travelling.
+    coast=Renderer(seed=42);coast.parameters.scale=.9
+    coast.parameters.movement=.1;coast.parameters.sparkle=.1;coast.flow_rate=.5
+    for _ in range(120):coast.update_firescape_travel(1./60.)
+    assert coast.firescape_rate>2.7 and coast.firescape_travel>.2
+    fast=coast.firescape_rate;travel=coast.firescape_travel
+    coast.parameters.scale=0.;coast.parameters.movement=0.;coast.parameters.sparkle=0.
+    for _ in range(30):coast.update_firescape_travel(1./60.)
+    assert coast.firescape_rate>fast*.8 and coast.firescape_travel>travel
+    for _ in range(900):coast.update_firescape_travel(1./60.)
+    assert coast.firescape_rate<.4,('never settles',coast.firescape_rate)
+    # Cooldown/queued hits must never create a flash between onsets or in silence.
+    timing=Renderer(seed=42);timing.debug_state=18
+    for t,impact,expected in ((0.,0.,0),(.1,.8,1),(.2,0.,1),
+            (.4,.25,1),(.5,0.,1),(.7,.25,1),(.8,0.,1),
+            (1.,.25,1),(1.1,0.,1),(1.7,0.,1),(10.,0.,1),
+            (10.1,.25,2),(12.,.25,2),(12.1,0.,2),(12.4,.8,3)):
+        timing.parameters.impact=impact;timing.update_blasts(t)
+        assert timing.blast_serial==expected,('off-onset birth',t,impact,timing.blast_serial)
+    # Real event update logic under synthetic onsets; spacing stays bounded.
+    events=Renderer(seed=42);events.debug_state=18;minimum=100.;births=0
+    for i in range(2401):
+        t=i*.05;events.parameters.impact=.8 if i%10==0 else 0.
+        old=events.blast_serial;events.update_blasts(t);events.update_shockwaves(t)
+        assert len(events.blast_events)<=8 and len(events.shockwaves)<=8
+        if events.blast_serial!=old:
+            assert events.parameters.impact>=.20,('birth between hits',t)
+            births+=1;x,z=events.blast_events[-1][2:]
+            for e in events.blast_events[:-1]:minimum=min(minimum,math.hypot(x-e[2],z-e[3]))
+    assert births>35 and minimum>5.,(births,minimum)
+    r=Renderer(width=480,height=270,seed=42);records=[]
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        def frame(state,energy,t=40.,mix=None):
+            values=dict(u_time=t,u_star_time=t,u_drift_time=t,u_resolution=(480.,270.),
+                u_scale=energy,u_flux=energy,u_sparkle=energy,u_impact=energy*.55,
+                u_intensity=1.,u_distortion=1.,u_debug_state=float(state),u_layer_mode=2,
+                u_layer_mask=134217727,u_material_mix=(1.,0.,0.),u_event_blasts=1,
+                **world_uniforms(mix or {state:1.},enabled=mix is not None))
+            for key,value in values.items():
+                if key in r.program:r.program[key].value=value
+            r.program['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+            r.program['u_blast_events'].value=[(t-3.,0.,-8.,t*.3+25.),(t-9.,1.,12.,t*.3+40.)]+[(-1000.,-1.,0.,0.)]*6
+            r.vao.render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)[::-1].copy()
+        for state in (14,15,17,18):
+            tiles=[]
+            for energy in (0.,.5,1.):
+                pixels=frame(state,energy);tiles.append(pixels)
+                coverage=float((pixels.max(axis=2)>35).mean())
+                clipped=float((pixels.min(axis=2)>245).mean())
+                assert clipped<.02,(state,energy,'white glare',clipped)
+                records.append(dict(state=state,energy=energy,coverage=coverage,mean=float(pixels.mean())))
+            save_png(output/f'form-{state}.png',np.concatenate(tiles,axis=1))
+        flame=[x for x in records if x['state']==14]
+        assert flame[0]['coverage']<.10 and flame[-1]['coverage']>.55,flame
+        molten=[x for x in records if x['state']==15]
+        assert molten[-1]['mean']>molten[0]['mean']*1.2,molten
+        checks=0
+        for a in (14,15,17,18):
+            for b in (14,15,17,18):
+                if a==b:continue
+                tiles=[]
+                for x in (0.,.25,.5,.75,1.):
+                    pixels=frame(0,.8,mix={a:1.-x,b:x});tiles.append(pixels)
+                    near=frame(0,.8,mix={a:1.-min(1.,x+.0001),b:min(1.,x+.0001)})
+                    assert np.abs(pixels.astype(float)-near).mean()<2.,(a,b,x)
+                    checks+=1
+                if (a,b) in ((14,15),(15,17),(17,18)):
+                    save_png(output/f'handoff-{a}-{b}.png',np.concatenate(tiles,axis=1))
+        report=dict(samples=records,births=births,minimum_site_distance=minimum,handoff_checks=checks)
+        (output/'checks.json').write_text(json.dumps(report,indent=2));print(report,flush=True)
+    finally:r.close()
+
+
+def water_meld_test(baseline_path, output):
+    """All Water pairs on the GPU; held forms and reverse handoffs included."""
+    from renderer import world_uniforms
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=320,height=180);old=vao=None
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text())
+        vao=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        def frame(a,b,x,energy=.7,previous=False):
+            pr,mesh=(old,vao) if previous else (r.program,r.vao)
+            weights={a:1.-x,b:x} if a!=b else {a:1.}
+            values=dict(u_time=60.,u_star_time=80.,u_drift_time=80.,u_resolution=(320.,180.),
+                u_scale=energy,u_flux=energy*.8,u_sparkle=.4,u_impact=.1,
+                u_intensity=1.,u_distortion=1.,u_debug_state=0.,u_layer_mode=2,
+                u_layer_mask=134217727,u_material_mix=(1.,0.,0.),u_event_blasts=0,
+                **world_uniforms(weights))
+            for key,value in values.items():
+                if key in pr:pr[key].value=value
+            pr['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+            mesh.render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(180,320,3)[::-1].copy()
+        states=(7,8,9,10,13);preserved=0;checks=0;max_delta=0.;rows={}
+        for energy in (.05,.85):
+            for a in states:
+                assert np.array_equal(frame(a,a,0.,energy),frame(a,a,0.,energy,True)),('held changed',a,energy)
+                preserved+=1
+                for b in states:
+                    if a==b:continue
+                    for x in (0.,.2,.5,.8,1.):
+                        pixels=frame(a,b,x,energy);assert pixels.std()>2,(a,b,x,'blank')
+                        near=frame(a,b,min(1.,x+.0001),energy)
+                        delta=float(np.abs(pixels.astype(float)-near).mean());max_delta=max(max_delta,delta)
+                        assert delta<2.,('discontinuous',a,b,x,delta)
+                        checks+=1
+                        if energy>.8 and (a,b) in ((7,8),(8,13),(9,10),(10,13)):
+                            before=frame(a,b,x,energy,True)
+                            rows.setdefault((a,b),[]).append(np.concatenate((before,pixels),axis=1))
+        for (a,b),tiles in rows.items():save_png(output/f'pair-{a}-{b}.png',np.concatenate(tiles,axis=0))
+        report=dict(held_exact=preserved,handoff_checks=checks,max_progress_delta=max_delta,
+            note='Synthetic GPU progress sweep, not audible real-time validation.')
+        (output/'checks.json').write_text(json.dumps(report,indent=2));print(report,flush=True)
+    finally:
+        if vao is not None:vao.release()
+        if old is not None:old.release()
+        r.close()
+
+
+def musical_color_test(baseline_path, output):
+    """Compare identical inputs on GPU, isolating pigment changes from animation."""
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270);old=vao=None
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text())
+        vao=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        records=[];preserved=0
+        for state in (1,2,3,5,7,8,9,10,11,12,13,14,15,17,18):
+            for profile,scale,flux,hit in (('quiet',.05,.02,0.),('body',.8,.7,0.),('hit',.8,.7,.6)):
+                t=77.
+                values=dict(u_time=t*.75,u_star_time=t,u_drift_time=t,u_resolution=(480.,270.),
+                    u_scale=scale,u_flux=flux,u_sparkle=.3,u_impact=hit,u_intensity=1.,u_distortion=1.,
+                    u_debug_state=float(state),u_layer_mode=2,u_layer_mask=134217727,
+                    u_material_mix=(1.,0.,0.),u_event_blasts=0,**blend_uniforms(t,False))
+                images=[]
+                for pr,mesh in ((old,vao),(r.program,r.vao)):
+                    for key,value in values.items():
+                        if key in pr:pr[key].value=value
+                    pr['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+                    mesh.render(mode=moderngl.TRIANGLE_STRIP)
+                    images.append(np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3).copy())
+                a,b=images;delta=np.abs(a.astype(float)-b)
+                if profile=='quiet' or state in (3,5,14,15,17,18):
+                    assert delta.max()<=1 and np.count_nonzero(delta)<=12,(state,profile,'preservation',delta.max(),np.count_nonzero(delta))
+                    preserved+=1
+                peak=b.max(axis=2);old_peak=a.max(axis=2)
+                dark=old_peak<=6
+                assert not dark.any() or float(peak[dark].mean())<=float(old_peak[dark].mean())+1.,(state,profile,'dark lift')
+                clipped=float((peak>=250).mean());old_clipped=float((old_peak>=250).mean())
+                assert clipped<=old_clipped+.005,(state,profile,'highlight clipping',clipped,old_clipped)
+                lit=(old_peak>30)&(old_peak<225)
+                saturation=lambda im: (im.max(axis=2).astype(float)-im.min(axis=2))/np.maximum(im.max(axis=2),1)
+                records.append(dict(state=state,profile=profile,delta=float(delta.mean()),
+                    peak_gain=float((peak.astype(float)-old_peak)[lit].mean()) if lit.any() else 0.,
+                    saturation_gain=float((saturation(b)-saturation(a))[lit].mean()) if lit.any() else 0.,clipped=clipped))
+                if profile=='hit':save_png(output/f'state-{state}.png',np.concatenate((a[::-1],b[::-1]),axis=1))
+        for state in (2,7,8,9,10,11,12,13):
+            body=next(x for x in records if x['state']==state and x['profile']=='body')
+            hit=next(x for x in records if x['state']==state and x['profile']=='hit')
+            assert hit['delta']>body['delta'],(state,'no accent',body,hit)
+        report=dict(preserved=preserved,comparisons=len(records),samples=records)
+        (output/'checks.json').write_text(json.dumps(report,indent=2))
+        print('Musical color passed:',{k:v for k,v in report.items() if k!='samples'},flush=True)
+        print('Hit gains:',[x for x in records if x['profile']=='hit'],flush=True)
+    finally:
+        if vao is not None:vao.release()
+        if old is not None:old.release()
+        r.close()
+
+
 def director_test():
     """Exercise production selection with synthetic parameters, without graphics."""
     def run(seed,profile,duration=600.,fps=20):
@@ -1980,7 +2158,19 @@ if __name__ == "__main__":
     parser.add_argument("--layers", type=parse_layers, default={}, help="Development per-world effect settings as JSON.")
     parser.add_argument("--ownership-test", nargs=2, type=Path)
     parser.add_argument("--director-test", action="store_true")
+    parser.add_argument("--musical-color-test", nargs=2, type=Path)
+    parser.add_argument("--water-meld-test", nargs=2, type=Path)
+    parser.add_argument("--fire-expression-test", type=Path)
     args = parser.parse_args()
+    if args.fire_expression_test:
+        fire_expression_test(args.fire_expression_test)
+        raise SystemExit(0)
+    if args.water_meld_test:
+        water_meld_test(*args.water_meld_test)
+        raise SystemExit(0)
+    if args.musical_color_test:
+        musical_color_test(*args.musical_color_test)
+        raise SystemExit(0)
     if args.director_test:
         director_test()
         raise SystemExit(0)
