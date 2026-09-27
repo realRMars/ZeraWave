@@ -2,6 +2,163 @@
 
 Updated: 2026-09-27
 
+## Earth sky and Main integration checkpoint (2026-09-27)
+
+User authorized the Earth commit after improving skies and blending. This
+entry supersedes the pending/uncommitted labels in the historical entries below.
+Dunes now has a warm dusk sun, drifting cloud bands and a sparse night sky.
+Strata has cooler clouds, stars and musical auroral curtains above its canyon.
+Sky is evaluated only for rays that miss solid terrain. Stars use the existing
+continuous star clock and the existing stars isolation ID, now available in
+Earth's catalog; Cosmic's star implementation is unchanged.
+
+Earth participates in Main's existing musical director, material-trio cycle,
+and shared spatial effects. Pigment responds more visibly on opaque terrain;
+worm coverage stays a material canvas. Sharper native regional ownership
+reduces the time spent showing overlapping geological surfaces. Earlier
+world composition and audio mapping are preserved. This checkpoint includes
+all three Earth forms, Studio controls, shader/renderer integration and tests.
+
+Validation: final GPU suite passed 48 earlier-world image comparisons at the
+original strict tolerance, two sky-star isolation checks, 18 material/detail
+checks, 135 handoff samples, worm lifecycles, cave enclosure, and 270 renderer
+frames including musical acceleration/coasting. Full Studio and director
+CPU suites passed. Python compilation and diff checks passed.
+
+Decoded WarbotJazz replays completed: Earth cycle 110.037s /2579 frames and
+Main seed 2 55.04s /1290 frames (Strata -> Cavern -> Aftershock); captures
+were inspected. These replays preceded the final sky-only isolation change;
+final sky/form/material/handoff captures were then inspected separately.
+No audible live review. Evidence: work/earth-blend/replay, main and final.
+Adding another shared Cosmic-star call caused shader code-generation pixel
+variance in older worlds. Earth uses its own lightweight star layer instead;
+the original regression tolerance was preserved and all comparisons passed.
+No dependency/audio changes. Unrelated untracked user files are excluded.
+
+## Earth musical motion pass (uncommitted, visual review pending)
+
+User approved the direction but found every Earth form crawling. Earth now
+converts integrated music time into 3.0 travel units instead of 0.9; the
+existing renderer clock still provides sustained acceleration and smooth
+coasting. No global clock, mapper or audio normalization was changed.
+Dunes have stronger bounded bass waves and more frequent low worm breaches.
+Strata adds bass pressure to its existing folds; all Earth cameras bank more
+strongly with flux. Cavern crystal flex remains small and cell-safe. Mineral
+accents and glints respond more strongly to sparkle/hits, and local detail
+flow runs faster. Quiet passages keep positive travel and subdued emission.
+
+Validation: final Earth GPU suite passed 48 earlier-world comparisons,
+18 effect/material checks, 135 handoff samples, cavity enclosure and worm
+lifecycle checks, plus 120 renderer frames and 150 additional frames testing
+quiet-to-sustained-energy acceleration and positive coasting on release.
+The glint test samples several camera positions because glints are sparse;
+its failure exposed precision loss in large world-coordinate hash inputs,
+now bounded locally without altering shared hashing or other worlds.
+A 110.037s /2579-frame decoded WarbotJazz Earth replay completed and captures
+were inspected across all forms/transitions (before the isolated glint hash
+fix). Observed travel range was approximately 2.0-8.1 world units/second.
+No audible live review; user visual review remains the next step. Evidence:
+work/earth-energy/replay and work/earth-energy/final. Python compilation and
+git diff --check passed. All Earth changes remain uncommitted.
+
+## Earth solidity revision (uncommitted, user review pending)
+
+The user found the previous pass still translucent. This revision reduces
+broad material overlays to mineral seams, reduces distance haze, reveals the
+cavern enclosure with directional/view lighting, and replaces screen-space
+dust with tiny world-coordinate mineral glints. The existing earth_dust
+session ID is preserved; its display name is now Surface mineral glints.
+
+The worm has a lower, longer breach (3.4 amplitude instead of 7.5), a cool
+opaque body, and a wrapped shared-material canvas instead of brown banding.
+Cavern mineral clusters vary height, width, occupancy and lean; ceiling
+formations vary length/radius and extend their roots into the enclosing rock.
+Cluster extents stay inside their procedural cells. Cave travel is 35% faster
+using the existing integrated musical clock, with a gently curving passage.
+No global audio tuning changed. Distance-aware surface tolerance prevents
+near-hit rays becoming background holes at grazing angles.
+
+Final shader verification passed: 48 previous-world image comparisons,
+18 detail/material checks, 135 handoff samples, 12 worm lifecycle captures,
+four cavity probes checking >93% overall enclosure and >98% ceiling/sidewall
+coverage, and 120 renderer frames. Saved earth_dust isolation ID and Python
+compilation passed. A 110.037s /2579-frame decoded WarbotJazz Earth replay
+was inspected before the final root-extension/worm-lighting adjustment.
+Final adjustment replay also completed and captures were inspected: 56.0s /
+1313 frames of Dunes then Cavern, in work/earth-solid/final-replay. These
+are decoded music replays without audible playback.
+Evidence: work/earth-solid (final GPU results in final/). Full Studio suite
+was not rerun for this shader/display-label revision; isolation was checked
+directly. Audio normalization and accepted earlier worlds remain untouched.
+
+## Earth: three connected geological forms (uncommitted, visual review pending)
+
+User authorized completing the next element. Base checkpoint e1f10cd is accepted
+Air integration. Earth adds Dune Sea (24), Folded Strata (25), Crystal Cavern (26)
+and the native 108-second Earth cycle (27). Main director includes all three;
+Studio exposes Elements > Earth > form. No changes to audio normalization,
+window lifecycle, dependencies, or renderer architecture.
+
+The existing fragment shader traces bounded procedural terrain: low dune flight,
+curved canyon walls with sediment/erosion, and a cavern with seeded hexagonal
+mineral clusters. All use the integrated musical clock for uninterrupted travel.
+Dunes respond with broad pressure; bands bend and mineral veins/crystals reveal
+short impact accents. Quiet motion persists. Materials gather onto terrain and
+spatial effects pull pigment/detail coordinates without tearing depth geometry.
+Regional coverage handles native form and Main handoffs. Existing background
+weights are normalized only for compositing, retaining actual geometry weights.
+
+Follow-up requested by the user: stronger solid surfaces, a giant breaching
+sand worm, diverse cavern minerals and hanging/rising cave formations.
+Pigment now modulates rock albedo under directional/contact shading. Dunes
+have a segmented, open-mouthed creature on a seeded breach/dive trajectory;
+it is entirely buried before relocation. Strata is wider with eroded ledges
+and intermittent stone bridges. Cavern includes varied mineral hues, needle
+and block profiles, and opaque limestone stalactites/stalagmites.
+
+The signed effect mask was already full. Four Earth-detail catalog rows have
+BITS=0 and upload through u_earth_details, preserving every old bit/ID. Authored
+enables all four; explicit lists/cycles honor enabled rows. Sand worm is in
+Earth inhabitants and only changes Dune Sea. Saved custom lists
+do not silently acquire new details. Daddy Long Legs remains inactive by default.
+
+Validation executed: Earth GPU suite passed 48 old-world comparisons (authored
+and custom states 0-23, max 1/255 channel tolerance and mean <.005), 18 detail /
+material checks, 135 handoff samples, three cycle-boundary checks and 120 actual
+renderer frames. Director CPU checks passed, including musical opportunities,
+repeatability, frame-rate stability and favorite anchors. Studio suite passed
+selection, session roundtrip, explicit Earth detail cycling/uploads, launch modes,
+UI lifecycle, real replay pacing and forward GPU clocks. Python compilation and
+diff check passed. Existing Air/Water/Fire/Cosmic/Organic geometry is preserved.
+
+WarbotJazz replay: Earth cycle 110.037s / 2579 analyzed-rendered frames, Main seed
+2 55.04s /1290 frames. Captures inspected across all three Earth forms, native
+handoffs and Main Strata -> Cavern -> Aftershock. This is decoded-music GPU
+replay, not audible live review. Evidence: work/earth, final GPU suite in
+work/earth/final-checks. Initial terrain march had distant gaps; conservative
+128-step tracing and distance haze corrected the visible horizon discontinuity.
+Procedural terrain is a stylized foundation, not a physical erosion simulation;
+crystals have faceted opaque shading rather than true refractive ray transport.
+Short 720p GPU samples: held Earth scenes 8.6-9.3ms median, Earth pairs 9.3-9.8ms,
+Cavern/Citadel overlap 14.7ms. These are sampled GPU timings, not guaranteed
+full-session frame rates. Timing evidence: work/earth/gpu-times.json.
+Follow-up verification: reran the Earth GPU suite with the final creature and
+solid-surface shading, including 12 worm lifecycle captures (two breaches),
+exactly unchanged buried intervals, and an explicit worm-off comparison.
+48 earlier-world frames, 18 existing detail/material checks, 135 handoff
+samples and 120 renderer frames passed. The full Studio suite passed with
+four-component Earth details, worm-only isolation and default enablement.
+A fresh 110.037s / 2579-frame decoded WarbotJazz replay ran with all three
+materials and 1.5-second captures; inspected worm rise/dive, canyon bridges,
+mineral/cave geometry and native transitions. Evidence: work/earth-life/final
+and work/earth-life/replay. A fresh Main seed-2 replay also passed: 55.04s /
+1290 frames, inspected Strata -> Cavern -> Aftershock. Captures are in
+work/earth-life/main. No audible live playback was performed.
+Short 720p GPU samples with a visible worm: Dunes 10.5ms, Strata 9.1ms,
+Cavern 6.4ms, Earth pairs 7.8-10.1ms, Cavern/Citadel 15.7ms. Samples are
+scene-dependent and not full-session performance guarantees.
+User visual acceptance and a commit are still pending.
+
 ## Accepted Air material and transition integration
 
 User visually accepted this pass and explicitly authorized its commit.

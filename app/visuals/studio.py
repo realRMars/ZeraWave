@@ -34,6 +34,11 @@ WORLD_TREE = {
     }),
     'transition': dict(label='Transition', state='transition'),
     'elements': dict(label='Elements', children={
+        'earth': dict(label='Earth', cycle='earth', children={
+            'dunes': dict(label='Dune Sea', state='dunes'),
+            'strata': dict(label='Folded Strata', state='strata'),
+            'cavern': dict(label='Crystal Cavern', state='cavern'),
+        }),
         'air': dict(label='Air / Wind', cycle='air', children={
             'windstreams': dict(label='Windstreams', state='windstreams'),
             'stormfront': dict(label='Stormfront', state='stormfront'),

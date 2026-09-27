@@ -1,5 +1,21 @@
 # DreamWave Development Studio
 
+## Earth (2026-09-27)
+
+Choose Elements > Earth. Leave the form blank for the 108-second native cycle,
+or hold Dune Sea, Folded Strata, or Crystal Cavern. All three also participate
+in Main Blend's musical director, independent material cycling and regional
+transitions. Dunes has a dusk sky; Strata has a night sky with auroral curtains.
+Drifting starfield can be toggled in Earth and is hidden behind solid terrain.
+
+Earth details provides Sediment bands & sand ripples, Mineral veins & crystal
+light, and Surface mineral glints. Earth inhabitants adds Sand worm (Dune Sea).
+Each works with the existing add/remove,
+solo and cycle controls. Living Artifacts, Liquid Alloy and Prismatic Lattice
+gather onto the terrain; spatial effects act on pigment and detail coordinates.
+Terrain depth and crystal silhouettes stay intact. Existing sessions remain
+valid; saved custom effect lists must explicitly add any new Earth details.
+
 ## Air / Wind (2026-09-27)
 
 Accepted Air integration: Main Blend and explicit effect playback carry selected

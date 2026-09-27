@@ -6,7 +6,7 @@ do not reorder them. Absent held-world profiles preserve authored visuals; Main 
 import json
 import math
 
-WORLDS = ('blend', 'organic', 'geometric', 'cosmic', 'transition', 'water', 'fire', 'air')
+WORLDS = ('blend', 'organic', 'geometric', 'cosmic', 'transition', 'water', 'fire', 'air', 'earth')
 FIELD = ('blend', 'organic', 'geometric', 'cosmic', 'transition')
 EFFECTS = {
     'artifacts': ('Living artifacts', 'Material', WORLDS),
@@ -18,7 +18,7 @@ EFFECTS = {
     'horizon': ('Horizon / pathway', 'Spatial', WORLDS),
     'blossoms': ('Root blossoms', 'World details', ('blend', 'organic')),
     'glyphs': ('Corridor glyph rain', 'World details', ('blend', 'geometric')),
-    'stars': ('Drifting starfield', 'World details', ('blend', 'cosmic', 'transition', 'air')),
+    'stars': ('Drifting starfield', 'World details', ('blend', 'cosmic', 'transition', 'air', 'earth')),
     'rings': ('Planet rings', 'World details', ('blend', 'cosmic', 'transition')),
     'moons': ('Moons & dust wakes', 'World details', ('blend', 'cosmic', 'transition')),
     'water_rain': ('Rain streaks', 'Water details', ('blend', 'water')),
@@ -41,10 +41,15 @@ EFFECTS = {
     'air_lightning': ('Lightning & lingering arcs', 'Air details', ('blend', 'air')),
     'air_citadel': ('Castle, earth & celebration', 'Air details', ('blend', 'air')),
     'daddy_long_legs': ('Daddy Long Legs', 'FX experiments', ('blend', 'air')),
+    'earth_sediment': ('Sediment bands & sand ripples', 'Earth details', ('blend', 'earth')),
+    'earth_veins': ('Mineral veins & crystal light', 'Earth details', ('blend', 'earth')),
+    'earth_dust': ('Surface mineral glints', 'Earth details', ('blend', 'earth')),
+    'earth_worm': ('Sand worm', 'Earth inhabitants', ('blend', 'earth')),
 }
-# All 31 positive signed-mask bits are occupied; experiments use explicit uniforms.
+# All 31 positive signed-mask bits are occupied; later effects use explicit uniforms.
 EXPERIMENTS = ('daddy_long_legs',)
-BITS = {key: (0 if key in EXPERIMENTS else 1 << i) for i, key in enumerate(EFFECTS)}
+EARTH_DETAILS = ('earth_sediment', 'earth_veins', 'earth_dust', 'earth_worm')
+BITS = {key: (0 if key in EXPERIMENTS + EARTH_DETAILS else 1 << i) for i, key in enumerate(EFFECTS)}
 MODES = {'authored': 'Authored', 'together': 'Selected together', 'cycle': 'Cycle list', 'meld': 'Meld materials'}
 MATERIALS = ('artifacts', 'alloy', 'lattice')
 
@@ -89,6 +94,7 @@ def parse_layers(text):
 
 
 def world_for_state(state):
+    if 24 <= state <= 27: return 'earth'
     if 19 <= state <= 23: return 'air'
     if state in (1, 11, 12): return 'organic'
     if state == 2: return 'geometric'
@@ -139,6 +145,16 @@ def daddy_long_legs_at(profiles, state, seconds):
     if profile['mode'] == 'cycle' and ids:
         ids = [ids[int(max(0., seconds) // profile['seconds']) % len(ids)]]
     return float('daddy_long_legs' in ids)
+
+
+def earth_details_at(profiles, state, seconds):
+    """Additional detail switches without renumbering the full legacy mask."""
+    profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
+    if profile['mode'] == 'authored': return (1., 1., 1., 1.)
+    ids = [item['id'] for item in profile['items'] if item['enabled']]
+    if profile['mode'] == 'cycle' and ids:
+        ids = [ids[int(max(0., seconds) // profile['seconds']) % len(ids)]]
+    return tuple(float(key in ids) for key in EARTH_DETAILS)
 
 
 def material_trio_profile(world):

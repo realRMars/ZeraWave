@@ -1,12 +1,36 @@
 # Elemental vocabulary: Water foundation
 
+## Earth expansion (2026-09-27, commit authorized)
+
+Earth now has three connected forms: Dune Sea (low flight over wind-shaped
+ridges), Folded Strata (a winding layered canyon), and Crystal Cavern (faceted
+mineral clusters in a dark chamber). Existing integrated musical time drives
+forward travel; bass adds terrain pressure and sediment bending, sparkle
+reveals mineral detail, and impacts illuminate veins/crystals. Regional
+handoffs connect the forms and Main Blend. Dunes now include a segmented worm
+that breaches and dives at seeded locations/depths. Strata has eroded shelves
+and overhead rock spans. Cavern mixes quartz-like needles, blocky minerals and
+limestone stalactites/stalagmites. The worm now uses a low arc and wrapped
+material canvas. Cave walls/ceiling are lit dark stone, with surface-attached
+glints, irregular formations and faster curved travel. Surface pigment uses directional/contact
+shading; emission is concentrated in mineral seams. See DREAMWAVE_HANDOFF.md
+for tests.
+
+Dunes and Strata now have distinct animated skies. Main Blend uses the
+existing musical director, cycling materials and spatial folds, with shorter
+regional overlaps between Earth forms. See the latest handoff checkpoint.
+
+Fog/Gas remains a future world of colored banks and layered visibility.
+Plasma remains a future world of magnetic loops, branching arcs and curtains.
+Do not expand either until the user reviews Earth and chooses the next work.
+
 ## Air / Wind expansion (2026-09-27)
 
 The latest DREAMWAVE_HANDOFF.md supersedes historical Fire/Main limitations below.
 Air adds Windstreams, Stormfront, Vortex and Sky Citadel in Main and Studio, with
 a shared sky/palette/landmark and evolving native cycle. User accepted the Air
-checkpoint and authorized its commit. Earth (folding strata and dunes), Fog/Gas (colored banks and layered
-visibility), and Plasma (magnetic loops and luminous arcs) remain future concepts.
+checkpoint and authorized its commit. The Earth expansion above supersedes
+the earlier Earth backlog; Fog/Gas and Plasma remain future concepts.
 
 Updated 2026-09-26. Base checkpoint: `aa44d54`, accepted Geometric material
 gathering. Read AGENTS.md and the current DREAMWAVE_HANDOFF.md entry first.

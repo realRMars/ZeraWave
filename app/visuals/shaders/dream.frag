@@ -1,6 +1,9 @@
 #version 330
 
 uniform float u_time;
+uniform vec3 u_earth_mix;
+uniform float u_earth_weight;
+uniform vec4 u_earth_details;
 uniform vec4 u_air_mix;
 uniform float u_air_weight;
 uniform float u_air_flash_id;
@@ -2751,14 +2754,288 @@ vec3 air_scene(vec2 p,vec3 material,vec4 form) {
     return max(sky,vec3(0.));
 }
 
+
+// Earth uses the existing source materials and integrated musical travel clock.
+vec3 earth_forms() {
+    if(u_directed==1)return u_earth_mix;
+    if(u_debug_state<26.5) {
+        int id=int(u_debug_state+.5)-24;
+        return vec3(id==0,id==1,id==2);
+    }
+    float phase=mod(u_drift_time,108.)/36.;
+    int id=int(phase),next=(id+1)%3;
+    return mix(vec3(id==0,id==1,id==2),vec3(next==0,next==1,next==2),smoothstep(.65,1.,fract(phase)));
+}
+// Integrated music time accelerates travel without moving the camera backwards on release.
+float earth_travel() { return u_time*3.+u_drift_time*.035; }
+float earth_channel(float z) { return 1.5*sin(z*.10)+.6*sin(z*.23); }
+float earth_dune(vec2 p) {
+    float sweep=p.x*.46+p.y*.16+.75*sin(p.y*.13)+.22*sin(p.x*.21-p.y*.31);
+    float ridge=.5+.5*sin(sweep);
+    return .25+1.7*pow(ridge,2.3)+.42*sin(p.y*.21-p.x*.17)
+        +.28*u_scale*sin(p.y*.38+p.x*.2-u_time*.55);
+}
+
+// One seeded breach per travel interval, with the whole tail buried before reset.
+vec3 earth_worm_point(float u,float serial) {
+    float seed=hash(vec2(serial,71.));
+    float lane=(hash(vec2(serial,19.))-.5)*11.;
+    float z=serial*32.+12.+seed*14.+u*11.;
+    float x=lane+(u-.5)*(seed>.5 ? 8. : -8.);
+    return vec3(x,earth_dune(vec2(x,z))-1.1+sin(u*3.141593)*3.4,z);
+}
+vec2 earth_map(vec3 p,int form) {
+    if(form==0) {
+        vec2 result=vec2((p.y-earth_dune(p.xz))*.52,0.);
+        if(u_earth_details.w>0.) {
+            float cycle=earth_travel()/32.,serial=floor(cycle);
+            float head=fract(cycle)*2.-.15;
+            if(head<0. || head-.46>1.)return result;
+            vec3 middle=earth_worm_point(.5,serial);
+            float bound=length(max(abs(p-middle)-vec3(6.,5.,8.),0.));
+            if(bound>1.)return vec2(min(result.x,bound),0.);
+            for(int i=0;i<10;i++) {
+                float a=head-float(i)*.046,b=a-.046;
+                vec3 pa=earth_worm_point(a,serial),pb=earth_worm_point(b,serial),axis=pb-pa;
+                float t=clamp(dot(p-pa,axis)/max(dot(axis,axis),.0001),0.,1.);
+                float width=mix(.79,.25,clamp((float(i)+t)/10.,0.,1.));
+                float d=length(p-mix(pa,pb,t))-width;
+                if(i==0) {
+                    vec3 forward=normalize(pa-pb);
+                    float mouth=length(p-(pa+forward*.60))-.63;
+                    d=max(d,-mouth);
+                }
+                if(d<result.x)result=vec2(d*.65,3.);
+            }
+        }
+        return result;
+    }
+    if(form==1) {
+        float x=p.x-earth_channel(p.z);
+        float bend=.30*sin(p.y*1.3+p.z*.20)+.18*sin(p.z*.65);
+        bend+=.18*u_scale*sin(p.z*.4+p.y*.8-u_time*.65);
+        float shelves=.12*tanh(sin(p.y*3.1+sin(p.z*.17)) * 5.);
+        float width=3.05+.55*sin(p.z*.18)+bend+shelves;
+        float top=6.+1.2*sin(p.z*.16)+.5*sin(p.x*.55+p.z*.5);
+        float erosion=.055*sin(p.y*8.+p.z*.8)*sin(p.z*2.3)+.045*sin(p.z*4.+p.y*3.);
+        float cliff=max(width-abs(x)+erosion,p.y-top)*.43;
+        // Natural stone spans join the canyon walls above a clear flight lane.
+        float bridgeZ=mod(p.z+16.,32.)-16.;
+        float arch=max(abs(bridgeZ)-1.05,abs(p.y-(5.6-.11*x*x))-.65)*.45;
+        return vec2(min(min(cliff,arch),(p.y+1.+.13*sin(p.z*.5))*.7),0.);
+    }
+    float axis=1.1*sin(p.z*.075)+.16*sin(p.z*.27+u_time*.12);
+    float shell=(4.4-length(vec2((p.x-axis)*.80,p.y-.6))
+        +.18*sin(p.z*.7+p.y*1.6)*sin(p.x*1.7))*.52;
+    vec2 result=vec2(min(shell,p.y+2.5),0.);
+    vec2 cell=floor(p.xz/2.8),local=mod(p.xz,2.8)-1.4;
+    float seed=hash(cell+31.);
+    vec2 offset=(vec2(hash(cell+2.),hash(cell+9.))-.5)*.65;
+    float centerX=(cell.x+.5)*2.8;
+    // Limestone grows down from the ceiling as well as up from the floor.
+    float roof=.6+sqrt(max(.1,19.36-pow((centerX-axis)*.80,2.)))+.18;
+    vec2 stal=local-offset;
+    float down=roof-p.y,hanging=.45+pow(hash(cell+47.),1.4)*2.6;
+    stal+=vec2(.12*sin(seed*19.),.10*cos(seed*31.))*down;
+    float stalRadius=(.22+.55*hash(cell+14.))*pow(clamp(1.-down/hanging,0.,1.),1.5);
+    float stalactite=max(length(stal)-stalRadius,max(-down-2.,down-hanging))*.50;
+    if(seed>.16 && stalactite<result.x)result=vec2(stalactite,2.5);
+    if(abs(centerX-axis)>1.1) {
+        for(int i=0;i<3;i++) {
+            float id=float(i),a=seed*6.283+id*2.1;
+            vec2 q=local-vec2(cos(a),sin(a))*.17*id-offset;
+            q=mat2(cos(a),sin(a),-sin(a),cos(a))*q;
+            float individual=hash(cell+id*17.+63.);
+            float h=.55+pow(individual,.7)*3.1, y=p.y+2.5;
+            q+=vec2(sin(a*3.),cos(a*2.))*.05*y;
+            q+=vec2(sin(u_time*1.4+seed*9.),cos(u_time*1.1+seed*11.))*.025*u_flux*y;
+            float rad=(.16+.38*hash(cell+id+82.))*min(1.,max(0.,(h-y)/(.55+seed*.3)));
+            float hex=max(abs(q.x)*.866025+abs(q.y)*.5,abs(q.y));
+            // Quartz needles, blocky fluorite and limestone have different profiles.
+            if(seed>.66)hex=max(abs(q.x),abs(q.y));
+            if(seed<.27) {
+                rad=(.22+.43*individual)*pow(clamp(1.-y/h,0.,1.),1.4);
+                hex=length(q)+.012*sin(y*18.+a);
+            }
+            float crystal=max(hex-rad,max(-y,y-h))*.52;
+            if(individual>.18 && crystal<result.x)result=vec2(crystal,seed<.27 ? 2.5 : 1.+seed);
+        }
+    }
+    return result;
+}
+struct EarthSurface { vec3 point; vec3 normal; float distance; float kind; };
+EarthSurface earth_surface(vec2 p,int form) {
+    float travel=earth_travel()*(form==2 ? 1.35 : 1.);
+    vec3 ro=vec3(0.,1.3,travel),direction=vec3(0.,0.,1.);
+    if(form==0) {
+        ro.x=1.5*sin(travel*.045);ro.y=3.3+earth_dune(ro.xz);
+        direction=normalize(vec3(.10*cos(travel*.045),-.24,1.));
+    } else if(form==1) {
+        ro.x=earth_channel(travel);
+        direction=normalize(vec3(earth_channel(travel+1.)-ro.x,.015,1.));
+    } else {
+        ro.x=1.1*sin(travel*.075)+.16*sin(travel*.27+u_time*.12);ro.y=.1;
+        direction=normalize(vec3(.0825*cos(travel*.075)+.0432*cos(travel*.27+u_time*.12),.03,1.));
+    }
+    vec3 right=normalize(cross(vec3(0,1,0),direction)),up=cross(direction,right);
+    float bank=.06*sin(travel*.075)*(1.+u_flux*1.6);
+    p=mat2(cos(bank),sin(bank),-sin(bank),cos(bank))*p;
+    vec3 ray=normalize(direction+right*p.x*1.45+up*p.y*1.45);
+    float t=.04;vec2 hit=vec2(1.,0.);
+    for(int i=0;i<128;i++) {
+        hit=earth_map(ro+ray*t,form);
+        if(hit.x<.003+.0006*t || t>55.)break;
+        t+=clamp(hit.x,.003,1.4);
+    }
+    vec3 pos=ro+ray*t,normal=vec3(0,1,0);
+    if(t<=55. && hit.x<.003+.0006*t) {
+        float e=.006;
+        normal=normalize(vec3(earth_map(pos+vec3(e,0,0),form).x-earth_map(pos-vec3(e,0,0),form).x,
+            earth_map(pos+vec3(0,e,0),form).x-earth_map(pos-vec3(0,e,0),form).x,
+            earth_map(pos+vec3(0,0,e),form).x-earth_map(pos-vec3(0,0,e),form).x));
+    } else t=100.;
+    return EarthSurface(pos,normal,t,hit.y);
+}
+vec2 earth_domain(EarthSurface surface,int form) {
+    vec3 q=surface.point;
+    q.z-=earth_travel()*(form==2 ? 1.35 : 1.);
+    if(form==0 && surface.kind>2.)return vec2(q.z*.35,atan(surface.normal.y,surface.normal.x)*.55);
+    vec2 domain=form==0 ? q.xz*.19 : vec2(q.z*.15+q.x*.09,q.y*.30);
+    return domain/(1.+length(domain)*.06);
+}
+vec3 earth_territory(vec2 p) {
+    float bend=.16*sin(p.x*3.+u_drift_time*.05);
+    return vec3(-p.y+bend,.45-abs(p.x)*.8,.45-length(p)*1.1);
+}
+vec3 earth_scene(vec2 p,EarthSurface surface,vec3 material,int form) {
+    float energy=clamp(.60*u_scale+.40*u_flux,0.,1.);
+    float clock=u_time*.65+u_drift_time*.025;
+    vec3 fog=form==0 ? vec3(.19,.085,.16) : form==1 ? vec3(.07,.085,.17) : vec3(.008,.024,.040);
+    vec3 sky=mix(fog,vec3(.018,.028,.085),smoothstep(-.1,.5,p.y));
+    if(form==0) {
+        float sunset=exp(-length((p-vec2(-.48,.22))*vec2(1.,1.2))*6.);
+        sky+=vec3(.65,.20,.075)*sunset;
+        sky=mix(fog,sky,smoothstep(.05,.24,p.y));
+    }
+    if(form<2 && surface.distance>=90.) {
+        // Distant weather lives behind terrain, never across the opaque foreground.
+        vec2 dome=vec2(p.x,p.y+.10*p.x*p.x);
+        vec2 cloudSpace=dome*vec2(2.3,6.)+vec2(u_drift_time*.009,u_time*.006);
+        float clouds=.5+.23*sin(cloudSpace.y+sin(cloudSpace.x*1.7))
+            +.15*sin(cloudSpace.y*2.3-cloudSpace.x*.8)
+            +.08*sin(cloudSpace.x*3.1+cloudSpace.y*4.);
+        float wisps=smoothstep(.42,.72,clouds)*smoothstep(-.05,.20,dome.y);
+        vec3 cloudColor=form==0 ? vec3(.35,.12,.18) : vec3(.07,.12,.22);
+        sky=mix(sky,cloudColor,wisps*.65);
+        vec2 starGrid=dome*vec2(180.,120.)+vec2(u_star_time*.12,u_star_time*.035);
+        vec2 starCell=floor(starGrid),starLocal=fract(starGrid)-.5;
+        float starSeed=fract(sin(dot(starCell,vec2(12.9898,78.233)))*43758.5453);
+        float star=exp(-dot(starLocal,starLocal)*100.)*step(.974,starSeed);
+        sky+=mix(vec3(.42,.62,.90),vec3(.90,.66,.40),starSeed)*star
+            *(.45+.35*sin(u_star_time*.8+starSeed*23.))
+            *effect(512)*smoothstep(.04,.25,dome.y)*(1.-wisps);
+        if(form==0) {
+            vec2 sun=dome-vec2(-.48,.22);
+            float disk=1.-smoothstep(.040,.044,length(sun));
+            sky+=vec3(.72,.32,.12)*disk*(1.-wisps*.8);
+            sky+=vec3(.16,.055,.085)*exp(-abs(dome.y-.12)*16.)*(1.-wisps);
+        } else {
+            vec2 veil=dome;
+            veil.x+=.025*u_flux*sin(dome.y*7.+u_time*.12);
+            float curtain=veil.y-.30-.055*sin(veil.x*5.+u_time*.10)
+                -.025*sin(veil.x*13.-u_time*.16);
+            float ribbon=exp(-abs(curtain)*24.)*(.35+.65*pow(.5+.5*sin(veil.x*32.+u_time*.4),2.));
+            vec3 aurora=mix(vec3(.08,.42,.32),vec3(.27,.12,.48),.5+.5*sin(veil.x*4.+u_drift_time*.025));
+            sky+=aurora*ribbon*(.30+.65*energy+.40*u_impact)*(1.-wisps*.5);
+        }
+    }
+    if(surface.distance<90.) {
+        vec3 q=surface.point,n=surface.normal;
+        vec2 uv=form==0 ? q.xz*.3 : vec2(q.z*.25+q.x*.18,q.y*.7);
+        vec2 detail=shared_spatial() ? mix(uv,spatial_carrier(uv*.35)/.35,.30) : uv;
+        float warp=sin(detail.x*.8+sin(detail.y*.4))*1.1;
+        float sediment=.5+.5*sin(detail.y*8.+warp+u_scale*.18*sin(q.z*.3));
+        float ripples=.5+.5*sin(detail.x*32.+sin(detail.y*2.)*3.-clock*.65);
+        float vein=pow(.5+.5*sin(detail.y*5.+warp*2.4+sin(detail.x*2.)),24.);
+        float grain=noise(q.xz*24.+q.y*7.);
+        float bedding=.5+.5*sin(q.y*42.+sin(q.z*2.)*.8);
+        float light=max(0.,dot(n,normalize(vec3(-.65,.85,-.35))));
+        vec3 stone;
+        if(form==0) {
+            stone=mix(vec3(.20,.055,.09),vec3(.88,.42,.13),.3+.7*light);
+            stone*=1.-u_earth_details.x*.19*(1.-ripples)*smoothstep(.12,.65,n.y);
+        } else if(form==1) {
+            stone=mix(vec3(.17,.055,.11),vec3(.58,.27,.13),sediment*u_earth_details.x);
+            stone=mix(stone,vec3(.07,.25,.31),pow(1.-sediment,5.)*.55*u_earth_details.x);
+        } else {
+            stone=mix(vec3(.14,.17,.21),vec3(.25,.28,.32),sediment*.5*u_earth_details.x);
+            if(surface.kind>.5 && surface.kind<2.) {
+                vec3 ore=.5+.5*cos(vec3(0.,2.1,4.2)+floor(surface.kind*17.)*2.3);
+                stone=.055+ore*.55;
+            } else if(surface.kind>2.) {
+                stone=mix(vec3(.16,.12,.10),vec3(.38,.30,.20),bedding*.3+.3);
+            }
+        }
+        if(form==0 && surface.kind>2.) {
+            float armor=pow(.5+.5*cos(q.z*14.+q.x*3.),5.);
+            stone=mix(vec3(.12,.22,.29),vec3(.32,.52,.59),armor*.3+.4);
+        }
+        // Pigment is lit with the solid surface; only narrow mineral seams emit.
+        float pigment=form==0 ? .16 : form==1 ? .20 : .22;
+        stone=mix(stone,stone*(.75+clamp(material,0.,1.)*.5),pigment*vein);
+        if(shared_spatial())stone*=.82+clamp(material,0.,1.)*.48;
+        if(form==0 && surface.kind>2.)stone=vec3(.10,.17,.23)+material*1.5;
+        stone*=.88+.16*grain;
+        if(form==1)stone*=1.-.13*(1.-bedding)*u_earth_details.x;
+        float occlusion=0.;
+        for(int i=1;i<=3;i++) {
+            float reach=float(i)*.18;
+            occlusion+=max(0.,reach-earth_map(q+n*reach,form).x*1.9)/float(i);
+        }
+        float contact=clamp(1.-occlusion*1.5,.30,1.);
+        if(form==2) {
+            float travel=earth_travel()*1.35;
+            vec3 eye=vec3(1.1*sin(travel*.075)+.16*sin(travel*.27+u_time*.12),.1,travel);
+            light=max(light,.75*max(0.,dot(n,normalize(eye-q))));
+            stone*=.78+.32*noise(q.xz*2.7+q.y*1.9);
+        }
+        vec3 color=stone*(.38+.85*light)*contact;
+        color*=1.+.30*energy*light;
+        if(form==0 && surface.kind>2.) {
+            float plate=pow(.5+.5*cos(q.z*14.+q.x*3.),9.);
+            color+=vec3(.12,.28,.34)*plate*.22;
+        }
+        float traveling=pow(.5+.5*sin(q.z*.95-q.y*2.-clock*3.5),8.);
+        vec3 mineral=.5+.5*cos(vec3(.1,2.2,4.1)+q.y*.3+clock*.10);
+        color+=mix(mineral,clamp(material,0.,1.),.4)*vein*u_earth_details.y*(.04+.32*energy+1.05*u_impact)*(.3+.7*traveling)*contact;
+        if(form==2 && surface.kind>.5 && surface.kind<2.) {
+            float glow=(.08+.38*energy+1.15*u_impact)*(.3+.7*traveling)*u_earth_details.y;
+            color+=stone*glow;
+            color+=vec3(.32,.55,.65)*pow(light,18.)*(.3+u_sparkle)*u_earth_details.y;
+        }
+        // Tiny mineral glints use world coordinates, never a screen overlay.
+        vec3 glitter=q*18.;
+        vec3 cell=floor(glitter),local=fract(glitter)-.5;
+        float fleck=pow(max(0.,1.-min(min(length(local.xy),length(local.yz)),length(local.xz))*3.),3.);
+        // Bound the hash input so long travel does not lose fractional precision.
+        float seed=hash(mod(cell.xy+cell.z*19.,127.));
+        float twinkle=pow(.5+.5*sin(clock*2.+seed*71.),8.);
+        color+=vec3(.22,.39,.48)*fleck*step(.96,seed)*(.12+twinkle*(.3+u_sparkle*1.5))*u_earth_details.z;
+        float mist=1.-exp(-surface.distance*(form==2 ? .025 : .030));
+        sky=mix(color,fog,mist);
+    }
+    return max(vec3(0.),sky);
+}
+
 void main()
 {
     bool directed = u_directed == 1;
+    bool held_earth = u_debug_state >= 23.5 && u_debug_state < 27.5;
     bool held_air = u_debug_state >= 18.5 && u_debug_state < 23.5;
     bool held_fire = u_debug_state > 13.5 && u_debug_state < 18.5;
     bool fire_mode = held_fire || (directed && u_world_mix.w > 0.);
     float fire_takeover = directed ? u_world_mix.w : (held_fire ? 1. : 0.);
-    float debug_state = (held_fire || held_air) ? 1.0 : (u_debug_state > 10.5 && u_debug_state < 12.5) ? 1.0 : u_debug_state;
+    float debug_state = (held_fire || held_air || held_earth) ? 1.0 : (u_debug_state > 10.5 && u_debug_state < 12.5) ? 1.0 : u_debug_state;
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
 
     // Correct for the window's aspect ratio.
@@ -2832,6 +3109,18 @@ void main()
         // Authored held forms preserve their accepted source projection.
         float gather=shared_spatial() ? 1. : air_shape.z+air_shape.w;
         p=mix(p,air_material_domain(screen_p,air_shape),air_gather*gather);
+    }
+
+    float earth_amount=directed ? u_earth_weight : (held_earth ? 1. : 0.);
+    vec3 ef=earth_forms();
+    EarthSurface dune=EarthSurface(vec3(0),vec3(0,1,0),100.,0.);
+    EarthSurface strata=dune,cavern=dune;
+    if(earth_amount>0.) {
+        vec2 domain=vec2(0.);
+        if(ef.x>0.){dune=earth_surface(screen_p,0);domain+=earth_domain(dune,0)*ef.x;}
+        if(ef.y>0.){strata=earth_surface(screen_p,1);domain+=earth_domain(strata,1)*ef.y;}
+        if(ef.z>0.){cavern=earth_surface(screen_p,2);domain+=earth_domain(cavern,2)*ef.z;}
+        p=mix(p,domain,earth_amount);
     }
 
     float t = u_time * 0.18;
@@ -3843,7 +4132,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     vec3 expressive_canvas = musical_material(color);
     color = mix(color,expressive_canvas,1.-cosmic_takeover);
     // Geometry keeps absolute weights; normalize only the background compositing.
-    vec4 background_mix=u_world_mix/max(1.-u_air_weight,.000001);
+    vec4 background_mix=u_world_mix/max(1.-u_air_weight-u_earth_weight,.000001);
     vec4 coverage = directed ? world_coverage(background_mix,screen_p) : u_world_mix;
     if (geometric_weight > 0.0)
     {
@@ -3879,7 +4168,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         if(weights.w>0.) color+=isolated_aftershock_scene(screen_p,fire_material)*weights.w;
         if (directed) color=mix(before_fire,color,coverage.w);
     }
-    float air_amount=directed ? u_air_weight : (held_air ? 1. : 0.);
+    float air_amount=directed ? u_air_weight/max(1.-u_earth_weight,.000001) : (held_air ? 1. : 0.);
     if(air_amount>0.) {
         vec4 af=air_forms();
         vec4 regions=air_coverage(screen_p,af);
@@ -3893,6 +4182,17 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         float score=air_amount*air_amount*air_amount*exp(edge*4.);
         float coverage=score/max(score+pow(1.-air_amount,3.),.000001);
         color=mix(color,sky,coverage);
+    }
+    if(earth_amount>0.) {
+        vec3 regions=ef*ef*ef*exp(earth_territory(screen_p)*5.);
+        regions/=max(dot(regions,vec3(1.)),1e-12);
+        vec3 earth=vec3(0.);
+        if(ef.x>0.)earth+=earth_scene(screen_p,dune,expressive_canvas,0)*regions.x;
+        if(ef.y>0.)earth+=earth_scene(screen_p,strata,expressive_canvas,1)*regions.y;
+        if(ef.z>0.)earth+=earth_scene(screen_p,cavern,expressive_canvas,2)*regions.z;
+        float score=pow(earth_amount,3.)*exp(dot(ef,earth_territory(screen_p))*4.);
+        float coverage=score/max(score+pow(1.-earth_amount,3.),1e-12);
+        color=mix(color,earth,coverage);
     }
     fragColor = vec4(color, 1.0);
 }

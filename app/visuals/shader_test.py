@@ -13,7 +13,7 @@ import moderngl
 
 from renderer import Renderer, VERTEX_SHADER, blend_uniforms, blend_chapter, BLEND_FORMS
 
-STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23}
+STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27}
 
 
 def save_png(path, pixels):
@@ -38,6 +38,8 @@ def capture(output, seconds, profile="standard", debug_state=0, layers=None):
     layer_mode, layer_mask = layers_at(validate_layers(layers or {}), debug_state, seconds)
     values.update(u_layer_mode=layer_mode, u_layer_mask=layer_mask,
                   u_material_mix=materials_at(layers or {},debug_state,seconds),u_event_blasts=0)
+    from preview_layers import earth_details_at
+    values['u_earth_details']=earth_details_at(layers or {},debug_state,seconds)
     values.update(blend_uniforms(seconds, debug_state == 0 and layer_mode != 0))
     if profile == "quiet":
         values.update(u_scale=.05, u_flux=.02, u_sparkle=.05, u_impact=0.)
@@ -133,6 +135,152 @@ def sweep(output):
         print(f"Rendered {len(results)} frames; diagnostics: {output}")
     finally:
         renderer.close()
+
+
+def earth_test(baseline_path,output):
+    """Earth GPU integration, preserved worlds, effects and reversible handoffs."""
+    from renderer import world_uniforms
+    from preview_layers import BITS
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270,seed=42);old=mesh=None
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text())
+        mesh=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        def frame(state,t=32.,energy=.7,hit=0.,weights=None,previous=False,details=(1.,1.,1.,1.),mask=2147483647,mode=0,material=(1.,0.,0.)):
+            pr,vao=(old,mesh) if previous else (r.program,r.vao)
+            values=dict(u_time=t*.75,u_star_time=t,u_drift_time=t,u_resolution=(480.,270.),u_scale=energy,u_flux=energy,
+                u_sparkle=energy,u_impact=hit,u_intensity=1.,u_distortion=1.,u_debug_state=float(state),u_event_blasts=0,
+                u_layer_mode=mode,u_layer_mask=mask,u_material_mix=material,u_air_flash_id=2.,u_air_afterglow=hit,
+                u_daddy_long_legs=0.,u_earth_details=details,**world_uniforms(weights or {},enabled=weights is not None))
+            for k,v in values.items():
+                if k in pr:pr[k].value=v[:pr[k].dimension] if k=='u_earth_details' else v
+            pr['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+            pr['u_air_trails'].value=[(0.,0.)]*3
+            vao.render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)[::-1].copy()
+        preserved=0
+        for state in range(24):
+            for mode in (0,2):
+                a=frame(state,mode=mode);b=frame(state,mode=mode,previous=True)
+                delta=np.abs(a.astype(float)-b)
+                assert delta.max()<=1 and delta.mean()<.005,('old world changed',state,mode,delta.max(),delta.mean())
+                preserved+=1
+        for state in (24,25):
+            stars=frame(state,t=16.,mode=1,mask=BITS['stars'])
+            no_stars=frame(state,t=16.,mode=1,mask=0)
+            assert np.abs(stars.astype(float)-no_stars).sum()>60,('Earth sky stars missing',state)
+        effects=0
+        for state in (24,25,26):
+            quiet=frame(state,energy=.025);active=frame(state,energy=.85,hit=.65)
+            assert quiet.std()>5 and active.std()>5,('blank',state)
+            assert np.abs(quiet.astype(float)-active).mean()>1.,('unreactive',state)
+            assert (active.min(axis=2)>250).mean()<.02,('white glare',state)
+            save_png(output/f'form-{state}.png',np.concatenate((quiet,active),axis=1))
+            base=frame(state,hit=.65)
+            for i in range(3):
+                detail=[1.,1.,1.,1.];detail[i]=0.
+                disabled=frame(state,hit=.65,details=tuple(detail))
+                difference=np.abs(base.astype(float)-disabled).sum()
+                if i==2:
+                    # Sparse world-attached glints need not occupy one fixed camera view.
+                    for sample in (36.,40.):
+                        on=frame(state,t=sample,hit=.65)
+                        off=frame(state,t=sample,hit=.65,details=tuple(detail))
+                        difference+=np.abs(on.astype(float)-off).sum()
+                assert difference>60,('detail inactive',state,i)
+                effects+=1
+            tiles=[]
+            for material,key in (((1.,0.,0.),'artifacts'),((0.,1.,0.),'alloy'),((0.,0.,1.),'lattice')):
+                base=frame(state,mode=1,mask=BITS[key],material=material)
+                pixels=frame(state,mode=1,mask=BITS[key]+BITS['fractal']+BITS['tunnel'],material=material)
+                assert np.abs(base.astype(float)-pixels).mean()>.05,('material fold absent',state,key)
+                tiles.extend((base,pixels));effects+=1
+            save_png(output/f'effects-{state}.png',np.concatenate(tiles,axis=1))
+            motion=[frame(state,t=t) for t in (0.,8.,16.,24.)]
+            assert all(np.abs(a.astype(float)-b).mean()>.5 for a,b in zip(motion,motion[1:])),('no travel',state)
+            save_png(output/f'motion-{state}.png',np.concatenate(motion,axis=1))
+        # The creature must breach, disappear below opaque sand, and relocate.
+        worm_frames=[]
+        for t in (0.,8.,16.,24.,32.,40.,46.,54.,62.,70.,78.,86.):
+            travel_time=t*(.75*.9+.035)/(.75*3.+.035)
+            visible=frame(24,t=travel_time)
+            absent=frame(24,t=travel_time,details=(1.,1.,1.,0.))
+            difference=np.abs(visible.astype(float)-absent)
+            if t in (0.,40.,46.,86.):
+                assert difference.max()==0,('worm remains above sand at reset',t)
+            if t in (16.,24.,62.,70.):
+                assert difference.sum()>500,('worm failed to breach',t)
+            worm_frames.append(visible)
+        save_png(output/'worm-lifecycle.png',np.concatenate([
+            np.concatenate(worm_frames[i:i+4],axis=1) for i in (0,4,8)],axis=0))
+        checks=0
+        for a in (24,25,26):
+            for b in (2,5,7,18,19,21,22,24,25,26):
+                if a==b:continue
+                tiles=[]
+                for x in (0.,.25,.5,.75,1.):
+                    pixels=frame(0,weights={a:1.-x,b:x},mode=2)
+                    near=frame(0,weights={a:1.-min(1.,x+.0001),b:min(1.,x+.0001)},mode=2)
+                    assert np.abs(pixels.astype(float)-near).mean()<2.,('handoff discontinuity',a,b,x)
+                    assert pixels.std()>2.,('empty handoff',a,b,x)
+                    tiles.append(pixels);checks+=1
+                if (a,b) in ((24,25),(25,26),(26,24),(24,7),(26,22)):
+                    save_png(output/f'pair-{a}-{b}.png',np.concatenate(tiles,axis=1))
+        # Native cycle boundaries and the wrap must stay continuous.
+        for t in (36.,72.,108.):
+            assert np.abs(frame(27,t=t-.0001).astype(float)-frame(27,t=t+.0001)).mean()<1.,('cycle seam',t)
+        # The cave must actually enclose the view, including its ceiling and walls.
+        probe_source=(Path(__file__).parent/'shaders/dream.frag').read_text()
+        probe_source=probe_source.replace('void main()', 'void unused_main()')+"""
+void main() {
+    vec2 p=gl_FragCoord.xy/u_resolution-.5;p.x*=u_resolution.x/u_resolution.y;
+    EarthSurface s=earth_surface(p,2);
+    fragColor=vec4(float(s.distance<90.),clamp(s.distance/55.,0.,1.),0.,1.);
+}
+"""
+        probe=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=probe_source)
+        probe_mesh=r.ctx.simple_vertex_array(probe,r.vertices,'in_position')
+        try:
+            probe['u_resolution'].value=(480.,270.)
+            for t in (0.,16.,32.,64.):
+                for k,v in dict(u_time=t*.75,u_drift_time=t,u_scale=.7,u_flux=.7).items():
+                    if k in probe:probe[k].value=v
+                probe_mesh.render(mode=moderngl.TRIANGLE_STRIP)
+                pixels=np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)
+                solid=pixels[:,:,0]>250
+                assert solid.mean()>.93,('cave not enclosed',t,solid.mean())
+                assert solid[-50:].mean()>.98,('missing ceiling',t)
+                assert solid[:,:50].mean()>.98 and solid[:,-50:].mean()>.98,('missing walls',t)
+        finally:
+            probe_mesh.release();probe.release()
+        last=-1.
+        for i in range(120):
+            r.debug_state=24+(i//40)%3;r.parameters.scale=.8;r.parameters.flux=.7
+            r.parameters.impact=.7 if i%20==0 else 0.
+            r.render(elapsed_time=i/30.)
+            assert r.star_time>last;last=r.star_time
+        # Real renderer integration: sustained energy accelerates, release coasts.
+        previous=r.flow_time
+        rates=[]
+        for i in range(150):
+            loud=40<=i<110
+            r.parameters.movement=.9 if loud else .02
+            r.parameters.scale=.85 if loud else .02
+            r.parameters.flux=.8 if loud else .02
+            r.parameters.impact=0.
+            r.render(elapsed_time=4.+i/30.)
+            assert r.flow_time>previous
+            previous=r.flow_time
+            rates.append(r.flow_rate)
+        assert rates[100]>rates[35]*2.,('Earth failed to accelerate',rates[35],rates[100])
+        assert rates[110]>rates[149]>0.,('Earth failed to coast',rates[110],rates[149])
+        report=dict(preserved_frames=preserved,detail_material_checks=effects,handoff_checks=checks,renderer_frames=120)
+        (output/'checks.json').write_text(json.dumps(report,indent=2));print(report,flush=True)
+    finally:
+        if mesh is not None:mesh.release()
+        if old is not None:old.release()
+        r.close()
 
 
 def air_test(baseline_path, output):
@@ -493,7 +641,8 @@ def director_test():
             assert sum(w>0)<=2,('stacked takeovers',t,w)
             assert abs(sum(v['u_water_mix'])+v['u_current_mix']-(1. if w[2]>0 else 0.))<1e-6
             assert abs(sum(v['u_fire_mix'])-(1. if w[3]>0 else 0.))<1e-6
-            effective=np.append(w,v['u_air_weight'])
+            effective=np.append(w,(v['u_air_weight'],v['u_earth_weight']))
+            assert effective.sum()<=1.000001 and (effective>=0).all()
             if previous is not None:assert np.abs(effective-previous).max()<.03
             if target is not None and r.director_target is not None:
                 assert target==r.director_target,('handoff interrupted',t)
@@ -2326,8 +2475,12 @@ if __name__ == "__main__":
     parser.add_argument("--musical-color-test", nargs=2, type=Path)
     parser.add_argument("--water-meld-test", nargs=2, type=Path)
     parser.add_argument("--fire-expression-test", type=Path)
+    parser.add_argument("--earth-test", nargs=2, type=Path)
     parser.add_argument("--air-test", nargs=2, type=Path)
     args = parser.parse_args()
+    if args.earth_test:
+        earth_test(*args.earth_test)
+        raise SystemExit(0)
     if args.air_test:
         air_test(*args.air_test)
         raise SystemExit(0)
