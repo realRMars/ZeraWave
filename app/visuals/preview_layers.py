@@ -6,7 +6,7 @@ do not reorder them. Absent held-world profiles preserve authored visuals; Main 
 import json
 import math
 
-WORLDS = ('blend', 'organic', 'geometric', 'cosmic', 'transition', 'water', 'fire')
+WORLDS = ('blend', 'organic', 'geometric', 'cosmic', 'transition', 'water', 'fire', 'air')
 FIELD = ('blend', 'organic', 'geometric', 'cosmic', 'transition')
 EFFECTS = {
     'artifacts': ('Living artifacts', 'Material', WORLDS),
@@ -18,7 +18,7 @@ EFFECTS = {
     'horizon': ('Horizon / pathway', 'Spatial', WORLDS),
     'blossoms': ('Root blossoms', 'World details', ('blend', 'organic')),
     'glyphs': ('Corridor glyph rain', 'World details', ('blend', 'geometric')),
-    'stars': ('Drifting starfield', 'World details', ('blend', 'cosmic', 'transition')),
+    'stars': ('Drifting starfield', 'World details', ('blend', 'cosmic', 'transition', 'air')),
     'rings': ('Planet rings', 'World details', ('blend', 'cosmic', 'transition')),
     'moons': ('Moons & dust wakes', 'World details', ('blend', 'cosmic', 'transition')),
     'water_rain': ('Rain streaks', 'Water details', ('blend', 'water')),
@@ -36,8 +36,15 @@ EFFECTS = {
     'blast_aurora': ('Aurora', 'Aftershock details', ('blend', 'fire')),
     'alloy': ('Liquid Alloy', 'Material', WORLDS),
     'lattice': ('Prismatic Lattice', 'Material', WORLDS),
+    'air_clouds': ('Cloud banks & wind ribbons', 'Air details', ('blend', 'air')),
+    'air_balloons': ('Fractal balloons', 'Air details', ('blend', 'air')),
+    'air_lightning': ('Lightning & lingering arcs', 'Air details', ('blend', 'air')),
+    'air_citadel': ('Castle, earth & celebration', 'Air details', ('blend', 'air')),
+    'daddy_long_legs': ('Daddy Long Legs', 'FX experiments', ('blend', 'air')),
 }
-BITS = {key: 1 << i for i, key in enumerate(EFFECTS)}
+# All 31 positive signed-mask bits are occupied; experiments use explicit uniforms.
+EXPERIMENTS = ('daddy_long_legs',)
+BITS = {key: (0 if key in EXPERIMENTS else 1 << i) for i, key in enumerate(EFFECTS)}
 MODES = {'authored': 'Authored', 'together': 'Selected together', 'cycle': 'Cycle list', 'meld': 'Meld materials'}
 MATERIALS = ('artifacts', 'alloy', 'lattice')
 
@@ -82,6 +89,7 @@ def parse_layers(text):
 
 
 def world_for_state(state):
+    if 19 <= state <= 23: return 'air'
     if state in (1, 11, 12): return 'organic'
     if state == 2: return 'geometric'
     if state in (3, 5): return 'cosmic'
@@ -123,7 +131,17 @@ def materials_at(profiles, state, seconds):
     return tuple(weights)
 
 
+def daddy_long_legs_at(profiles, state, seconds):
+    """Explicit opt-in only, including when a user cycles experimental rows."""
+    profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
+    if profile['mode'] == 'authored': return 0.
+    ids = [item['id'] for item in profile['items'] if item['enabled']]
+    if profile['mode'] == 'cycle' and ids:
+        ids = [ids[int(max(0., seconds) // profile['seconds']) % len(ids)]]
+    return float('daddy_long_legs' in ids)
+
+
 def material_trio_profile(world):
     """Authored details plus the three materials, suitable for main-live testing."""
     return dict(mode='meld', seconds=36., items=[dict(id=key, enabled=True)
-        for key, info in EFFECTS.items() if world in info[2]])
+        for key, info in EFFECTS.items() if world in info[2] and key not in EXPERIMENTS])

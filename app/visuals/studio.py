@@ -34,6 +34,12 @@ WORLD_TREE = {
     }),
     'transition': dict(label='Transition', state='transition'),
     'elements': dict(label='Elements', children={
+        'air': dict(label='Air / Wind', cycle='air', children={
+            'windstreams': dict(label='Windstreams', state='windstreams'),
+            'stormfront': dict(label='Stormfront', state='stormfront'),
+            'vortex': dict(label='Vortex', state='vortex'),
+            'citadel': dict(label='Sky Citadel', state='citadel'),
+        }),
         'water': dict(label='Water', cycle='water', children={
             'sea': dict(label='Sea', state='sea'),
             'dyes': dict(label='Liquid dyes', state='dyes'),

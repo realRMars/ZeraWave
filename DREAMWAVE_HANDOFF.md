@@ -2,6 +2,379 @@
 
 Updated: 2026-09-27
 
+## Accepted Air checkpoint
+
+User accepted the final inner-rim lightning correction and explicitly authorized
+committing the accumulated Air work. Windstreams, Stormfront, Vortex and Sky
+Citadel are integrated in Main Blend and Studio. Daddy Long Legs remains an
+inactive, opt-in FX experiment. Earlier "uncommitted" and pending-review entries
+below describe the development history, not the acceptance status of this checkpoint.
+Final Air validation: 44 preservation frames, 140 handoff checks, 244 renderer
+frames and 16 eye-exclusion comparisons. No audio normalization changes.
+Final Studio suite also passed: selection, effect lists, sessions, launch modes,
+UI lifecycle, replay metadata/pacing and continuous GPU clocks.
+Unrelated untracked research folders and root scripts are excluded from the commit.
+
+## Vortex inner-rim root correction (uncommitted)
+
+The .24 origin plus .23-.28 clearance left an unwanted gap between the eye
+and free lightning. Match the original hit bolts' .08-.14 onset instead:
+root at .08, gradual .06 reveal and tapered initial lateral jitter. Growth
+remains outward only. Wall lightning and all other behavior unchanged.
+The direct-Air exclusion test now checks the actual protected .075 inner disk,
+not the former .20 region that included the desired lightning root. Air suite
+passed: 44 preserved frames, 140 handoffs, 244 renderer frames and 16 eye checks.
+Synthetic motion captures inspected at work/vortex-root/checks show the root
+at the inner rim; live review remains for the user. Shader, test and handoff
+changed this pass. No commit made.
+
+## Vortex foreground origin correction (uncommitted)
+
+The bottom-of-screen origin was a misinterpretation. Free jagged lightning now
+starts .24 units outside the moving eye and grows radially outward, with a new
+direction each lifecycle, like the existing transient bolts. Its clearance mask,
+color, forks and fade remain. Wall lightning is unchanged. Only dream.frag and
+this handoff changed this pass. Air tests passed (44 preserved frames, 140
+handoffs, 244 renderer frames, 16 direct-Air eye comparisons). Synthetic motion
+captures inspected in work/vortex-rim/checks; no new music replay or live review.
+All work remains uncommitted.
+
+## Vortex rising foreground lightning (uncommitted)
+
+User requested keeping wall lightning while restoring the earlier free jagged
+look, growing from bottom to top without crossing the eye. Added one independent
+foreground discharge with alternating left/right detours, thin forks, evolving
+hue and complete lifecycle fade. It uses screen coordinates, not wall rotation
+or ridge shading. Radius .23-.28 clearance also masks inward forks/glow.
+Wall lightning, original hit bolts and Daddy Long Legs remain unchanged.
+
+Air suite passed: 44 exact non-Vortex frames, 140 handoff checks, 244 renderer
+frames and 16 direct-Air eye checks. WarbotJazz replay completed 16 seconds /
+375 frames; half-second captures inspected for upward growth, side routing and
+fade. No audible live review. Shared spatial compositing caveat below remains.
+Evidence: work/vortex-rising. This pass changes only dream.frag and this handoff.
+Diff check passed; cumulative Air work remains uncommitted at HEAD 77d767e.
+
+## Vortex wall lightning refinement (uncommitted)
+
+Secondary lightning now starts at radius .28-.35 on the walls and curves around
+the eye in polar coordinates. Hot pale cores, colored local glow, irregular thin
+forks, stepped growth, traveling charge pulses and staggered decay replace the
+straight crossing discharges. Ridge shading suggests partial obstruction; this
+is procedural surface integration, not volumetric geometry. Original hit bolts
+and dormant Daddy Long Legs are unchanged. No audio or renderer changes.
+
+Air suite passed: 44 exact non-Vortex frames, 140 handoff checks, 244 renderer
+frames and 16 direct-Air eye-exclusion comparisons. Initial full-composite eye
+comparison failed; the focused test probes Air before shared spatial/material
+compositing, so it does not guarantee exclusion after arbitrary spatial effects.
+The probe initially needed an optimized-out uniform guard, now corrected.
+WarbotJazz GPU replay completed 20 seconds / 469 frames; half-second captures
+reviewed show wall-following bright channels and clear central space. No audible
+live review performed. Evidence: work/vortex-wall. Diff check passed. Current
+pass changes dream.frag, shader_test.py and this handoff; all work uncommitted.
+
+## Vortex discharge correction / Daddy Long Legs experiment (uncommitted)
+
+User rejected the crawling web as lightning. Preserve it under the exact name
+Daddy Long Legs, category FX experiments (Air / Main catalog), inactive by default.
+Its code is retained behind u_daddy_long_legs. Authored profiles and automatic
+material-trio profiles do not enable it; explicit add/enable or cycle selection
+can preview it on Vortex. The 31 positive signed-mask bits are already occupied,
+so this experimental row has BITS value 0 and a separate uniform. Existing effect
+IDs/masks stay unchanged. Do not silently include experiments in default presets.
+
+The active replacement uses the existing jagged bolt vocabulary: anchored
+discharges extend outward over their lifetime, progressively reveal thin forks,
+rotate color and fully fade before their next lifecycle. Two staggered discharges
+can overlap. Original hit-driven bolts and their fading residue are preserved.
+No moving hubs or legs are active in normal Vortex playback.
+
+Air suite passed 44 exact non-Vortex frames, 140 handoff checks, 244 renderer
+frames, lightning history/isolation, and opt-in Daddy Long Legs rendering.
+Studio suite passed, including experiment defaults, cycle selection, session
+roundtrip and renderer switch. WarbotJazz replay completed 25 seconds / 586
+analyzed-rendered frames. Half-second captures show extending jagged branches,
+changing hues and fading discharges with no active spider hubs. This was a
+decoded-music GPU replay and capture review, not audible live playback.
+Evidence: work/vortex-discharge. Work remains uncommitted at HEAD 77d767e.
+
+## Vortex crawling lightning web (uncommitted)
+
+The secondary electrical layer now has three independently moving junctions,
+each orbiting and diving inward/outward. Five curved strands per junction include
+a connection to the next junction, fine forks and restrained local glow. Shared
+segment vertices keep the web connected while it jitters. Hue travels through
+the strands over time. The dark eye remains open; brightness follows existing
+energy and afterglow. Original transient bolts and historical residue remain.
+The web is evaluated only for Vortex with lightning enabled. No renderer or
+audio changes in this pass; all other held scenes should stay exact.
+
+WarbotJazz replay completed 42 seconds / 985 analyzed-rendered frames, captured
+sequences inspected. Final connecting strands/glow refinement inspected separately
+in GPU captures. Short final 720p Vortex sample: median 10.44ms, maximum 10.81ms
+(GPU only, not live FPS). Evidence: work/vortex-web. No audible playback claimed.
+Still uncommitted at HEAD 77d767e.
+Final Air suite passed 44 exact non-Vortex reference frames, 140 handoff checks,
+244 renderer frames and lightning isolation/history checks. Python compile and
+git diff --check passed. Changes: dream.frag, shader_test.py and this handoff.
+
+## Air skies and island support (uncommitted)
+
+Windstreams balloons now have logarithmic inward-traveling fold waves in their
+rotating fractal texture, with additional color moving through those folds.
+Thin horizontal stratus joins the existing cumulus. Planet Canvas's drifting
+star sheets are shared through cosmic_star_layer: the original Cosmic call uses
+boost=1, while Windstreams adds beat/energy-driven elongated wakes. Citadel adds
+the same Cosmic sheets alongside its existing pinpoints, behind castle/planet.
+The existing stars effect is now available under Air, with stable bit IDs.
+
+Vortex's inkblot/shadow and its local glow are removed. A persistent warm orange/
+magenta arc layer travels independently around the cool transient bolts and
+their bounded glow history. The lightning control is now named Lightning &
+lingering arcs. Stormfront stays unchanged. Citadel island upper radius increases
+from .78 to .94 (about 21%) to support the outer towers; its tracing and castle
+geometry are otherwise retained from the prior pass.
+
+Validation: final Air suite passed 40 exact preservation frames (non-Air plus
+Stormfront), 140 handoff checks, 244 renderer frames and Air star-toggle isolation.
+Studio suite passed recursive forms, layer controls, sessions, launch modes,
+layout/lifecycle, replay metadata/pacing and continuous GPU clocks. WarbotJazz
+replayed 84 seconds / 1969 analyzed-rendered frames across Windstreams, Vortex
+and Citadel; sequences inspected. The final filled Windstreams wake refinement
+was additionally inspected in GPU captures. No audible playback claimed.
+Evidence: work/air-sky. Work remains uncommitted at HEAD 77d767e.
+Short final 720p GPU medians: Windstreams 12.42ms, Stormfront 10.78ms,
+Vortex 9.61ms, Citadel 13.48ms; maximum 14.08ms. These are GPU samples,
+not live end-to-end FPS guarantees. Python compile and git diff --check passed.
+
+## Air motion and stability follow-up (uncommitted)
+
+Balloon bobbing is roughly 2.3-2.6 times larger, retaining individual phases and
+amplitudes. Vortex main bolts are thicker, fine forks extend farther, and glow
+decays at 0.9/second. Three bounded previous-event trails retain their own seed
+and strength when a new bolt fires; new hits never wait for prior glow to clear.
+The lightning switch disables current and historical glow together.
+
+Castle investigation: eight-angle captures and a slower reference trace showed
+small missed/shaded pixels rather than broad missing geometry. The displaced
+rock field now uses a conservative distance estimate, the main trace uses smaller
+steps and a tighter consistent hit threshold, and brick/window edges use pixel
+footprint filtering to reduce shimmer. Stormfront's far trace cutoff fades into
+the background to soften the connection artifact. Preserve these distinctions:
+this addresses observed trace precision/detail aliasing, not proof that every
+live flicker reported by the user has been identified.
+
+Final Air suite passed 38 exact non-Air frames, 140 handoff checks and 244 renderer
+frames, plus independent historical-glow rendering, isolation, fresh-hit history
+and decay checks. The empty bridge probe now checks positive distance rather than
+its old magnitude because conservative rock distance scaling changed that value.
+Python compilation and git diff --check passed. Evidence: work/air-stability.
+HEAD remains 77d767e and the work remains uncommitted for user review.
+Post-change castle captures inspected at the same eight angles. ChasingYou replay
+completed 56 seconds / 1313 frames across Citadel and Vortex; sampled sequences
+inspected, with no audible playback. Short 720p GPU medians: 11.10ms Windstreams,
+10.70ms Stormfront, 9.00ms Vortex, 11.20ms Citadel; overall maximum 12.34ms.
+These timings exclude end-to-end live playback overhead. User confirmation of
+the reported live castle/base clicking is still needed.
+
+## Air character follow-up (uncommitted)
+
+Windstreams: balloon texture coordinates now wrap around the envelope and rotate
+at distinct signed speeds. Per-balloon phase/amplitude varies bass bobbing and
+impact displacement; flight depth continues independently.
+
+Stormfront: mirrors the cloud vault beneath its flight axis, removes farmland,
+and replaces Air's right-angle junction selection with a smooth sinusoidal
+centerline (maximum heading atan(.98), about 44.4 degrees). Original non-Air
+corridor calls remain unchanged. Vortex gets an extra lightning branch and a
+separate renderer-side afterglow envelope (1.7/second exponential decay), painted
+onto the spiral ribs while sharp bolts continue to follow independent paths.
+The existing lightning switch disables both bolts and residue.
+
+Citadel: subtle masonry weathering/courses and recess shading; the central cone
+is animated colored enamel with music-reactive tracery. Castle ray bounds and
+iteration allowance are expanded and tracing starts earlier to address island
+base clipping during rotation. Existing gate and tower laser depth tests retained.
+
+Evidence: work/air-character. WarbotJazz replay completed 112 seconds / 2626
+analyzed-rendered frames, and captured sequences for all four forms were inspected.
+No audible playback or full-speed smoothness acceptance is claimed. Changes are
+still uncommitted; no global audio normalization or new dependency changes.
+Final Air suite passed: 38 exact non-Air reference frames, 140 handoff checks,
+243 renderer frames, afterglow persistence/decay and effect isolation, quiet/active
+scene checks and castle probes. Python compile and git diff --check passed.
+The broader Main suite was not rerun for this targeted follow-up; Air handoffs
+to existing worlds were tested. Prior Main results remain documented below.
+
+## Air depth, vault and celebration refinement (uncommitted)
+
+Latest user brief authorizes refinement of all four Air forms, including Vortex.
+This supersedes the older Vortex-exact requirement below. HEAD remains 77d767e;
+all Air work is still uncommitted for visual review.
+
+Windstreams: faster depth travel using the existing integrated music clock,
+occasional near balloon lanes, larger envelopes with rounded highlights, broad
+ribbon bends, irregular cloud edges and softened/warped field boundaries.
+Castle remains absent. Captures show approach, expansion and below-camera exits.
+
+Stormfront: the existing corridor function now has an Air-only vault argument.
+The original one-argument entry point retains its exact geometry. Air has curved
+arches, a lowered floor, continuous angular cloud coordinates across wall/roof,
+aurora within the vault and spatially bounded lightning. Landscape extends below
+the cloud walls rather than being restricted to a corridor floor. This is still
+procedural surface shading, not a volumetric cloud simulation.
+
+Vortex keeps its eye and spiral identity, with varied ribs, traveling saturated
+arcs and more visible source material. Citadel has a modest camera approach,
+rougher attached earth, coordinated window waves, paired sweeping laser fans
+with quiet intervals, burst cores, varied ember decay and secondary spark splits.
+Planet material uses surface depth to cover more of the visible globe. Tower
+beam depth and emitter-obstruction checks remain intact.
+
+Validation: final Air suite passed 38 exact non-Air reference frames, 140 Air
+handoff checks, detail isolation, quiet/active comparisons, gate geometry probes
+and 240 production-renderer frames. Added a Stormfront black-coverage regression
+after an intermediate negative-base power caused invalid pixels; corrected it.
+Main suite passed 114 exact reference frames (no rounding differences), 144
+transition checks, director checks and 721 production-renderer frames. Python
+compile and git diff --check passed (existing CRLF notices only).
+
+WarbotJazz and Balloon each replayed 112 seconds / 2626 analyzed-rendered frames,
+with one-second captures inspected across all four forms in different orders.
+Balloon includes the final planet mapping and firework splits; Warbot predates
+those last two refinements. Handoff capture strips also inspected. These runs
+have no audible playback; sampled sequences do not establish full-speed visual
+smoothness or live beat-sync acceptance. Evidence: work/air-depth. No changes
+to global audio normalization, dependencies, or the renderer lifecycle.
+Final 720p GPU sample medians: Windstreams 9.98ms, Stormfront 10.20ms,
+Vortex 9.22ms, Citadel 10.76ms; maximum 11.30ms across these short samples.
+GPU timing is not an end-to-end live frame-rate guarantee.
+
+## Air corridor and Citadel corrections (uncommitted)
+
+User accepted Vortex and requested targeted changes to the other three forms.
+Windstreams now has no castle or mountain silhouettes. Balloon depths extend
+to 64 units with seeded lateral spread, tiny distant starts and a flight path
+slightly above their tops; nearby balloons grow and pass below. Distant farmland
+fades into haze to avoid the previous hard projected horizon strip. Patchwork
+remains under Windstreams and Stormfront rather than fading entirely to ocean.
+
+Stormfront now calls the accepted geometric_surface corridor projection/turn
+function and shades its walls/ceiling as cloud surfaces. Lightning and local
+illumination live in wall coordinates instead of a free screen-space cross;
+the roof carries moving auroral cloud color. Vortex retains its prior flash,
+palette and geometry exactly. Reference inspiration: Epic's storm-cloud/local
+illumination example (https://dev.epicgames.com/documentation/unreal-engine/07-adjust-environment-lighting-features)
+and Guerrilla's cloud-shape/lighting overview (https://www.guerrilla-games.com/read/the-real-time-volumetric-cloudscapes-of-horizon-zero-dawn).
+No external shader/assets/dependencies copied or installed.
+
+Citadel: removed battlements intersecting the central cone; removed bridge and
+fitted an opaque paneled gate inside the existing arch. Earth base is part of
+the same 3D distance geometry as the castle, meeting its ground plane, with
+layered stone and grass. Cotton-candy base removed. Window hues cycle by window
+and time. Lasers originate in 3D on tower tops, compare beam depth against the
+castle/island surface, and check obstructions from each emitter. Fireworks now
+have a 28%-of-lifetime comet ascent before bursting; distant burst trails stay
+behind the castle. Effect label is Castle, earth & celebration; stable ID retained.
+
+Checks: Air suite passes 40 exact original/Vortex frames, 140 handoff checks,
+240 production-renderer frames, temporal scene checks, closed gate/solid wall/
+empty former bridge GPU probes, and castle-removal checks for Windstreams,
+Stormfront and Vortex. Warbot replay completed 84s / 1969 frames; captured
+sequences inspected. Final refinement lowered the flight path nearer balloons
+and retained more farmland contrast, checked by the same suite. No audible
+live-loopback acceptance claimed. 720p GPU sample before that final refinement:
+median 10.36ms Windstreams, 10.12ms Stormfront, 9.06ms Vortex, 8.98ms Citadel;
+maximum 10.96ms. This is GPU work, not guaranteed live FPS. Evidence:
+work/air-corridor. HEAD remains 77d767e, Air work uncommitted for user review.
+
+## Air flight and dimensional Citadel rework (uncommitted)
+
+User reviewed the four Air foundations as too static and explicitly authorized
+rebuilding their motion/composition. HEAD remains 77d767e; all prior Air work is
+preserved except the specifically replaced flat castle/crystals/baskets.
+
+Castle now uses bounded 3D distance geometry in the existing fragment shader:
+round gate towers, courtyard walls/merlons, central keep, true arched gateway,
+lowered bridge and rails, surface normals, masonry and window lighting. Camera
+orbits continuously. Its base is opaque swirling cotton-candy cloud lobes;
+crystals removed. Windstreams retains only a tiny distant silhouette. Stormfront
+and Vortex contain no castle. Scanning laser rays reach the frame edge and pulse;
+six staggered fireworks have 24 radial stars with segmented ballistic tails.
+The backdrop stars drift and the globe radius is now 5 rather than 1.18, with
+a wide shallow horizon. Citadel and Vortex remap the existing material/spatial
+field before generation, instead of just tinting a separate painted surface.
+Accepted Planet Canvas geometry/rendering remains untouched.
+
+Windstreams uses far-to-near depth planes: balloons grow, overlap correctly and
+pass offscreen; sphere shading, fractal coordinates and hue rotate, with no
+baskets/ropes. Clouds grow around the flight path; streamers converge at the
+castle with traveling pulses. Ground patches drift and turn below. Stormfront
+flies a banked winding lane through successive pairs of rotating tornado
+columns, retaining onset lightning/shadow identity. Vortex rotates faster,
+cycles its own palette and carries more of the shared material.
+
+The first Air handoff test exposed Vortex-to-Corridor material discontinuity:
+non-Air geometry had been normalized to full weight too early. Renderer now
+retains absolute geometry weights and shader normalizes only final background
+composition. The corrected Air suite passes 38 exact original-state frames,
+140 handoffs, 240 renderer frames, four temporal motion sequences, GPU probes
+of open gateway/solid wall/bridge, and exact castle-removal checks in Stormfront
+and Vortex. Main regression passes 114 exact frames, 144 handoff checks and
+721 renderer frames. Real Warbot replay rendered 112s / 2626 frames; all sampled
+sequences inspected. Final globe coordinate correction also passed Air suite.
+No live-loopback listening claimed. Python compilation and whitespace checks
+passed; CRLF conversion notices only. Evidence: work/air-flight.
+
+720p GPU timing probe (20 measured frames per held state after warmup): median
+9.85ms Windstreams, 10.60ms Stormfront, 9.13ms Vortex, 10.09ms Citadel; maximum
+11.34ms across samples. This measures GPU work, not guaranteed live frame rate.
+Final image inspection replaced angular tooth cutoffs with box-shaped merlons
+to avoid distance-tracing artifacts along castle battlements.
+
+Reference direction: National Trust's Bodiam gatehouse/bridge photograph
+(https://ntprints.com/products/pod1044593) and PBS's chrysanthemum/willow examples
+(https://www.pbs.org/a-capitol-fourth/fireworks-fun/firework-names/).
+No reference images are bundled in the project. Pending user review, no commit.
+
+## Air / Wind: four connected sky forms (uncommitted)
+
+Starting checkpoint 77d767e was clean except unrelated untracked research/helpers,
+which remain untouched. User authorized three Air forms plus a Sky Citadel reveal.
+States: 19 Windstreams, 20 Stormfront, 21 Vortex, 22 Sky Citadel, 23 Air cycle.
+Studio: Elements > Air / Wind; blank form runs a 144-second evolving cycle.
+All four held forms also participate in Main's musical director. Legacy fixed
+blend fixtures remain unchanged. Air weight/form uniforms normalize the old
+background before regional coverage; original pure scenes remain identical.
+
+Windstreams has gust ribbons, fractal balloons at varying depths, wispy clouds,
+faint patchwork farms/ocean, mountain silhouettes and a distant castle landmark.
+Stormfront tightens with energy, with branching lightning/coils, localized hit
+illumination and changing inkblot shadows. Fresh onset serials hold each shadow
+identity through its decay. Vortex has tighter spiral walls and fine colored
+filaments around an eye. Sky Citadel reveals towers/windows on a floating rock,
+faceted crystals, aura, lasers and fireworks above a curved material-colored
+planet. No people. These are layered procedural illustrations, not volumetric
+fluid simulation or a fully modeled castle. Its globe is a separate composition;
+accepted Planet Canvas and continuous star drift are unchanged.
+
+Four Air detail groups isolate clouds/ribbons, balloons, lightning/shadows and
+castle/celebration. Existing material trio is available. IDs occupy bits 0-30;
+future details must account for the signed 32-bit shader mask limit.
+
+Tests: Studio UI/session/selection/effect and real replay suite passed. Main
+regression passed 114 exact original frames, 144 handoffs and 721 renderer frames,
+including director checks. Final Air suite passed 38 exact original-state frames,
+140 handoffs, quiet/active/hit response, detail removal, changing flash identity
+and 240 production-renderer frames. Initial Windstreams response failed; stronger
+gust/buoyancy/highlights corrected it. Image review caught a cloud wrap seam;
+periodic coordinates fixed it. Warbot replay: 112s / 2626 frames through held
+scenes, then 145s / 3399 frames through native meld; captured sequences inspected.
+Final GPU review additionally differentiated billowy Stormfront from Vortex and
+strengthened fleeting shadows. No audible live acceptance claimed. Evidence:
+work/air. User visual review pending; no commit authorized for this Air pass.
+
 ## Checkpoint: accepted color, Water handoffs and reactive Fire
 
 The user authorized committing these accumulated passes after correcting

@@ -12,10 +12,21 @@ from replay_test import replay
 from renderer import Renderer
 import glfw
 import numpy as np
-from preview_layers import BITS, layers_at, validate_layers, parse_layers, materials_at, material_trio_profile, WORLDS
+from preview_layers import BITS, layers_at, validate_layers, parse_layers, materials_at, material_trio_profile, WORLDS, daddy_long_legs_at
 
 
 def main():
+    assert daddy_long_legs_at({},21,0.)==0.
+    assert BITS['air_citadel']==1<<30 and BITS['daddy_long_legs']==0
+    assert sum(BITS.values())==2147483647
+    assert all(item['id']!='daddy_long_legs' for world in WORLDS
+        for item in material_trio_profile(world)['items'])
+    experiments=validate_layers({'air':dict(mode='cycle',seconds=4.,items=[
+        dict(id='artifacts',enabled=True),dict(id='daddy_long_legs',enabled=True)])})
+    assert daddy_long_legs_at(experiments,21,0.)==0.
+    assert daddy_long_legs_at(experiments,21,4.)==1.
+    assert layers_at(experiments,21,4.)==(1,0)
+    assert validate_session(dict(version=3,**dict(DEFAULTS,selection=['elements','air','vortex'],layers=experiments)))['layers']==experiments
     available=tracks()
     assert available, 'Decoded project tracks missing'
     values=dict(DEFAULTS,track=str(available[0]))
@@ -38,7 +49,7 @@ def main():
         except ValueError:pass
         else:raise AssertionError(invalid)
     trio=validate_layers({world:material_trio_profile(world) for world in WORLDS})
-    for state in range(19):
+    for state in range(24):
         assert layers_at(trio,state,23.)[0]==2
         a=np.array(materials_at(trio,state,35.999))
         b=np.array(materials_at(trio,state,36.001))
@@ -52,7 +63,9 @@ def main():
     assert materials_at({'water':reversed_profile},7,0.)==(0.,0.,1.)
     assert layers_at(trio,9,20.)[1]&BITS['water_rain']
     assert layers_at(trio,9,28.)[1]&BITS['water_rain']
-    assert selection_states(['elements'])==['sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock']
+    assert selection_states(['elements'])==['windstreams','stormfront','vortex','citadel','sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock']
+    assert selection_states(['elements','air'])==['air']
+    assert selection_states(['elements','air','citadel'])==['citadel']
     assert selection_states(['elements','fire'])==['fire_cycle']
     assert selection_states(['elements','fire','molten'])==['molten']
     assert selection_states(['elements','fire','firescape'])==['firescape']
@@ -69,7 +82,7 @@ def main():
     assert selection_states([])==['blend']
     # A second future branch must not truncate Water's descendants to one hold.
     with patch.dict(WORLD_TREE['elements']['children'], {'test-other':dict(label='Test',state='organic')}):
-        assert selection_states(['elements'])==['sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock','organic']
+        assert selection_states(['elements'])==['windstreams','stormfront','vortex','citadel','sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock','organic']
     assert selection_states(['future'], {'future':dict(children={
         'a':dict(children={'b':dict(children={'c':dict(state='rain')})}),
         'd':dict(state='sea')})})==['rain','sea']
@@ -283,12 +296,17 @@ def main():
             last_star,last_flow=renderer.star_time,renderer.flow_time
         renderer.debug_state=5;renderer.render(elapsed_time=69.)
         assert renderer.program['u_layer_mode'].value==0
+        assert renderer.program['u_daddy_long_legs'].value==0.
         renderer.layer_profiles=trio
         for seconds,state in ((70.,7),(75.,15),(80.,18),(84.,0),(90.,5)):
             renderer.debug_state=state;renderer.render(elapsed_time=seconds)
             assert np.allclose(renderer.program['u_material_mix'].value,materials_at(trio,state,seconds))
             assert renderer.star_time>last_star and renderer.flow_time>last_flow
             last_star,last_flow=renderer.star_time,renderer.flow_time
+        renderer.layer_profiles=experiments;renderer.debug_state=21;renderer.render(elapsed_time=92.)
+        assert renderer.program['u_daddy_long_legs'].value==1.
+        renderer.layer_profiles={};renderer.render(elapsed_time=93.)
+        assert renderer.program['u_daddy_long_legs'].value==0.
     finally:renderer.close()
     print('PASS: recursive forms, per-world layer table/solo/order, legacy/v3 sessions, validation, all launch modes, minimum layout, UI lifecycle, real replay state/effect metadata and pacing, continuous GPU clocks.')
 

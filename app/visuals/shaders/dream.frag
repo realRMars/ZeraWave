@@ -1,6 +1,12 @@
 #version 330
 
 uniform float u_time;
+uniform vec4 u_air_mix;
+uniform float u_air_weight;
+uniform float u_air_flash_id;
+uniform float u_air_afterglow;
+uniform vec2 u_air_trails[3];
+uniform float u_daddy_long_legs;
 uniform float u_firescape_travel;
 uniform float u_star_time;
 uniform float u_drift_time;
@@ -472,14 +478,9 @@ vec3 cosmic_vivid_material(vec3 material, float drive)
     return vivid / max(1.0, max(vivid.r, max(vivid.g, vivid.b)));
 }
 
-// The accepted depth composition is shared by the isolated diagnostic and
-// live takeover. Canvas color is evaluated from DreamWave's existing field.
-vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly)
+// Shared star sheets: boost 1 preserves Planet Canvas; Air can lengthen wakes.
+vec3 cosmic_star_layer(vec2 p, float trail_boost)
 {
-    float time = u_drift_time;
-    float color_drive = canvas_mix * smoothstep(0.08, 0.65,
-        clamp(0.45 * u_scale + 0.35 * u_flux + 0.20 * u_sparkle, 0.0, 1.0));
-    vec3 scene = vec3(0.0);
     // Layered star sheets drift one way across the sky and wrap off-screen.
     // Motion comes from the integrated clock, never from a spring that
     // returns. Audio only changes cruise speed and trail length.
@@ -488,7 +489,7 @@ vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly
         + 0.30 * clamp(u_impact, 0.0, 1.0);
     float chorus = smoothstep(0.38, 0.88, star_drive);
     // Quiet: almost a point. Chorus: a long, thin wake behind the heading.
-    float trail_len = mix(0.0012, 0.095, chorus * chorus);
+    float trail_len = mix(0.0012, 0.095, chorus * chorus) * trail_boost;
     vec3 star_layer = vec3(0.0);
     for (int layer_i = 0; layer_i < 3; layer_i++)
     {
@@ -500,9 +501,11 @@ vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly
         float layer_speed = mix(0.028, 0.13, depth);
         vec2 star_p = p - heading * u_star_time * layer_speed;
         float grid = mix(42.0, 28.0, depth);
-        for (int star_i = 0; star_i < 5; star_i++)
+        int trail_samples=int(min(24.,ceil(5.*trail_boost)));
+        for (int star_i = 0; star_i < 24; star_i++)
         {
-            float tail = float(star_i) / 4.0;
+            if(star_i>=trail_samples)break;
+            float tail = float(star_i) / float(trail_samples-1);
             vec2 sample_p = star_p + heading * tail * trail_len;
             vec2 cell = floor(sample_p * grid + layer * 13.0);
             vec2 local = fract(sample_p * grid + layer * 13.0);
@@ -514,8 +517,16 @@ vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly
             float star_aa = grid / u_resolution.y;
             // Chorus reveals a few more faint stars; quiet keeps them sparse.
             float presence = step(mix(0.935, 0.905, chorus), seed);
+            float star_distance=length(local-star_center);
+            if(trail_boost>1.) {
+                vec2 delta=local-star_center;
+                float half_wake=trail_len*grid/float(trail_samples-1)*.55
+                    *smoothstep(1.,1.4,trail_boost);
+                star_distance=length(vec2(dot(delta,vec2(-heading.y,heading.x)),
+                    max(0.,abs(dot(delta,heading))-half_wake)));
+            }
             float stars = (1.0 - smoothstep(star_size, star_size + star_aa,
-                length(local - star_center))) * presence;
+                star_distance)) * presence;
             vec3 star_color = mix(vec3(0.55, 0.72, 1.0),
                 vec3(1.0, 0.83, 0.62), hash(cell + 2.0));
             // Dwell brightness lives in the star, not in its position.
@@ -529,7 +540,17 @@ vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly
                 * alive * twinkle * trail_fade);
         }
     }
-    scene += star_layer * effect(512);
+    return star_layer;
+}
+
+// Accepted depth composition shared by the isolated diagnostic and live takeover.
+vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly)
+{
+    float time = u_drift_time;
+    float color_drive = canvas_mix * smoothstep(0.08, 0.65,
+        clamp(0.45 * u_scale + 0.35 * u_flux + 0.20 * u_sparkle, 0.0, 1.0));
+    vec3 scene = vec3(0.0);
+    scene += cosmic_star_layer(p, 1.0) * effect(512);
 
     float radius = 0.30;
     vec3 light_dir = normalize(vec3(-0.5, 0.65, 1.0));
@@ -745,7 +766,7 @@ struct GeometricSurface {
     float height;
 };
 
-GeometricSurface geometric_surface(vec2 p)
+GeometricSurface geometric_surface(vec2 p, float air_vault)
 {
     float fluxv = clamp(u_flux, 0.0, 1.0);
     float spark = clamp(u_sparkle, 0.0, 1.0);
@@ -755,9 +776,11 @@ GeometricSurface geometric_surface(vec2 p)
     float seg = floor(walk / SPAN);
     float local = walk - seg * SPAN;
     float next_turn = geo_end_turn(seg);
+    if(air_vault>0.)next_turn=0.;
     float turning = step(0.5, abs(next_turn));
     float turn_u = turning * smoothstep(SPAN - 3.4, SPAN - 0.04, local);
     float yaw = next_turn * 1.5707963 * turn_u;
+    if(air_vault>0.)yaw=atan(.98*cos(walk*.105));
     float cs = cos(yaw);
     float sn = sin(yaw);
     float w_here = geo_width(walk);
@@ -790,6 +813,8 @@ GeometricSurface geometric_surface(vec2 p)
     {
         float t = march_t;
         vec3 q = ro + rd * t;
+        // Air follows a smooth centerline with a maximum heading near 45 degrees.
+        if(air_vault>0.)q.x-=9.333333*(sin((walk+q.z)*.105)-sin(walk*.105));
         // Axial distance, not ray length: adjacent pixels share one wall.
         float side = turning * step(w_here * 0.25, q.x * next_turn)
             * step(abs(q.z - corner), w_next + 0.35);
@@ -814,6 +839,10 @@ GeometricSurface geometric_surface(vec2 p)
             float mid = cos(nz * 1.5707963);
             float floor_y = bow * mid;
             float ceil_y = h_next - bow * mid;
+            if(air_vault>0.) {
+                ceil_y=h_next*sqrt(max(.12,1.-nz*nz*.88))-bow*mid;
+                floor_y=-4.;
+            }
             float side_half = max(w_next - bow * sin(3.14159265 * y01), 0.14);
             if (q.y <= floor_y) hit_kind = 2.0;
             else if (q.y >= ceil_y) hit_kind = 3.0;
@@ -827,6 +856,10 @@ GeometricSurface geometric_surface(vec2 p)
             float mid = cos(nx * 1.5707963);
             float floor_y = bow * mid;
             float ceil_y = base_h - bow * mid;
+            if(air_vault>0.) {
+                ceil_y=base_h*sqrt(max(.12,1.-nx*nx*.88))-bow*mid;
+                floor_y=-4.;
+            }
             float halfw = max(base_w - bow * sin(3.14159265 * y01), 0.14);
             // The junction ends at the branch's outer wall, not its centerline.
             float blocked = turning
@@ -858,9 +891,14 @@ GeometricSurface geometric_surface(vec2 p)
     float tall = mix(geo_tall(travel), h_next, side);
     vec2 surface_uv = kind < 1.5 ? vec2(travel, hp.y)
         : vec2(travel, crossway);
+    // One continuous weather coordinate around the arch avoids wall/roof seams.
+    if(air_vault>0.)surface_uv.y=atan(hp.y-.3,crossway);
     return GeometricSurface(surface_uv, best_t, kind,
         clamp(hp.y / max(tall, 0.2), 0.0, 1.0));
 }
+
+// Original callers retain the accepted geometry exactly.
+GeometricSurface geometric_surface(vec2 p) { return geometric_surface(p,0.); }
 
 vec3 isolated_geometric_scene(GeometricSurface surface, vec3 canvas, float canvas_mix)
 {
@@ -2129,13 +2167,567 @@ vec4 world_coverage(vec4 weights, vec2 p)
     return score/max(home+dot(score,vec4(1.)),1e-12);
 }
 
+// Air shares one altitude, palette and continuous journey clock across its forms.
+vec3 air_palette(float h) {
+    return .52+.48*cos(6.28318*(h+vec3(.02,.32,.62)));
+}
+float air_line(vec2 p,vec2 a,vec2 b,float width) {
+    vec2 d=b-a;return exp(-pow(length(p-a-d*clamp(dot(p-a,d)/max(dot(d,d),.00001),0.,1.))/width,2.));
+}
+vec4 air_forms() {
+    if(u_directed==1) return u_air_mix;
+    if(u_debug_state<22.5) {
+        int id=int(u_debug_state+.5)-19;
+        return vec4(id==0,id==1,id==2,id==3);
+    }
+    float phase=mod(u_drift_time,144.)/36.;
+    int id=int(phase);float x=smoothstep(.65,1.,fract(phase));
+    vec4 a=vec4(id==0,id==1,id==2,id==3);
+    int next=(id+1)%4;
+    return mix(a,vec4(next==0,next==1,next==2,next==3),x);
+}
+float air_box(vec3 p,vec3 b) {
+    vec3 q=abs(p)-b;return length(max(q,0.))+min(max(q.x,max(q.y,q.z)),0.);
+}
+vec2 air_castle_map(vec3 p) {
+    // Gatehouse and courtyard walls; the opening is cut through the front wall.
+    float d=air_box(p-vec3(0.,.25,-.48),vec3(.5,.25,.065));
+    float door=min(air_box(p-vec3(0.,.13,-.48),vec3(.12,.15,.16)),
+        max(length(p.xy-vec2(0.,.28))-.12,abs(p.z+.48)-.16));
+    d=max(d,-door);
+    d=min(d,air_box(p-vec3(0.,.25,.48),vec3(.5,.25,.065)));
+    d=min(d,air_box(vec3(abs(p.x)-.48,p.y-.25,p.z),vec3(.065,.25,.5)));
+    float roof=10.;
+    for(int i=0;i<7;i++) {
+        float id=float(i);
+        vec2 center=i<4 ? vec2((i%2==0 ? -1. : 1.)*.48,(i<2 ? -1. : 1.)*.48)
+            : (i<6 ? vec2((i==4 ? -1. : 1.)*.23,-.49) : vec2(0.,.13));
+        float h=i==6 ? .94 : (i<4 ? .62 : .72);
+        float rad=i==6 ? .20 : .125;
+        vec3 q=p-vec3(center.x,0.,center.y);
+        float cylinder=max(length(q.xz)-rad,abs(q.y-h*.5)-h*.5);
+        d=min(d,cylinder);
+        // Cap with ring parapet and discrete merlons, not a flat printed roof.
+        float ring=max(abs(length(q.xz)-rad)-.022,abs(q.y-h)-.035);
+        float toothAngle=floor(atan(q.z,q.x)/.62831853+.5)*.62831853;
+        vec2 toothAxis=vec2(cos(toothAngle),sin(toothAngle));
+        float merlon=air_box(vec3(dot(q.xz,toothAxis)-rad,q.y-h-.065,
+            dot(q.xz,vec2(-toothAxis.y,toothAxis.x))),vec3(.028,.03,.030));
+        if(i<6)d=min(d,min(ring,merlon));
+        if(i==6) {
+            float cone=max(length(q.xz)-.235*(1.-clamp((q.y-h)/.40,0.,1.)),abs(q.y-h-.2)-.2);
+            roof=min(roof,cone*.8);
+        }
+    }
+    // Wall crenellations repeat in object space and rotate with the masonry.
+    vec3 crenel=p;crenel.x=mod(p.x+.055,.11)-.055;
+    d=min(d,max(air_box(crenel-vec3(0.,.535,-.48),vec3(.032,.04,.07)),abs(p.x)-.48));
+    // Closed gate fitted inside the arch, with no projecting bridge.
+    float gate=max(air_box(p-vec3(0.,.18,-.515),vec3(.11,.19,.018)),door);
+    // Attached earth shares the castle's 3D coordinates and depth, top meets y=0.
+    float earth=max(length(p.xz)-max(.24,.94+p.y*.95),abs(p.y+.24)-.26);
+    earth+=(.025*sin(p.x*19.)*sin(p.z*17.)+.034*sin(atan(p.z,p.x)*7.+p.y*8.))
+        *(1.-smoothstep(-.15,-.01,p.y));
+    // Taper and rock displacement are not a unit-distance field: conservative steps.
+    earth*=.45;
+    vec2 result=vec2(d,1.);
+    if(roof<result.x)result=vec2(roof,2.);
+    if(gate<result.x)result=vec2(gate,3.);
+    if(earth<result.x)result=vec2(earth,4.);
+    return result;
+}
+vec3 air_citadel(vec2 p,vec3 sky,float amount) {
+    if(amount<=0. || effect(1073741824)<=0.)return sky;
+    float clock=u_time*.22+u_drift_time*.025;
+    vec2 q=p-vec2(0.,.035);
+    float orbit=.35+u_time*.045+u_drift_time*.007;
+    float approach=2.8+.20*sin(u_drift_time*.055);
+    vec3 ro=vec3(approach*sin(orbit),1.35+.08*sin(clock*.23),-approach*cos(orbit));
+    vec3 fw=normalize(vec3(0.,.36,0.)-ro),right=normalize(cross(fw,vec3(0,1,0))),up=cross(right,fw);
+    vec3 rd=normalize(fw+right*q.x*1.13+up*(q.y-.09)*1.13);
+    float surfaceDepth=100.;
+    // Castle and attached island participate in the same depth trace.
+    if(abs(q.x)<.82 && q.y>-.52 && q.y<.68) {
+        float t=1.2;vec2 hit=vec2(1.,0.);vec3 pos=ro;
+        for(int j=0;j<144;j++) {
+            pos=ro+rd*t;hit=air_castle_map(pos);
+            if(hit.x<.0008 || t>4.9)break;
+            t+=max(.00035,hit.x*.50);
+        }
+        if(t<4.9 && hit.x<.0008) {
+            surfaceDepth=t;
+            vec2 e=vec2(.002,0.);
+            vec3 normal=normalize(vec3(air_castle_map(pos+e.xyy).x-air_castle_map(pos-e.xyy).x,
+                air_castle_map(pos+e.yxy).x-air_castle_map(pos-e.yxy).x,
+                air_castle_map(pos+e.yyx).x-air_castle_map(pos-e.yyx).x));
+            vec3 light=normalize(vec3(-.5,1.,-.8));
+            float diffuse=max(0.,dot(normal,light));
+            vec2 uv=abs(normal.x)>.6 ? pos.zy : pos.xy;
+            vec2 brick=vec2(uv.x*18.+floor(uv.y*24.)*.5,uv.y*24.);
+            vec2 brickAA=clamp(fwidth(uv*vec2(18.,24.)),vec2(.015),vec2(.35));
+            float mortar=smoothstep(.06-brickAA.y,.06+brickAA.y,fract(brick.y))
+                *smoothstep(.045-brickAA.x,.045+brickAA.x,fract(brick.x));
+            vec3 stone=mix(vec3(.32,.28,.37),vec3(.48,.43,.51),mortar);
+            float weathering=fbm(uv*35.);
+            stone*=.78+.30*weathering;
+            float courses=1.-smoothstep(.025,.055,abs(fract(pos.y*8.)-.5));
+            stone+=vec3(.055,.045,.07)*courses;
+            if(hit.y>1.5)stone=hit.y<2.5 ? vec3(.06,.36,.39) : vec3(.26,.13,.07);
+            if(hit.y>2.5 && hit.y<3.5)stone*=.35+.65*step(.13,fract(pos.x*45.))*step(.14,fract(pos.y*18.));
+            if(hit.y>3.5)stone=mix(vec3(.07,.055,.045),vec3(.27,.20,.12),.5+.5*sin(pos.y*55.+fbm(pos.xz*7.)*5.));
+            if(hit.y>3.5 && pos.y>-.02)stone=vec3(.08,.16,.09);
+            vec3 color=stone*(.36+.64*diffuse);
+            // Recess shading under parapets and at the wall foot, without new meshes.
+            color*=.78+.22*smoothstep(.0,.10,pos.y);
+            if(hit.y<1.5)color*=.83+.17*smoothstep(.0,.06,abs(pos.y-.56));
+            vec2 windowAA=clamp(fwidth(uv*12.),vec2(.01),vec2(.30));
+            vec2 windowCell=fract(uv*12.);
+            float windows=smoothstep(.81-windowAA.x,.81+windowAA.x,windowCell.x)
+                *smoothstep(.68-windowAA.y,.68+windowAA.y,windowCell.y)
+                *(1.-smoothstep(1.-windowAA.x,1.,windowCell.x))
+                *(1.-smoothstep(1.-windowAA.y,1.,windowCell.y))*step(.12,pos.y)*step(pos.y,.63);
+            float windowWave=floor(uv.y*12.)*.055+sin(uv.x*3.-clock*.8)*.16+clock*.12;
+            if(hit.y<1.5)color+=air_palette(windowWave+.025*sin(floor(uv.x*12.)*7.))*windows*(.24+u_scale*.65)*(1.-abs(normal.y));
+            if(hit.y>1.5 && hit.y<2.5) {
+                float azimuth=atan(pos.z-.13,pos.x);
+                float enamel=.5+.5*sin(azimuth*6.+pos.y*19.-clock*3.);
+                float tracery=pow(enamel,10.);
+                color=mix(color,air_palette(azimuth*.16+pos.y*.7-clock*.12)*(.25+.3*diffuse),.55);
+                color+=air_palette(pos.y*.8+clock*.2)*tracery*(.18+.7*u_scale+.5*u_impact);
+            }
+            color+=vec3(.10,.25,.35)*pow(max(0.,dot(reflect(-light,normal),-rd)),24.);
+            sky=mix(sky,color,amount);
+        }
+    }
+    // True world-space tower emitters. Closest ray/beam depth handles occlusion.
+    for(int i=0;i<8;i++) {
+        float id=float(i),scan=clock*2.3+sin(clock*.7)*1.8+floor(id*.5)*1.3;
+        vec3 emitter=vec3((i%2==0 ? -1. : 1.)*.48,.73,(i%4<2 ? -1. : 1.)*.48);
+        float fan=(mod(id,2.)-.5)*(.10+.28*(.5+.5*sin(clock*.9)));
+        vec3 direction=normalize(vec3(sin(scan+fan),.30+.70*(.5+.5*sin(scan*.8+fan)),cos(scan+fan)));
+        vec3 w=ro-emitter;float crossTerm=dot(rd,direction),den=max(.0001,1.-crossTerm*crossTerm);
+        float along=(dot(direction,w)-crossTerm*dot(rd,w))/den;
+        float depth=along*crossTerm-dot(rd,w);
+        vec3 beamPoint=emitter+direction*max(0.,along);
+        float distance=length(ro+rd*depth-beamPoint);
+        float width=.007+max(0.,along)*.0015;
+        float beam=exp(-distance*distance/(width*width));
+        float visible=step(0.,along)*step(0.,depth)*step(depth,surfaceDepth-.006);
+        if(beam>.002 && visible>0.) {
+            float march=.02;
+            for(int k=0;k<24;k++) {
+                if(march>=along || march>3.)break;
+                float obstruction=air_castle_map(emitter+direction*march).x;
+                if(obstruction<.002){visible=0.;break;}
+                march+=max(.005,obstruction*.7);
+            }
+        }
+        float pulse=(.08+.92*pow(.5+.5*sin(clock*17.+floor(id*.5)*2.),4.))
+            *smoothstep(-.6,.4,sin(clock*.65+floor(id*.5)*1.7));
+        sky+=air_palette(id*.12+clock*.08)*beam*visible*pulse*(.2+u_scale*.8+u_impact*.6)*amount;
+    }
+    // Chrysanthemum bursts with segmented ballistic willow tails and falling sparks.
+    for(int i=0;i<6;i++) {
+        float id=float(i),cycle=u_time*(.095+.006*id)+id*.67,phase=fract(cycle),serial=floor(cycle);
+        float age=clamp((phase-.28)/.72,0.,1.);
+        vec2 origin=vec2(sin(id*13.+serial*2.3)*.70,.13+.23*fract(sin(id*3.+serial)*437.));
+        // Comet ascends from a tower before opening into its burst.
+        vec3 launchWorld=vec3((i%2==0 ? -1. : 1.)*.48,.73,(i<3 ? -1. : 1.)*.48);
+        vec3 launchView=launchWorld-ro;
+        vec2 launch=vec2(dot(launchView,right),dot(launchView,up))/max(.1,dot(launchView,fw))/1.13+vec2(0.,.125);
+        float ascent=clamp(phase/.28,0.,1.);
+        vec2 head=mix(launch,origin,ascent),tail=mix(launch,origin,max(0.,ascent-.23));
+        if(phase<.28 && surfaceDepth>dot(launchView,rd))
+            sky+=vec3(.7,.8,1.)*air_line(p,head,tail,.0022)*(.4+ascent)*amount;
+        float celebration=.35+.65*smoothstep(.15,.75,max(u_scale,u_flux));
+        vec3 tint=mix(air_palette(id*.21+serial*.13),vec3(1.,.61,.20),mod(id,2.)*.7);
+        sky+=mix(tint,vec3(1.),.55)*exp(-length(p-origin)*180.)
+            *exp(-age*40.)*step(.28,phase)*celebration*amount*step(6.,surfaceDepth);
+        for(int k=0;k<24;k++) {
+            float a=float(k)*2.399963+id,rad=.18+.13*fract(sin(float(k)*7.+id)*437.);
+            vec2 velocity=vec2(cos(a),sin(a))*rad;
+            float tail=0.;
+            float life=.58+.42*fract(sin(float(k)*13.+serial)*417.);
+            for(int seg=0;seg<3;seg++) {
+                float u=max(0.,age-float(seg)*.065),v=max(0.,u-.065);
+                vec2 pa=origin+velocity*u*2.-vec2(0.,u*u*.18);
+                vec2 pb=origin+velocity*v*2.-vec2(0.,v*v*.18);
+                tail+=air_line(p,pa,pb,.0018)*(1.-float(seg)*.20);
+            }
+            float fade=smoothstep(.01,.06,age)*(1.-smoothstep(life*.6,life,age));
+            vec2 tip=origin+velocity*age*2.-vec2(0.,age*age*.18);
+            float ember=exp(-length(p-tip)*650.)*(.4+.6*pow(.5+.5*sin(age*75.+float(k)),3.));
+            // Late secondary sparks split from selected tips and fall independently.
+            float splitAge=max(0.,age-.38);
+            vec2 splitOrigin=origin+velocity*.76-vec2(0.,.38*.38*.18);
+            vec2 splitDirection=vec2(-velocity.y,velocity.x)*(.45+.3*sin(float(k)*9.));
+            vec2 splitTip=splitOrigin+(velocity+splitDirection)*splitAge-vec2(0.,splitAge*splitAge*.26);
+            float branch=air_line(p,splitTip,splitTip-(velocity+splitDirection)*.06,.0012)
+                *smoothstep(.38,.44,age)*step(.5,fract(float(k)*.381));
+            sky+=tint*(tail+ember+branch*.7)*fade*(.32+u_sparkle*.45+u_impact*.35)*celebration*amount*step(6.,surfaceDepth);
+        }
+    }
+    return sky;
+}
+// Shared source material gathers onto a spherical surface or spiraling vortex.
+vec2 air_material_domain(vec2 p,vec4 form) {
+    float spin=u_time*.18;
+    float a=atan(p.y,p.x)+spin+log(length(p)+.03)*3.;
+    vec2 whirl=vec2(cos(a),sin(a))*(.3+length(p)*2.);
+    vec2 disk=(p-vec2(0.,-5.18))/5.;
+    vec3 n=vec3(disk,sqrt(max(0.,1.-dot(disk,disk))));
+    vec3 surface=vec3(cos(spin*.18)*n.x+sin(spin*.18)*n.z,n.y,-sin(spin*.18)*n.x+cos(spin*.18)*n.z);
+    return mix(whirl,vec2(surface.x*2.,n.z*4.-.65)+surface.z*vec2(.30,.12),form.w/max(form.z+form.w,.00001));
+}
+
+vec3 air_scene(vec2 p,vec3 material,vec4 form) {
+    float clock=u_time*.15+u_drift_time*.015;
+    float energy=clamp(max(u_scale,u_flux*.8),0.,1.);
+    float storm=form.y, vortex=form.z, citadel=form.w;
+    float weather=storm+vortex;
+    float bank=storm*.20*sin(clock*.7)+form.x*.025*sin(clock*.3);
+    p=mat2(cos(bank),sin(bank),-sin(bank),cos(bank))*p;
+    vec3 pigment=material/(.25+max(material.r,max(material.g,material.b)));
+    vec3 sky=mix(vec3(.025,.038,.12),vec3(.27,.37,.48),clamp(.6-p.y,0.,1.));
+    sky=mix(sky,vec3(.008,.012,.034),weather*.83+citadel*.6);
+    sky+=storm*vec3(.035,.055,.10)*(.4+.6*fbm(p*5.+vec2(0.,clock*.2)));
+    // Sparse high-altitude stars remain anchored as the lower atmosphere moves.
+    vec2 starUV=p+vec2(clock*.024,.015*sin(clock*.3));
+    vec2 starCell=floor(starUV*220.);
+    float starSeed=fract(sin(dot(starCell,vec2(127.1,311.7)))*43758.5453);
+    float star=exp(-dot(fract(starUV*220.)-.5,fract(starUV*220.)-.5)*140.)*step(.992,starSeed);
+    sky+=vec3(.25,.36,.50)*star*citadel*(.5+u_sparkle*.5);
+    // Additional accepted Cosmic star sheets; existing Citadel pinpoints remain.
+    if(form.x+citadel>0.) {
+        float starStretch=1.+form.x*(1.5*energy+2.5*u_impact);
+        sky+=cosmic_star_layer(p,starStretch)*effect(512)
+            *(citadel+form.x*smoothstep(.04,.23,p.y)*1.25);
+    }
+    float horizon=.035-.05*p.x*p.x;
+    // Distant patchwork fields projected below the cloud deck, never a flat grid.
+    if(p.y<horizon && citadel<1.) {
+        float distance=1./max(.02,horizon-p.y);
+        vec2 ground=vec2(p.x*distance+sin(clock*.11)*1.8,distance+clock*2.);
+        // Bend field boundaries gently; the land is well below our flight path.
+        ground*=mix(1.35,2.4,storm);
+        ground+=vec2(.20*sin(ground.y*.7),.17*sin(ground.x*.8));
+        vec2 cell=floor(ground*vec2(1.2,.55));
+        float seed=fract(sin(dot(cell,vec2(127.1,311.7)))*43758.5453);
+        float edge=min(min(fract(ground.x*1.2),1.-fract(ground.x*1.2)),min(fract(ground.y*.55),1.-fract(ground.y*.55)));
+        vec3 farms=mix(vec3(.055,.10,.085),vec3(.21,.19,.10),seed)*(.88+.12*smoothstep(.015,.04,edge));
+        float coast=smoothstep(.3,.65,fbm(ground*.024));
+        farms=mix(vec3(.025,.08,.14),farms,mix(max(.60,coast),coast,vortex));
+        sky=mix(sky,farms,exp(-distance*.016)*mix(1.-smoothstep(18.,45.,distance),1.,vortex)*(1.-vortex*.9)*(1.-citadel)*(1.-storm));
+    }
+    // The planet is specific to the Citadel scene; existing Planet Canvas stays intact.
+    vec2 planet=(p-vec2(0.,-5.18))/5.;
+    float disk=dot(planet,planet);
+    if(citadel>0.) {
+        float limb=exp(-pow((sqrt(disk)-1.)*380.,2.));
+        sky+=vec3(.07,.36,.9)*limb*citadel;
+        if(disk<1.) {
+            vec3 n=vec3(planet,sqrt(1.-disk));
+            float continents=fbm(n.xy*6.+vec2(clock*.09,n.z));
+            vec3 land=mix(vec3(.015,.04,.13),cosmic_vivid_material(material,energy)*1.7,.94);
+            float clouds=smoothstep(.50,.7,fbm(n.xy*13.+clock*.07));
+            land=mix(land,vec3(.29,.43,.53),clouds*.16);
+            sky=mix(sky,land*(.42+.58*max(0.,dot(n,normalize(vec3(-.4,.6,1.))))),citadel);
+        }
+    }
+    vec2 eye=vec2(.05*sin(clock*.21),.045*cos(clock*.17));
+    float angle=clock*(.4+vortex*2.8);
+    vec2 tunnel=p-eye;
+    tunnel=mat2(cos(angle),sin(angle),-sin(angle),cos(angle))*tunnel;
+    float radius=length(tunnel),theta=atan(tunnel.y,tunnel.x);
+    if(effect(134217728)>0. || (weather>0. && (effect(536870912)>0. || u_daddy_long_legs>0.))) {
+        // Far-to-near billows expand around the flight path and pass the camera.
+        vec2 vanish=vec2(.0,.10);
+        // Thin stratus sheets pass above the fuller cumulus banks.
+        vec2 sheetUV=p*vec2(2.2,13.)+vec2(clock*.08,-clock*.25);
+        float sheetNoise=fbm(sheetUV+vec2(fbm(sheetUV*.6),0.));
+        float sheet=smoothstep(.44,.68,sheetNoise)*smoothstep(.10,.24,p.y)
+            *(1.-smoothstep(.38,.58,p.y));
+        sky=mix(sky,vec3(.24,.31,.43)+sheetNoise*.16,sheet*.44*form.x*effect(134217728));
+        float travel=clock*.8;
+        for(int i=9;i>=0;i--) {
+            float serial=floor(travel)+float(i),z=(float(i)+1.-fract(travel))*1.7+.12;
+            vec2 center=vanish+vec2(sin(serial*2.4)*2.5,cos(serial*1.7)*.8-.35)/z;
+            vec2 cloudUV=(p-center)*z/vec2(1.1,.72);
+            float n=fbm(cloudUV*2.+serial+clock*.1);
+            float lobes=sin(cloudUV.x*5.+serial)*sin(cloudUV.y*4.-serial)*.25;
+            float mask=(1.-smoothstep(.32+n*.4,1.2+n*.5,dot(cloudUV,cloudUV)+lobes))
+                *smoothstep(.12,.6,z)*(1.-smoothstep(13.,17.,z));
+            vec3 tint=mix(vec3(.13,.22,.32),vec3(.52,.58,.65),n);
+            sky=mix(sky,tint,mask*(.60+.18*n)*form.x*effect(134217728));
+        }
+        // Reuse the accepted corridor's turns and perspective with cloud surfaces.
+        if(storm>0.) {
+            // Bend the corridor projection into a vault while retaining its turns.
+            vec2 archP=p;
+            archP.y=.10+abs(p.y-.10);
+            archP.y+=.22*pow(abs(p.x),1.45);
+            archP.x+=.018*sin(p.y*9.+clock*.4);
+            GeometricSurface corridor=geometric_surface(archP,1.);
+            vec2 uv=corridor.uv;
+            float billow=fbm(uv*vec2(.65,2.3)+vec2(-clock*.7,clock*.15));
+            float detail=fbm(uv*vec2(2.4,5.)+billow*2.);
+            float rib=pow(.5+.5*cos(uv.x*1.7+billow*4.),5.);
+            vec3 cloud=mix(vec3(.018,.035,.065),vec3(.30,.24,.39),smoothstep(.22,.70,billow));
+            cloud*=.6+.4*detail;cloud+=vec3(.045,.08,.13)*rib;
+            float seed=floor(u_air_flash_id),cell=floor(uv.x/3.);
+            float origin=cell*3.+.7+fract(sin(cell*17.+seed)*437.)*1.6;
+            float boltPath=origin+.11*sin(uv.y*17.+seed)+.055*sin(uv.y*47.+cell);
+            float bolt=exp(-pow((uv.x-boltPath)/.022,2.));
+            float fork=exp(-pow((uv.x-boltPath-max(0.,uv.y-.5)*.45)/.016,2.));
+            float reach=exp(-pow(abs(uv.y-(.35+fract(sin(cell+seed)*371.)))*.9,4.));
+            bolt*=reach;fork*=reach;
+            float hit=smoothstep(.08,.6,u_impact)*effect(536870912);
+            float litCell=step(.40,fract(sin(cell*3.+seed)*137.));
+            vec3 light=vec3(.28,.50,1.)*(bolt+fork*.5)*hit*litCell;
+            cloud+=vec3(.12,.20,.36)*exp(-abs(uv.x-origin)*2.)*hit*litCell;
+            if(corridor.kind>2.5 || (corridor.kind>.5 && corridor.kind<1.5)) {
+                // Opaque cloud vault advects forward; aurora glows above its billows.
+                float curtain=exp(-pow(sin(uv.x*.55+sin(uv.y+clock*.4)) * 4.,2.));
+                cloud+=mix(vec3(.02,.45,.32),vec3(.40,.035,.48),.5+.5*sin(uv.y*.7+clock*.15))*curtain*(.35+energy*.5)
+                    *smoothstep(.2,.8,sin(uv.y));
+            }
+            float wall=step(.5,corridor.kind)*(1.-step(1.5,corridor.kind));
+            float ceiling=step(2.5,corridor.kind);
+            float fog=exp(-corridor.distance*.055);
+            float cloudEdge=1.-smoothstep(7.,10.,corridor.distance);
+            float coverage=(wall+ceiling)*cloudEdge*effect(134217728);
+            sky=mix(sky,mix(vec3(.09,.12,.19),cloud,fog),coverage*storm);
+            sky+=light*fog*storm*(wall+ceiling)*cloudEdge;
+        }
+        if(weather>0.) {
+            float throat=mix(.23,.085,energy)*(1.-vortex*.3);
+            float spiral=theta+log(radius+.025)*(.65+vortex*5.35)-clock*.8;
+            float folds=fbm(vec2(cos(spiral),sin(spiral))*3.+radius*vec2(2.,5.)-vec2(clock*.3,0.));
+            float banks=smoothstep(throat,throat+.23,radius+sin(spiral*3.)*.028);
+            float billows=fbm(tunnel*7.+vec2(clock*.16,-clock*.23));
+            folds=mix(billows,folds,.25+.75*vortex);
+            float rib=.5+.5*sin(spiral*5.+folds*6.+.5*sin(theta*2.+clock*.3));
+            vec3 cloud=mix(vec3(.016,.017,.05),vec3(.21,.12,.29),folds);
+            cloud*=.5+1.4*smoothstep(.3,.7,folds);
+            cloud+=vec3(.035,.22,.22)*pow(rib,4.)*(.14+energy*.3);
+            cloud=mix(cloud,pigment*.24,.2*folds);
+            float stream=pow(.5+.5*sin(theta*2.-clock*.8+radius*4.),3.);
+            cloud=mix(cloud,air_palette(folds*.6+clock*.065+sin(theta)*.12)*(.20+.48*rib),.75*vortex);
+            cloud=mix(cloud,material*(.65+energy*.9),.38*vortex);
+            cloud+=air_palette(folds*.6+clock*.065+sin(theta)*.12)*stream*pow(rib,5.)*(.16+energy*.36)*vortex;
+            sky=mix(sky,cloud,banks*vortex*effect(134217728));
+            sky+=air_palette(sin(theta)*.1+.5)*pow(rib,18.)*banks*(.025+u_sparkle*.09)*vortex*effect(134217728);
+            // Independent electrical layers, with no shadow/face overlay.
+            float flash=smoothstep(.10,.6,u_impact)*effect(536870912);
+            float seed=floor(u_air_flash_id);
+            // Archived FX experiment: Daddy Long Legs. Never enabled by authored mode.
+            if(vortex>0. && u_daddy_long_legs>0.) for(int arcIndex=0;arcIndex<3;arcIndex++) {
+                float id=float(arcIndex);
+                // Crawling junctions follow different orbits and repeatedly dive inward.
+                float hubAngle=id*2.094+clock*(.44+id*.13)+.40*sin(clock*.38+id);
+                float hubRadius=.14+.38*(.5+.5*sin(clock*.67+id*2.3));
+                vec2 hub=vec2(cos(hubAngle),sin(hubAngle))*hubRadius;
+                vec3 web=vec3(0.);
+                for(int leg=0;leg<5;leg++) {
+                    float strand=float(leg),side=mod(strand,2.)*2.-1.;
+                    float reach=.22+.23*(.5+.5*sin(clock*.55+strand*2.+id));
+                    float endRadius=clamp(hubRadius+side*reach,.075,.86);
+                    float endAngle=hubAngle+side*(.55+strand*.18)+.28*sin(clock*.8+strand);
+                    vec2 endPoint=vec2(cos(endAngle),sin(endAngle))*endRadius;
+                    if(leg==4) {
+                        float next=mod(id+1.,3.);
+                        float nextAngle=next*2.094+clock*(.44+next*.13)+.40*sin(clock*.38+next);
+                        float nextRadius=.14+.38*(.5+.5*sin(clock*.67+next*2.3));
+                        endPoint=vec2(cos(nextAngle),sin(nextAngle))*nextRadius;
+                    }
+                    vec2 control=(hub+endPoint)*.5
+                        +vec2(-sin(hubAngle),cos(hubAngle))*side*.13;
+                    float active=.22+.78*pow(.5+.5*sin(clock*1.4+strand*1.7+id),2.);
+                    vec3 tint=air_palette(clock*.09+id*.23+strand*.075);
+                    for(int segment=0;segment<4;segment++) {
+                        float a=float(segment)*.25,b=a+.25;
+                        vec2 pa=mix(mix(hub,control,a),mix(control,endPoint,a),a);
+                        vec2 pb=mix(mix(hub,control,b),mix(control,endPoint,b),b);
+                        // Shared vertices retain connections while the charge jitters.
+                        pa+=.016*sin(vec2(a*73.+clock*8.+strand,a*91.-clock*6.+id))*sin(a*3.14159);
+                        pb+=.016*sin(vec2(b*73.+clock*8.+strand,b*91.-clock*6.+id))*sin(b*3.14159);
+                        float thread=air_line(tunnel,pa,pb,.0032);
+                        float glowThread=air_line(tunnel,pa,pb,.011)*.13;
+                        vec2 forkTip=pb+vec2(cos(endAngle+side*.8),sin(endAngle+side*.8))
+                            *(.045+.045*sin(clock+strand)*sin(clock+strand));
+                        float fork=air_line(tunnel,pb,forkTip,.0011)*smoothstep(.15,.65,b);
+                        web+=tint*(thread+glowThread+fork*.55)*active;
+                    }
+                }
+                // A small traveling pulse marks each junction without filling the eye.
+                web+=air_palette(clock*.09+id*.23)*exp(-length(tunnel-hub)*190.)*.55;
+                sky+=web/(1.+web*.45)*(.27+.65*energy+.32*u_air_afterglow)
+                    *smoothstep(.045,.095,radius)*vortex*u_daddy_long_legs;
+            }
+            // Wall-bound discharges: polar paths cannot cross the open eye.
+            // Each anchored path grows in uneven steps, then clears completely.
+            if(vortex>0. && effect(536870912)>0.) for(int strike=0;strike<2;strike++) {
+                float id=float(strike),cycle=u_drift_time*.20+id*.47;
+                float life=fract(cycle),serial=floor(cycle)+id*17.;
+                float envelope=smoothstep(.015,.07,life)*(1.-smoothstep(.64,.86,life));
+                float phase=clamp((life-.025)/.55,0.,1.)*7.;
+                float growth=(floor(phase)+smoothstep(.22,.75,fract(phase)))/7.;
+                float start=.28+.07*fract(sin(serial*7.)*437.);
+                float along=radius-start;
+                float reach=.025+growth*.85;
+                float a=serial*2.399963+id*1.8;
+                float curve=a-2.6*log(max(radius,.15)/start);
+                float across=atan(sin(theta-curve),cos(theta-curve))*radius;
+                float jitter=.027*sin(along*53.+serial)+.013*sin(along*127.+serial*3.)
+                    +.005*sin(along*291.+serial);
+                float d=abs(across-jitter);
+                float visible=smoothstep(0.,.025,along)*(1.-smoothstep(reach-.02,reach,along));
+                // Older sections dim while fresh charges race along the established path.
+                float age=max(0.,life-along*.58);
+                float pulse=pow(.5+.5*sin(along*24.-life*65.+serial),12.);
+                float charge=(.28+.72*exp(-age*2.5)+pulse*(.5+u_impact))*visible;
+                float bolt=exp(-pow(d/.0055,2.))*charge;
+                float glow=exp(-pow(d/.032,2.))*charge;
+                float branches=0.,branchGlow=0.;
+                for(int branch=0;branch<4;branch++) {
+                    float b=float(branch),rnd=fract(sin(serial*13.+b*73.)*43758.);
+                    float root=.08+b*.17+rnd*.07,side=mod(b+id,2.)*2.-1.;
+                    float distance=along-root;
+                    float forkPath=jitter+side*max(0.,distance)*(.55+rnd*.65)
+                        +.012*sin(distance*173.+serial)*smoothstep(0.,.04,distance);
+                    float branchReach=min(.16+rnd*.20,max(0.,reach-root)*.72);
+                    float fade=exp(-max(0.,life-root*.58)*(.9+rnd*2.));
+                    float gate=smoothstep(0.,.018,distance)
+                        *(1.-smoothstep(max(.001,branchReach-.025),max(.002,branchReach),distance))*fade;
+                    float fd=abs(across-forkPath);
+                    branches+=exp(-pow(fd/.0018,2.))*gate;
+                    branchGlow+=exp(-pow(fd/.017,2.))*gate;
+                }
+                // Ridges intermittently hide the channel; reflected light remains local.
+                float exposed=mix(.12,1.,smoothstep(.22,.55,rib));
+                float wall=smoothstep(.23,.28,radius)*banks;
+                vec3 tint=air_palette(serial*.19+life*.22+id*.3);
+                vec3 hot=mix(tint,vec3(1.,.96,.91),.76);
+                sky+=(hot*(bolt+branches*.65)*exposed*1.25
+                    +tint*(glow*.28+branchGlow*.12)*(.3+.7*rib))
+                    *envelope*(.48+.75*energy)*wall*vortex*effect(536870912);
+            }
+            // Free lightning starts outside the eye and grows away from it.
+            if(vortex>0. && effect(536870912)>0.) {
+                float cycle=u_drift_time*.18+.13,life=fract(cycle),serial=floor(cycle);
+                float a=serial*2.399963+.8;
+                vec2 direction=vec2(cos(a),sin(a));
+                vec2 normal=vec2(-direction.y,direction.x);
+                vec2 ray=p-eye;
+                float along=dot(ray,direction)-.08;
+                float reach=.035+.85*smoothstep(.025,.60,life);
+                float envelope=smoothstep(.01,.055,life)*(1.-smoothstep(.64,.89,life));
+                float jitter=.030*sin(along*41.+serial)+.014*sin(along*103.+serial*3.)
+                    +.006*sin(along*267.+serial);
+                jitter*=smoothstep(0.,.10,along);
+                float across=dot(ray,normal)-jitter;
+                float gate=smoothstep(0.,.06,along)*(1.-smoothstep(reach-.025,reach,along));
+                float bolt=exp(-pow(across/.0042,2.))*gate;
+                float glow=exp(-pow(across/.017,2.))*gate;
+                float forks=0.;
+                for(int branch=0;branch<4;branch++) {
+                    float b=float(branch),root=.16+b*.21+.035*sin(serial+b*7.);
+                    float distance=along-root;
+                    float forkSide=mod(b+serial,2.)*2.-1.;
+                    float path=forkSide*max(0.,distance)*(.5+.17*sin(b+serial))
+                        +.009*sin(distance*157.)*smoothstep(0.,.02,distance);
+                    float length=min(.28,max(0.,reach-root)*.7);
+                    forks+=exp(-pow((across-path)/.0016,2.))*smoothstep(0.,.015,distance)
+                        *(1.-smoothstep(max(.001,length-.025),max(.002,length),distance));
+                }
+                vec3 tint=air_palette(serial*.23+life*.28+.12);
+                // Also protect the eye from inward forks and their glow.
+                float clearance=smoothstep(.08,.14,length(p-eye));
+                sky+=(mix(tint,vec3(1.),.22)*bolt+tint*(forks*.75+glow*.17))
+                    *envelope*clearance*(.55+.65*energy)*vortex*effect(536870912);
+            }
+            for(int i=0;i<4;i++) {
+                float id=float(i),a=id*1.57+seed*.73;
+                vec2 dir=vec2(cos(a),sin(a));
+                float along=dot(p-eye,dir),across=dot(p-eye,vec2(-dir.y,dir.x));
+                float path=.03*sin(along*41.+seed)+.015*sin(along*103.+seed*3.)+.006*sin(along*267.+seed);
+                float bolt=exp(-pow((across-path)/.0045,2.))*smoothstep(.08,.14,along)*(1.-smoothstep(.62,.83,along));
+                float coil=exp(-pow((radius-(.25+.045*sin(theta*9.+clock)))/.003,2.));
+                float fork=exp(-pow((across-path-abs(along-.27)*.42)/.0014,2.))*smoothstep(.25,.28,along)*(1.-smoothstep(.62,.82,along));
+                float split=exp(-pow(abs(across-path+abs(along-.19)*.33)/.0015,2.))
+                    *smoothstep(.18,.22,along)*(1.-smoothstep(.68,.91,along));
+                sky+=(vec3(.25,.52,1.)*(bolt+fork*.85+split*.7)+vec3(.18,.08,.35)*coil*.18)*flash*vortex;
+                // Bolts keep their own paths; a wider residue follows the spiral surface.
+                float residue=exp(-abs(sin(theta+log(radius+.03)*2.-a)) * 9.)
+                    *banks*(.25+.75*pow(rib,3.));
+                sky+=air_palette(id*.17+seed*.07)*residue*u_air_afterglow*.30*vortex*effect(536870912);
+                for(int j=0;j<3;j++) {
+                    vec2 trail=u_air_trails[j];
+                    float oldAngle=id*1.57+trail.x*.73;
+                    float wake=exp(-abs(sin(theta+log(radius+.03)*2.-oldAngle))*7.)
+                        *banks*(.25+.75*pow(rib,3.));
+                    sky+=air_palette(id*.17+trail.x*.07)*wake*trail.y*.16*vortex*effect(536870912);
+                }
+            }
+        }
+        // Perspective streamers converge at the castle and sweep past our shoulders.
+        vec2 ribbonP=p-vec2(0.,.10);
+        float rr=length(ribbonP),aa=atan(ribbonP.y,ribbonP.x);
+        for(int i=0;i<10;i++) {
+            float id=float(i),path=id*.628318+.28*sin(log(rr+.015)*.8-clock*.6+id);
+            float separation=abs(sin((aa-path)*.5))*rr;
+            float stripe=exp(-pow(separation/(.001+rr*.003),2.))*smoothstep(.025,.10,rr);
+            float pulses=.15+.85*pow(.5+.5*sin(log(rr+.015)*9.-clock*9.+id),6.);
+            sky+=mix(air_palette(id*.09+clock*.02),pigment,.3)*stripe*pulses
+                *(.12+energy*.45+u_impact*.2)*form.x*effect(134217728);
+        }
+    }
+    // Ordered depth planes: near balloons occlude far ones and grow offscreen.
+    if(effect(268435456)>0. && form.x>0.) {
+        float travel=clock*1.8;
+        for(int i=17;i>=0;i--) {
+            float serial=floor(travel)+float(i),z=(float(i)+1.-fract(travel))*2.6+.16;
+            float hx=fract(sin(serial*127.1+3.)*43758.5453),hy=fract(sin(serial*311.7+8.)*17341.7);
+            // Every third approach uses the near flight lane; others retain broad depth.
+            float nearLane=1.-step(.5,mod(serial,3.));
+            vec2 world=vec2((hx-.5)*mix(14.,1.7,nearLane),-.58-hy*.45);
+            world.y+=(.10+.17*hy)*sin(clock*(1.3+hx*.7)+serial*2.4)*( .25+u_scale*.75)
+                +u_impact*(.065+.14*hx)*sin(serial*4.7+clock*.5);
+            vec2 center=vec2(0.,.10)+world/z;
+            float size=(.43+.10*hy)/z;
+            vec2 q=(p-center)/size;
+            float r=length(q*vec2(1.+max(0.,-q.y)*.35,.83));
+            float shell=1.-smoothstep(.97,1.02,r);
+            float spin=clock*(1.15+hx*.85)*(hx>.5 ? 1. : -1.)+serial;
+            vec2 textureUV=vec2(atan(q.x,sqrt(max(.015,1.-min(.99,r*r))))*.8,q.y);
+            vec2 f=mat2(cos(spin),sin(spin),-sin(spin),cos(spin))*textureUV;
+            float inward=log(length(textureUV)+.06)*2.8+clock*1.15;
+            f=f*(1.+.30*sin(inward))+.13*vec2(cos(inward),sin(inward));
+            float pattern=0.;
+            for(int k=0;k<5;k++) {
+                f=abs(f)/max(dot(f,f),.24)-vec2(.9+.1*sin(clock*.5),.7);
+                pattern+=exp(-length(f)*2.)*.22;
+            }
+            vec3 fabric=air_palette(serial*.13+pattern*.9+clock*.11+.18*sin(inward))*(.22+.78*sqrt(max(0.,1.-r*r)));
+            fabric+=vec3(.25,.20,.14)*pow(max(0.,1.-length(q-vec2(-.28,.30))),12.);
+            fabric=mix(fabric,pigment,.16);
+            fabric*=.8+u_impact*.35+.2*cos(atan(textureUV.y,textureUV.x)*7.-spin*2.);
+            float fade=smoothstep(.16,.4,z)*(1.-smoothstep(55.,64.,z));
+            sky=mix(sky,fabric,shell*fade*form.x);
+        }
+    }
+    sky=air_citadel(p,sky,citadel);
+    return max(sky,vec3(0.));
+}
+
 void main()
 {
     bool directed = u_directed == 1;
+    bool held_air = u_debug_state >= 18.5 && u_debug_state < 23.5;
     bool held_fire = u_debug_state > 13.5 && u_debug_state < 18.5;
     bool fire_mode = held_fire || (directed && u_world_mix.w > 0.);
     float fire_takeover = directed ? u_world_mix.w : (held_fire ? 1. : 0.);
-    float debug_state = held_fire ? 1.0 : (u_debug_state > 10.5 && u_debug_state < 12.5) ? 1.0 : u_debug_state;
+    float debug_state = (held_fire || held_air) ? 1.0 : (u_debug_state > 10.5 && u_debug_state < 12.5) ? 1.0 : u_debug_state;
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
 
     // Correct for the window's aspect ratio.
@@ -2201,6 +2793,12 @@ void main()
                 -u_time*.28*.4*molten+u_time*.095*wild;
         }
         p=mix(p,fire_p,fire_takeover);
+    }
+
+    float air_gather=directed ? u_air_weight : (held_air ? 1. : 0.);
+    if(air_gather>0.) {
+        vec4 air_shape=air_forms();
+        p=mix(p,air_material_domain(screen_p,air_shape),air_gather*(air_shape.z+air_shape.w));
     }
 
     float t = u_time * 0.18;
@@ -3211,7 +3809,9 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     vec3 shared_canvas = color; // Planet retains its accepted pigment response.
     vec3 expressive_canvas = musical_material(color);
     color = mix(color,expressive_canvas,1.-cosmic_takeover);
-    vec4 coverage = directed ? world_coverage(u_world_mix,screen_p) : u_world_mix;
+    // Geometry keeps absolute weights; normalize only the background compositing.
+    vec4 background_mix=u_world_mix/max(1.-u_air_weight,.000001);
+    vec4 coverage = directed ? world_coverage(background_mix,screen_p) : u_world_mix;
     if (geometric_weight > 0.0)
     {
         float geo_canvas = 0.85 + 0.15 * clamp(u_flux, 0.0, 1.0);
@@ -3245,6 +3845,15 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         if(weights.z>0.) color+=isolated_firescape_scene(screen_p,fire_material)*weights.z;
         if(weights.w>0.) color+=isolated_aftershock_scene(screen_p,fire_material)*weights.w;
         if (directed) color=mix(before_fire,color,coverage.w);
+    }
+    float air_amount=directed ? u_air_weight : (held_air ? 1. : 0.);
+    if(air_amount>0.) {
+        vec4 af=air_forms();
+        // Shared geometry evolves with form weights; soft cloud edge owns the handoff.
+        float edge=.12*sin(screen_p.x*4.+u_drift_time*.08)+screen_p.y*.35;
+        float score=air_amount*air_amount*exp(edge*3.);
+        float coverage=score/max(score+pow(1.-air_amount,2.),.000001);
+        color=mix(color,air_scene(screen_p,expressive_canvas,af),coverage);
     }
     fragColor = vec4(color, 1.0);
 }

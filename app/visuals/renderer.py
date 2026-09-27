@@ -8,7 +8,7 @@ import moderngl
 import math
 
 from parameters import VisualParameters
-from preview_layers import layers_at, materials_at
+from preview_layers import layers_at, materials_at, daddy_long_legs_at
 
 VERTEX_SHADER = """
 #version 330
@@ -25,6 +25,8 @@ void main()
 # Deterministic itinerary retained for shader fixtures; live Main uses update_blend.
 # Each chapter visits every implemented form once; holds vary and overlap.
 BLEND_FORMS = (11, 12, 2, 5, 7, 8, 9, 10, 13, 14, 15, 17, 18)
+AIR_FORMS = (19, 20, 21, 22)
+LIVE_FORMS = BLEND_FORMS + AIR_FORMS
 
 @lru_cache(maxsize=8)
 def blend_chapter(chapter):
@@ -66,6 +68,9 @@ def blend_uniforms(seconds, enabled=True):
 
 def world_uniforms(weights, progress=0., enabled=True):
     """Shared packing for the live director and deterministic shader fixtures."""
+    air = sum(weights.get(i,0.) for i in AIR_FORMS)
+    air_mix = tuple(weights.get(i,0.)/max(air,1e-12) for i in AIR_FORMS)
+    weights = {i:w for i,w in weights.items() if i not in AIR_FORMS}
     world = [weights.get(2,0.), weights.get(5,0.),
              sum(weights.get(i,0.) for i in (7,8,9,10,13)),
              sum(weights.get(i,0.) for i in (14,15,17,18))]
@@ -76,7 +81,8 @@ def world_uniforms(weights, progress=0., enabled=True):
     root = weights.get(12,0.)
     return dict(u_directed=int(enabled), u_world_mix=tuple(world), u_water_mix=water,
                 u_current_mix=weights.get(13,0.)/max(world[2],1e-12),
-                u_fire_mix=fire, u_root_mix=root, u_world_warp=math.sin(math.pi*progress))
+                u_fire_mix=fire, u_root_mix=root, u_world_warp=math.sin(math.pi*progress),
+                u_air_weight=air, u_air_mix=air_mix)
 
 
 class Renderer:
@@ -99,6 +105,10 @@ class Renderer:
         self.start_time = None
         self.last_render_time = None
         self.impact_envelope = 0.0
+        self.air_flash_id = 0
+        self.air_flash_armed = True
+        self.air_afterglow = 0.0
+        self.air_trails = []
         self.flow_time = 0.0
         self.firescape_rate = self.FLOW_FLOOR
         self.firescape_travel = 0.0
@@ -148,9 +158,10 @@ class Renderer:
     def choose_world(self, energy, lift=False):
         # Preference, not a playlist: quiet worlds remain possible at high energy.
         preferred = {11:.25,12:.4,2:.75,5:.65,7:.65,8:.3,9:.25,
-                     10:.55,13:.25,14:.7,15:.5,17:.8,18:.9}
+                     10:.55,13:.25,14:.7,15:.5,17:.8,18:.9,
+                     19:.3,20:.75,21:.85,22:.6}
         choices=[];scores=[]
-        for state in BLEND_FORMS:
+        for state in LIVE_FORMS:
             if state == self.director_current:continue
             last=self.director_last_seen.get(state)
             absence=240. if last is None else self.director_time-last
@@ -405,11 +416,28 @@ class Renderer:
         self.program["u_scale"].value = self.parameters.scale
         self.program["u_sparkle"].value = self.parameters.sparkle
         self.program["u_impact"].value = self.impact_envelope
+        self.air_trails = [(seed, strength * math.exp(-delta_time * .9))
+            for seed, strength in self.air_trails if strength > .003]
+        if self.parameters.impact < .08:
+            self.air_flash_armed = True
+        elif self.parameters.impact > .20 and self.air_flash_armed:
+            if self.air_afterglow > .003:
+                self.air_trails = [(self.air_flash_id, self.air_afterglow)] + self.air_trails[:2]
+            self.air_afterglow = 0.0
+            self.air_flash_id += 1
+            self.air_flash_armed = False
+        self.program['u_air_flash_id'].value = float(self.air_flash_id)
+        self.air_afterglow = max(self.parameters.impact,
+            self.air_afterglow * math.exp(-delta_time * .9))
+        self.program['u_air_afterglow'].value = self.air_afterglow
+        self.program['u_air_trails'].value = self.air_trails + [(0.,0.)] * (3-len(self.air_trails))
         self.program["u_flux"].value = self.parameters.flux
         self.program["u_debug_state"].value = float(self.state_at(current_time))
         mode, mask = layers_at(self.layer_profiles, self.state_at(current_time), current_time)
         self.program['u_layer_mode'].value = mode
         self.program['u_layer_mask'].value = mask
+        self.program['u_daddy_long_legs'].value = daddy_long_legs_at(
+            self.layer_profiles, self.state_at(current_time), current_time)
         self.program['u_material_mix'].value = materials_at(
             self.layer_profiles, self.state_at(current_time), current_time)
         self.update_blend(current_time, delta_time, self.state_at(current_time) == 0 and mode != 0)

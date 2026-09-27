@@ -1,5 +1,13 @@
 # Elemental vocabulary: Water foundation
 
+## Air / Wind expansion (2026-09-27)
+
+The latest DREAMWAVE_HANDOFF.md supersedes historical Fire/Main limitations below.
+Air adds Windstreams, Stormfront, Vortex and Sky Citadel in Main and Studio, with
+a shared sky/palette/landmark and evolving native cycle. User accepted the Air
+checkpoint and authorized its commit. Earth (folding strata and dunes), Fog/Gas (colored banks and layered
+visibility), and Plasma (magnetic loops and luminous arcs) remain future concepts.
+
 Updated 2026-09-26. Base checkpoint: `aa44d54`, accepted Geometric material
 gathering. Read AGENTS.md and the current DREAMWAVE_HANDOFF.md entry first.
 

@@ -1,5 +1,23 @@
 # DreamWave Development Studio
 
+## Air / Wind (2026-09-27)
+
+Accepted Air checkpoint: Windstreams flies past fractal balloons and clouds
+above patchwork land. Stormfront follows a curved, mirrored cloud corridor.
+Vortex combines rotating material, wall lightning and free jagged discharges
+rooted at its inner rim. Sky Citadel has a rotating castle with a closed gate,
+attached earth, tower lasers, fireworks and a material-covered planet below.
+Daddy Long Legs remains a dormant FX experiment. See DREAMWAVE_HANDOFF.md
+for detailed behavior and validation history.
+
+Restart Studio, choose Elements > Air / Wind, then leave the form blank to see
+Windstreams, Stormfront, Vortex and Sky Citadel evolve through a 144-second cycle.
+Select a form to hold it. Air details provides cloud/ribbon, balloon,
+lightning and castle/celebration controls alongside existing materials.
+All four forms are also available to Main's musical director. The older fixed
+itinerary and quiet Aftershock fallback descriptions below are historical;
+current behavior is documented at the top of DREAMWAVE_HANDOFF.md.
+
 Run `run_development_studio.bat` from the project folder.
 This small control window launches the existing renderer and analysis tools;
 it does not introduce another audio pipeline, shader interface or renderer.
@@ -357,3 +375,10 @@ World silhouettes and physical surfaces remain intact, and Authored preserves
 the earlier world presentation. Stars and Aftershock geometry are intentionally
 outside the material fold. Use Fractal folds with a material enabled to inspect
 the broad recursive shapes, then Main blend to review their release and overlap.
+## FX experiments
+
+Daddy Long Legs is a shelved Vortex effect under **Air → FX experiments**.
+It is inactive in authored playback and default Main/material presets. Add it
+explicitly to a custom effect list to preview it; existing sessions keep it off.
+Experiments use a separate switch where needed because the original signed
+effect mask is full. Existing effect IDs and saved masks are unchanged.

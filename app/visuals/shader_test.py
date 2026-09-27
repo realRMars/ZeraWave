@@ -13,7 +13,7 @@ import moderngl
 
 from renderer import Renderer, VERTEX_SHADER, blend_uniforms, blend_chapter, BLEND_FORMS
 
-STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18}
+STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23}
 
 
 def save_png(path, pixels):
@@ -133,6 +133,146 @@ def sweep(output):
         print(f"Rendered {len(results)} frames; diagnostics: {output}")
     finally:
         renderer.close()
+
+
+def air_test(baseline_path, output):
+    """GPU preservation, isolated Air details, musical response and handoffs."""
+    from renderer import world_uniforms
+    from preview_layers import BITS
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270,seed=42);old=mesh=None
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text())
+        mesh=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        def frame(state,t=40.,energy=.7,hit=0.,weights=None,previous=False,disabled=None,flash_id=2.,afterglow=None,trails=None,experiment=0.):
+            pr,vao=(old,mesh) if previous else (r.program,r.vao)
+            values=dict(u_time=t*.75,u_star_time=t,u_drift_time=t,u_resolution=(480.,270.),
+                u_scale=energy,u_flux=energy,u_sparkle=energy,u_impact=hit,
+                u_intensity=1.,u_distortion=1.,u_debug_state=float(state),u_event_blasts=0,
+                u_layer_mode=0 if disabled is None else 1,
+                u_layer_mask=2147483647 if disabled is None else 2147483647^BITS.get(disabled,0),
+                u_material_mix=(1.,0.,0.),u_air_flash_id=flash_id,u_air_afterglow=hit if afterglow is None else afterglow,u_daddy_long_legs=experiment,
+                **world_uniforms(weights or {},enabled=weights is not None))
+            for key,value in values.items():
+                if key in pr:pr[key].value=value
+            if 'u_shockwaves' in pr:pr['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+            if 'u_air_trails' in pr:pr['u_air_trails'].value=trails or [(0.,0.)]*3
+            vao.render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)[::-1].copy()
+        preserved=0
+        # Only Vortex changes in this pass; all other held forms stay exact.
+        for state in (*range(21),22):
+            for t in (17.,83.):
+                a=frame(state,t);b=frame(state,t,previous=True)
+                assert np.array_equal(a,b),('existing scene changed',state,t,np.abs(a.astype(float)-b).max())
+                preserved+=1
+        for state in (19,20,21,22):
+            tiles=[]
+            for energy,hit in ((.03,0.),(.8,0.),(.8,.7)):
+                a=frame(state,energy=energy,hit=hit);assert a.std()>4,(state,'blank')
+                assert (a.min(axis=2)>250).mean()<.01,(state,'white wash')
+                if state==20:
+                    assert (a.max(axis=2)==0).mean()<.05,('storm invalid/black coverage',energy,hit)
+                tiles.append(a)
+            save_png(output/f'form-{state}.png',np.concatenate(tiles,axis=1))
+            assert np.abs(tiles[0].astype(float)-tiles[2]).mean()>.3,(state,'unreactive')
+        for state,key in ((19,'air_balloons'),(19,'air_clouds'),(19,'stars'),(20,'air_lightning'),(22,'air_citadel'),(22,'stars')):
+            a=frame(state,hit=.7);b=frame(state,hit=.7,disabled=key)
+            assert np.abs(a.astype(float)-b).sum()>100,(state,key,'isolation ineffective')
+        assert np.abs(frame(20,hit=.7,flash_id=2.).astype(float)-frame(20,hit=.7,flash_id=3.)).mean()>.2
+        assert np.abs(frame(21,afterglow=.6).astype(float)-frame(21)).mean()>.2
+        assert np.array_equal(frame(21,disabled='air_lightning',afterglow=.6),
+            frame(21,disabled='air_lightning',afterglow=0.))
+        history=[(1.,.8),(0.,.3),(0.,0.)]
+        assert np.abs(frame(21,trails=history).astype(float)-frame(21)).mean()>.2
+        assert np.array_equal(frame(21,disabled='air_lightning',trails=history),
+            frame(21,disabled='air_lightning'))
+        assert np.abs(frame(21,disabled='air_lightning',experiment=1.).astype(float)
+            -frame(21,disabled='air_lightning')).mean()>.2
+        # Probe Air before shared material/spatial compositing can move pixels.
+        source=(Path(__file__).parent/'shaders/dream.frag').read_text()
+        probe=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=source.split('\nvoid main()',1)[0]+'''
+void main(){vec2 p=(gl_FragCoord.xy/u_resolution-.5)*vec2(u_resolution.x/u_resolution.y,1.);
+fragColor=vec4(air_scene(p,vec3(.2,.1,.3),vec4(0.,0.,1.,0.)),1.);}
+''')
+        probe_mesh=r.ctx.simple_vertex_array(probe,r.vertices,'in_position')
+        saved_program,saved_vao=r.program,r.vao
+        r.program,r.vao=probe,probe_mesh
+        try:
+            yy,xx=np.mgrid[:270,:480]
+            for t in (1.,3.,5.,7.,11.,17.,23.,29.):
+                clock=t*.1275
+                eye_x=.05*np.sin(clock*.21);eye_y=.045*np.cos(clock*.17)
+                # Match the original bolts' .08 inner exclusion, not the old
+                # oversized .20 disk that also excluded the visible inner rim.
+                eye=((xx+.5-240.)/270.-eye_x)**2+((269.5-yy)/270.-.5-eye_y)**2 < .075**2
+                for energy in (.03,.8):
+                    lit=frame(21,t=t,energy=energy)
+                    unlit=frame(21,t=t,energy=energy,disabled='air_lightning')
+                    assert np.array_equal(lit[eye],unlit[eye]),('lightning crosses eye',t,energy)
+        finally:
+            r.program,r.vao=saved_program,saved_vao
+            probe_mesh.release();probe.release()
+        # Closed gate, solid wall and empty former bridge space, probed from shader geometry.
+        source=(Path(__file__).parent/'shaders/dream.frag').read_text()
+        if 'air_castle_map' in source:
+            probe=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=source.split('\nvoid main()',1)[0]+'''
+void main(){int i=int(gl_FragCoord.x);vec3 p=i==0 ? vec3(0.,.15,-.515) :
+(i==1 ? vec3(.40,.25,-.48) : vec3(0.,.08,-.90));
+fragColor=vec4(vec3(.5+air_castle_map(p).x),1.);}
+''')
+            probe_mesh=r.ctx.simple_vertex_array(probe,r.vertices,'in_position')
+            target=r.ctx.simple_framebuffer((3,1),components=3);target.use()
+            probe_mesh.render(mode=moderngl.TRIANGLE_STRIP)
+            distances=np.frombuffer(target.read(components=3),np.uint8).reshape(3,3)[:,0]
+            # Positive/negative sign denotes empty/solid; conservative distance
+            # scaling for displaced rock intentionally changes the magnitude.
+            assert distances[0]<127 and distances[1]<127 and distances[2]>128,distances
+            r.ctx.screen.use();target.release();probe_mesh.release();probe.release()
+        for state in (19,20,21,22):
+            sequence=[frame(state,t=t) for t in (3.,7.,11.,15.)]
+            assert all(np.abs(a.astype(float)-b).mean()>.5 for a,b in zip(sequence,sequence[1:])),('static scene',state)
+            save_png(output/f'motion-{state}.png',np.concatenate(sequence,axis=1))
+        for state in (19,20,21):
+            assert np.array_equal(frame(state,disabled='none'),frame(state,disabled='air_citadel')),('castle remains',state)
+        checks=0
+        for a in (19,20,21,22):
+            for b in (2,5,7,18,19,20,21,22):
+                if a==b:continue
+                tiles=[]
+                for x in (0.,.25,.5,.75,1.):
+                    pixels=frame(0,weights={a:1.-x,b:x});tiles.append(pixels)
+                    near=frame(0,weights={a:1.-min(1.,x+.0001),b:min(1.,x+.0001)})
+                    assert np.abs(pixels.astype(float)-near).mean()<2.,('handoff jump',a,b,x)
+                    checks+=1
+                if (a,b) in ((19,20),(20,21),(21,22),(22,5)):
+                    save_png(output/f'pair-{a}-{b}.png',np.concatenate(tiles,axis=1))
+        # Real render path uploads the new state/uniforms and preserves forward clocks.
+        last=-1.
+        for i in range(240):
+            r.debug_state=19+(i//60)%4;r.parameters.scale=.8;r.parameters.flux=.7
+            r.parameters.impact=.7 if i%30==0 else 0.
+            r.render(elapsed_time=i/30.)
+            assert r.star_time>last;last=r.star_time
+        # The surface residue outlives the sharp flash, then clears without new hits.
+        r.parameters.impact=.8;r.render(elapsed_time=8.)
+        r.parameters.impact=0.;r.render(elapsed_time=8.25)
+        assert r.air_afterglow>r.impact_envelope>0.
+        old_seed=r.air_flash_id
+        r.parameters.impact=.8;r.render(elapsed_time=8.3)
+        assert r.air_flash_id==old_seed+1 and r.air_trails[0][0]==old_seed
+        assert r.air_trails[0][1]>0. and r.air_afterglow>0.
+        r.parameters.impact=0.;r.render(elapsed_time=16.)
+        assert r.air_afterglow<.01
+        assert all(strength<.01 for _,strength in r.air_trails)
+        report=dict(preserved_frames=preserved,handoff_checks=checks,renderer_frames=244,
+            note='Synthetic GPU and production-renderer tests; real music replay separate.')
+        (output/'checks.json').write_text(json.dumps(report,indent=2));print(report,flush=True)
+    finally:
+        if mesh is not None:mesh.release()
+        if old is not None:old.release()
+        r.close()
 
 
 def fire_expression_test(output):
@@ -329,10 +469,11 @@ def director_test():
             assert sum(w>0)<=2,('stacked takeovers',t,w)
             assert abs(sum(v['u_water_mix'])+v['u_current_mix']-(1. if w[2]>0 else 0.))<1e-6
             assert abs(sum(v['u_fire_mix'])-(1. if w[3]>0 else 0.))<1e-6
-            if previous is not None:assert np.abs(w-previous).max()<.03
+            effective=np.append(w,v['u_air_weight'])
+            if previous is not None:assert np.abs(effective-previous).max()<.03
             if target is not None and r.director_target is not None:
                 assert target==r.director_target,('handoff interrupted',t)
-            target=r.director_target;previous=w
+            target=r.director_target;previous=effective
         events=r.director_history
         assert all(a['state']!=b['state'] for a,b in zip(events,events[1:]))
         assert all(b['seconds']-a['seconds']>=12. for a,b in zip(events,events[1:]))
@@ -2161,7 +2302,11 @@ if __name__ == "__main__":
     parser.add_argument("--musical-color-test", nargs=2, type=Path)
     parser.add_argument("--water-meld-test", nargs=2, type=Path)
     parser.add_argument("--fire-expression-test", type=Path)
+    parser.add_argument("--air-test", nargs=2, type=Path)
     args = parser.parse_args()
+    if args.air_test:
+        air_test(*args.air_test)
+        raise SystemExit(0)
     if args.fire_expression_test:
         fire_expression_test(args.fire_expression_test)
         raise SystemExit(0)
