@@ -87,7 +87,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                     filename = f"frame-{song_time:08.3f}.png"
                     save_png(capture_dir / filename, pixels[::-1])
                     captures.append(dict(file=filename, seconds=song_time,
-                        state=active_state, shockwaves=list(renderer.shockwaves), layer_mode=layer_mode, layer_mask=layer_mask, bass=frame.bass, mids=frame.mids, highs=frame.highs,
+                        state=active_state, flow_rate=renderer.flow_rate, planet_visits=renderer.planet_visits, blast_events=list(renderer.blast_events), world_mix=renderer.blend_values, material_mix=list(renderer.program["u_material_mix"].value), shockwaves=list(renderer.shockwaves), layer_mode=layer_mode, layer_mask=layer_mask, bass=frame.bass, mids=frame.mids, highs=frame.highs,
                         flux=frame.flux, **result,
                         contrast=float(pixels.astype(float).std(axis=(0, 1)).mean()),
                         dark_fraction=float((pixels.max(axis=2) < 35).mean()),
@@ -95,7 +95,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                     next_capture += capture_interval
                 renderer.swap_buffers()
                 renderer.poll_events()
-                rows.append({"seconds": song_time, "state": active_state, "shockwave_count": len(renderer.shockwaves), "layer_mode": layer_mode, "layer_mask": layer_mask, "bass": frame.bass, "mids": frame.mids,
+                rows.append({"seconds": song_time, "state": active_state, "shockwave_count": len(renderer.shockwaves), "blast_count": len(renderer.blast_events), "planet_visits": renderer.planet_visits, "flow_rate": renderer.flow_rate, "layer_mode": layer_mode, "layer_mask": layer_mask, "bass": frame.bass, "mids": frame.mids,
                              "highs": frame.highs, "flux": frame.flux, **result})
                 song_time += len(samples) / rate
                 if speed > 0:

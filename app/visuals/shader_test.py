@@ -1,6 +1,6 @@
 import math
 import argparse
-from preview_layers import parse_layers, validate_layers, layers_at
+from preview_layers import parse_layers, validate_layers, layers_at, materials_at
 import hashlib
 import json
 import struct
@@ -11,7 +11,7 @@ import numpy as np
 import glfw
 import moderngl
 
-from renderer import Renderer, VERTEX_SHADER
+from renderer import Renderer, VERTEX_SHADER, blend_uniforms, blend_chapter, BLEND_FORMS
 
 STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18}
 
@@ -36,7 +36,9 @@ def capture(output, seconds, profile="standard", debug_state=0, layers=None):
                   u_sparkle=.2, u_impact=.05, u_intensity=1., u_distortion=1.,
                   u_debug_state=float(debug_state))
     layer_mode, layer_mask = layers_at(validate_layers(layers or {}), debug_state, seconds)
-    values.update(u_layer_mode=layer_mode, u_layer_mask=layer_mask)
+    values.update(u_layer_mode=layer_mode, u_layer_mask=layer_mask,
+                  u_material_mix=materials_at(layers or {},debug_state,seconds),u_event_blasts=0)
+    values.update(blend_uniforms(seconds, debug_state == 0 and layer_mode != 0))
     if profile == "quiet":
         values.update(u_scale=.05, u_flux=.02, u_sparkle=.05, u_impact=0.)
     elif profile == "active":
@@ -1286,8 +1288,514 @@ def aftershock_test(baseline_path, output):
         r.close()
 
 
+def materials_test(baseline_path, output):
+    """Real GPU preservation, material isolation, and cross-world meld checks."""
+    from preview_layers import BITS, WORLDS, material_trio_profile, world_for_state
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=320,height=180);old=vao=None
+    trio={world:material_trio_profile(world) for world in WORLDS}
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text(encoding='utf-8'))
+        vao=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        def frame(state,t,level=.4,mode=0,mask=0,weights=None,previous=False):
+            pr=old if previous else r.program
+            values=dict(u_time=t*.75,u_star_time=t,u_drift_time=t,u_resolution=(320.,180.),
+                u_scale=level,u_flux=level,u_sparkle=level,u_impact=level*.3,
+                u_intensity=1.,u_distortion=1.,u_debug_state=float(state),
+                u_layer_mode=mode,u_layer_mask=mask,u_material_mix=weights or (1.,0.,0.))
+            for key,value in values.items():
+                if key in pr:pr[key].value=value
+            if 'u_shockwaves' in pr:pr['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+            (vao if previous else r.vao).render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(180,320,3).copy()
+        preserved=0;rounding=[]
+        for state in range(19):
+            for t in (0.,42.,83.9,126.,147.,266.):
+                for mode,mask in ((0,0),(1,1)):
+                    current=frame(state,t,mode=mode,mask=mask)
+                    accepted=frame(state,t,mode=mode,mask=mask,previous=True)
+                    delta=np.abs(current.astype(float)-accepted)
+                    # Additional shader paths can change final 8-bit rounding.
+                    # Bound this to single channel steps in at most eight samples;
+                    # any visible/math regression still fails the comparison.
+                    assert delta.max()<=1 and np.count_nonzero(delta)<=8,(state,t,mode,delta.max(),np.count_nonzero(delta),delta.mean())
+                    if delta.any():rounding.append(dict(state=state,time=t,mode=mode,channels=int(np.count_nonzero(delta))))
+                    preserved+=1
+        responses=[];pictures=[]
+        for state in range(19):
+            if state==3:continue # Geometry study has no inherited-material canvas.
+            off=frame(state,42.,mode=1)
+            for key in ('alloy','lattice'):
+                pixels=frame(state,42.,mode=1,mask=BITS[key])
+                delta=float(np.abs(pixels.astype(float)-off).mean())
+                assert delta>.001,(state,key,delta)
+                responses.append(dict(state=state,material=key,response=delta))
+            if state in (12,2,5,7,10,14,15,17,18):
+                pictures.append(np.concatenate([frame(state,42.,mode=1,mask=BITS[k])[::-1]
+                    for k in ('artifacts','alloy','lattice')],axis=1))
+        save_png(output/'world-materials.png',np.concatenate(pictures,axis=0))
+        # Freeze the world while fading materials: no illumination spike or cut.
+        max_steps=[]
+        for state in (0,2,5,7,10,12,14,15,17,18):
+            _,mask=layers_at(trio,state,0.)
+            for pair in ((0,1),(1,2),(2,0)):
+                previous=None;largest=0.
+                for i in range(61):
+                    w=[0.,0.,0.];x=i/60.;x=x*x*(3.-2.*x)
+                    w[pair[0]]=1.-x;w[pair[1]]=x
+                    pixels=frame(state,42.,mode=2,mask=mask,weights=tuple(w)).astype(float)
+                    if previous is not None:largest=max(largest,float(np.abs(pixels-previous).mean()))
+                    previous=pixels
+                assert largest<2.,(state,pair,largest)
+                max_steps.append(largest)
+        # Existing world entrances/releases with the independent material clock.
+        joins=[]
+        for state,times in ((0,(24.,44.,88.,112.,116.,126.,144.,158.,266.,284.,298.)),
+                            (6,(19.04,28.,47.04,56.,75.04,84.,103.04,112.,131.04,140.)),
+                            (16,(19.,28.,47.,56.,75.,84.))):
+            for t in times:
+                images=[]
+                for seconds in (t-.01,t+.01):
+                    mode,mask=layers_at(trio,state,seconds)
+                    images.append(frame(state,seconds,mode=mode,mask=mask,
+                        weights=materials_at(trio,state,seconds)).astype(float))
+                delta=float(np.abs(images[1]-images[0]).mean())
+                if delta>=3.:
+                    legacy=float(np.abs(frame(state,t+.01,previous=True).astype(float)-frame(state,t-.01,previous=True)).mean())
+                    control=float(np.abs(frame(state,t+.01,mode=2,mask=mask,weights=(1.,0.,0.)).astype(float)-frame(state,t-.01,mode=2,mask=mask,weights=(1.,0.,0.))).mean())
+                    save_png(output/f'boundary-{state}-{t}.png',np.concatenate([im.astype(np.uint8)[::-1] for im in images],axis=1))
+                    print('World boundary diagnostic',state,t,'new',delta,'accepted',legacy,'same-mode Living',control,flush=True)
+                assert delta<3.,(state,t,delta)
+                joins.append(delta)
+        # Real renderer: material progression continues across diagnostic world switches.
+        r.layer_profiles=trio;r.debug_sequence=(12,2,5,7,10,14,15,17,18,0)
+        last=(-1.,-1.)
+        for i in range(561):
+            t=i*.5;r.render(t)
+            assert r.flow_time>last[0] and r.star_time>last[1]
+            assert np.allclose(r.program['u_material_mix'].value,materials_at(trio,r.state_at(t),t))
+            last=(r.flow_time,r.star_time)
+        report=dict(preserved_frames=preserved,quantization_differences=rounding,material_responses=responses,
+            fixed_world_meld_frames=len(max_steps)*61,max_material_step=max(max_steps),
+            world_boundary_checks=len(joins),max_world_boundary_step=max(joins),renderer_frames=561)
+        (output/'checks.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print(report)
+    finally:
+        if vao is not None:vao.release()
+        if old is not None:old.release()
+        r.close()
+
+
+def blend_test(baseline_path, output, changed_states=()):
+    """Main-default coverage, GPU handoffs and accepted held-world preservation."""
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270); old=vao=None
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text(encoding='utf-8'))
+        vao=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        def frame(seconds,state=0,previous=False,authored=False,material=None):
+            pr=old if previous else r.program
+            mode,mask=layers_at({},state,seconds)
+            if authored:mode,mask=0,0
+            values=dict(u_time=seconds*.75,u_star_time=seconds,u_drift_time=seconds,
+                u_resolution=(480.,270.),u_scale=.45,u_flux=.45,u_sparkle=.35,
+                u_impact=.12,u_intensity=1.,u_distortion=1.,u_debug_state=float(state),
+                u_layer_mode=mode,u_layer_mask=mask,u_material_mix=materials_at({},state,seconds))
+            values.update(blend_uniforms(seconds,state==0 and not authored))
+            if material is not None:
+                from preview_layers import BITS
+                values.update(u_layer_mode=1,u_layer_mask=BITS[material])
+            for key,value in values.items():
+                if key in pr:pr[key].value=value
+            if 'u_shockwaves' in pr:pr['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+            (vao if previous else r.vao).render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3).copy()
+        # Corridor must recur and survive the supplemental Planet scheduler.
+        for chapter in range(8):
+            ids,spans=blend_chapter(chapter)
+            assert ids.count(2)==4 and ids[1]==2
+            assert all(a!=b for a,b in zip(ids,ids[1:]))
+            if chapter:assert blend_chapter(chapter-1)[0][-1]!=ids[0]
+        schedule_renderer=Renderer()
+        schedule_renderer.parameters.scale=.9
+        schedule_renderer.parameters.movement=.9
+        schedule_renderer.parameters.flux=.9
+        corridor_seconds=0
+        for i in range(3600):
+            seconds=i*.1
+            schedule_renderer.blend_values=blend_uniforms(seconds)
+            original=schedule_renderer.blend_values['u_world_mix'][0]
+            schedule_renderer.update_planet(seconds,.1)
+            if original>.99:
+                assert schedule_renderer.blend_values['u_world_mix'][0]>.989
+                corridor_seconds+=.1
+        assert corridor_seconds>30.,corridor_seconds
+        differences=[];preserved=0
+        for state in range(19):
+            if state in changed_states:continue # Explicitly changed forms tested by the calling suite.
+            for t in (0.,26.,77.,126.,177.,266.):
+                a=frame(t,state,authored=True);b=frame(t,state,previous=True,authored=True)
+                delta=np.abs(a.astype(float)-b)
+                assert delta.max()<=1 and np.count_nonzero(delta)<=8,(state,t,delta.max(),np.count_nonzero(delta))
+                preserved+=1
+                if delta.any():differences.append((state,t,int(np.count_nonzero(delta))))
+        seams=[];captures=[];tiles=[];coverage=set();holds=[]
+        for chapter in range(3):
+            ids,spans=blend_chapter(chapter)
+            assert set(ids)==set(BLEND_FORMS)
+            if chapter: assert blend_chapter(chapter-1)[0][-1]!=ids[0]
+            start=chapter*360.
+            for i,(state,span) in enumerate(zip(ids,spans)):
+                coverage.add(state);holds.append(span)
+                if chapter==0:
+                    t=start+span*.3
+                    pixels=frame(t)
+                    assert pixels.std()>2,(state,t)
+                    name=f'form-{state}-{t:.2f}.png';save_png(output/name,pixels[::-1])
+                    tiles.append(pixels[::-1]);captures.append(dict(file=name,state=state,seconds=t,**blend_uniforms(t)))
+                # Transition starts, midpoint, end; actual 20ms frame difference.
+                for fraction in ((.68 if i%4==3 else .52),.8,1.):
+                    t=start+span*fraction
+                    a=frame(t-.01);b=frame(t+.01)
+                    delta=float(np.abs(a.astype(float)-b).mean())
+                    seams.append(dict(seconds=t,delta=delta))
+                    if delta>=4.:
+                        save_png(output/f'seam-{t:.2f}.png',np.concatenate((a[::-1],b[::-1]),axis=1))
+                    # Fine procedural structure can move several pixel levels in
+                    # 20ms. A true cut does not shrink when the interval shrinks;
+                    # require convergence at 1ms instead of treating motion as a cut.
+                    if delta>=4.:
+                        near_a=frame(t-.0005);near_b=frame(t+.0005)
+                        near_delta=float(np.abs(near_a.astype(float)-near_b).mean())
+                        seams[-1]['delta_1ms']=near_delta
+                        print('Transition motion',state,t,delta,'1ms',near_delta,flush=True)
+                        assert near_delta < max(.15,delta*.2),(state,t,delta,near_delta)
+                start+=span
+        save_png(output/'overview.png',np.concatenate([np.concatenate(tiles[i:i+3]+[np.zeros_like(tiles[0])]*(3-len(tiles[i:i+3])),axis=1) for i in range(0,len(tiles),3)],axis=0))
+        # New materials move with fixed audio, without changing geometry selection.
+        motion={}
+        for key in ('alloy','lattice'):
+            a=frame(42.,12,material=key);b=frame(44.,12,material=key)
+            motion[key]=float(np.abs(a.astype(float)-b).mean())
+            assert motion[key]>1.
+        # Default settings, same path as the live launcher; no preset required.
+        r.layer_profiles={};r.debug_state=0
+        last=(-1.,-1.);seen_materials=set();rings=0
+        for i in range(721):
+            t=i*.5;r.parameters.impact=.8 if i%8==0 else 0.;r.render(t)
+            assert r.flow_time>last[0] and r.star_time>last[1]
+            last=(r.flow_time,r.star_time)
+            mix=r.program['u_material_mix'].value
+            assert np.allclose(mix,materials_at({},0,t)) and abs(sum(mix)-1.)<1e-5
+            assert r.program['u_directed'].value==1
+            seen_materials.add(int(np.argmax(mix)))
+            rings=max(rings,len(r.shockwaves))
+        assert seen_materials=={0,1,2} and rings>0
+        report=dict(preserved_frames=preserved,rounding=differences,covered_forms=sorted(coverage),
+            transition_checks=len(seams),max_transition_delta=max(x['delta'] for x in seams),
+            hold_range=[min(holds),max(holds)],material_motion=motion,renderer_frames=721,
+            max_aftershock_rings=rings,transitions=seams,captures=captures)
+        (output/'checks.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print({k:v for k,v in report.items() if k not in ('captures','transitions')},flush=True)
+    finally:
+        if vao is not None:vao.release()
+        if old is not None:old.release()
+        r.close()
+
+
+def motion_test(baseline_path, output):
+    """Hold composition/audio amplitude fixed to measure clock-driven travel."""
+    from preview_layers import material_trio_profile
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=640,height=360);old=vao=None
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text(encoding='utf-8'))
+        vao=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        _,mask=layers_at({'blend':material_trio_profile('blend')},0,0.)
+        def draw(t,clock,material,previous=False):
+            pr=old if previous else r.program
+            values=dict(u_time=clock,u_drift_time=t,u_star_time=t,u_resolution=(640.,360.),
+                u_scale=.4,u_flux=.35,u_sparkle=.25,u_impact=.1,u_intensity=1.,u_distortion=1.,
+                u_debug_state=0.,u_layer_mode=2,u_layer_mask=mask,
+                u_material_mix=tuple(float(i==material) for i in range(3)),**blend_uniforms(t))
+            for key,value in values.items():
+                if key in pr:pr[key].value=value
+            pr['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+            (vao if previous else r.vao).render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(360,640,3).copy()
+        rows=[];tiles=[]
+        for state,t in ((11,8.),(13,37.),(2,90.),(10,259.),(5,287.)):
+            for material in range(3):
+                measures={}
+                for previous in (True,False):
+                    base=draw(t,30.,material,previous)
+                    for name,rate in (('quiet',.35),('full',1.15)):
+                        moved=draw(t,30.+.10*rate,material,previous)
+                        measures[('before_' if previous else '')+name]=float(np.abs(moved.astype(float)-base).mean())
+                assert measures['full']>measures['quiet']*1.15,(state,material,measures)
+                rows.append(dict(state=state,material=material,**measures))
+            if state in (13,10):
+                tiles.append(np.concatenate([draw(t,30.,i)[::-1] for i in range(3)],axis=1))
+        # The restored material travel must be measurable, not just a clock edit.
+        currents=[row for row in rows if row['state']==13]
+        assert all(row['full']>row['before_full']*1.15 for row in currents),currents
+        save_png(output/'materials.png',np.concatenate(tiles,axis=0))
+        # Same GPU, resolution, uniforms and sample count, no replay running.
+        costs=[]
+        for t in (8.,37.,90.,259.,287.):
+            for previous in (True,False):
+                draw(t,30.,1,previous)
+                r.ctx.finish()
+                mesh=vao if previous else r.vao
+                with r.ctx.query(time=True) as query:
+                    for i in range(30):mesh.render(mode=moderngl.TRIANGLE_STRIP)
+                costs.append(dict(time=t,previous=previous,gpu_ms=query.elapsed/30/1e6))
+        report=dict(motion=rows,gpu_costs_640x360=costs)
+        (output/'checks.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print(report,flush=True)
+    finally:
+        if vao is not None:vao.release()
+        if old is not None:old.release()
+        r.close()
+
+
+def response_test(baseline_path, output):
+    """Actual renderer musical scheduling, bounded event clouds and GPU coverage."""
+    output.mkdir(parents=True,exist_ok=True)
+    # CPU event checks: scheduling is independent of GPU throughput.
+    r=Renderer();quiet=Renderer();visits=[];previous=0;births=[];serial=0;max_sites=0
+    r.debug_state=18
+    for i in range(1201):
+        t=i*.05
+        r.parameters.impact=.85 if i%10==0 else 0.
+        r.update_blasts(t)
+        max_sites=max(max_sites,len(r.blast_events))
+        assert len(r.blast_events)<=8 and all(0<=t-e[0]<20 for e in r.blast_events)
+        if r.blast_serial!=serial:births.append(t);serial=r.blast_serial
+    assert len(births)>12 and max_sites==8 and min(np.diff(births))>=1.5-1e-8
+    held=Renderer();held.debug_state=18;held.parameters.impact=1.
+    for i in range(100):held.update_blasts(i*.05)
+    assert held.blast_serial==1 and held.blast_hits<=1
+    for i in range(3001):
+        t=i*.1
+        for obj,energy in ((r,.85),(quiet,0.)):
+            obj.parameters.scale=energy;obj.parameters.movement=energy;obj.parameters.flux=energy
+            obj.blend_values=blend_uniforms(t)
+            obj.update_planet(t,.1)
+            assert 0<=sum(obj.blend_values['u_world_mix'])<=1.000001
+        if r.planet_visits!=previous:visits.append(t);previous=r.planet_visits
+    assert quiet.planet_visits==0 and len(visits)>=4
+    assert all(gap>=minimum-.11 for gap,minimum in zip(np.diff(visits[:4]),(45.,55.,85.))),visits
+    old=vao=None;r=Renderer(width=480,height=270)
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text(encoding='utf-8'))
+        vao=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        # Fixed uniforms preserve untouched held forms, independently of faster clock.
+        preserved=0
+        for state in (1,2,3,4,5,6,7,8,9,10,11,12,13,14,17,18):
+            for t in (26.,77.):
+                values=dict(u_time=t*.75,u_drift_time=t,u_star_time=t,u_resolution=(480.,270.),
+                    u_scale=.4,u_flux=.3,u_sparkle=.2,u_impact=.1,u_intensity=1.,u_distortion=1.,
+                    u_debug_state=float(state),u_layer_mode=0,u_layer_mask=0,u_material_mix=(1.,0.,0.),u_event_blasts=0,
+                    **blend_uniforms(t,False))
+                images=[]
+                for pr,mesh in ((old,vao),(r.program,r.vao)):
+                    for key,value in values.items():
+                        if key in pr:pr[key].value=value
+                    pr['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+                    mesh.render(mode=moderngl.TRIANGLE_STRIP)
+                    images.append(np.frombuffer(r.ctx.screen.read(components=3),np.uint8).copy())
+                delta=np.abs(images[0].astype(float)-images[1])
+                assert delta.max()<=1 and np.count_nonzero(delta)<=12,(state,t,delta.max(),np.count_nonzero(delta))
+                preserved+=1
+        # Real uniforms/clock: low energy remains slow, strong energy accelerates.
+        frames=[];rate_quiet=0.;peak_rate=0.;last=(-1.,-1.);seen_visit=False
+        for i in range(1201):
+            t=i*.05;energy=0. if t<3. else .9
+            r.parameters.scale=energy;r.parameters.movement=energy;r.parameters.flux=energy
+            r.parameters.sparkle=energy*.7;r.parameters.impact=.7 if i%10==0 and t>3. else 0.
+            r.render(t)
+            assert r.flow_time>=last[0] and r.star_time>=last[1]
+            last=(r.flow_time,r.star_time);peak_rate=max(peak_rate,r.flow_rate)
+            if i==59:rate_quiet=r.flow_rate
+            seen_visit|=r.planet_visits>0
+            if i in (600,960,1100):
+                pixels=np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)
+                save_png(output/f'main-{t:g}.png',pixels[::-1])
+        assert rate_quiet<.36 and peak_rate>3. and seen_visit,(rate_quiet,peak_rate)
+        # Force eight overlapping events and exercise the real depth-sorted shader.
+        r.debug_state=18
+        r.blast_events=[(60.+i*1.8,float(i),(-1 if i%2 else 1)*(2.+i*1.8),32.+i*5.) for i in range(8)]
+        r.blast_serial=8;r.last_blast=72.6
+        r.render(74.)
+        pixels=np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)
+        assert pixels.std()>5
+        save_png(output/'eight-sites.png',pixels[::-1])
+        with r.ctx.query(time=True) as query:
+            for i in range(20):r.vao.render(mode=moderngl.TRIANGLE_STRIP)
+        cost=query.elapsed/20/1e6
+        # Rotating molten shot and both colored siblings through actual renderer.
+        from preview_layers import material_trio_profile
+        r.debug_state=15;r.layer_profiles={'fire':material_trio_profile('fire')}
+        r.render(80.)
+        pixels=np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)
+        save_png(output/'molten.png',pixels[::-1])
+        report=dict(preserved_frames=preserved,planet_visits=visits,blast_births=births,max_sites=max_sites,
+            quiet_rate=rate_quiet,peak_rate=peak_rate,renderer_frames=1203,eight_cloud_gpu_ms_480x270=cost)
+        (output/'checks.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print(report,flush=True)
+    finally:
+        if vao is not None:vao.release()
+        if old is not None:old.release()
+        r.close()
+
+
+def color_test(baseline,output):
+    """Compare actual composite chroma/headroom, not just palette constants."""
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270);old=vao=None
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline.read_text())
+        vao=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        results=[]
+        for t in (8.,15.,30.,45.,62.,90.,125.,165.):
+            mode,mask=layers_at({},0,t)
+            values=dict(u_time=t*.75,u_star_time=t,u_drift_time=t,
+                u_resolution=(480.,270.),u_scale=.45,u_flux=.45,u_sparkle=.25,
+                u_impact=.12,u_intensity=1.,u_distortion=1.,u_debug_state=0.,
+                u_layer_mode=mode,u_layer_mask=mask,u_material_mix=materials_at({},0,t),u_event_blasts=0)
+            values.update(blend_uniforms(t))
+            frames=[]
+            for program,geometry in ((old,vao),(r.program,r.vao)):
+                for key,value in values.items():
+                    if key in program:program[key].value=value
+                program['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+                geometry.render(mode=moderngl.TRIANGLE_STRIP)
+                frames.append(np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3).copy())
+            before,after=[x.astype(float)/255. for x in frames]
+            lit=(before.max(2)>.06)&(after.max(2)>.06)
+            saturation=[]
+            for pixels in (before,after):
+                peak=pixels.max(2)
+                saturation.append(float(((peak-pixels.min(2))/np.maximum(peak,1e-6))[lit].mean()))
+            clipped=float((after.max(2)>.99).mean())
+            assert clipped<.03,(t,clipped)
+            results.append(dict(seconds=t,before=saturation[0],after=saturation[1],clipped=clipped))
+            save_png(output/f'compare-{t:.0f}.png',np.concatenate([x[::-1] for x in frames],axis=1))
+        gain=float(np.mean([row['after']-row['before'] for row in results]))
+        assert gain>.015,gain
+        (output/'checks.json').write_text(json.dumps(dict(mean_saturation_gain=gain,frames=results),indent=2))
+        print('Color checks passed; mean saturation gain',gain,'maximum clipping',max(x['clipped'] for x in results))
+    finally:
+        if vao is not None:vao.release()
+        if old is not None:old.release()
+        r.close()
+
+
+def spatial_test(output):
+    """GPU material/detail participation and continuous shared spatial envelopes."""
+    from preview_layers import BITS, EFFECTS, WORLDS
+    for key in ('tunnel','fractal','horizon'):
+        assert EFFECTS[key][2] == WORLDS
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270)
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        def frame(state,material,spatial,seconds=26.,mode=1):
+            mask=sum(BITS[k] for k in EFFECTS if k not in
+                ('artifacts','alloy','lattice','tunnel','fractal','horizon'))
+            mask+=BITS[material]+sum(BITS[k] for k in spatial)
+            values=dict(u_time=seconds*.75,u_star_time=seconds,u_drift_time=seconds,
+                u_resolution=(480.,270.),u_scale=.6,u_flux=.65,u_sparkle=.45,
+                u_impact=.1,u_intensity=1.,u_distortion=1.,u_debug_state=float(state),
+                u_layer_mode=mode,u_layer_mask=mask,
+                u_material_mix=tuple(float(k==material) for k in ('artifacts','alloy','lattice')))
+            values.update(blend_uniforms(seconds,False))
+            for key,value in values.items():
+                if key in r.program:r.program[key].value=value
+            r.program['u_event_blasts'].value=0
+            r.program['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+            r.vao.render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3).copy()
+        # Read actual shader envelopes: every minute must contain unmistakable
+        # full-strength Tunnel/Fractal holds, with bounded gaps between visits.
+        source=Path(__file__).with_name('shaders').joinpath('dream.frag').read_text()
+        probe=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=
+            source[:source.index('void main()')]+"void main(){fragColor=vec4(spatial_weights(),1.);}")
+        probe_vao=r.ctx.simple_vertex_array(probe,r.vertices,'in_position')
+        schedule=[]
+        try:
+            for key,value in dict(u_directed=1,u_layer_mode=2,
+                u_layer_mask=BITS['tunnel']|BITS['fractal']|BITS['horizon'],
+                u_scale=.45,u_flux=.45).items():
+                if key in probe:probe[key].value=value
+            for second in range(181):
+                probe['u_drift_time'].value=float(second)
+                probe_vao.render(mode=moderngl.TRIANGLE_STRIP)
+                schedule.append(tuple(r.ctx.screen.read(components=3)[:3]))
+            for channel in (0,1):
+                strong=np.array(schedule)[:,channel]>230
+                for start in (0,60,120):assert strong[start:start+60].sum()>=20
+                gap=0
+                for present in strong:
+                    gap=0 if present else gap+1
+                    assert gap<=23,(channel,gap)
+        finally:
+            probe_vao.release();probe.release()
+        results=[]
+        for state in (2,5,7,8,9,10,12,13,14,15,17,18):
+            tiles=[]
+            for material in ('artifacts','alloy','lattice'):
+                base=frame(state,material,())
+                images=[base]
+                for effect in ('tunnel','fractal','horizon'):
+                    pixels=frame(state,material,(effect,))
+                    delta=float(np.abs(pixels.astype(float)-base).mean())
+                    assert delta>.08,(state,material,effect,delta)
+                    assert pixels.std()>2,(state,material,effect)
+                    results.append(dict(state=state,material=material,effect=effect,delta=delta))
+                    images.append(pixels)
+                tiles.append(np.concatenate([im[::-1] for im in images],axis=1))
+            save_png(output/f'state-{state}.png',np.concatenate(tiles,axis=0))
+        # Adjacent overlapping envelopes must converge even after an hour of travel.
+        continuity=[]
+        for state in (5,8,10,13):
+            for t in (21.,65.,110.,3600.):
+                a=frame(state,'alloy',('tunnel','fractal','horizon'),t-.01,2)
+                b=frame(state,'alloy',('tunnel','fractal','horizon'),t+.01,2)
+                delta=float(np.abs(a.astype(float)-b).mean())
+                near_a=frame(state,'alloy',('tunnel','fractal','horizon'),t-.0005,2)
+                near_b=frame(state,'alloy',('tunnel','fractal','horizon'),t+.0005,2)
+                near=float(np.abs(near_a.astype(float)-near_b).mean())
+                finest=None
+                if near>=max(.25,delta*.25):
+                    # At long elapsed times float32 clock steps approach 1ms.
+                    # Distinguish steep procedural motion from a real cut with
+                    # another convergence sample, rather than accepting the jump.
+                    fa=frame(state,'alloy',('tunnel','fractal','horizon'),t-.0001,2)
+                    fb=frame(state,'alloy',('tunnel','fractal','horizon'),t+.0001,2)
+                    finest=float(np.abs(fa.astype(float)-fb).mean())
+                    assert near<delta*.35 and finest<max(.08,near*.3),(state,t,delta,near,finest)
+                continuity.append(dict(state=state,seconds=t,delta=delta,near=near,finest=finest))
+        report=dict(participation=results,continuity=continuity,spatial_schedule=schedule)
+        (output/'checks.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print('Spatial GPU checks passed:',len(results),'material/effect/world combinations;',len(continuity),'handoffs')
+    finally:r.close()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--spatial-test", type=Path)
+    parser.add_argument("--color-test", nargs=2, type=Path)
+    parser.add_argument("--response-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
+    parser.add_argument("--motion-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
+    parser.add_argument("--blend-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
+    parser.add_argument("--materials-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--aftershock-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--firescape-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--molten-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
@@ -1311,7 +1819,22 @@ if __name__ == "__main__":
     parser.add_argument("--states", nargs="+", choices=tuple(STATES), help="Development cycle: hold each state for 28 seconds.")
     parser.add_argument("--layers", type=parse_layers, default={}, help="Development per-world effect settings as JSON.")
     args = parser.parse_args()
-    if args.aftershock_test:
+    if args.color_test:
+        color_test(*args.color_test)
+        raise SystemExit(0)
+    if args.spatial_test:
+        spatial_test(args.spatial_test)
+        raise SystemExit(0)
+    if args.response_test:
+        response_test(*args.response_test)
+        blend_test(args.response_test[0],args.response_test[1]/'transitions',changed_states=(15,16))
+    elif args.motion_test:
+        motion_test(*args.motion_test)
+    elif args.blend_test:
+        blend_test(*args.blend_test)
+    elif args.materials_test:
+        materials_test(*args.materials_test)
+    elif args.aftershock_test:
         aftershock_test(*args.aftershock_test)
     elif args.firescape_test:
         fire_test(*args.firescape_test,molten_expansion=True,firescape_expansion=True)

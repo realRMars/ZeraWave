@@ -1,12 +1,14 @@
 from pathlib import Path
 import time
+import random
+from functools import lru_cache
 
 import glfw
 import moderngl
 import math
 
 from parameters import VisualParameters
-from preview_layers import layers_at
+from preview_layers import layers_at, materials_at
 
 VERTEX_SHADER = """
 #version 330
@@ -20,9 +22,60 @@ void main()
 """
 
 
+# A repeatable shuffled itinerary, independent of audio/render frame rate.
+# Each chapter visits every implemented form once; holds vary and overlap.
+BLEND_FORMS = (11, 12, 2, 5, 7, 8, 9, 10, 13, 14, 15, 17, 18)
+
+@lru_cache(maxsize=8)
+def blend_chapter(chapter):
+    def order(index):
+        ids = list(BLEND_FORMS)
+        random.Random(7301 + index * 104729).shuffle(ids)
+        return ids
+    ids = order(chapter)
+    ids.remove(2)
+    if chapter == 0:
+        ids.remove(11); ids.insert(0, 11)
+    elif ids[0] == [state for state in order(chapter - 1) if state != 2][-1]:
+        ids[0], ids[1] = ids[1], ids[0]
+    # Corridor is a recurring anchor, not one brief chance per six minutes.
+    # Keep every other form, with three varied worlds between corridor visits.
+    for index in (1,5,9,13):
+        ids.insert(index,2)
+    rng = random.Random(2917 + chapter * 15485863)
+    spans = [rng.uniform(19., 29.) * (1.5 if i % 4 == 3 else 1.) for i in range(len(ids))]
+    scale = 360. / sum(spans)
+    return tuple(ids), tuple(span * scale for span in spans)
+
+
+def blend_uniforms(seconds, enabled=True):
+    chapter = int(max(0., seconds) // 360.)
+    ids, spans = blend_chapter(chapter)
+    phase = max(0., seconds) % 360.
+    index = 0
+    while index < len(ids)-1 and phase >= spans[index]:
+        phase -= spans[index]; index += 1
+    following = ids[index+1] if index+1 < len(ids) else blend_chapter(chapter+1)[0][0]
+    # Longer rests breathe, ordinary holds spend almost half their time gathering.
+    fade_start = .68 if index % 4 == 3 else .52
+    x = max(0., min(1., (phase / spans[index] - fade_start) / (1.-fade_start)))
+    x = x*x*(3.-2.*x)
+    weights = {ids[index]: 1.-x, following: x}
+    world = [weights.get(2,0.), weights.get(5,0.),
+             sum(weights.get(i,0.) for i in (7,8,9,10,13)),
+             sum(weights.get(i,0.) for i in (14,15,17,18))]
+    water = tuple(weights.get(i,0.) / max(world[2],1e-12) for i in (7,8,9,10))
+    fire = tuple(weights.get(i,0.) / max(world[3],1e-12) for i in (14,15,17,18))
+    # Root structure also contributes to the shared source canvas. Fade it
+    # with world coverage so it cannot switch inside a departing corridor.
+    root = weights.get(12,0.)
+    return dict(u_directed=int(enabled), u_world_mix=tuple(world), u_water_mix=water,
+                u_current_mix=weights.get(13,0.)/max(world[2],1e-12),
+                u_fire_mix=fire, u_root_mix=root, u_world_warp=math.sin(math.pi*x))
+
+
 class Renderer:
-    # River Flow: bounds/smoothing for the animation rate driven by
-    # the movement parameter (see render()).
+    # Base flow range before the bounded musical energy boost in render().
     FLOW_FLOOR = 0.35
     FLOW_CEILING = 1.15
     FLOW_SMOOTHING_SECONDS = 0.6
@@ -53,12 +106,64 @@ class Renderer:
         self.shockwaves = []
         self.shockwave_armed = True
         self.last_shockwave = -1000.0
+        self.blend_values = blend_uniforms(0., False)
+        self.planet_start = -1000.
+        self.next_planet = 45.
+        self.planet_visits = 0
+        self.heavy_seconds = 0.
+        self.blast_events = []
+        self.blast_serial = 0
+        self.blast_hits = 0
+        self.blast_armed = True
+        self.last_blast_hit = -1000.
+        self.last_blast = -1000.
 
     def state_at(self, seconds):
         """Development-only holds; ordinary rendering keeps its existing state."""
         if self.debug_sequence:
             return self.debug_sequence[int(max(0.0, seconds) // 28.0) % len(self.debug_sequence)]
         return self.debug_state
+
+    def update_planet(self, seconds, delta):
+        """A sustained-energy opportunity, not a claim of chorus detection."""
+        if not self.blend_values['u_directed']:
+            self.heavy_seconds = 0.
+            return
+        drive = .45*self.parameters.scale + .35*self.parameters.movement + .20*self.parameters.flux
+        self.heavy_seconds = min(3., self.heavy_seconds+delta) if drive>.58 else max(0.,self.heavy_seconds-delta*2.)
+        aftershock = self.blend_values['u_world_mix'][3]*self.blend_values['u_fire_mix'][3]
+        # Let the other favorite complete its visit instead of covering it up.
+        if seconds>=self.next_planet and self.heavy_seconds>=1.5 and aftershock<.10 and self.blend_values['u_world_mix'][0]<.10:
+            self.planet_start = seconds
+            self.planet_visits += 1
+            self.next_planet = seconds + (45.,55.,85.)[(self.planet_visits-1)%3]
+        age = seconds-self.planet_start
+        def ease(x):
+            x=max(0.,min(1.,x));return x*x*(3.-2.*x)
+        presence = ease(age/6.)*(1.-ease((age-18.)/9.))
+        # An already-running extra Planet also releases for a corridor arrival.
+        presence *= 1.-ease(self.blend_values['u_world_mix'][0])
+        weights = self.blend_values['u_world_mix']
+        self.blend_values['u_world_mix'] = tuple(w*(1.-presence)+(presence if i==1 else 0.) for i,w in enumerate(weights))
+        self.blend_values['u_world_warp'] = max(self.blend_values['u_world_warp']*(1.-presence),math.sin(math.pi*presence))
+
+    def update_blasts(self, seconds):
+        """Eight bounded sites, groups of four onsets, ten-second quiet fallback."""
+        self.blast_events = [e for e in self.blast_events if 0.<=seconds-e[0]<20.]
+        visible = self.state_at(seconds)==18 or (self.blend_values['u_directed']
+            and self.blend_values['u_world_mix'][3]*self.blend_values['u_fire_mix'][3]>.15)
+        impact=max(0.,min(1.,self.parameters.impact))
+        if impact<.08:self.blast_armed=True
+        if not visible:
+            self.blast_hits=0
+            return
+        if impact>=.20 and self.blast_armed and seconds-self.last_blast_hit>=.22:
+            self.blast_hits+=1;self.last_blast_hit=seconds;self.blast_armed=False
+        ready = self.blast_hits>=4 or seconds-self.last_blast>=10.
+        if ready and seconds-self.last_blast>=1.5 and len(self.blast_events)<8:
+            rng=random.Random(41+self.blast_serial*47)
+            self.blast_events.append((seconds,float(self.blast_serial),rng.uniform(-22.,22.),seconds*.30+rng.uniform(12.,65.)))
+            self.blast_serial+=1;self.last_blast=seconds;self.blast_hits=0
 
     def update_shockwaves(self, seconds):
         """Remember strong-hit rings; no audio analysis or second simulation."""
@@ -67,10 +172,11 @@ class Renderer:
         impact = max(0., min(1., self.parameters.impact))
         if impact < .14:
             self.shockwave_armed = True
-        if (self.state_at(seconds) == 18 and seconds >= 5.
+        if ((self.state_at(seconds) == 18 or (self.blend_values['u_directed']
+                and self.blend_values['u_world_mix'][3]*self.blend_values['u_fire_mix'][3] > .15)) and seconds >= 5.
                 and impact >= .40 and self.shockwave_armed
                 and seconds - self.last_shockwave >= 3.0):
-            site = math.floor((seconds - 5.) / 36.)
+            site = self.blast_events[-1][1] if self.blast_events else math.floor((seconds - 5.) / 36.)
             self.shockwaves.append((seconds, float(site), impact, 0.))
             self.shockwaves = self.shockwaves[-8:]
             self.last_shockwave = seconds
@@ -158,11 +264,17 @@ class Renderer:
             + (self.FLOW_CEILING - self.FLOW_FLOOR) * movement
         )
 
+        # Strong passages have headroom beyond the old 1.15 ceiling. Integrate
+        # speed, never multiply accumulated time by an instantaneous signal.
+        drive = max(0.,min(1.,.45*movement+.35*self.parameters.flux+.20*self.parameters.scale))
+        target_rate *= 1.+2.2*drive*drive
+        target_rate = min(4.,target_rate + self.impact_envelope*.45)
+        smoothing = .20 if target_rate>self.flow_rate else self.FLOW_SMOOTHING_SECONDS
         if delta_time <= 0.0:
             ease = 1.0
         else:
             ease = 1.0 - math.exp(
-                -delta_time / self.FLOW_SMOOTHING_SECONDS
+                -delta_time / smoothing
             )
 
         self.flow_rate += (target_rate - self.flow_rate) * ease
@@ -199,6 +311,15 @@ class Renderer:
         mode, mask = layers_at(self.layer_profiles, self.state_at(current_time), current_time)
         self.program['u_layer_mode'].value = mode
         self.program['u_layer_mask'].value = mask
+        self.program['u_material_mix'].value = materials_at(
+            self.layer_profiles, self.state_at(current_time), current_time)
+        self.blend_values = blend_uniforms(current_time, self.state_at(current_time) == 0 and mode != 0)
+        self.update_planet(current_time, delta_time)
+        self.update_blasts(current_time)
+        self.program['u_event_blasts'].value = 1
+        self.program['u_blast_events'].value = self.blast_events + [(-1000.,-1.,0.,0.)]*(8-len(self.blast_events))
+        for name, value in self.blend_values.items():
+            self.program[name].value = value
         self.update_shockwaves(current_time)
         self.program['u_shockwaves'].value = self.shockwaves + [
             (-1000., 0., 0., 0.)] * (8 - len(self.shockwaves))

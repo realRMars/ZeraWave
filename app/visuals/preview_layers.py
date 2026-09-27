@@ -1,7 +1,7 @@
 """Shared development effect catalog and validation; not an audio parameter system.
 
 Bit positions are the existing shader's optional isolation switches. Append IDs;
-do not reorder them. An absent profile preserves the authored shader exactly.
+do not reorder them. Absent held-world profiles preserve authored visuals; Main blend defaults to the trio.
 """
 import json
 import math
@@ -13,9 +13,9 @@ EFFECTS = {
     'sparkles': ('Sparkles', 'Material', FIELD),
     'flecks': ('Drifting flecks', 'Material', FIELD),
     'beams': ('Radial beams', 'Material', FIELD),
-    'tunnel': ('Tunnel', 'Spatial', FIELD),
-    'fractal': ('Fractal folds', 'Spatial', FIELD),
-    'horizon': ('Horizon / pathway', 'Spatial', FIELD),
+    'tunnel': ('Tunnel', 'Spatial', WORLDS),
+    'fractal': ('Fractal folds', 'Spatial', WORLDS),
+    'horizon': ('Horizon / pathway', 'Spatial', WORLDS),
     'blossoms': ('Root blossoms', 'World details', ('blend', 'organic')),
     'glyphs': ('Corridor glyph rain', 'World details', ('blend', 'geometric')),
     'stars': ('Drifting starfield', 'World details', ('blend', 'cosmic', 'transition')),
@@ -26,20 +26,27 @@ EFFECTS = {
     'water_foam': ('Crest foam / cliff lip', 'Water details', ('blend', 'water')),
     'water_mist': ('Mist & distance haze', 'Water details', ('blend', 'water')),
     'water_glints': ('Surface highlights', 'Water details', ('blend', 'water')),
-    'fire_coals': ('Coals', 'Fire details', ('fire',)),
-    'fire_embers': ('Embers', 'Fire details', ('fire',)),
-    'fire_seams': ('Hot seams', 'Fire details', ('fire',)),
-    'fire_ash': ('Ash', 'Fire details', ('fire',)),
-    'blast_flash': ('Inversion flash', 'Aftershock details', ('fire',)),
-    'blast_dust': ('Dust shockwaves', 'Aftershock details', ('fire',)),
-    'blast_fire': ('Ground fire', 'Aftershock details', ('fire',)),
-    'blast_aurora': ('Aurora', 'Aftershock details', ('fire',)),
+    'fire_coals': ('Coals', 'Fire details', ('blend', 'fire')),
+    'fire_embers': ('Embers', 'Fire details', ('blend', 'fire')),
+    'fire_seams': ('Hot seams', 'Fire details', ('blend', 'fire')),
+    'fire_ash': ('Ash', 'Fire details', ('blend', 'fire')),
+    'blast_flash': ('Inversion flash', 'Aftershock details', ('blend', 'fire')),
+    'blast_dust': ('Dust shockwaves', 'Aftershock details', ('blend', 'fire')),
+    'blast_fire': ('Ground fire', 'Aftershock details', ('blend', 'fire')),
+    'blast_aurora': ('Aurora', 'Aftershock details', ('blend', 'fire')),
+    'alloy': ('Liquid Alloy', 'Material', WORLDS),
+    'lattice': ('Prismatic Lattice', 'Material', WORLDS),
 }
 BITS = {key: 1 << i for i, key in enumerate(EFFECTS)}
-MODES = {'authored': 'Authored', 'together': 'Selected together', 'cycle': 'Cycle list'}
+MODES = {'authored': 'Authored', 'together': 'Selected together', 'cycle': 'Cycle list', 'meld': 'Meld materials'}
+MATERIALS = ('artifacts', 'alloy', 'lattice')
 
 
-def default_profile():
+def default_profile(world=None):
+    if world == 'blend':
+        profile = material_trio_profile(world)
+        profile['seconds'] = 22.
+        return profile
     return dict(mode='authored', seconds=12., items=[])
 
 
@@ -85,9 +92,38 @@ def world_for_state(state):
 
 
 def layers_at(profiles, state, seconds):
-    profile = profiles.get(world_for_state(state), default_profile())
+    profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
     if profile['mode'] == 'authored': return 0, 0
     ids = [item['id'] for item in profile['items'] if item['enabled']]
     if profile['mode'] == 'cycle' and ids:
         ids = [ids[int(max(0., seconds) // profile['seconds']) % len(ids)]]
-    return 1, sum(BITS[key] for key in ids)
+    return (2 if profile['mode'] == 'meld' else 1), sum(BITS[key] for key in ids)
+
+
+def materials_at(profiles, state, seconds):
+    """Ordered material-only fade; other effects retain their enabled state."""
+    profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
+    if profile['mode'] == 'authored': return (1., 0., 0.)
+    ids = [item['id'] for item in profile['items']
+           if item['enabled'] and item['id'] in MATERIALS]
+    if not ids: return (0., 0., 0.)
+    weights = [0., 0., 0.]
+    if profile['mode'] == 'meld':
+        phase = max(0., seconds) / profile['seconds']
+        index = int(phase) % len(ids)
+        blend = max(0., min(1., ((phase % 1.) - .65) / .35))
+        blend = blend * blend * (3. - 2. * blend)
+        weights[MATERIALS.index(ids[index])] += 1. - blend
+        weights[MATERIALS.index(ids[(index + 1) % len(ids)])] += blend
+    else:
+        if profile['mode'] == 'cycle':
+            _, mask = layers_at(profiles, state, seconds)
+            ids = [key for key in ids if mask & BITS[key]]
+        for key in ids: weights[MATERIALS.index(key)] = 1. / len(ids)
+    return tuple(weights)
+
+
+def material_trio_profile(world):
+    """Authored details plus the three materials, suitable for main-live testing."""
+    return dict(mode='meld', seconds=36., items=[dict(id=key, enabled=True)
+        for key, info in EFFECTS.items() if world in info[2]])

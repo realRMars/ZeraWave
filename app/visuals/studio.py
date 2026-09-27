@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 from live_visual_test import LIVE_STATES
-from preview_layers import (EFFECTS, MODES, default_profile, validate_layers, world_for_state)
+from preview_layers import (EFFECTS, MODES, default_profile, validate_layers, world_for_state, material_trio_profile, WORLDS)
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEEDS = {'Real time': 1., '2×': 2., '6×': 6., '12×': 12., 'Fastest': 0.}
@@ -323,7 +323,7 @@ class Studio:
         mode.pack(side='left')
         mode.bind('<<ComboboxSelected>>', lambda event:self.change_layer_playback())
         ttk.Label(playback, text='Hold (seconds)').pack(side='left', padx=(16, 8))
-        hold = ttk.Combobox(playback, textvariable=self.layer_hold, values=('4', '8', '12', '20', '28', '60'), state='readonly', width=5)
+        hold = ttk.Combobox(playback, textvariable=self.layer_hold, values=('4', '8', '12', '20', '22', '28', '36', '60'), state='readonly', width=5)
         hold.pack(side='left')
         hold.bind('<<ComboboxSelected>>', lambda event:self.change_layer_playback())
         table_frame = ttk.Frame(panel); table_frame.pack(fill='both', expand=True)
@@ -353,7 +353,7 @@ class Studio:
 
     def refresh_layers(self, focus=None):
         world = self.layer_world()
-        profile = self.layer_profiles.get(world, default_profile())
+        profile = self.layer_profiles.get(world, default_profile(world))
         self.layer_heading.set(selection_title(self.selection))
         categories = list(dict.fromkeys(info[1] for info in EFFECTS.values() if world in info[2]))
         self.category_box.configure(values=categories)
@@ -370,13 +370,15 @@ class Studio:
         note = ('Authored uses the original visuals; this list is parked. ' if profile['mode'] == 'authored' else
                 'Only enabled effects run. An empty list shows the base form. ')
         note += 'Up / Down sets cycle order. Together keeps the shader’s composition order.\n'
-        note += 'Effects retain their audio response and lifecycle; cycling uses song time in replay.'
+        note += 'Meld materials fades selected materials in table order; other enabled effects stay on. '
+        note += 'The last 35% of each hold blends into the next material.'
+        if world == 'blend': note += '\nMain blend has its own list: defaults meld all three materials. Authored restores the earlier world sequence.'
         if self.vars['state'].get() == 'cosmic': note += '\nGeometry study uses only World details; use Planet canvas for material effects.'
         if world == 'water': note += '\nWater details are independent layers. Rain/rings apply to surface forms; foam, mist and highlights also apply to the waterfall.'
         self.layer_note.set(note)
 
     def change_layer_playback(self):
-        profile = self.layer_profiles.setdefault(self.layer_world(), default_profile())
+        profile = self.layer_profiles.setdefault(self.layer_world(), default_profile(self.layer_world()))
         profile['mode'] = next(key for key, label in MODES.items() if label == self.layer_mode.get())
         profile['seconds'] = float(self.layer_hold.get())
         self.refresh_layers()
@@ -384,7 +386,7 @@ class Studio:
     def add_layer(self):
         key = next((key for key, info in EFFECTS.items() if info[0] == self.effect_choice.get()), None)
         if key is None: return
-        profile = self.layer_profiles.setdefault(self.layer_world(), default_profile())
+        profile = self.layer_profiles.setdefault(self.layer_world(), default_profile(self.layer_world()))
         if not any(item['id'] == key for item in profile['items']):
             profile['items'].append(dict(id=key, enabled=True))
         if profile['mode'] == 'authored': profile['mode'] = 'together'
@@ -394,7 +396,7 @@ class Studio:
         selected = self.layer_table.selection()
         if not selected: return
         key = selected[0]
-        profile = self.layer_profiles[self.layer_world()]
+        profile = self.layer_profiles.setdefault(self.layer_world(), default_profile(self.layer_world()))
         items = profile['items']
         index = next(i for i, item in enumerate(items) if item['id'] == key)
         if action == 'remove': items.pop(index)
@@ -430,6 +432,7 @@ class Studio:
         bar.add_cascade(label='View',menu=view)
         presets=tk.Menu(bar,tearoff=False)
         presets.add_command(label='Main blend',command=lambda:self.select([]))
+        presets.add_command(label='Material trio — all worlds',command=self.material_trio)
         def add_presets(menu,children,path):
             for key,node in children.items():
                 selection=path+[key]
@@ -447,6 +450,11 @@ class Studio:
         transfer.add_command(label='Export session…',command=lambda:self.save(True))
         bar.add_cascade(label='Import / export',menu=transfer)
         self.root.config(menu=bar)
+
+    def material_trio(self):
+        self.layer_profiles = {world: material_trio_profile(world) for world in WORLDS}
+        self.refresh_layers()
+        self.status.set('Three materials meld across every world. Select a held form or Main blend, then start preview.')
 
     def new(self):
         for key,value in DEFAULTS.items(): self.vars[key].set(value)

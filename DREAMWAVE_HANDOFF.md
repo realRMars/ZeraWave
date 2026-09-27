@@ -2,6 +2,340 @@
 
 Updated: 2026-09-26
 
+## Spatial color recovery (uncommitted)
+
+User accepted the restored forms but found spatial overlap washed out/translucent
+and explicitly requested no commit. This is RGB palette/glow mixing, not output
+alpha (which remains 1). Shared spatial presentation now chooses a smoothly
+biased leading palette using fourth-power weights instead of equally averaging
+full-strength ocean/crystal/pathway palettes. Coordinate transforms and their
+strengths, Fractal growth, rotation, world schedules and material palettes are
+unchanged. Horizon's pale additive bands become palette-colored and recede when
+Tunnel/Fractal overlap. A bounded pigment contrast adjustment applies to the
+shared field before Living/Alloy/Lattice and stars are added; their own palettes
+are untouched. No full-screen saturation filter or global exposure adjustment.
+Shared-field peak gains 12% during full spatial presence; dark channels stay dark.
+
+Added --color-test BASELINE OUTPUT to the existing shader test script. Eight
+actual Main GPU before/after samples increased mean lit-pixel saturation by
+.08760 (8.76 percentage points); maximum near-clipped pixel fraction .00001543
+(0.00154%). Inspected six side-by-side captures covering storm, corridor and
+liquid overlap. Main GPU regression passed: 114 exact Authored preservation
+frames, 144 handoffs, 721 renderer frames; max20ms delta9.911/255 converged at1ms.
+Spatial suite passed 108 material/effect/world combinations and 16 continuity
+checks. Python compilation and git diff --check passed. No new real-audio/live playback
+run for this color-only pass. Evidence: work/spatial-color. Changes confined to
+shaders/dream.frag, shader_test.py and this handoff; previous uncommitted work and
+unrelated untracked files remain intact. HEAD remains80c85f4; no commit requested.
+
+## Fractal identity, reversing storm and recurring Corridor restoration
+
+User found Fractal's clustered takeover lost, Corridor absent, and the old
+reversing storm/eye missing. Inspection found shared spatial weights were zeroed
+for coordinate isolation and never restored for palette/eye/Organic replacement.
+Thus the original crystal/ocean presentation was disabled and Organic covered it.
+Restore these presentation weights AFTER world coverage/projection calculations;
+world geometry remains separate. Four bounded recursive folds replace the recent
+two-fold approximation, with expanding central coverage revealing more clusters.
+Soft absolute corners and a .08 inversion floor restrain unresolved singularities.
+Tunnel now swings through 4-radian reversals plus a smaller faster oscillation,
+driven by integrated musical u_time (not a beat/phrase detector). Existing
+field effects, eye and crystal/ocean palettes participate again. Held custom
+Water subtracts accumulated travel before shared folding, as Main already did.
+
+Main itinerary now contains four Corridor visits per 360s chapter, with three
+other forms between, and one early visit in the first minute. Every other form
+remains. Extra Planet cannot launch during prominent Corridor coverage; an
+already active extra Planet yields smoothly to arriving Corridor. Actual authored
+Planet/Geometric geometry is unchanged. Chapter boundary repeat guard accounts
+for the new insertion order. Heavy-input scheduling tests confirm fully present
+Corridor survives Planet scheduling, and eight chapter orders avoid adjacent repeats.
+
+Final GPU checks: 114 exact Authored preservation frames, 144 Main transition
+samples (largest 20ms difference 11.972/255, converged at 1ms), 721 renderer frames,
+108 material/world/effect checks, 16 spatial continuity checks. Studio suite passed
+before final narrow corner/held-Water refinement; final shader/spatial/blend tests
+passed after it. Some one-hour samples needed a third .2ms convergence check:
+float32 clock quantization and fine recursion make a single 1ms ratio unreliable.
+The test records all intervals; fallback requires <35% at 1ms plus further
+convergence, rather than silently dropping long-runtime coverage. Final Planet
+and Waterfall hour probes were .260/1.040 average levels at 1ms, zero at .2ms.
+Earlier sharper-fold versions failed and were refined. This does not certify
+absence of all fine-detail shimmer at long runtime.
+
+Evidence: work/spatial-restoration. Initial Balloon/Main replay completed 100.011s
+(2,344 frames), peak flow 3.352; storm, Corridor and Planet captures inspected.
+Final Balloon rerun completed 60.032s (1,407 frames); final Corridor capture
+inspected. Compilation and diff checks passed. No audible or live-loopback test. Files changed
+this pass: renderer.py, shaders/dream.frag, shader_test.py and handoff notes.
+All prior work remains uncommitted at HEAD 80c85f4; user explicitly wants visual
+review before committing. Unrelated untracked work preserved.
+
+## Spatial frequency and recognizable Tunnel follow-up
+
+User found Tunnel/Fractal rare after the shared-spatial pass. Their earlier
+76/88-second oscillations and partial amplitude softened their identity.
+Tunnel now has bounded reciprocal radial depth instead of mild spiral scaling.
+Tunnel/Fractal periods are approximately 34/40 seconds, with wider full-strength
+holds, overlapping release, and .94-to-1 strength based on existing bass/flux.
+No world scheduling, audio normalization, material palettes or selections changed.
+
+Added actual GPU envelope sampling to the existing spatial suite: over three
+minutes Tunnel is >90% for 29-34 seconds per minute, Fractal for 28-32; maximum
+sampled gaps below that threshold are 17/20 seconds. This measures shader weight,
+not guaranteed screen coverage: world shading/occlusion still affects visibility.
+108 material/world/effect checks and 16 continuity checks passed, as did 114
+exact authored preservation frames, 117 Main handoffs and 721 renderer frames.
+Inspected Organic/Dye effect comparisons and Main overview. Python compilation
+and diff checks passed. No new recorded-audio or audible-live run for this narrow
+follow-up. Evidence: work/spatial-presence. Shader, shader tests and this handoff
+changed; prior uncommitted work remains intact. No commit made.
+
+## Shared spatial dominance (2026-09-26)
+
+User requested large Fractal/Spatial pulls across materials and Water, with
+spatial effects inheriting each other during handoffs while worlds stay intact.
+Main's former Organic-only gating and sibling bypass are removed. The existing
+shader now shares bounded Tunnel -> Horizon -> Fractal coordinate transforms
+across Living, Alloy, Lattice and field effects. Long overlapping envelopes
+retain outgoing pulls inside incoming folds; bass/flux strengthen them. Two
+bounded recursive folds keep broad lobes rather than tiny singular shards.
+Spatial strength no longer subtracts world coverage. Water dyes, currents,
+rain/ripple color and waterfall curtain details inherit the same transforms.
+Physical wave heights, cliff/lip/banks, planet geometry, depth ordering, stars,
+and Aftershock plume/shockwave shapes remain structural. This is procedural
+material/detail remapping, not framebuffer feedback or a new renderer.
+
+Spatial controls now appear in Water and Fire's existing effect table. Selected
+together/cycle isolates the selected effects at full strength; Meld materials
+uses overlapping spatial envelopes. Authored playback retains the prior route.
+The diagnostic Cycle list still switches rows; Main/Meld provides smooth pulls.
+
+Final synthetic GPU tests passed: 108 material/effect/world combinations, 16
+continuity checks (including one-hour elapsed time), 114 exactly preserved
+Authored frames, 117 Main world handoff samples, and 721 real renderer frames.
+Largest 20ms Main delta was 9.369/255 and passed the tighter-interval continuity
+check. Studio standalone suite passed. The first draft was refined after visual
+inspection showed excessively fine folds and a long-runtime continuity check
+failed; the final two-fold version passes without relaxing test thresholds.
+Inspected final Organic, Dye and Planet spatial comparisons. Evidence lives in
+work/spatial-dominance. Final accelerated Balloon/Main replay completed 120.021s
+(2,813 frames), peak flow rate 3.352, maximum sampled clipping 1.891%. Inspected
+30s liquid/material and 75s corridor handoff captures. This was decoded audio
+through the live pipeline, not audible playback or live loopback. Compilation
+and git diff --check passed. Current changes remain uncommitted on HEAD 80c85f4;
+unrelated untracked work is untouched.
+
+## Musical momentum, favored Planet visits and Aftershock density
+
+User still found motion slow and requested more musical acceleration, favored
+Planet visits near heavy sections with occasional longer gaps, world warping,
+more Aftershock nukes/hits, a musical Molten camera, varied Alloy colors, and
+more fractal involvement. The prior motion correction remains, but the old
+1.15 speed cap was insufficient for the requested behavior.
+
+renderer.py now applies a bounded energy boost after the existing base movement
+mapping: .45 movement + .35 flux + .20 bass drives up to 2.2 extra gain, with a
+.45 onset accent and absolute speed cap 4. Acceleration eases over .20 seconds,
+settling over .60. Quiet remains .35. No audio normalization/analyzer changes;
+Cosmic stars retain their separate integrated clock.
+
+Extra Planet opportunities have 45/55/85-second cooldowns and require 1.5 seconds
+of sustained drive (.45 bass + .35 movement + .20 flux > .58). The gate waits
+through prominent Aftershock coverage. Six-second gathering, twelve-second hold,
+nine-second release reuse existing planet geometry/material projection. These
+are energy opportunities, not detected song choruses. The underlying shuffled
+itinerary remains; explicit Authored Main disables this extra scheduling.
+
+A bounded shared twist/compression now warps scene coordinates during handoffs.
+Fractal presence is more frequent with flux and siblings take part in recursive
+coordinates rather than always using the stable unwarped source. Fine-detail
+suppression remains. Alloy receives stable per-object hues plus reflective color
+variation. Living's original palette is untouched. Molten camera heading and
+river transport use integrated u_time, with bounded +/- zoom from phase/bass.
+
+Aftershock now uses an eight-slot event list (birth/id/world x/world z), groups
+of four rearmed onsets >=.20, .22-second onset debounce, 1.5-second minimum launch
+spacing and a ten-second fallback. Eight active sites is a hard cap; capacity
+must free before another launches. Sites last 20 seconds and fade over their
+last five seconds. They spawn at varied lateral/forward positions; plumes sort
+by actual depth. Ground craters also fade before expiry. The original separate
+musical ring cooldown/cap and two-second material-negative flash are retained.
+This is onset grouping, not BPM or meter inference. No new renderer/dependency.
+Replay metrics/captures now include flow rate, Planet count and blast events.
+
+Initial validation passed: Studio standalone suite; synthetic event/energy tests
+(no Planet triggers in silence, grouped launches and eight-site limit, sustained
+input does not repeat); 32 fixed-input untouched-world preservation frames;
+1,203 actual renderer frames; 102 broader fixed-input comparisons (Molten/native
+Fire intentionally excluded), 117 transition samples and 721 renderer frames.
+One broad comparison had two one-level channel rounding differences. The largest
+sampled 20ms transition delta was 6.688/255 and shrank at 1ms as required. An
+additional CPU test confirmed Planet waits through Aftershock (continuous-heavy
+starts at 45, 90, 168.2, 253.2, 298.3 seconds). Final GPU/CPU response and transition suites passed after the Aftershock guard,
+crater fade and final per-object Alloy palette adjustment. Synthetic Planet,
+eight-site Aftershock and final Alloy captures were inspected, along with real
+Warbot flash/cloud and Chasing You Molten captures. User listening review remains.
+Music runs completed 8,833 frames: Balloon/Main blend 226.8s (5,316), Chasing
+You/Molten 60.032s (1,407), Warbot Jazz/Aftershock 90.027s (2,110). Balloon triggered
+three extra Planet visits and reached flow rate 3.352; Chasing You reached 2.400;
+Warbot reached 2.706 and had 36 observed detonation IDs with the eight-active-site
+cap. Maximum sampled clipping was 1.732%, 0.000326%, and zero, respectively.
+Music runs preceded the final narrow Alloy hue refinement; final palette was
+checked synthetically. No live-loopback or audible playback test was performed.
+Python compilation and git diff --check passed.
+Evidence is under work/musical-response. HEAD remains 80c85f4; all current material,
+blend and response work is uncommitted. Unrelated untracked files are preserved.
+
+## Main motion restoration — pending listening review
+
+The user reported that Living artifacts and the new worlds felt slower and less
+reactive after integration. Inspection found the Main-only handoff stabilization
+cancelled accumulated material travel, while Organic spatial strengths had also
+been reduced to 25%. The audio mapper and original 0.35–1.15 integrated flow
+speed were unchanged. This was a visual mapping regression, not evidence of an
+audio normalization problem.
+
+Restored authored spatial strength within Organic's Main coverage. Added one
+shared material conveyor driven by the existing integrated u_time for Living,
+Alloy and Lattice. It is applied after world-coordinate gathering and after
+Living's audio/Water scale changes; this restores audio-dependent travel without
+multiplying elapsed travel by changing world coverage. The first attempt applied
+travel before Water stretching and failed a late handoff check; that interaction
+was corrected. Held/Authored routes, Living palette, audio analysis, star clock
+and the new itinerary/material selection timing are unchanged.
+
+This pass changes dream.frag, extends the existing shader_test.py with
+--motion-test BASELINE OUTPUT, and updates these notes. GPU validation passed
+114 exact Authored frame comparisons, 117 transition checks over three chapters,
+and 721 renderer frames. Controlled clock-motion tests passed all 15 combinations
+of three materials on Organic, Currents, Corridor, Waterfall and Planet canvas.
+All responded more strongly to the full-speed clock than the quiet clock.
+Currents' Living frame-change measure rose from .278 to .963/255 for the same
+clock step; this is a visual-change proxy, not an optical-flow speed estimate.
+The 640x360 isolated draw-cost samples were 1.56–3.11 ms after versus 1.24–3.00 ms
+before, with no simultaneous replay. These are not live FPS measurements.
+Synthetic Currents/Waterfall material captures and a real Warbot Currents capture
+were visually inspected. Silent decoded Balloon and Warbot Jazz passages each
+completed 90.027 seconds / 2,110 frames, 4,220 total, through default Main blend.
+Maximum sampled clipping was 0.812% and zero respectively. No audible/live-loopback
+check was performed; user listening review is still needed. Python compilation
+and git diff --check passed. Uncommitted; existing unrelated files preserved.
+Evidence: work/motion-restore/{before.frag,blend-checks,motion-checks,music}.
+
+## Main blend expansion — pending review, uncommitted
+
+The user reported that Main blend did not show the siblings without selecting
+individual worlds and disabling Living artifacts, and requested more sibling
+motion, independent material cycles, varied world transitions and breathing.
+The cause was the separate Main blend profile still defaulting to Authored.
+HEAD remains 80c85f4; the previous material pass and this expansion are uncommitted.
+
+Main blend now defaults to a 22-second ordered trio meld in both Studio and the
+normal live launcher. Held-world defaults and explicit Authored profiles retain
+the earlier routes. Main blend's implicit list is visible/editable in Studio;
+Fire and Aftershock detail switches are now available in its list too. Existing
+saved explicit profiles remain authoritative. The all-world trio preset retains
+its 36-second slots. Alloy now rolls/deforms more and Lattice tumbles at varied
+seeded rates, using the existing integrated clock. Living palette is unchanged.
+
+The existing renderer now supplies world/form weights to the existing shader.
+A deterministic shuffled itinerary visits both Organic forms, Corridor, Planet
+canvas, five Water forms and four Fire forms, including Aftershock. All 13 appear
+once per 360-second chapter, with a new order and variable holds next chapter.
+Ordinary holds use 48% for their handoff; every fourth, longer hold uses 32%.
+This is repeatable at every replay speed and on restart, not phrase detection or
+fresh random order at each launch. No new renderer, audio pipeline or dependency.
+
+Worlds share source-material coordinates and gather into their existing surfaces;
+final coverage is normalized so two overlapping worlds do not double-dim each
+other. Incoming Roots fades in with world coverage, avoiding a source-canvas cut
+inside the departing Corridor. Accumulated transport offsets are removed only
+from directed handoff coordinates to prevent later-session pattern acceleration.
+Scene clocks, star drift and accepted held-world transport continue unchanged.
+Rain/ripples/highlights breathe independently in directed Main blend. Aftershock
+continues to use the existing bounded impact history when it has visible coverage.
+Waterfall camera, dye structure and current geometry have not been redesigned.
+
+GPU validation: 114 Authored comparisons against the pre-expansion shader passed:
+104 exact, ten frames with at most five one-level 8-bit channel differences.
+All 13 forms were captured and inspected in the overview. 117 transition samples
+across three chapters passed continuity checks, plus 721 real renderer frames
+verified default trio weights, uninterrupted positive clocks and Aftershock hits.
+Some detailed surfaces move more than four mean pixel levels over 20ms; these
+are checked at 1ms for convergence rather than called cuts. Worst sampled 20ms
+mean change was 8.682/255, with 0.864/255 at 1ms. Earlier failures exposed the
+Root switch and accumulated-coordinate issue; both were corrected. Studio's
+standalone suite passed after default-list editing support was added, including
+Main blend controls at minimum window size. Python compilation and diff checks
+passed. Full silent default-Main replays completed: Balloon 5,316 frames,
+Chasing You 3,136, Warbot Jazz 7,015 (15,467 total; 56 captures). Captured material
+and world weights matched their independently computed schedules. Maximum sampled
+clipping was 0.572%, 0.317%, and 3.090% respectively. The Warbot maximum was
+inspected: bright Alloy reflection bands on a close Corridor surface at strong
+bass/highs, not a full-screen white flash. Highlight clipping remains a visual
+review consideration; this pass does not retune accepted Corridor lighting.
+Corridor-to-Planet overlap was also captured/inspected at 514, 518 and 522 seconds.
+No live-loopback or audible playback test was performed.
+
+Evidence: work/blend-expansion/{before.frag,checks,music}. The entries below are
+chronological history; their opt-in-only and Fire-not-in-Main statements are now
+superseded. No commit is authorized for this pass.
+
+## Material siblings — implemented, pending user review and commit
+
+Actual accepted Git checkpoint is 80c85f4. This uncommitted pass adds Liquid
+Alloy and Prismatic Lattice alongside Living artifacts, using the existing
+renderer, shader, effect lists and session format. No dependency or audio
+analysis changes. Original Living palette and calculations remain intact.
+Alloy uses reflective folds with copper/teal/violet light; Lattice grows
+projected polygon cages from triangles toward seven vertices, with intermediate
+vertices emerging continuously. These are shader forms, not simulated meshes.
+
+Studio's Presets → Material trio — all worlds enables an ordered material meld:
+36-second slots, fading during the final 35%, for a 108-second cycle. Nonmaterial
+effects stay enabled; spatial effects retain authored envelopes in this mode.
+Together allows equal-share coexistence; existing Solo/list controls isolate
+materials. Authored and the regular live launcher remain the original default.
+Cosmic Geometry study bypasses materials intentionally; Planet canvas uses them.
+Both siblings feed Water, Fire and Aftershock's material-negative flash. Fire
+is still outside Main blend, and Aftershock outside Fire's native three-form
+meld. Main world sequencing/integration remains the next reviewable task.
+
+Validation actually executed:
+
+- Existing Studio standalone suite passed, including preset/session roundtrip,
+  ordered weights, real GPU uniforms and continuous movement/star clocks.
+- New shader materials suite passed 228 preservation comparisons: 223 exact;
+  five frames differed in one 8-bit channel sample by one level. The tolerance
+  is explicit; this is not a claim of universal pixel identity.
+- Both siblings visibly affected all 18 material-bearing states. 1,830 fixed-
+  world material-meld frames had maximum mean step 0.315/255; 27 sampled native
+  world boundaries had maximum mean step 2.418/255. 561 renderer frames checked
+  weights and positive continuous clocks across state changes.
+- Silent decoded-track runs covered Balloon/Main blend, Chasing You/Water and
+  Warbot Jazz/Aftershock: 9,845 rendered frames and 55 captures. Material weight
+  metadata matched the profiles. Captures were visually inspected, including
+  metallic dyes, Cosmic cages and the inverted Lattice flash.
+- Water and Aftershock sampled captures had no clipping. Main blend's maximum
+  sampled clipped fraction was 0.866%, around Cosmic highlights; Authored at
+  that same audio input clipped 1.122%. Some other samples increased relative
+  to Authored, so this is not a general no-clipping claim.
+- Solo 720p Cosmic drawing measurements were approximately 6–8 ms for the new
+  materials; these are drawing costs, not end-to-end frame-rate guarantees.
+  No audible playback or live-loopback test was performed for this pass.
+
+Development corrected sparse Fire coverage, derivative seams at lattice grid
+boundaries, over-forced spatial effects and fine-edge aliasing during recursive
+world handoffs. Siblings use a stable domain during strong recursive effects
+and fade unresolved detail. An ineffective extra Water-coordinate easing was
+removed; existing Water timing was not retuned.
+
+Evidence: work/materials/checks, work/materials/music,
+work/materials/clipping-comparison.json and solo-performance.json. Seven visual
+code/test files plus these two guides changed. Unrelated untracked research and
+scratch files remain untouched. No commit is authorized by the current request.
+
 ## Accepted Fire development checkpoint and curved horizon
 
 The user accepted Aftershock's distinct plume hues/material-negative flash,

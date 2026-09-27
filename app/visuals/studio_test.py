@@ -12,7 +12,7 @@ from replay_test import replay
 from renderer import Renderer
 import glfw
 import numpy as np
-from preview_layers import BITS, layers_at, validate_layers, parse_layers
+from preview_layers import BITS, layers_at, validate_layers, parse_layers, materials_at, material_trio_profile, WORLDS
 
 
 def main():
@@ -37,6 +37,21 @@ def main():
         try:validate_layers(invalid)
         except ValueError:pass
         else:raise AssertionError(invalid)
+    trio=validate_layers({world:material_trio_profile(world) for world in WORLDS})
+    for state in range(19):
+        assert layers_at(trio,state,23.)[0]==2
+        a=np.array(materials_at(trio,state,35.999))
+        b=np.array(materials_at(trio,state,36.001))
+        assert np.abs(a-b).max()<.001 and abs(a.sum()-1.)<1e-10
+        assert materials_at(trio,state,0.)==(1.,0.,0.)
+        assert materials_at(trio,state,36.)==(0.,1.,0.)
+        assert materials_at(trio,state,72.)==(0.,0.,1.)
+        assert materials_at(trio,state,108.)==(1.,0.,0.)
+    reversed_profile=material_trio_profile('water')
+    reversed_profile['items'].reverse()
+    assert materials_at({'water':reversed_profile},7,0.)==(0.,0.,1.)
+    assert layers_at(trio,9,20.)[1]&BITS['water_rain']
+    assert layers_at(trio,9,28.)[1]&BITS['water_rain']
     assert selection_states(['elements'])==['sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock']
     assert selection_states(['elements','fire'])==['fire_cycle']
     assert selection_states(['elements','fire','molten'])==['molten']
@@ -172,6 +187,18 @@ def main():
             assert layers_at(wild['layers'],17,0)==(1,BITS['fire_embers'])
             assert layers_at(restored['layers'],14,0)==(1,BITS['fire_embers'])
             assert restored['layers']['water']['mode']=='cycle'
+            saved_profiles=app.layer_profiles
+            app.material_trio()
+            assert app.layer_mode.get()=='Meld materials'
+            root.update()
+            for widget in app.layers_tab.winfo_children():
+                assert widget.winfo_y()+widget.winfo_height()<=app.layers_tab.winfo_height(), widget
+            app.effect_category.set('Material');app.refresh_effect_picker()
+            assert 'Liquid Alloy' in app.effect_box['values'] and 'Prismatic Lattice' in app.effect_box['values']
+            app.session_path=folder/'materials.json';app.save()
+            saved_trio=validate_session(json.loads(app.session_path.read_text(encoding='utf-8')))
+            assert saved_trio['layers']==trio
+            app.layer_profiles=saved_profiles
             app.tabs.select(app.preview)
             app.select(['elements'])
             assert len(app.selector_rows)==2 and app.selector_rows[1][0].get()==''
@@ -183,6 +210,19 @@ def main():
                 var,box,callback=app.selector_rows[3];var.set('Nested');callback()
                 assert app.values()['state']=='rain'
             app.blend();assert app.vars['state'].get()=='blend'
+            # Main defaults must be visible/editable without loading a preset.
+            saved_profiles=app.layer_profiles
+            app.layer_profiles={};app.refresh_layers()
+            assert app.layer_mode.get()=='Meld materials'
+            root.update()
+            for widget in app.layers_tab.winfo_children():
+                assert widget.winfo_y()+widget.winfo_height()<=app.layers_tab.winfo_height(), widget
+            assert all(app.layer_table.exists(key) for key in ('artifacts','alloy','lattice'))
+            app.layer_table.selection_set('artifacts');app.edit_layer('toggle')
+            assert not app.layer_profiles['blend']['items'][0]['enabled']
+            assert materials_at(app.layer_profiles,0,0.)==(0.,1.,0.)
+            app.layer_profiles=saved_profiles;app.refresh_layers()
+
             # Start a real replay child through the UI callback, then stop only that child.
             app.vars['speed'].set('Real time');app.vars['duration'].set('30 seconds')
             app.start_button.invoke();root.update()
@@ -243,6 +283,12 @@ def main():
             last_star,last_flow=renderer.star_time,renderer.flow_time
         renderer.debug_state=5;renderer.render(elapsed_time=69.)
         assert renderer.program['u_layer_mode'].value==0
+        renderer.layer_profiles=trio
+        for seconds,state in ((70.,7),(75.,15),(80.,18),(84.,0),(90.,5)):
+            renderer.debug_state=state;renderer.render(elapsed_time=seconds)
+            assert np.allclose(renderer.program['u_material_mix'].value,materials_at(trio,state,seconds))
+            assert renderer.star_time>last_star and renderer.flow_time>last_flow
+            last_star,last_flow=renderer.star_time,renderer.flow_time
     finally:renderer.close()
     print('PASS: recursive forms, per-world layer table/solo/order, legacy/v3 sessions, validation, all launch modes, minimum layout, UI lifecycle, real replay state/effect metadata and pacing, continuous GPU clocks.')
 

@@ -15,8 +15,25 @@ uniform float u_debug_state;
 uniform int u_layer_mode;
 uniform int u_layer_mask;
 uniform vec4 u_shockwaves[8];
+uniform vec3 u_material_mix;
+uniform int u_directed;
+uniform vec4 u_world_mix; // corridor, planet, water, fire
+uniform vec4 u_water_mix; // sea, dyes, rain, falls, normalized within water
+uniform float u_current_mix;
+uniform vec4 u_fire_mix; // sheets, molten, firescape, aftershock
+uniform float u_root_mix;
+uniform float u_world_warp;
+uniform int u_event_blasts;
+uniform vec4 u_blast_events[8]; // birth, stable id, world x, world z
 float effect(int bit) {
-    return u_layer_mode == 0 || (u_layer_mask & bit) != 0 ? 1.0 : 0.0;
+    float enabled = u_layer_mode == 0 || (u_layer_mask & bit) != 0 ? 1.0 : 0.0;
+    if (u_directed == 1) {
+        // Independent detail tides, not switches synchronized to world changes.
+        if (bit == 4096) enabled *= .18+.82*(.5-.5*cos(u_drift_time*.071));
+        if (bit == 8192) enabled *= .25+.75*(.5+.5*sin(u_drift_time*.053+.8));
+        if (bit == 65536) enabled *= .40+.60*(.5+.5*sin(u_drift_time*.089+2.));
+    }
+    return enabled;
 }
 
 out vec4 fragColor;
@@ -294,6 +311,51 @@ float dwell(float phase)
 {
     float raw = 0.5 + 0.5 * sin(phase);
     return smoothstep(0.35, 0.65, raw);
+}
+
+// Shared spatial grammar acts on material/detail coordinates, never on the
+// world's ray intersections, silhouettes, depth ordering or star clock.
+bool shared_spatial() { return u_directed == 1 || u_layer_mode > 0; }
+vec3 spatial_weights() {
+    if (!shared_spatial()) return vec3(0.0);
+    vec3 enabled = vec3(effect(16),effect(32),effect(64));
+    if (u_layer_mode == 1) return enabled;
+    float t = u_drift_time;
+    // Long overlapping holds: the outgoing pull remains inside the next fold.
+    vec3 phase=vec3(t*.185+.4,t*.157+2.0,t*.109+4.1);
+    vec3 envelope=smoothstep(vec3(.18),vec3(.58),.5+.5*sin(phase));
+    float energy = clamp(u_scale*.45+u_flux*.55,0.,1.);
+    return enabled*envelope*(.94+.06*smoothstep(.05,.35,energy));
+}
+vec2 spatial_carrier(vec2 source) {
+    vec3 w = spatial_weights();
+    if (max(w.x,max(w.y,w.z)) <= 0.) return source;
+    vec2 q=source;
+    // A broad spiral throat without an atan seam or singular vanishing point.
+    float radius=length(q);
+    float twist=2.2/(1.+radius*.55)
+        +4.0*sin(u_time*.18)+.55*sin(u_time*.61);
+    mat2 turn=mat2(cos(twist),-sin(twist),sin(twist),cos(twist));
+    // Reciprocal depth makes a visible throat, with a finite soft center.
+    vec2 tunnel=turn*q*(2.6/(.32+radius*radius));
+    q=mix(q,tunnel,w.x);
+    vec2 pathway=vec2(q.x/(.85+abs(q.y)*.20),
+        q.y/(1.+abs(q.y)*.16));
+    pathway.x+=.22*sin(pathway.y*.8+u_time*.09);
+    q=mix(q,pathway,w.z);
+    // Bounded inversion keeps large readable lobes, not tiny singular shards.
+    // Start from the preceding pulls so spatial effects actually inherit one another.
+    vec2 folded=q;
+    for(int i=0;i<4;i++) {
+        folded=sqrt(folded*folded+vec2(.0025))/max(dot(folded,folded),.08)
+            -vec2(.9+clamp(u_flux,0.,1.)*.15,.6);
+    }
+    // One central seed opens first; expanding recursive coverage reveals
+    // neighboring clusters, then owns the material field at full maturity.
+    float growth=mix(.10,5.0,smoothstep(.05,.90,w.y));
+    float cluster=1.-smoothstep(growth,growth+.45,length(source));
+    return mix(q,folded*.32,w.y*cluster);
+
 }
 
 // A small tapered branching tree, evaluated in the membrane's warped space.
@@ -881,6 +943,7 @@ float water_form_phase()
 
 float water_currents_weight()
 {
+    if (u_directed == 1) return u_current_mix;
     if (u_debug_state > 12.5 && u_debug_state < 13.5) return 1.0;
     if (!(u_debug_state < .5 || (u_debug_state > 5.5 && u_debug_state < 6.5))) return 0.0;
     float phase = water_form_phase();
@@ -894,6 +957,7 @@ float water_currents_weight()
 // changes. Individual states hold one form for development and musical review.
 vec4 water_forms()
 {
+    if (u_directed == 1) return u_water_mix;
     if (u_debug_state > 12.5 && u_debug_state < 13.5) return vec4(0.0);
     if (u_debug_state > 6.5) {
         if (u_debug_state < 7.5) return vec4(1,0,0,0);
@@ -1132,7 +1196,9 @@ vec3 isolated_water_scene(WaterSurface surface, vec3 canvas)
     if (surface.distance < 0.0) return water_environment(-surface.view);
     float spark = clamp(u_sparkle, 0.0, 1.0);
     vec4 forms = water_forms();
-    vec2 q = water_current(surface.position);
+    vec2 detail_position = surface.position;
+    if (shared_spatial()) detail_position=spatial_carrier(surface.position*.28)/.28;
+    vec2 q = water_current(detail_position);
     float rain_weight = u_layer_mode == 0 ? forms.z : effect(4096);
     float ripple_weight = u_layer_mode == 0 ? forms.z : effect(8192);
     // Rain perturbs reflected normals, keeping the accepted sea height intact.
@@ -1190,7 +1256,7 @@ vec3 isolated_water_scene(WaterSurface surface, vec3 canvas)
     scene = mix(scene, dye_color, forms.y*.95);
     float currents = water_currents_weight();
     if (currents > 0.0) {
-        vec2 flow = currents_domain(surface.position);
+        vec2 flow = currents_domain(detail_position);
         float bass = clamp(u_scale,0.0,1.0), flux = clamp(u_flux,0.0,1.0);
         float lane = flow.x*2.15 + .28*sin(flow.y*.65+flow.x*.6);
         float body = smoothstep(.18-bass*.12,.80,.5+.5*sin(lane));
@@ -1212,13 +1278,13 @@ vec3 isolated_water_scene(WaterSurface surface, vec3 canvas)
         scene = mix(scene,current_color,currents);
     }
     if (ripple_weight > 0.0) {
-        float rings = water_ripples(surface.position);
+        float rings = water_ripples(detail_position);
         scene += mix(ocean_palette(.75),lavender_pearl_palette(.75),.3)
             * max(rings,0.0)*ripple_weight*(.16+spark*.32);
     }
     if (rain_weight > 0.0) {
         // Sparse foreground streaks, with independent seeded lifetimes.
-        vec2 rain_q = surface.position*2.0;
+        vec2 rain_q = detail_position*2.0;
         vec2 cell=floor(rain_q);
         float seed=hash(cell+13.0);
         float age=fract(u_drift_time*.7+seed);
@@ -1280,6 +1346,13 @@ vec3 water_falls(FallsSurface surface, vec3 material)
     bool river=surface.kind < 1.5;
     vec2 pos=surface.position;
     vec2 flow=waterfall_current(surface);
+    // Fold curtain filaments without moving the cliff or waterfall boundaries.
+    if (shared_spatial()) {
+        float travel=u_time*.72+u_drift_time*.08;
+        flow.y-=travel;
+        flow=spatial_carrier(flow*vec2(.28,.18))/vec2(.28,.18);
+        flow.y+=travel;
+    }
     float path=pos.y;
     float bend=river ? sin(path*.16)*.50 : sin(-path*.8-u_time*.13)*min(-path*.018,.12);
     float width=2.45 + bass*.20 + (river ? min(path*.025,1.2) : min(-path*.035,.25));
@@ -1421,6 +1494,7 @@ vec3 isolated_fire_scene(vec2 p, vec3 canvas) {
 // A separate held form and a development-only three-form meld. Held Fire (14)
 // retains its exact accepted route; the source material clock never resets.
 float molten_weight() {
+    if (u_directed == 1) return u_fire_mix.y;
     if (u_debug_state > 14.5 && u_debug_state < 15.5) return 1.;
     if (u_debug_state < 15.5 || u_debug_state > 16.5) return 0.;
     float phase=mod(u_drift_time,84.);
@@ -1428,6 +1502,7 @@ float molten_weight() {
 }
 
 float firescape_weight() {
+    if (u_directed == 1) return u_fire_mix.z;
     if (u_debug_state > 16.5 && u_debug_state < 17.5) return 1.;
     if (u_debug_state < 15.5 || u_debug_state > 16.5) return 0.;
     float phase=mod(u_drift_time,84.);
@@ -1436,12 +1511,13 @@ float firescape_weight() {
 
 // A slow elevated orbit: horizontal world heading changes, gravity stays down.
 vec2 molten_ground(vec2 p) {
-    float heading=.34+u_drift_time*.008;
+    float heading=.34+u_time*.045;
     vec2 forward=vec2(sin(heading),cos(heading));
     vec2 right=vec2(forward.y,-forward.x);
     float down=.408-p.y*1.46;
     vec2 ray=forward*(.913+p.y*.653)+right*p.x*1.6;
-    return -forward*9.+ray*(4./max(.035,down));
+    float zoom=1.+.06*sin(u_time*.28)+.07*clamp(u_scale,0.,1.);
+    return -forward*9.+ray*(4./max(.035,down))/zoom;
 }
 
 // Return cross-stream distance and the parent center. Branches begin on the
@@ -1469,13 +1545,13 @@ vec2 molten_channel(vec2 ground) {
 vec2 molten_domain(vec2 p) {
     vec2 q=molten_ground(p);
     q.x-=.65*sin(q.y*.34)+.28*sin(q.y*.77);
-    q.y+=u_drift_time*.11;
+    q.y+=u_time*.28;
     q.x+=.09*sin(q.y*1.3+q.x);
     return q;
 }
 
 vec3 molten_backdrop(vec2 p) {
-    float bearing=.34+u_drift_time*.008+atan(p.x*1.6,.913);
+    float bearing=.34+u_time*.045+atan(p.x*1.6,.913);
     float ridge=.315+.038*sin(bearing*5.)+.032*sin(bearing*11.+2.)
         +.015*sin(bearing*23.);
     vec3 sky=mix(vec3(.032,.045,.068),vec3(.065,.067,.082),
@@ -1711,7 +1787,22 @@ vec3 isolated_firescape_scene(vec2 p,vec3 canvas) {
 
 // Aftershock: projected ground and layered, shaded ash volumes. Event timestamps
 // preserve musical shockwaves independently of the decaying impact envelope.
+float blast_latest(float clock) {
+    if(u_event_blasts==0) return floor((clock-5.)/36.);
+    float latest=-1.;
+    for(int i=0;i<8;i++) latest=max(latest,u_blast_events[i].y);
+    return latest;
+}
+float blast_birth(float id) {
+    if(u_event_blasts==0) return 5.+id*36.;
+    for(int i=0;i<8;i++) if(u_blast_events[i].y==id) return u_blast_events[i].x;
+    return -1000.;
+}
 vec2 blast_site(float id) {
+    if(u_event_blasts==1) {
+        for(int i=0;i<8;i++) if(u_blast_events[i].y==id) return u_blast_events[i].zw;
+        return vec2(0.,-1000.);
+    }
     return vec2((hash(vec2(id,8.7))-.5)*12.,20.+id*10.8+
         (mod(id,3.)>1.5 ? 42. : 0.));
 }
@@ -1728,7 +1819,7 @@ vec3 blast_cloud_order(float clock) {
     return vec3(ids[0],ids[1],ids[2]);
 }
 vec3 blast_aurora(vec2 p,float clock,float camera,float camx) {
-    float id=floor((clock-5.)/36.),age=clock-(5.+id*36.);
+    float id=blast_latest(clock),age=clock-blast_birth(id);
     float bend=0.;
     if(id>=0.) {
         vec2 site=blast_site(id);
@@ -1786,14 +1877,17 @@ vec3 isolated_aftershock_scene(vec2 p,vec3 canvas) {
     if(rayy<0.) {
         float terrain=noise(ground*.45)*.6+noise(ground*1.8)*.4;
         vec3 soil=vec3(.038,.032,.029)+terrain*vec3(.063,.047,.029);
-        soil+=canvas*.055*effect(1);
+        soil+=canvas*.055*min(1.,effect(1)+(u_layer_mode==0 ? 0. : effect(33554432)+effect(67108864)));
         scene=mix(vec3(.14,.125,.10),soil,haze);
         float recent=floor((clock-5.)/36.);
-        for(int j=0;j<3;j++) {
-            float id=recent-float(j),age=clock-(5.+id*36.);
+        for(int j=0;j<8;j++) {
+            if(u_event_blasts==0 && j>=3) break;
+            float id=u_event_blasts==1 ? u_blast_events[j].y : recent-float(j);
+            float age=clock-blast_birth(id);
             if(id>=0.) {
                 float r=length(ground-blast_site(id));
-                scene*=1.-.6*exp(-r*r*.7)*smoothstep(0.,2.,age)*effect(131072);
+                float craterLife=u_event_blasts==1 ? 1.-smoothstep(15.,20.,age) : 1.;
+                scene*=1.-.6*exp(-r*r*.7)*smoothstep(0.,2.,age)*craterLife*effect(131072);
                 scene+=blast_ring(ground,id,age,1.2)*haze;
             }
         }
@@ -1804,15 +1898,31 @@ vec3 isolated_aftershock_scene(vec2 p,vec3 canvas) {
     }
     scene+=blast_aurora(p,clock,camera,camx);
     vec3 cloudOrder=blast_cloud_order(clock);
-    for(int j=0;j<3;j++) {
-        float id=cloudOrder[j],age=clock-(5.+id*36.);
+    float cloudIds[8];float depths[8];
+    for(int i=0;i<8;i++) {
+        float id=-1.;
+        if(u_event_blasts==1) id=u_blast_events[i].y;
+        else if(i<3) id=cloudOrder[i];
+        cloudIds[i]=id;depths[i]=id>=0. ? blast_site(id).y : -1000.;
+    }
+    if(u_event_blasts==1) for(int pass=0;pass<7;pass++) for(int i=0;i<7;i++) {
+        if(depths[i]<depths[i+1]) {
+            float temp=depths[i];depths[i]=depths[i+1];depths[i+1]=temp;
+            temp=cloudIds[i];cloudIds[i]=cloudIds[i+1];cloudIds[i+1]=temp;
+        }
+    }
+    for(int j=0;j<8;j++) {
+        if(u_event_blasts==0 && j>=3) break;
+        float id=cloudIds[j],age=clock-blast_birth(id);
         vec2 site=blast_site(id);float dz=site.y-camera;
-        if(id>=0. && age>0. && age<86. && dz>1.) {
-            float life=smoothstep(0.,.5,age)*(1.-smoothstep(64.,86.,age))
+        float lifeEnd=u_event_blasts==1 ? 20. : 86.;
+        if(id>=0. && age>0. && age<lifeEnd && dz>1.) {
+            float life=smoothstep(0.,.5,age)*(1.-smoothstep(u_event_blasts==1 ? 15. : 64.,lifeEnd,age))
                 *smoothstep(1.,4.,dz);
             vec2 local=vec2(p.x*dz*1.6+camx-site.x,(p.y*1.6-.32)*dz+6.);
-            float height=7.5*(1.-exp(-age*.075));
-            float width=.35+2.9*(1.-exp(-age*.075));
+            float growth=u_event_blasts==1 ? .22 : .075;
+            float height=7.5*(1.-exp(-age*growth));
+            float width=.35+2.9*(1.-exp(-age*growth));
             float stemW=(.23+.48*(1.-exp(-age*.1)))*(1.+.24*sin(local.y*4.+clock*.18));
             float bend=sin(local.y*.65+clock*.12)*.15*local.y/8.;
             float stem=exp(-pow(abs((local.x-bend)/stemW),4.))
@@ -1844,7 +1954,7 @@ vec3 isolated_aftershock_scene(vec2 p,vec3 canvas) {
     }
     scene=1.-exp(-scene*1.5);
     // One short outward inversion per detonation, separate from musical rings.
-    float id=floor((clock-5.)/36.),age=clock-(5.+id*36.);
+    float id=blast_latest(clock),age=clock-blast_birth(id);
     if(id>=0. && age>=0. && age<2. && rayy<0.) {
         float front=1.-smoothstep(age*180.,age*180.+2.,length(ground-blast_site(id)));
         scene=mix(scene,blast_material_negative(canvas),front*exp(-age*1.8)*(1.-smoothstep(1.5,2.,age))*.9*effect(2097152));
@@ -1852,15 +1962,108 @@ vec3 isolated_aftershock_scene(vec2 p,vec3 canvas) {
     return clamp(scene,0.,1.);
 }
 
+// Material siblings share the existing transformed field and audio clocks.
+vec3 selected_materials() {
+    if(u_layer_mode==0) return vec3(1.,0.,0.);
+    if(u_layer_mode==2) return u_material_mix;
+    vec3 chosen=vec3(effect(1),effect(33554432),effect(67108864));
+    return chosen/max(1.,chosen.x+chosen.y+chosen.z);
+}
+vec3 liquid_alloy(vec2 q,float bass,float flux,float sparkle,float impact) {
+    vec2 stream=q;
+    stream += vec2(sin(q.y*1.7-u_time*.18),cos(q.x*1.3+u_time*.15))*.12;
+    vec2 space=stream*3.2+vec2(u_time*.07,-u_time*.09);
+    vec2 cell=floor(space),v=fract(space)-.5;
+    float seed=hash(cell+vec2(21.,8.));
+    float angle=seed*6.283+u_time*(.18+seed*.13);
+    v=mat2(cos(angle),sin(angle),-sin(angle),cos(angle))*v;
+    v.y+=.045*sin(v.x*10.+u_time*.18+seed*8.)*(1.+flux*.4);
+    vec2 disk=v/vec2(.32+.035*bass,.16+.065*(.5+.5*sin(u_time*.24+seed*8.)));
+    float radius=dot(disk,disk);
+    float aa=max(length(fwidth(space))*8.,.015);
+    float body=(1.-smoothstep(1.-aa,1.+aa,radius))*smoothstep(.3,.5,seed);
+    vec3 normal=normalize(vec3(disk.x,disk.y,sqrt(max(.01,1.-radius))));
+    float reflection=.5+.5*sin(normal.y*8.+normal.x*2.5+u_time*.09);
+    vec3 copper=vec3(.75,.28,.10),teal=vec3(.08,.58,.62),violet=vec3(.44,.12,.72);
+    vec3 tint=mix(copper,teal,smoothstep(.25,.75,reflection));
+    tint=mix(tint,violet,.5+.5*sin(seed*8.+normal.x*2.));
+    vec3 object_tint=.08+.92*(.5+.5*cos(vec3(0.,2.094,4.188)
+        +seed*19.+normal.y*.65+.32*sin(u_time*.16+seed*9.)));
+    tint=mix(tint,object_tint,.85);
+    float glint=pow(reflection,18.)*(.22+sparkle*.3);
+    float rim=pow(1.-max(0.,normal.z),4.);
+    vec3 chrome=vec3(.08,.10,.14)+tint*(.2+reflection*.55)
+        +vec3(.65,.82,.9)*(glint+rim*.2);
+    chrome*=.8+.2*max(0.,normal.y)+impact*.12;
+    float resolved=1.-smoothstep(.10,.35,length(fwidth(space)));
+    return chrome*body*resolved;
+}
+float material_segment(vec2 p,vec2 a,vec2 b) {
+    vec2 d=b-a;
+    return length(p-a-d*clamp(dot(p-a,d)/max(dot(d,d),.000001),0.,1.));
+}
+vec3 prismatic_lattice(vec2 q,float bass,float flux,float sparkle,float impact) {
+    vec2 stream=q;
+    stream += vec2(sin(q.y*1.5+u_time*.17),cos(q.x*1.4-u_time*.19))*.10;
+    vec2 space=stream*3.0+vec2(-u_time*.055,u_time*.06);
+    vec2 cell=floor(space),local=fract(space)-.5;
+    float seed=hash(cell+vec2(12.,37.));
+    float stage=3.+3.95*(.5-.5*cos(u_time*.065+seed*6.28));
+    float sides=floor(stage),growth=smoothstep(0.,1.,fract(stage));
+    float turn=u_time*(.20+seed*.16)+seed*6.283;
+    vec2 front[8];vec2 back[8];
+    for(int i=0;i<8;i++) {
+        float index=float(i);
+        float a=min(index,sides)*6.283185/sides;
+        float b=index*6.283185/(sides+1.);
+        vec2 vertex=mix(vec2(cos(a),sin(a)),vec2(cos(b),sin(b)),growth)*(.30+bass*.025);
+        for(int face=0;face<2;face++) {
+            vec3 point=vec3(vertex,float(face)*.30-.15);
+            point.xz=mat2(cos(turn),sin(turn),-sin(turn),cos(turn))*point.xz;
+            float tilt=.45+.32*sin(u_time*.19+seed*3.)+flux*.10*sin(seed*8.);
+            point.yz=mat2(cos(tilt),sin(tilt),-sin(tilt),cos(tilt))*point.yz;
+            vec2 projected=point.xy/(1.+point.z*.5);
+            if(face==0) front[i]=projected;else back[i]=projected;
+        }
+    }
+    float edge=10.,inside=1.,insideBack=1.;
+    for(int i=0;i<8;i++) {
+        if(float(i)>sides) break;
+        int next=float(i)>=sides ? 0 : i+1;
+        edge=min(edge,material_segment(local,front[i],front[next]));
+        edge=min(edge,material_segment(local,back[i],back[next]));
+        edge=min(edge,material_segment(local,front[i],back[i]));
+        vec2 d=front[next]-front[i],v=local-front[i];
+        float side=smoothstep(-.004,.004,d.x*v.y-d.y*v.x);
+        inside*=side;insideBack*=1.-side;
+    }
+    float aa=max(length(fwidth(space))*.6,.003);
+    float wire=1.-smoothstep(.006,.006+aa,edge);
+    float glow=exp(-edge*65.)*(.08+sparkle*.12);
+    vec3 tint=.2+.8*(.5+.5*cos(vec3(0.,2.094,4.188)+seed*6.28+local.y*2.));
+    float presence=smoothstep(.30,.48,seed);
+    float resolved=1.-smoothstep(.10,.35,length(fwidth(space)));
+    return tint*(wire*(.45+sparkle*.22+impact*.10)+glow+max(inside,insideBack)*.075)*presence*resolved;
+}
+
 void main()
 {
-    bool fire_mode = u_debug_state > 13.5 && u_debug_state < 18.5;
-    float debug_state = fire_mode ? 1.0 : (u_debug_state > 10.5 && u_debug_state < 12.5) ? 1.0 : u_debug_state;
+    bool directed = u_directed == 1;
+    bool held_fire = u_debug_state > 13.5 && u_debug_state < 18.5;
+    bool fire_mode = held_fire || (directed && u_world_mix.w > 0.);
+    float fire_takeover = directed ? u_world_mix.w : (held_fire ? 1. : 0.);
+    float debug_state = held_fire ? 1.0 : (u_debug_state > 10.5 && u_debug_state < 12.5) ? 1.0 : u_debug_state;
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
 
     // Correct for the window's aspect ratio.
     vec2 p = uv - 0.5;
     p.x *= u_resolution.x / u_resolution.y;
+    if (directed) {
+        float warp=u_world_warp*(.12+.12*clamp(u_scale+u_flux,0.,1.));
+        float angle=warp*exp(-dot(p,p)*1.2)*sin(length(p)*3.+u_time*.12);
+        p=mat2(cos(angle),sin(angle),-sin(angle),cos(angle))*p;
+        p*=1.+warp*(.6-length(p)*.3);
+    }
 
     if (debug_state > 2.5 && debug_state < 3.5)
     {
@@ -1871,6 +2074,7 @@ void main()
     vec2 screen_p = p;
     float water_takeover = debug_state > 5.5 ? 1.0
         : (debug_state < .5 ? water_handoff(u_drift_time) : 0.0);
+    if (directed) water_takeover = u_world_mix.z;
     bool water_mode = water_takeover > 0.0;
     vec4 forms = water_forms();
     float cosmic_takeover = (
@@ -1879,6 +2083,7 @@ void main()
     ) ? cosmic_handoff(u_drift_time, debug_state > 3.5) : 0.0;
     if (debug_state > 4.5) cosmic_takeover = 1.0;
     if (water_mode) cosmic_takeover = 0.0;
+    if (directed) cosmic_takeover = u_world_mix.y;
     float canvas_zoom = mix(3.4, 1.0, cosmic_takeover);
     // Tiny music-driven pressure on the entire system, never independent
     // planet/ring scaling. Bounded to two percent at full presence.
@@ -1903,9 +2108,16 @@ void main()
 
     if (fire_mode) {
         float molten=molten_weight(), wild=firescape_weight();
-        p=mix(fire_domain(screen_p),molten_domain(screen_p)*.4,molten);
-        if (wild > 0.) p=fire_domain(screen_p)*(1.-molten-wild)
+        vec2 fire_p=mix(fire_domain(screen_p),molten_domain(screen_p)*.4,molten);
+        if (wild > 0.) fire_p=fire_domain(screen_p)*(1.-molten-wild)
             +molten_domain(screen_p)*.4*molten+firescape_domain(screen_p)*wild;
+        if (directed) {
+            // Remove unbounded travel offsets before interpolating world spaces.
+            // Each scene still animates with its original uninterrupted clock.
+            fire_p.y += (u_time*.32+u_drift_time*.025)*.32*(1.-molten-wild)
+                -u_time*.28*.4*molten+u_time*.095*wild;
+        }
+        p=mix(p,fire_p,fire_takeover);
     }
 
     float t = u_time * 0.18;
@@ -2030,9 +2242,16 @@ void main()
     }
 
     if (u_layer_mode != 0) {
-        tunnel_weight = effect(16);
-        fractal_weight = effect(32);
-        horizon_weight = effect(64);
+        if (u_layer_mode == 2) {
+            // Material playback retains the world's authored spatial envelopes.
+            tunnel_weight *= effect(16);
+            fractal_weight *= effect(32);
+            horizon_weight *= effect(64);
+        } else {
+            tunnel_weight = effect(16);
+            fractal_weight = effect(32);
+            horizon_weight = effect(64);
+        }
         // A held form owns its geometry; other scheduled worlds cannot leak in.
         if (debug_state > 0.5 && !(debug_state > 1.5 && debug_state < 2.5))
             geometric_weight = 0.0;
@@ -2056,6 +2275,13 @@ void main()
     geometric_weight *= 1.0 - cosmic_dominance;
     horizon_weight *= 1.0 - cosmic_dominance;
 
+    if (shared_spatial()) {
+        // Shared carriers below own spatial effects. Keep their strength out of
+        // world coverage: a large fractal must not erase the world underneath.
+        tunnel_weight=0.; fractal_weight=0.; horizon_weight=0.;
+        if (directed) geometric_weight=u_world_mix.x;
+    }
+
     float total_transform = tunnel_weight + fractal_weight
         + geometric_weight + cosmic_weight + horizon_weight;
     // Keep a faint organic home-state thread during overlapping handoffs.
@@ -2070,9 +2296,12 @@ void main()
     if (water_mode) {
         water = water_surface(screen_p);
         vec2 water_domain = water.material;
+        if (shared_spatial()) water_domain += mix(vec2(.32,-.16)*(u_time*.13+u_drift_time*.025)*vec2(.22,.27),
+            vec2(0.,(u_time*.22+u_drift_time*.028)*.12),water_currents_weight());
         if (forms.w > 0.0) {
             falls = waterfall_surface(screen_p);
             vec2 fall_domain = waterfall_current(falls)*vec2(.28,.18);
+            if (shared_spatial()) fall_domain.y -= (u_time*.72+u_drift_time*.08)*.18;
             water_domain = mix(water_domain,fall_domain,forms.w);
         }
         q = mix(q, water_domain, water_takeover);
@@ -2115,6 +2344,7 @@ void main()
             - u_drift_time * (0.5 + tunnel_maturity * 0.3)
             - pressure * 2.2
     );
+    if (directed) tunnel_q.y += u_drift_time*(.5+tunnel_maturity*.3);
     q = mix(q, tunnel_q, tunnel_weight);
 
     // Horizon/Pathway: perspective corridor converging toward a
@@ -2126,6 +2356,7 @@ void main()
         1.0 / (abs(q.y) + 0.22) * (1.2 + horizon_maturity * 0.6)
             - u_drift_time * (0.4 + horizon_maturity * 0.25)
     );
+    if (directed) horizon_q.y += u_drift_time*(.4+horizon_maturity*.25);
     q = mix(q, horizon_q, horizon_weight);
 
     // Fractal: cheap recursive inversion fold (Kleinian-style).
@@ -2150,6 +2381,8 @@ void main()
     float room_box = max(abs(room_cell.x), abs(room_cell.y));
     vec2 room_q = room_cell / max(room_box, 0.001) * (0.6 + 0.4 * room_box);
     q = mix(q, room_q, room_gate * 0.55);
+
+    if (shared_spatial()) q=spatial_carrier(fractal_domain);
 
     // Geometric Dream: evolving mandala/crystalline/kaleidoscopic forms.
 // Smoothly morphs between radial, mandala-symmetric, crystalline, and
@@ -2243,6 +2476,20 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         0.0, 1.0
     );
     q *= mix(1.0, 3.4, collapse_amount);
+
+    if (shared_spatial()) {
+        // Restore presentation as well as coordinates. Zeroing these weights
+        // silenced the old crystal palette/eye and let Organic cover the result.
+        vec3 spatial=spatial_weights();
+        tunnel_weight=spatial.x;
+        fractal_weight=spatial.y;
+        horizon_weight=spatial.z;
+        fractal_maturity=smoothstep(.25,.95,fractal_weight);
+        total_transform=tunnel_weight+fractal_weight+horizon_weight
+            +geometric_weight+cosmic_weight;
+        organic_weight=max(organic_floor,1.-total_transform);
+        weight_sum=max(organic_weight+total_transform,1.);
+    }
 
     float n = fbm(q * 2.4 * u_scale + vec2(t, -t * 0.7));
 
@@ -2444,6 +2691,27 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     ) / weight_sum;
 
 
+    float pigment_presence=0.;
+    float spatial_glow_gain=1.;
+    if (shared_spatial()) {
+        vec3 weights=vec3(tunnel_weight,fractal_weight,horizon_weight);
+        pigment_presence=max(weights.x,max(weights.y,weights.z));
+        // Give overlapping palettes a lead instead of averaging three full
+        // families into grey. Smooth phase bias resolves equal-strength holds.
+        vec3 bias=.78+.22*sin(vec3(u_drift_time*.071,
+            u_drift_time*.063+2.1,u_drift_time*.057+4.2));
+        vec3 lead=pow(weights*bias,vec3(4.));
+        float sum_lead=lead.x+lead.y+lead.z;
+        if (sum_lead>0.00001) {
+            vec3 pigment=(ocean_palette(body_value)*lead.x
+                +crystal_palette(body_value)*lead.y
+                +teal_amber_palette(body_value)*lead.z)/sum_lead;
+            color=mix(color,pigment,pigment_presence*.88);
+        }
+        // Keep pathway light local when another spatial form already leads.
+        spatial_glow_gain=1./(1.+1.4*(tunnel_weight+fractal_weight));
+    }
+
     // Horizon glow: a warm light band along the horizon line itself,
     // plus faint converging depth bands -- reads as a path stretching
     // away rather than a flat backdrop. Richer/more atmospheric the
@@ -2457,8 +2725,9 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         3.0
     ) * horizon_weight * (0.3 + horizon_maturity * 0.25);
     color += teal_amber_palette(0.85) * horizon_line
-        * (0.5 + horizon_maturity * 0.4);
-    color += vec3(0.90, 0.80, 0.60) * horizon_bands;
+        * (0.5 + horizon_maturity * 0.4) * spatial_glow_gain;
+    color += (shared_spatial() ? teal_amber_palette(.68) : vec3(.90,.80,.60))
+        * horizon_bands * spatial_glow_gain;
 
     // Eye interior: a flowing taffy gradient revealed as the aperture
     // opens -- color flows through the geometry rather than replacing
@@ -2495,9 +2764,22 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     );
     color += aura_color * aura_detail;
 
+    if (pigment_presence>0.) {
+        // Restore pigment contrast after the field lighting, before materials:
+        // no changes to Living, Alloy, Lattice, stars, or their highlight colors.
+        float pigment_peak=max(color.r,max(color.g,color.b));
+        vec3 vivid=pow(max(color,vec3(0.))/max(pigment_peak,.0001),vec3(1.38))
+            *pigment_peak*1.12;
+        color=mix(color,vivid,pigment_presence);
+    }
+
     // Stars share the same coordinate deformation as the field, so they
     // feel embedded in the universe rather than pasted over it.
-    vec2 star_space = q * (5.0 + bass_pressure * 5.0);
+    // World-coordinate travel is removed above only to keep handoffs stable.
+    // Restore one shared conveyor AFTER the world warps: its speed comes from
+    // the existing integrated audio clock and cannot accelerate with blend age.
+    vec2 material_travel = directed ? vec2(.06,.30)*u_time : vec2(0.);
+    vec2 star_space = q * (5.0 + bass_pressure * 5.0) + material_travel*5.;
     vec2 star_stretch = mix(
         vec2(1.0),
         vec2(0.3, 2.8),
@@ -2540,6 +2822,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     vec2 art_space = q * (3.2 + bass_pressure * 1.6);
     // Water stretches the existing forms into submerged streaks of dye.
     art_space *= mix(vec2(1.0),vec2(0.22,1.8),water_takeover);
+    art_space += material_travel*4.;
     vec2 art_cell = floor(art_space);
     vec2 art_local = fract(art_space) - 0.5;
 
@@ -2647,7 +2930,22 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     color += art_accent * art_edge * effect(1) * (0.35 + geometric_weight * 0.30)
         * (1.0-water_takeover*.80);
 
+    vec3 material_mix=selected_materials();
+    vec3 sibling_delta=vec3(0.);
+    if(material_mix.y+material_mix.z>0.) {
+        vec3 living=color-before_artifacts;
+        vec3 siblings=vec3(0.);
+        // Authored playback retains its original stable sphere source.
+        // Shared spatial playback carries every material through the same folds.
+        float stable_domain=directed ? max(cosmic_takeover,1.-fractal_weight*.65) : max(cosmic_takeover,u_layer_mode==2
+            ? smoothstep(.08,.40,fractal_weight+tunnel_weight+horizon_weight) : 0.);
+        vec2 sibling_q=(shared_spatial() ? q : mix(q,fractal_domain,stable_domain))+material_travel;
+        if(material_mix.y>0.) siblings+=liquid_alloy(sibling_q,bass_pressure,flux,sparkle,impact)*material_mix.y;
+        if(material_mix.z>0.) siblings+=prismatic_lattice(sibling_q,bass_pressure,flux,sparkle,impact)*material_mix.z;
+        sibling_delta=siblings-living*(1.-material_mix.x);
+    }
     vec3 fire_material = material_before_effects + color - before_artifacts;
+    if(material_mix.y+material_mix.z>0.) fire_material+=sibling_delta;
 
     // Falling/drifting world elements: unlocked strongly by the
     // horizon state, but audio decides what populates it -- highs for
@@ -2752,6 +3050,10 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     color += laser_color * laser_mask * effect(8) * 1.4 * (1.0-water_takeover);
 
     vec3 material_effects = color - material_before_effects;
+    if(material_mix.y+material_mix.z>0.) {
+        material_effects+=sibling_delta;
+        color+=sibling_delta;
+    }
 
     // Organic membrane: its own connected folds in the pre-scroll domain.
     // Slow deformation preserves the form while bass changes its physical
@@ -2782,7 +3084,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     float membrane_ridge = pow(max(0.0, 1.0 - abs(membrane_fold - 0.72) * 7.0), 3.0);
     // One Organic form replaces another gradually, rather than stacking light.
     // Dwelling lets both the broad membrane and the roots hold their identity.
-    float root_mix = dwell(u_drift_time * 0.04 - 1.8);
+    float root_mix = directed ? u_root_mix : dwell(u_drift_time * 0.04 - 1.8);
     if (u_debug_state > 10.5 && u_debug_state < 11.5) root_mix = 0.0;
     if (u_debug_state > 11.5 && u_debug_state < 12.5) root_mix = 1.0;
     vec2 root_position = membrane_space * 0.85;
@@ -2823,25 +3125,37 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     float peak = max(color.r, max(color.g, color.b));
     color = color / (1.0 + peak * 0.6);
 
+    vec3 shared_canvas = color;
     if (geometric_weight > 0.0)
     {
         float geo_canvas = 0.85 + 0.15 * clamp(u_flux, 0.0, 1.0);
         vec3 geo_world = isolated_geometric_scene(geo_surface, color, geo_canvas);
-        color = mix(color, geo_world, geometric_weight);
+        float amount = directed ? geometric_weight/max(1.-water_takeover-cosmic_takeover-fire_takeover,.000001) : geometric_weight;
+        color = mix(color, geo_world, clamp(amount,0.,1.));
     }
     if (cosmic_takeover > 0.0)
     {
-        vec3 world = isolated_cosmic_scene(cosmic_p, color, 1.0, cosmic_takeover);
-        color = mix(color, world, cosmic_takeover);
+        vec3 world = isolated_cosmic_scene(cosmic_p, directed ? shared_canvas : color, 1.0, cosmic_takeover);
+        float amount = directed ? cosmic_takeover/max(1.-water_takeover-fire_takeover,.000001) : cosmic_takeover;
+        color = mix(color, world, clamp(amount,0.,1.));
     }
     if (water_mode) {
-        vec3 liquid = isolated_water_scene(water, color);
-        if (forms.w > 0.0) liquid = mix(liquid,water_falls(falls,color),forms.w);
-        color = mix(color,liquid,water_takeover);
+        vec3 liquid = isolated_water_scene(water, directed ? shared_canvas : color);
+        if (forms.w > 0.0) liquid = mix(liquid,water_falls(falls,directed ? shared_canvas : color),forms.w);
+        float amount = directed ? water_takeover/max(1.-fire_takeover,.000001) : water_takeover;
+        color = mix(color,liquid,clamp(amount,0.,1.));
     }
     if (fire_mode) {
         float molten=molten_weight(), wild=firescape_weight();
-        if (u_debug_state > 17.5) {
+        vec3 before_fire=color;
+        if (directed) {
+            vec4 weights=u_fire_mix;
+            color=vec3(0.);
+            if(weights.x>0.) color+=isolated_fire_scene(screen_p,fire_material)*weights.x;
+            if(weights.y>0.) color+=isolated_molten_scene(screen_p,fire_material)*weights.y;
+            if(weights.z>0.) color+=isolated_firescape_scene(screen_p,fire_material)*weights.z;
+            if(weights.w>0.) color+=isolated_aftershock_scene(screen_p,fire_material)*weights.w;
+        } else if (u_debug_state > 17.5) {
             color=isolated_aftershock_scene(screen_p,fire_material);
         } else if (wild <= 0.) {
             if (molten < 1.) color=isolated_fire_scene(screen_p,fire_material);
@@ -2853,6 +3167,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
             if (molten > 0.) color+=isolated_molten_scene(screen_p,fire_material)*molten;
             color+=isolated_firescape_scene(screen_p,fire_material)*wild;
         }
+        if (directed) color=mix(before_fire,color,fire_takeover);
     }
     fragColor = vec4(color, 1.0);
 }

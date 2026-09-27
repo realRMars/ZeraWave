@@ -5,6 +5,72 @@ This small control window launches the existing renderer and analysis tools;
 it does not introduce another audio pipeline, shader interface or renderer.
 It uses the Python environment's built-in Tk widgets, with no added dependency.
 
+## Musical response
+
+Motion now has a wider, smoothly integrated energy range. Quiet passages keep
+the .35 baseline; movement, flux and bass can raise the clock toward 3.68, with
+bounded onset accents and an absolute cap of 4. This changes motion rather than
+audio normalization. Cosmic star motion retains its separate continuous clock.
+
+Main blend still has its varied underlying itinerary, plus additional Planet
+Canvas opportunities after 45, 55 and then 85 seconds between triggered visits.
+An opportunity waits for 1.5 seconds of sustained weighted energy; silence does
+not force a visit. These are energy cues, not actual chorus recognition. The
+Planet gathers over six seconds, holds, and releases over nine seconds. It waits
+while Aftershock is prominent. World handoffs now share a gentle twist and lens
+compression. Fractal folds appear more readily with flux, and the siblings can
+participate in them while retaining protection against unresolved fine detail.
+
+Aftershock now uses up to eight active sites, scattered ahead and to either side
+of the camera. Groups of four detected onsets launch a new detonation, subject
+to a 1.5-second minimum spacing and available capacity. Sustained input is not
+counted repeatedly. A ten-second fallback keeps sparse music alive. This is
+onset grouping, not beat-grid/4/4 detection. Each site grows, settles and fades
+over 20 seconds; clouds draw from far to near. The existing expanding material
+inversion and separately bounded dust/fire rings remain. The same behavior is
+used in Main blend and held Aftershock previews.
+
+Molten flow now rotates with the integrated music clock and has a gentle bounded
+zoom; river transport uses that clock too. Liquid Alloy has independent object
+hues and color variation across its reflective folds. Living artifacts' palette
+has not been retuned. Restart an open preview to load these changes.
+
+## Main blend and material siblings
+
+Main blend now starts with Living artifacts, Liquid Alloy and Prismatic Lattice
+melding automatically. Restart Studio and select Main blend, or launch
+`run_live_visualizer.bat`. No material preset is required. A saved explicit
+Authored profile still restores the earlier sequence; New session clears saved
+custom profiles. Main blend owns a separate list from the held-world lists.
+
+Worlds follow a repeatable shuffled itinerary: both Organic forms, Neon corridor,
+Planet canvas, all five Water forms and all four Fire forms, including Aftershock.
+Each six-minute chapter visits all 13 forms in a newly shuffled order, with varied
+holds (roughly 20–41 seconds in the first three chapters). Ordinary holds devote
+almost half their duration to gathering into the next world; occasional longer
+holds leave more room to breathe. The underlying itinerary is timed; extra Planet visits use the energy gate
+described above. Music shapes motion, pressure, highlights and events.
+
+The Main blend material slots are independently timed at 22 seconds. Living →
+Alloy → Lattice repeats, fading during the last 35% of each slot. Their order and
+hold are editable in Effects & layers. Rain, ripple rings and Water highlights
+also breathe on independent slow cycles. Off switches remain effective.
+
+For held worlds, choose **Presets → Material trio — all worlds** to apply the
+three-material cycle to every world's list (36-second slots in this preset).
+**Meld materials** follows enabled material rows in table order. Up/Down changes
+that order; On/off removes a material from the cycle. Other enabled effects stay
+active with spatial effects retaining authored strength envelopes. Together
+combines selected materials in equal shares; Solo isolates one for inspection.
+Choose the Material effect category to add either sibling to a custom list.
+Alloy rolls and stretches along its flow; Lattice's cages tumble independently.
+
+Held worlds retain their existing Authored default. Cosmic Geometry study
+bypasses materials; use Planet canvas to inspect their surface gathering.
+Fire's held native cycle still includes its original three forms; Main blend
+visits Aftershock independently. Replay captures record material weights and
+world/form weights. Playback speed changes pacing, not itinerary or analysis.
+
 ## Working cycle
 
 1. Select a world, then narrow its cascading category/form selectors.
@@ -32,7 +98,7 @@ Only one child per Studio runs at a time. Setting changes apply to the next run.
 Visual world contains Organic, Geometric, Cosmic, Transition, and Elements.
 Elements expands to Water, then Sea, Liquid dyes, Rain & ripples, Waterfall,
 and Currents. Elements also contains Fire → Flame sheets / Molten flow / Firescape / Aftershock (isolated development
-forms, not yet in the main blend).
+forms, also visited by Main blend).
 Cosmic expands to Planet canvas and Geometry study. Organic expands to Membrane
 and Roots; blank Form keeps their original authored meld. Geometric expands to
 Neon corridor. Transition remains the existing Cosmic handoff diagnostic.
@@ -73,7 +139,7 @@ The optional --states argument is supported by live, synthetic and replay
 entry points. The existing renderer selects its debug state from elapsed time;
 audio analysis, integrated movement and Cosmic star clocks continue without
 reset. Replay uses song time at every speed, and metrics/captures record the
-actual active state. Normal run_live_visualizer has no sequence and is unchanged.
+actual active state. Normal run_live_visualizer has no diagnostic sequence and uses the new Main blend itinerary.
 
 ## Forms, effects and layers
 
@@ -91,6 +157,7 @@ Organic forms share Organic's list; Water forms share Water's list.
 - **Authored:** original visuals and timing; the custom list is parked.
 - **Selected together:** only enabled effects, applied to the selected form.
   An empty list shows its base material/structure.
+- **Meld materials:** enabled materials fade in table order; other enabled effects remain active.
 - **Cycle list:** one enabled effect at a time in table order, skipping disabled
   rows. Hold controls the seconds per effect. Empty means base form.
 
@@ -104,7 +171,7 @@ audio pipeline and integrated drift/star clocks never reset on a layer change.
 
 Available categories:
 
-- Material: Living artifacts, Sparkles, Drifting flecks, Radial beams.
+- Material: Living artifacts, Liquid Alloy, Prismatic Lattice, Sparkles, Drifting flecks, Radial beams.
 - Spatial: Tunnel, Fractal folds, Horizon / pathway. Fractals remain a treatment
   for now, with a stable ID that can later be migrated to a dedicated world.
 - World details: Root blossoms, Corridor glyph rain, Drifting starfield,
@@ -125,10 +192,10 @@ the form. Custom lists must explicitly include desired details; Authored keeps
 their original behavior. Existing bit IDs and version-3 sessions remain valid.
 
 Main blend has its own preview profile. It does not import the individual world
-lists into production. The normal live launcher supplies no overrides.
+lists automatically. The normal live launcher uses Main blend’s default trio profile.
 
 The shared development catalog/validation is app/visuals/preview_layers.py.
-Its stable effect bits feed two optional uniforms on the existing renderer.
+Its stable effect bits and material weights feed the existing renderer.
 All three entry points accept --layers JSON; replay CSV/captures record the
 actual layer_mode and layer_mask. A zero mode means authored; a custom mode
 with mask zero means base form. Fixed shader captures also honor --layers.
@@ -158,22 +225,17 @@ and impact disturbs a bounded region. Quiet input still transports material.
 It uses existing integrated clocks and a procedural inverse coordinate field,
 not a physical fluid simulation or a second renderer.
 
-The normal main blend now includes all five accepted forms. Each Water visit
-holds one form through its entrance and release; successive visits use Sea,
-Currents, Waterfall, Rain & ripples, then Liquid dyes, repeating. Selection
-advances while Water is hidden, avoiding overlapping camera/form/world changes.
-Physical animation and material clocks continue without reset. Studio and the
-isolated Water launcher retain their continuous five-form meld.
+Main blend visits all five Water forms through the shuffled itinerary described
+above, with continuous material and movement clocks. Studio's isolated Water
+branch retains its continuous five-form meld.
 The accepted sea height/current equations remain unchanged.
 The waterfall moves between a wide river-to-cliff view and an immersive close
 view of water falling out of frame; there is no bottom pond. Restart an already
 running preview after shader changes to load the revised waterfall.
 
-The main blend now admits Water after the original Cosmic release: first
-entrance at 116 seconds, full Water at 126–144, release by 158. Subsequent
-visits repeat every 140 seconds. The initial startup is unchanged. Water's
-visit selection gives later visits different forms. These are timed
-scaffolds, not music phrase detection. Music drives expression within them.
+The earlier 140-second Cosmic/Water sequence is still available through an
+explicit Authored profile on Main blend. The default now uses the shuffled
+itinerary, including Fire; it does not wait until 116 seconds to introduce Water.
 
 New vocabularies are still implemented and verified in the existing shader.
 There is no opaque import-to-main button: integration is an explicit code
@@ -212,7 +274,7 @@ fixtures. Standalone checks do not replace subjective listening/visual review.
 Restart Studio and select Elements → Fire → Flame sheets. Start with Authored;
 Fire details offers Coals, Embers and Hot seams. Material offers the existing
 Living artifacts, with its original palette. Blank Fire form melds Flame sheets, Molten flow and Firescape on an 84-second
-cycle: 19-second holds and nine-second eased transitions between forms. The main blend does not yet include Fire.
+cycle: 19-second holds and nine-second eased transitions between forms. Main blend now visits all Fire forms through its independent itinerary.
 Test tracks and acceleration work through the same controls as Water.
 
 Standalone GPU regression (baseline saved before this pass):
@@ -240,7 +302,7 @@ Ash is an additional Fire detail, separate from bright Embers. Ash currently
 applies only to Firescape. All Fire forms share the saved layer list; accepted
 Flame sheets and Molten flow retain their existing palettes. This new palette
 does not replace Living artifacts. CLI: --state firescape; blank Fire uses
---state fire_cycle. The main blend is still unchanged.
+--state fire_cycle. Main blend now visits Firescape independently.
 
 Verification:
 `.venv\Scripts\python.exe app/visuals/shader_test.py --firescape-test work/elemental/firescape/before.frag work/elemental/firescape/check`
@@ -264,7 +326,7 @@ Embers, Ash and Hot seams retain their other Fire-form uses.
 
 Aftershock is accepted as a separate held form. Fire's existing All / cycle still uses
 the accepted Flame sheets / Molten flow / Firescape meld; the broader Elements
-leaf cycle includes Aftershock. It is not in the main blend yet. Replay metrics
+leaf cycle and Main blend both include Aftershock. Replay metrics
 include shockwave_count and capture metadata includes event lists, making
 multiple-hit behavior inspectable with the existing accelerated tracks.
 
@@ -280,5 +342,18 @@ before it is muted into the ground. Its existing two-second fade and effect
 control are unchanged; the original material palette is not modified.
 
 The accepted Aftershock projection has a subtle planetary horizon arc shared
-by the ground, sky, plumes and flash. Fire integration into the main blend and
-adding Aftershock to the native Fire meld remain separate follow-up work.
+by the ground, sky, plumes and flash. Aftershock is integrated into Main blend;
+adding it to the native three-form Fire meld remains separate follow-up work.
+
+
+## Shared spatial pulls
+
+Main blend and Meld materials now let Tunnel, Fractal folds and Horizon/pathway
+carry all three materials and Water details across worlds. Their overlapping
+holds let an outgoing pull feed the next. Selected together holds enabled
+spatial effects fully on; Cycle list remains a diagnostic row switch.
+Water and Fire now include Spatial rows in their existing effect table.
+World silhouettes and physical surfaces remain intact, and Authored preserves
+the earlier world presentation. Stars and Aftershock geometry are intentionally
+outside the material fold. Use Fractal folds with a material enabled to inspect
+the broad recursive shapes, then Main blend to review their release and overlap.
