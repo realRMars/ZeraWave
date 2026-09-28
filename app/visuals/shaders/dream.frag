@@ -28,6 +28,11 @@ uniform float u_sparkle;
 uniform float u_impact;
 uniform float u_flux;
 uniform float u_debug_state;
+uniform int u_roots_blue_on, u_roots_pearl_on, u_roots_ridge_on, u_roots_blossoms_on;
+uniform vec3 u_roots_blue[5], u_roots_pearl[5];
+uniform vec2 u_roots_blue_ranges[4], u_roots_pearl_ranges[4];
+uniform vec3 u_roots_ridge, u_roots_blossoms;
+uniform int u_planet_palette; // Opt-in held Planet Canvas experiment only.
 // Optional development isolation. Zero keeps every authored expression intact.
 uniform int u_layer_mode;
 uniform int u_layer_mask;
@@ -418,6 +423,16 @@ float root_network(vec2 position, float phase, float activity)
     return nearest;
 }
 
+// Opt-in pigment edits only in held Roots. Missing targets keep exact authored code.
+bool roots_color_scope() { return u_debug_state > 11.5 && u_debug_state < 12.5 && u_directed == 0; }
+vec3 roots_color_gradient(float v, vec3 colors[5], vec2 ranges[4])
+{
+    vec3 color = colors[0];
+    for (int i=0; i<4; i++)
+        color = mix(color, colors[i+1], smoothstep(ranges[i].x, ranges[i].y, v));
+    return color;
+}
+
 // Small blossom clusters in root-space: a few five-petal flowers, kept
 // deliberately sparse so the mycelium remains the primary form.
 float blossom_field(vec2 position, float phase)
@@ -489,6 +504,40 @@ vec3 cosmic_vivid_material(vec3 material, float drive)
     vivid *= 1.0 + 0.30 * drive;
     // Keep channel ratios instead of flattening saturated highlights to white.
     return vivid / max(1.0, max(vivid.r, max(vivid.g, vivid.b)));
+}
+
+// Proposed soft-dream contrast, local to Planet Canvas pigment. Preserve
+// luminance (including dark material detail); never tint the final scene.
+vec3 planet_palette(vec3 pigment)
+{
+    if (u_planet_palette != 1 || u_debug_state != 5.0) return pigment;
+    vec3 weights = vec3(.2126, .7152, .0722);
+    float luminance = dot(pigment, weights);
+    float peak = max(pigment.r, max(pigment.g, pigment.b));
+    float low = min(pigment.r, min(pigment.g, pigment.b));
+    float chroma = peak - low;
+    float hue = 0.0;
+    if (chroma > .00001) {
+        if (peak == pigment.r) hue = (pigment.g - pigment.b) / chroma;
+        else if (peak == pigment.g) hue = 2.0 + (pigment.b - pigment.r) / chroma;
+        else hue = 4.0 + (pigment.r - pigment.g) / chroma;
+    }
+    float phase = fract(hue / 6.0) * 4.0;
+    vec3 cream = vec3(.94, .88, .73);
+    vec3 lavender = vec3(.80, .67, .87);
+    vec3 pink = vec3(.80, .52, .60);
+    vec3 blue_green = vec3(.36, .66, .63);
+    vec3 tint;
+    if (phase < 1.0) tint = mix(pink, cream, phase);
+    else if (phase < 2.0) tint = mix(cream, blue_green, phase - 1.0);
+    else if (phase < 3.0) tint = mix(blue_green, lavender, phase - 2.0);
+    else tint = mix(lavender, pink, phase - 3.0);
+    // Neutral highlights remain neutral; compress chroma before gamut clipping.
+    tint = mix(cream, tint, smoothstep(0.0, .15, chroma));
+    vec3 delta = luminance * (tint / dot(tint, weights) - 1.0);
+    float headroom = max(0.0, 1.0 - luminance);
+    float strength = min(1.0, headroom / max(max(delta.r, max(delta.g, delta.b)), .00001));
+    return vec3(luminance) + delta * strength;
 }
 
 // Direction-space radiance: the sea samples the same events in its reflection.
@@ -671,7 +720,7 @@ vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly
     ring_color *= mix(0.18, 1.0, ring_shadow);
     ring_color = mix(ring_color, mix(ring_color, canvas, 0.38)
         * (0.85 + 0.3 * clamp(u_sparkle, 0.0, 1.0)), canvas_mix);
-    ring_color = cosmic_vivid_material(ring_color, color_drive);
+    ring_color = planet_palette(cosmic_vivid_material(ring_color, color_drive));
     band_mask *= smoothstep(0.35, 0.90, assembly) * effect(1024);
 
     float closest = cosmic_sphere_depth(p, vec3(0.0), radius);
@@ -691,7 +740,7 @@ vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly
         albedo = mix(albedo, vec3(0.70, 0.79, 0.92), clouds * 0.65);
         // Opaque material substitution, not an overlay on the final scene.
         albedo = mix(albedo, sqrt(clamp(canvas, 0.0, 1.0)) * 0.95, canvas_mix);
-        albedo = cosmic_vivid_material(albedo, color_drive);
+        albedo = planet_palette(cosmic_vivid_material(albedo, color_drive));
         float diffuse = max(dot(normal, light_dir), 0.0);
         scene = albedo * (0.10 + 0.90 * diffuse);
         scene += vec3(0.10, 0.30, 0.65) * pow(1.0 - normal.z, 3.0)
@@ -4677,9 +4726,17 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         lavender_pearl_palette(membrane_value),
         smoothstep(0.25, 0.75, membrane_warp.x)
     );
+    if (roots_color_scope() && (u_roots_blue_on == 1 || u_roots_pearl_on == 1))
+        membrane_color = mix(
+            u_roots_blue_on == 1 ? roots_color_gradient(membrane_value, u_roots_blue, u_roots_blue_ranges) : electric_blue_palette(membrane_value),
+            u_roots_pearl_on == 1 ? roots_color_gradient(membrane_value, u_roots_pearl, u_roots_pearl_ranges) : lavender_pearl_palette(membrane_value),
+            smoothstep(0.25, 0.75, membrane_warp.x));
     membrane_color *= 0.25 + membrane_body * 0.75;
     membrane_color += vec3(0.18, 0.50, 0.55) * membrane_ridge
         * (0.15 + sparkle * 0.35 + impact * 0.15);
+    if (roots_color_scope() && u_roots_ridge_on == 1)
+        membrane_color += (u_roots_ridge - vec3(0.18, 0.50, 0.55)) * membrane_ridge
+            * (0.15 + sparkle * 0.35 + impact * 0.15);
     // Blossoms have a small internal lifecycle: bud, open bloom, and a
     // quiet return. Root continuity remains intact while the flowers breathe.
     float blossom_cycle = 0.5 + 0.5 * sin(membrane_time * 0.12 + 1.4);
@@ -4689,6 +4746,8 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         * root_mix * blossom_life
         * (0.35 + sparkle * 0.35 + impact * 0.30);
     membrane_color += vec3(0.95, 0.42, 0.62) * blossom * effect(128);
+    if (roots_color_scope() && u_roots_blossoms_on == 1)
+        membrane_color += (u_roots_blossoms - vec3(0.95, 0.42, 0.62)) * blossom * effect(128);
     color = mix(color, membrane_color * u_intensity, (organic_weight / weight_sum)*(1.0-water_takeover));
     // Explicit custom layers remain visible on the held Organic material too.
     // Authored mode keeps the accepted Organic substitution unchanged.

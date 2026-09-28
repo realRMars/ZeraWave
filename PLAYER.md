@@ -19,15 +19,17 @@ the normal graceful exit.
 Windows x64 and an OpenGL 3.3-capable graphics driver are required. This is an
 unsigned portable preview, not an installer or a claim of compatibility with
 untested PCs. Python is included in the ZIP. No administrator access is needed.
-The product player runs Main Blend with four materials; Studio remains the
-project's development environment. No test music is distributed.
+The product player runs Main Blend with the current four-material default.
+Studio remains the project's development environment, not a consumer product.
+No test music is distributed.
 
 ## Retained portable checkpoint
 
 `work/releases/ZeraWave-preview-final.zip` is the user's frozen checkpoint of
 app source at `d4992d0`. The accepted 2026-09-28 Cavern/Aftershock/Sea repairs are
-in the project checkout, not that ZIP. Keep it intact; a future build must use a
-new output name. See ZERAWAVE_HANDOFF.md for the current working-app status.
+in the project checkout, not that ZIP. Keep it intact. Another portable is the
+lowest priority; build only when expressly approved and always use a new output
+name. See ZERAWAVE_HANDOFF.md for current working-app status.
 
 ## Build
 

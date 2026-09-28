@@ -8,6 +8,7 @@ import moderngl
 import math
 
 from parameters import VisualParameters
+from color_controls import validate_colors, color_uniforms
 from preview_layers import shooting_stars_at, echo_selected, echo_weave_at, layers_at, materials_at, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
 
 VERTEX_SHADER = """
@@ -154,6 +155,12 @@ class Renderer:
         self.debug_state = 0
         self.debug_sequence = ()
         self.layer_profiles = {}
+        # Development-only color choice; independent of materials and sessions.
+        self.preview_palette = "authored"
+        self.color_overrides = {}
+        self.color_inbox = None
+        self._color_dirty = True
+        self._color_active = None
         # Bounded visual event history, driven by the existing onset parameter.
         self.shockwaves = []
         self.shockwave_armed = True
@@ -442,6 +449,12 @@ class Renderer:
             target.use()
             self.ctx.viewport = viewport
 
+    def set_colors(self, values):
+        # Validate transactionally: invalid snapshots never replace the last valid setup.
+        clean = validate_colors(values)
+        self.color_overrides = clean
+        self._color_dirty = True
+
     def render(self, elapsed_time=None):
         if self.window is None:
             raise RuntimeError("Renderer has not been created")
@@ -536,6 +549,8 @@ class Renderer:
         self.program['u_air_trails'].value = self.air_trails + [(0.,0.)] * (3-len(self.air_trails))
         self.program["u_flux"].value = self.parameters.flux
         self.program["u_debug_state"].value = float(self.state_at(current_time))
+        self.program["u_planet_palette"].value = int(
+            self.preview_palette == "soft-dream" and self.state_at(current_time) == 5)
         mode, mask = layers_at(self.layer_profiles, self.state_at(current_time), current_time)
         self.program['u_layer_mode'].value = mode
         self.program['u_layer_mask'].value = mask
@@ -562,7 +577,17 @@ class Renderer:
             (-1000., 0., 0., 0.)] * (8 - len(self.shockwaves))
         self.update_echo(current_time, echo_weave_at(self.layer_profiles, self.state_at(current_time), current_time),
                          echo_selected(self.layer_profiles, self.state_at(current_time)))
+        update = self.color_inbox.take() if self.color_inbox else None
+        if update is not None: self.set_colors(update[1])
+        active = self.debug_state == 12 and not self.debug_sequence
+        if self._color_dirty or active != self._color_active:
+            for name, value in color_uniforms(self.color_overrides, active).items():
+                self.program[name].value = value
+            self._color_dirty = False
+            self._color_active = active
         self.vao.render(mode=moderngl.TRIANGLE_STRIP)
+        if update is not None:
+            self.color_inbox.applied(update[0], current_time, self.echo_clock)
 
     def should_close(self):
         return glfw.window_should_close(self.window)
@@ -580,6 +605,7 @@ class Renderer:
         return time.perf_counter() - self.start_time
 
     def close(self):
+        if self.color_inbox: self.color_inbox.close()
         self.release_echo()
         if self.vao is not None:
             self.vao.release()

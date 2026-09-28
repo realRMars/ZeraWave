@@ -35,7 +35,6 @@ Do not introduce new architecture, duplicate modules, abstractions, frameworks, 
 In particular:
 
 - `app/visuals/renderer.py` is the existing renderer and must be inspected before any renderer-related work.
-- Do not expand `app/rendering/` without explicit architectural review.
 - Do not create a second renderer, parameter system, audio pipeline, or shader interface that duplicates existing functionality.
 - Do not relocate or rename working modules as part of unrelated tasks.
 - Do not refactor working code merely for stylistic preference.
@@ -253,3 +252,51 @@ The objective is deliberate evolution, not permanent attachment to the first des
 **Inspect before creating. Preserve before replacing. Test before claiming. Review before committing.**
 
 Build ZeraWave from the working project that exists—not from an imagined clean slate.
+
+## 16. Coordination and document ownership
+
+The user's current instructions and explicit assignments take precedence.
+These rules prevent conflicting edits, not ordinary progress within a task.
+
+- The user chooses direction and accepts visual results. The Overseer maintains
+  ROADMAP.md (sole plan), ZERAWAVE_HANDOFF.md (current checkpoint), README.md
+  (entry map), and shared policy in AGENTS.md. Treat ZERAWAVE_VISUAL_IDENTITY.md
+  as a shared design contract: propose changes unless assigned to edit it.
+- Workers read these shared documents but do not independently rewrite them.
+  Report proposed status/priority/policy changes to the user/Overseer in the
+  task result or an optional note. An explicit documentation assignment may
+  delegate named shared files; do not request permission again for that scope.
+- Workers may update feature-specific operating/technical documentation such as
+  DEVELOPMENT_STUDIO.md, TECHNIQUE_LIBRARY.md, PLAYER.md and maintenance contracts
+  when needed by their assigned change. Coordinate overlapping files first;
+  read the latest contents and preserve other workers' edits.
+- New visuals normally become reviewable in the existing Dev Studio, then receive
+  user review/refinement and Main integration when approved or already authorized.
+  Supplemental scripts are not a replacement for this workflow. Studio redesign
+  and commercial product work are not implied by adding a feature control.
+- Workers can carry out routine implementation, related tests and necessary
+  fixes within their assigned scope. The review gates in sections 5 and 13 mean
+  logical task/artistic/scope boundaries, not approval after every edit or test.
+  Existing explicit requirements for deletion, dependencies, major architectural
+  changes and commits remain. Previously granted user authorization still counts.
+- Optional notes belong in docs/agent-notes/<task-name>.md, one per task, not a
+  new root journal. A concise final chat report is sufficient for short tasks.
+  Notes contain scope/files, changes, checks actually run, evidence links,
+  unresolved issues and proposed handoff updates. Separate reported facts from
+  acceptance and proposals. Do not copy the roadmap or large logs into notes.
+- Notes are working evidence, not policy, approval, or a competing backlog.
+  Workers own only their task note; the Overseer promotes reviewed conclusions
+  into shared docs. Historical snapshots remain preserved records.
+- Before editing, inspect Git status and identify owned files. Never clean up,
+  stage, revert or commit another worker's changes. Do not start a conflicting
+  mutation while another worker relies on those files or processes.
+
+## 17. Editable artistic colors
+
+For new or extended visuals, consider meaningful editable color targets through
+the existing color_controls declarations, generated inspector and live transport.
+Preserve authored defaults, shading, geometry and musical response; use stable
+target/role IDs and clear artistic names. Document intentional exceptions or
+unsupported controls. Verify applicable controls through Dev Studio. Expose useful
+artistic choices, not every computed shader expression. Existing-world rollout is
+assigned in reviewed batches; this rule is not authorization for a mass rewrite.

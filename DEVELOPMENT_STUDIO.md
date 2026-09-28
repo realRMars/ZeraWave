@@ -1,496 +1,241 @@
 # ZeraWave Development Studio
 
-## Latest accepted pass (2026-09-28)
-
-Cavern formation clipping, ongoing Aftershock strikes and sideways aurora motion
-are repaired in the working app. Sea now has shooting stars with wave reflections.
-Choose **Effects & layers > Sky effects > Shooting stars** for Water, Cosmic or
-Main Blend. Water's Authored mode includes them; Cosmic's Authored mode preserves
-its previous sky. Existing explicit saved lists are not migrated: add and enable
-this row to use it there. Main's current default list includes it.
-
-The effect uses the same directional light for Sea's sky and reflection; it does
-not turn the sky into the material canvas. Read the current
-[handoff](ZERAWAVE_HANDOFF.md) for verification and performance limits, and the
-[technique map](TECHNIQUE_LIBRARY.md) before building related effects.
-
-Next recommended development is independent palettes, then one surface treatment;
-these controls are not implemented yet. The portable checkpoint is older than
-this working app and stays unchanged.
-
-## Echo Weave and Main's material quartet
-
-Echo Weave now lives in **Material**, alongside Living Artifacts, Liquid Alloy
-and Prismatic Lattice. Main's default list melds all four on independent
-22-second slots. Echo's history warms before its visible fade and stays alive
-while it remains enabled. Removing/disabling it releases its buffers.
-
-Choose **Presets > Material quartet � all worlds** to try the same materials
-on isolated forms. The existing trio preset and saved three-material lists keep
-their original order and behavior. Authored held forms are unchanged. Selected
-together shares material weight equally; Meld materials fades in list order;
-Cycle list remains a diagnostic cut between enabled rows.
-
-Stateful Echo needs track replay or a moving preview, not a single-frame capture.
-History resets on backward time or gaps over one second; catchup is bounded.
-
-## Current workflow and navigation (2026-09-27)
-
-Launch `run_development_studio.bat`. Start in **Library** when you want to find
-a world, effect or existing technique. Search and filter by category; choose a
-world for preview without changing saved layers or starting playback. Effects
-remain managed in **Effects & layers**. Implementation locations are optional.
-For development ownership and reuse, see [the technique map](TECHNIQUE_LIBRARY.md).
-
-1. **Build & preview:** choose a world/form and input. Blank descendants cycle
-   their branch; blank World selects Main blend.
-2. **Effects & layers:** add, solo, order or cycle optional layers for that world.
-   Authored restores its authored presentation; Main has a separate profile.
-3. **Review:** inspect the run folder, quiet and strong passages, then Main blend.
-4. **Library:** discover existing capabilities before adding new ones.
-
-Current Main uses the renderer's energy/lift/release director with session
-entropy and recurrence preferences. When spectral beat confidence is high, justified
-transition opportunities wait at most .8 seconds for a beat. Uncertain rhythm
-keeps the existing timing. This is not phrase/downbeat/chorus recognition. It is not the old fixed or shuffled timed
-itinerary and does not detect actual choruses. Water, Fire, Air, Earth, Fog/Gas
-and Plasma are integrated. Existing v1/v2/v3 sessions remain supported.
-
-The dated material below preserves development history. In particular, old
-45/55/85-second Planet opportunities and six-minute shuffled chapters no longer
-describe Main. Consult this section, the technique map and current renderer
-before using older timing statements.
-
-## Historical development notes
-
-
-## Plasma (2026-09-27)
-
-Restart Studio and choose Elements > Plasma. Leave the form blank for the
-108-second cycle, or hold Magnetic Bloom, Arc Constellation or Auroral Veil.
-All three participate in Main Blend's existing musical director.
-
-Plasma details contains Magnetic filaments & curtains, Discharges & traveling
-pulses, and Charged particles & distant stars. Existing solo, order, cycle and
-material controls apply. Opaque charged cores stay structural when effects
-are disabled. New explicit detail lists need these rows added; authored
-defaults include all three. Existing sessions remain valid.
-
-## Fog / Gas (2026-09-27)
-
-Choose Elements > Fog / Gas. Leave the form blank for the 114-second native
-cycle, or select Nebula Banks, Ghostlight Marsh, or Pressure Chamber. All three
-also participate in Main Blend. Restart Studio to refresh the new catalog.
-
-Fog details offers Vapor banks, Internal light & ghostlights, and Pressure
-fronts & fine filaments through the existing add/remove, solo and cycle table.
-Marsh ground and rock silhouettes remain structural and opaque even with vapor
-disabled. Only vapor uses translucency. Existing materials and spatial effects
-modulate the vapor's pigment without replacing its depth structure.
-Saved explicit effect lists must add the new Fog details; authored defaults
-include all three. Existing saved sessions remain valid.
-
-## Earth (2026-09-27)
-
-Choose Elements > Earth. Leave the form blank for the 108-second native cycle,
-or hold Dune Sea, Folded Strata, or Crystal Cavern. All three also participate
-in Main Blend's musical director, independent material cycling and regional
-transitions. Dunes has a dusk sky; Strata has a night sky with auroral curtains.
-Drifting starfield can be toggled in Earth and is hidden behind solid terrain.
-
-Earth details provides Sediment bands & sand ripples, Mineral veins & crystal
-light, and Surface mineral glints. Earth inhabitants adds Sand worm (Dune Sea).
-Each works with the existing add/remove,
-solo and cycle controls. Living Artifacts, Liquid Alloy and Prismatic Lattice
-gather onto the terrain; spatial effects act on pigment and detail coordinates.
-Terrain depth and crystal silhouettes stay intact. Existing sessions remain
-valid; saved custom effect lists must explicitly add any new Earth details.
-
-## Air / Wind (2026-09-27)
-
-Accepted Air integration: Main Blend and explicit effect playback carry selected
-materials through Windstreams' clouds/balloons and Stormfront's cloud interiors.
-Tunnel, Fractal folds and Horizon act on material/detail coordinates. Held
-Authored forms retain the accepted presentation. The native Air cycle now uses
-broad moving regions to blend scenes; each scene keeps its own camera and depth.
-
-Accepted Air checkpoint: Windstreams flies past fractal balloons and clouds
-above patchwork land. Stormfront follows a curved, mirrored cloud corridor.
-Vortex combines rotating material, wall lightning and free jagged discharges
-rooted at its inner rim. Sky Citadel has a rotating castle with a closed gate,
-attached earth, tower lasers, fireworks and a material-covered planet below.
-Daddy Long Legs remains a dormant FX experiment. See ZERAWAVE_HANDOFF.md
-for detailed behavior and validation history.
-
-Restart Studio, choose Elements > Air / Wind, then leave the form blank to see
-Windstreams, Stormfront, Vortex and Sky Citadel evolve through a 144-second cycle.
-Select a form to hold it. Air details provides cloud/ribbon, balloon,
-lightning and castle/celebration controls alongside existing materials.
-All four forms are also available to Main's musical director. The older fixed
-itinerary and quiet Aftershock fallback descriptions below are historical;
-current behavior is documented at the top of ZERAWAVE_HANDOFF.md.
-
-Run `run_development_studio.bat` from the project folder.
-This small control window launches the existing renderer and analysis tools;
-it does not introduce another audio pipeline, shader interface or renderer.
-It uses the Python environment's built-in Tk widgets, with no added dependency.
-
-## Musical response
-
-Motion now has a wider, smoothly integrated energy range. Quiet passages keep
-the .35 baseline; movement, flux and bass can raise the clock toward 3.68, with
-bounded onset accents and an absolute cap of 4. This changes motion rather than
-audio normalization. Cosmic star motion retains its separate continuous clock.
-
-Main blend still has its varied underlying itinerary, plus additional Planet
-Canvas opportunities after 45, 55 and then 85 seconds between triggered visits.
-An opportunity waits for 1.5 seconds of sustained weighted energy; silence does
-not force a visit. These are energy cues, not actual chorus recognition. The
-Planet gathers over six seconds, holds, and releases over nine seconds. It waits
-while Aftershock is prominent. World handoffs now share a gentle twist and lens
-compression. Fractal folds appear more readily with flux, and the siblings can
-participate in them while retaining protection against unresolved fine detail.
-
-Aftershock now uses up to eight active sites, scattered ahead and to either side
-of the camera. Groups of four detected onsets launch a new detonation, subject
-to a 1.5-second minimum spacing and available capacity. Sustained input is not
-counted repeatedly. A ten-second fallback keeps sparse music alive. This is
-onset grouping, not beat-grid/4/4 detection. Each site grows, settles and fades
-over 20 seconds; clouds draw from far to near. The existing expanding material
-inversion and separately bounded dust/fire rings remain. The same behavior is
-used in Main blend and held Aftershock previews.
-
-Molten flow now rotates with the integrated music clock and has a gentle bounded
-zoom; river transport uses that clock too. Liquid Alloy has independent object
-hues and color variation across its reflective folds. Living artifacts' palette
-has not been retuned. Restart an open preview to load these changes.
-
-## Main blend and material siblings
-
-Main blend now starts with Living artifacts, Liquid Alloy and Prismatic Lattice
-melding automatically. Restart Studio and select Main blend, or launch
-`run_live_visualizer.bat`. No material preset is required. A saved explicit
-Authored profile still restores the earlier sequence; New session clears saved
-custom profiles. Main blend owns a separate list from the held-world lists.
-
-Worlds follow a repeatable shuffled itinerary: both Organic forms, Neon corridor,
-Planet canvas, all five Water forms and all four Fire forms, including Aftershock.
-Each six-minute chapter visits all 13 forms in a newly shuffled order, with varied
-holds (roughly 20–41 seconds in the first three chapters). Ordinary holds devote
-almost half their duration to gathering into the next world; occasional longer
-holds leave more room to breathe. The underlying itinerary is timed; extra Planet visits use the energy gate
-described above. Music shapes motion, pressure, highlights and events.
-
-The Main blend material slots are independently timed at 22 seconds. Living →
-Alloy → Lattice repeats, fading during the last 35% of each slot. Their order and
-hold are editable in Effects & layers. Rain, ripple rings and Water highlights
-also breathe on independent slow cycles. Off switches remain effective.
-
-For held worlds, choose **Presets → Material trio — all worlds** to apply the
-three-material cycle to every world's list (36-second slots in this preset).
-**Meld materials** follows enabled material rows in table order. Up/Down changes
-that order; On/off removes a material from the cycle. Other enabled effects stay
-active with spatial effects retaining authored strength envelopes. Together
-combines selected materials in equal shares; Solo isolates one for inspection.
-Choose the Material effect category to add either sibling to a custom list.
-Alloy rolls and stretches along its flow; Lattice's cages tumble independently.
-
-Held worlds retain their existing Authored default. Cosmic Geometry study
-bypasses materials; use Planet canvas to inspect their surface gathering.
-Fire's held native cycle still includes its original three forms; Main blend
-visits Aftershock independently. Replay captures record material weights and
-world/form weights. Playback speed changes pacing, not itinerary or analysis.
-
-## Working cycle
-
-1. Select a world, then narrow its cascading category/form selectors.
-   Optionally open Effects & layers to build that world's custom effect list.
-2. Choose Test track, Synthetic preview, or Live system audio.
-3. For tracks, choose Balloon, Chasing You, or Warbot Jazz, a speed and duration.
-4. Start preview. Close the visual window to finish normally and save metrics.
-5. Open the Review tab and latest results. Try the other tracks and quiet inputs.
-6. Select Preview main blend to test how the integrated vocabulary fits.
-
-Track replay is silent: it runs decoded music through the real shared analyzer,
-mapper and GPU renderer. Real time, 2x, 6x and 12x are target pacing rates;
-Fastest removes deliberate waiting. No audio chunks are skipped. Rendering
-cost limits actual speed. Live input listens to the default system output.
-Track speed/duration/capture controls do not affect live or synthetic previews.
-
-Every run has a unique folder under `work/studio/`. Track runs save metrics.csv,
-and optionally frames every 15 song seconds plus captures.json. Every run has
-run.log and preview.json (the exact version-3 session used). Stop preview forcibly ends only this Studio's child; existing captures
-remain, but final metrics may be incomplete. Prefer closing the visual window.
-Only one child per Studio runs at a time. Setting changes apply to the next run.
-
-## World hierarchy and isolation
-
-Visual world contains Organic, Geometric, Cosmic, Transition, and Elements.
-Elements expands to Water, then Sea, Liquid dyes, Rain & ripples, Waterfall,
-and Currents. Elements also contains Fire → Flame sheets / Molten flow / Firescape / Aftershock (isolated development
-forms, also visited by Main blend).
-Cosmic expands to Planet canvas and Geometry study. Organic expands to Membrane
-and Roots; blank Form keeps their original authored meld. Geometric expands to
-Neon corridor. Transition remains the existing Cosmic handoff diagnostic.
-No unimplemented elements are exposed.
-
-Every selector offers a genuinely blank option:
-
-- Blank Visual world selects the normal main blend.
-- Elements with blank Category visits all five Water forms, then all four Fire forms, in
-  28-second development holds. These are direct switches, not authored melds.
-- Elements → Water with blank Form runs Water's existing authored meld.
-- Selecting Sea, Rain & ripples, etc. holds only that form.
-- A branch without an authored cycle visits all its implemented leaf states,
-  in catalog order, for 28 seconds each, then repeats. These are direct testing
-  switches, not new artistic transitions. Cosmic currently uses this behavior.
-
-Changing a parent clears its old descendants. Deeper branches generate more
-selectors automatically, with a scrollbar when needed. The selection hint
-explains whether the current choice is held, a native cycle, or sequential.
-Presets use the same nested structure. Restart Studio after updating its code.
-
-The catalog is WORLD_TREE in app/visuals/studio.py. Keys are stable session IDs;
-labels are display names. Nodes have children, a held renderer state, or an
-optional native cycle for their entire branch. Add nested nodes without writing
-more UI rows. Backend states must already be implemented and registered in the
-existing live/synthetic state maps. When a parent gains several branches, its
-generic cycle traverses every leaf, including grandchildren, so a short hold
-cannot skip subforms. Selecting a branch with a native cycle still keeps its
-authored meld. Only implemented forms should be put in the runnable catalog.
-
-Sessions now use version 3 and save the selection path plus independent effect
-lists for each world. Version 1 flat state sessions and version 2 hierarchy
-sessions load with authored effects; saving writes version 3. Unknown
-or removed paths are rejected clearly rather than launching another world.
-Track/speed/capture settings retain their existing meaning.
-
-The optional --states argument is supported by live, synthetic and replay
-entry points. The existing renderer selects its debug state from elapsed time;
-audio analysis, integrated movement and Cosmic star clocks continue without
-reset. Replay uses song time at every speed, and metrics/captures record the
-actual active state. Normal run_live_visualizer has no diagnostic sequence and uses the new Main blend itinerary.
-
-## Forms, effects and layers
-
-Use **World** for a visual environment, **Form** for its main structure, and
-**Effect** for an optional treatment. **Layers** means the world's saved list
-of effects. Elements remains a grouping category; Water owns its own layer
-profile. Fire has its own independent profile.
-
-The Effects & layers tab follows the selected world. Its two dropdowns choose
-an effect category and effect. Add inserts it once; the table supports On/off,
-Solo, Remove, Up and Down. Solo enables only the selected row without deleting
-the others. Lists survive switching worlds and are included in saved sessions.
-Organic forms share Organic's list; Water forms share Water's list.
-
-- **Authored:** original visuals and timing; the custom list is parked.
-- **Selected together:** only enabled effects, applied to the selected form.
-  An empty list shows its base material/structure.
-- **Meld materials:** enabled materials fade in table order; other enabled effects remain active.
-- **Cycle list:** one enabled effect at a time in table order, skipping disabled
-  rows. Hold controls the seconds per effect. Empty means base form.
-
-Adding/editing a row enters custom mode. Switch playback to Authored to recover
-the original appearance. Ordering controls the cycle, not an arbitrary render
-stack: spatial coordinate treatments and material contributions retain the
-existing shader composition order. Cycle switches are direct diagnostic cuts.
-Effects keep their musical response/lifecycles, so some remain subtle or quiet
-until the appropriate passage. Time is song time in accelerated replay; the
-audio pipeline and integrated drift/star clocks never reset on a layer change.
-
-Available categories:
-
-- Material: Living artifacts, Liquid Alloy, Prismatic Lattice, Sparkles, Drifting flecks, Radial beams.
-- Spatial: Tunnel, Fractal folds, Horizon / pathway. Fractals remain a treatment
-  for now, with a stable ID that can later be migrated to a dedicated world.
-- World details: Root blossoms, Corridor glyph rain, Drifting starfield,
-  Planet rings, Moons & dust wakes, where applicable.
-- Water details: Rain streaks, Ripple rings, Crest foam / cliff lip,
-  Mist & distance haze, Surface highlights.
-
-World-specific effects require their geometry: blossoms appear on Roots;
-Cosmic Geometry study uses only World details. Select Planet canvas to inspect
-its inherited material effects. Custom material layers are explicitly preserved
-over the Organic surface before planet/corridor projection. Water exposes its
-inherited Living artifacts and the Water details category. Rain streaks and
-ripple rings can be added independently to surface forms, including Currents.
-They do not appear on the vertical waterfall; its own highlights, cliff lip
-and haze can be controlled separately. Foam needs steep storm crests, and
-distance haze is subtle in close views. Geometry and wave motion stay part of
-the form. Custom lists must explicitly include desired details; Authored keeps
-their original behavior. Existing bit IDs and version-3 sessions remain valid.
-
-Main blend has its own preview profile. It does not import the individual world
-lists automatically. The normal live launcher uses Main blend’s default trio profile.
-
-The shared development catalog/validation is app/visuals/preview_layers.py.
-Its stable effect bits and material weights feed the existing renderer.
-All three entry points accept --layers JSON; replay CSV/captures record the
-actual layer_mode and layer_mask. A zero mode means authored; a custom mode
-with mask zero means base form. Fixed shader captures also honor --layers.
-
-## Menus
-
-- File: new session, load, save, save as, close.
-- Edit: choose another decoded WAV and select replay speed.
-- View: switch between Build & preview, Effects & layers and Review, open results.
-- Presets: nested worlds/categories/forms, All / cycle choices, and main blend.
-- Import / export: JSON development sessions, containing settings and track paths.
-
-Sessions do not contain music or shader code. Track paths must exist on the
-computer loading them; choose another track if a session moved computers.
-Only decoded 48 kHz, 16-bit WAV is supported by replay. The existing MP3s and
-decoded files are reused without moving or converting them.
-
-## Water and integration
-
-`water` now previews sea, liquid dyes, rain/ripples, waterfall and Currents over
-a 140-second cycle. Each holds for about 19 seconds and blends over about 9
-seconds. `sea`, `dyes`, `rain`, `waterfall` and `currents` hold an individual form.
-Currents (state 13) is an overhead flowing composition with two broad eddies,
-advected source colors, dark channels and selective fine reflected ribbons.
-Bass broadens the flow, flux changes local shear, sparkle reveals fine light,
-and impact disturbs a bounded region. Quiet input still transports material.
-It uses existing integrated clocks and a procedural inverse coordinate field,
-not a physical fluid simulation or a second renderer.
-
-Main blend visits all five Water forms through the shuffled itinerary described
-above, with continuous material and movement clocks. Studio's isolated Water
-branch retains its continuous five-form meld.
-The accepted sea height/current equations remain unchanged.
-The waterfall moves between a wide river-to-cliff view and an immersive close
-view of water falling out of frame; there is no bottom pond. Restart an already
-running preview after shader changes to load the revised waterfall.
-
-The earlier 140-second Cosmic/Water sequence is still available through an
-explicit Authored profile on Main blend. The default now uses the shuffled
-itinerary, including Fire; it does not wait until 116 seconds to introduce Water.
-
-New vocabularies are still implemented and verified in the existing shader.
-There is no opaque import-to-main button: integration is an explicit code
-change to the existing blend, reviewed and tested. This avoids copying shaders
-between divergent development and production renderers. The state lists in
-live_visual_test.py and shader_test.py expose held forms in Studio and tests.
-
-## Repeatable checks
-
-Use the existing virtual environment:
-
-```powershell
-.\.venv\Scripts\python.exe app/visuals/studio_test.py
-.\.venv\Scripts\python.exe app/visuals/shader_test.py --currents-test work/elemental/currents/before.frag work/elemental/currents/check
-.\.venv\Scripts\python.exe app/visuals/shader_test.py --water-integration-test work/elemental/currents/before-integration.frag work/elemental/currents/integration
-.\.venv\Scripts\python.exe app/visuals/shader_test.py --water-test work/elemental/check
-.\.venv\Scripts\python.exe app/visuals/shader_test.py --water-family-test work/elemental/water-family/before.frag work/elemental/family-check
-.\.venv\Scripts\python.exe app/visuals/shader_test.py --waterfall-test work/elemental/waterfall-perspective/before.frag work/elemental/waterfall-check
-```
-
-The comparison commands need their matching saved pre-change shaders. The
-older layer-test against the original layer baseline predates the intentional
-five-form development cycle; currents-test handles this expansion. The
-water-integration-test verifies all five main visits, their handoffs, every
-held form and pixels outside Water. Older main-blend comparisons against a
-pre-integration shader intentionally differ during Water visits. They check
-held-world pixel preservation, form visibility, meld boundaries and live
-integration. The layer check covers every previous state and verifies visible
-effect toggles against a base form. The waterfall check also sweeps the camera at 60 Hz and verifies
-river/sky/falling-face coverage directly on the GPU.
-Generated evidence and decoded audio are ignored working assets, not committed
-fixtures. Standalone checks do not replace subjective listening/visual review.
-
-## Fire foundation review
-
-Restart Studio and select Elements → Fire → Flame sheets. Start with Authored;
-Fire details offers Coals, Embers and Hot seams. Material offers the existing
-Living artifacts, with its original palette. Blank Fire form melds Flame sheets, Molten flow and Firescape on an 84-second
-cycle: 19-second holds and nine-second eased transitions between forms. Main blend now visits all Fire forms through its independent itinerary.
-Test tracks and acceleration work through the same controls as Water.
-
-Standalone GPU regression (baseline saved before this pass):
-`.venv\Scripts\python.exe app/visuals/shader_test.py --fire-test work/elemental/fire/before.frag work/elemental/fire/check`
-
-Molten flow holds branching lava rivers with dark crust islands, lit banks,
-flowing seams and two small impact-heated vents. A slow aerial orbit reveals
-the branches opening downstream, backed by simple forest/mountain silhouettes. It shares Fire's layer list:
-Coals controls the crust islands, Hot seams the fine glow, Embers the sparse
-sparks, and Living artifacts the inherited material. Held Flame sheets keeps
-its approved appearance. CLI --state fire still means held Flame sheets;
---state molten holds lava, and --state fire_cycle runs the authored meld.
-A saved blank Fire branch now includes all three forms; a saved Flame sheets leaf
-continues holding that form. Older flat fire sessions also hold Flame sheets.
-
-Expansion regression:
-`.venv\Scripts\python.exe app/visuals/shader_test.py --molten-test work/elemental/molten/before.frag work/elemental/molten/check`
-
-## Psychedelic Firescape
-
-Select Elements → Fire → Firescape to hold multicolored flames across wooded
-hills and a distant city silhouette. The existing audio-driven movement clock
-sets the hue cycle rate (mids), and strong impacts lift flame brightness.
-Ash is an additional Fire detail, separate from bright Embers. Ash currently
-applies only to Firescape. All Fire forms share the saved layer list; accepted
-Flame sheets and Molten flow retain their existing palettes. This new palette
-does not replace Living artifacts. CLI: --state firescape; blank Fire uses
---state fire_cycle. Main blend now visits Firescape independently.
-
-Verification:
-`.venv\Scripts\python.exe app/visuals/shader_test.py --firescape-test work/elemental/firescape/before.frag work/elemental/firescape/check`
-
-Firescape now scrolls left in depth layers, like a side-scrolling landscape.
-Trees sprout and develop irregular crowns, then burn down to stumps; buildings
-rise floor by floor and crumble into falling blocks/rubble. Each object keeps
-its seeded 64-second life while moving through the view. Hold Firescape for
-60–90 seconds to see several overlapping stages. These scenery changes use the
-same controls and do not change Flame sheets or Molten flow.
-
-## Aftershock preview
-
-Select **Elements / Fire / Aftershock** for the new detonation flyover. Strong
-hits produce independent expanding dust/fire rings; quiet input retains camera
-motion, scheduled detonations and growing clouds. Under **Aftershock details**,
-Inversion flash, Dust shockwaves, Ground fire and Aurora can be added/removed
-or cycled.
-Authored restores the complete composition. Coals controls crater shading;
-Embers, Ash and Hot seams retain their other Fire-form uses.
-
-Aftershock is accepted as a separate held form. Fire's existing All / cycle still uses
-the accepted Flame sheets / Molten flow / Firescape meld; the broader Elements
-leaf cycle and Main blend both include Aftershock. Replay metrics
-include shockwave_count and capture metadata includes event lists, making
-multiple-hit behavior inspectable with the existing accelerated tracks.
-
-Aftershock refinement: clouds now draw in actual distance order. The inversion
-fades over two seconds; musical rings use a higher .40 threshold and three-second
-cooldown, allowing at most three simultaneous rings. Aurora curtains gently
-bend at scheduled detonations and settle; this motion is independent of musical
-ring triggers. Restart an existing preview to load the shader changes.
-
-Aftershock plumes now retain a distinct hue per ground zero. Inversion flash
-reveals a negative of the incoming material (including enabled Living artifacts)
-before it is muted into the ground. Its existing two-second fade and effect
-control are unchanged; the original material palette is not modified.
-
-The accepted Aftershock projection has a subtle planetary horizon arc shared
-by the ground, sky, plumes and flash. Aftershock is integrated into Main blend;
-adding it to the native three-form Fire meld remains separate follow-up work.
-
-
-## Shared spatial pulls
-
-Main blend and Meld materials now let Tunnel, Fractal folds and Horizon/pathway
-carry all three materials and Water details across worlds. Their overlapping
-holds let an outgoing pull feed the next. Selected together holds enabled
-spatial effects fully on; Cycle list remains a diagnostic row switch.
-Water and Fire now include Spatial rows in their existing effect table.
-World silhouettes and physical surfaces remain intact, and Authored preserves
-the earlier world presentation. Stars and Aftershock geometry are intentionally
-outside the material fold. Use Fractal folds with a material enabled to inspect
-the broad recursive shapes, then Main blend to review their release and overlap.
-## FX experiments
-
-Daddy Long Legs is a shelved Vortex effect under **Air → FX experiments**.
-It is inactive in authored playback and default Main/material presets. Add it
-explicitly to a custom effect list to preview it; existing sessions keep it off.
-Experiments use a separate switch where needed because the original signed
-effect mask is full. Existing effect IDs and saved masks are unchanged.
+Studio is the current development and review tool. It is not a consumer product
+or a commitment to paid ZeraWave Studio 1.
+
+## Launch and review
+
+Run `run_development_studio.bat` from the project root. Use **Library** to find
+an existing world, effect, or technique; **Build & preview** to select a
+world/form and input; **Effects & layers** to inspect optional selections; and
+**Review** to inspect the resulting run folder.
+
+For visual work, review a held form in motion through quiet and sustained active
+passages, then review Main Blend. Track replay is silent but uses the shared
+analyzer, mapper, and renderer; it is not live audio validation. A still capture
+alone does not verify motion or stateful effects.
+
+## Operating Studio
+
+Choose a world and narrow the cascading selectors to isolate a form. Leaving
+the top selector blank selects Main Blend. A blank branch that has an authored
+cycle uses that cycle; a branch without one sequences every implemented leaf in
+28-second development holds. A selected leaf holds that form. Selector changes
+clear deeper selections.
+
+Choose **Test track**, **Synthetic preview**, or **Live system audio**. Test
+track replay requires an existing decoded 48 kHz, 16-bit WAV; it is silent and
+does not skip analysis chunks. Speed, duration, and capture options apply only
+to track replay. Live input uses system audio, while synthetic preview is a
+diagnostic path.
+
+Each preview creates a unique `work/studio/<timestamp>-<suffix>/` folder. It
+always contains `preview.json` and `run.log`; track replays also write
+`metrics.csv`, and enabled captures add frames at 15-song-second intervals and
+`captures.json`. Only one Studio child runs at a time. Most settings apply
+to the next run; declared held-Roots color controls are the live-edit exception. Close the visual window for a normal finish and complete
+metrics. **Stop preview** terminates only Studio's child; partial logs/captures
+remain and final metrics may be incomplete.
+
+### Effects & layers
+
+The existing tab has four sections. These organize controls, not independent
+rendering passes or playback engines:
+
+- **Materials**: Living artifacts, Liquid Alloy, Prismatic Lattice and Echo
+  Weave; material isolation and restoration. The common **List playback** and
+  **Hold (seconds)** controls retain material melding and timing.
+- **Shared FX**: reusable compatible treatments, including Tunnel, Fractal
+  folds, Horizon, field decorations and supported shooting stars. Compatibility
+  comes from the existing catalog; shared does not mean every world or form.
+- **World details**: rings, moons, blossoms, rain and world-specific features.
+  The catalog filters by world; individual forms may use only some details.
+- **Palettes**: the Planet palette selector and matched A/B replay; held Roots
+  exposes the modeless live color inspector here.
+
+Choose a section, then its catalog category/effect and **Add**. The **saved
+combined cycle order** remains visible across sections; its row flags are the
+saved list, including while isolation temporarily overrides materials.
+**Up / Down** retains cross-category order for old and new Cycle lists. It does
+not define GPU stacking order. Main has its own profile and does not import held
+world profiles automatically.
+
+- **List playback: Authored** uses authored presentation and parks the custom list.
+- **Selected together** enables all selected rows; an empty list is the base form.
+- **Meld materials** fades enabled materials in combined table order while other
+  enabled effects stay on. The last 35% of each hold blends to the next material.
+- **Cycle list** activates one enabled row at a time in combined table order,
+  including mixed Materials/FX/details lists; an empty list is the base form.
+
+**Isolate material** temporarily holds one chosen material with enabled Shared
+FX and World details together. It explicitly suspends Cycle or material melding;
+**Restore materials** removes the override and resumes the saved flags, order,
+mode and timing. It does not silently rewrite the saved list. Start from a custom
+Selected together, Meld or Cycle profile; Authored asks you to establish the
+explicit desired list first. **Solo whole list** retains its old meaning: it
+disables every other row, including FX/details, and clears material isolation.
+Switching List playback to Authored also clears isolation for that world.
+
+### Live Roots color editing — exact review clicks
+
+1. Launch `run_development_studio.bat`. In **Build & preview**, choose **World:
+   Organic > Form: Roots**. A blank Organic Form cycles forms and does not support
+   these overrides. Leave **List playback: Authored** for the simplest Roots view.
+2. Choose **Input: Synthetic preview**, **Test track**, or **Live system audio**,
+   then **Start preview**. For track editing choose **Replay speed: Real time**
+   and a sufficiently long duration. Track replay is silent; live input listens
+   to system audio. Synthetic preview has continuous diagnostic movement.
+3. Open **Effects & layers > Palettes > Open live color inspector…**. This is a
+   modeless Studio window so it can sit beside the existing visual. Choose a
+   target and a named color role. Click/drag the hue/saturation wheel, adjust
+   **Brightness / value**, or enter **#RRGGBB** and press Enter. Swatches show
+   pigment before shading, tonemapping and musical response, not final pixels.
+4. For a field gradient, edit its fixed role colors and **Blend starts / Full
+   color at** values. These positions are along shading value (0–1), not branch
+   length. The existing gradient uses four overlapping smoothstep transitions.
+   Starts and ends must each remain in order, with at least 0.001 between a
+   transition's own start/end. There is no add/remove for these five fixed roles.
+5. Watch the inspector status: **pending**, **sent**, then **Applied live** after
+   the renderer acknowledges a frame. Rapid changes coalesce over 75 ms. Invalid
+   hex or gradient values retain the last valid setup; correct the field or reset
+   its target. Live color edits do not restart time, camera, analysis or Echo.
+6. **Reset target to Authored** restores the selected target's authored colors/positions.
+   **Reset scene to Authored** restores all Roots color targets. **Revert to preview start**
+   restores the scene colors present when this current Roots preview started;
+   it is enabled only while that preview is running. These actions also apply live.
+7. Click **Save named color preset…**, name the look, and choose a JSON file
+   (suggested folder: `work/color-presets/`). **Load color preset…** restores its
+   target assignments and applies them to the running held Roots preview. Loading
+   or editing never rewrites the preset file; saving is an explicit file action.
+   A color preset records which colors belong to which scene parts, unlike a
+   palette that merely contains colors.
+8. **File > Save session** in Studio saves the whole current setup, including
+   color overrides, materials, layers and the existing Planet palette choice.
+   Current edits are in memory until a preset/session is saved. Starting a new
+   preview takes a new revert snapshot. Stop preview or close the visual normally
+   to end editing; the current colors remain available for the next Roots run.
+
+Supported targets are deliberately faithful to the shader:
+
+| Target | What it changes | Intentional limits |
+| --- | --- | --- |
+| Roots field — blue shading | Five fixed blue-gradient roles, with their existing transition ranges | Colors the root surface and dim surrounding field; not a tip or branch-length gradient. |
+| Roots field — pearl shading | Five fixed pearl-gradient roles and ranges, spatially blended with blue shading | Does not move the spatial blend or alter geometry. |
+| Root ridge highlights | One additive ridge tint | Ridge mask, depth cues and audio brightness are unchanged. |
+| Blossoms | One tint shared by petals and center | No independent glow/petal control; existing lifecycle and Root blossoms layer switch remain active. |
+
+Blossoms breathe through a slow authored lifecycle; they can be absent when a
+preview opens. Changing their color does not force a bloom or enable a disabled
+layer. To see them with a custom material list, add/enable **World details >
+World details > Root blossoms**. Materials such as Living artifacts, Liquid
+Alloy, Prismatic Lattice and Echo Weave keep their independent authored colors;
+custom lists add their material effects over the Roots composition. The inspector
+edits the named Roots components, not arbitrary material pigment.
+
+Overrides are parked outside held Roots, including Organic cycling, Membrane,
+Planet Canvas and Main. Switching Studio selection does not retarget an already
+running child. Non-color controls still apply on the next preview. The inspector
+can prepare colors before launch, but then clearly says **next Roots preview**.
+Layer-playback **Authored** and color **Reset scene to Authored** are separate: use both for
+an entirely authored Roots setup. The existing Planet palette and matched A/B
+workflow remain unchanged and separate from live editing.
+
+### Planet Canvas palette prototype — exact review clicks
+
+1. Run `run_development_studio.bat`. In **Build & preview**, choose **World:
+   Cosmic > Form: Planet canvas**. Cosmic's blank Form also holds its only form,
+   Planet Canvas. Main remains unchanged.
+2. To start with the existing four-material meld and stars/rings/moons, use
+   **File > Load session… > work/palette-planet-review/studio-session.json**.
+   Alternatively, open **Effects & layers > Materials**, use the picker and
+   **Add** for desired materials, choose **List playback: Meld materials**, then
+   **World details > World details** and **Add** Planet rings, Moons & dust wakes
+   and Drifting starfield. Add compatible treatments in **Shared FX** as desired.
+3. In **Materials**, choose the material in the isolation selector and click
+   **Isolate material**. Enabled world details and Shared FX stay on. The status
+   explains that the override takes effect on the next preview.
+4. In **Palettes**, choose **Authored** or **Soft Dream** to hold that palette.
+   The exact scope is: **Planet Canvas only. Affects planet surface and rings;
+   moons and sky retain authored colors.** Unsupported forms disable the selector
+   and park its saved choice. Palette **Authored** is independent of **List
+   playback: Authored**. There is no palette cycling or per-effect override.
+5. For an ordinary preview, return to **Build & preview**, choose **Synthetic
+   preview**, **Test track**, or **Live system audio**, then **Start preview**.
+   The persistent active-preview line identifies the running palette; edited
+   controls affect the next preview, never the current child. Live audio remains
+   available for listening review; separate live runs are not matched comparisons.
+6. For matched A/B, choose **Input: Test track** and an existing decoded WAV in
+   **Build & preview**. Then open **Effects & layers > Palettes** and click
+   **Run matched A/B — first 30s of test track**. Studio runs **A: Authored**, then
+   **B: Soft Dream**, sequentially from the same frozen setup. Each uses the first
+   30 seconds (or EOF for shorter tracks), real-time pacing, the held material,
+   identical effects, fixed seed, initial camera, and fixed window size. Each
+   fresh child resets analyzer/mapper state, visual clocks, events and Echo
+   textures. Replay is silent and may run slower than real time on a busy GPU;
+   it processes every audio chunk with the same song-time clock.
+7. Let both labeled windows finish automatically. **Stop preview** cancels the
+   pair; closing a window early fails its expected-frame-count check and prevents
+   a misleading matched-complete result. The input file hash and full analysis
+   measurements must match. **Review > Open latest results** opens the pair folder:
+   `comparison.json`, plus `A/` and `B/` manifests, logs, measurements and optional
+   captures. A successful pair records `matched complete`. Controls changed during
+   a pair affect later previews; A/B never rewrites saved user settings.
+8. Return to **Materials > Restore materials** to resume the previous material
+   selection and mixed Cycle/meld. The chosen palette and ordinary input/speed/
+   duration settings survive A/B unchanged. **File > Save session** retains the
+   palette, source lists and optional isolation override; reloading preserves the
+   ability to restore the list. Load an earlier session to restore an entire setup.
+
+Soft Dream is an experimental contrast awaiting visual acceptance. Review each
+material and the meld through quiet, active and release passages. Automated
+checks and captures do not substitute for continuous audiovisual user review.
+Palette Authored plus List playback Authored restores the authored Planet Canvas
+presentation. Older Geometry study sessions still load as Planet Canvas; the
+removed Studio form remains available only in diagnostic CLI code.
+
+### Sessions
+
+Studio loads session versions 1, 2, and 3. Version 1's flat state is mapped to
+the current selection path; versions 1 and 2 load with authored layer profiles;
+version 3 retains validated per-world layer profiles. Saving writes version 3.
+The optional `planet_palette` field stores `authored` or `soft-dream` separately
+from layer profiles. Files without it load as Authored; unknown values are
+rejected. New session resets it to Authored. Saving remains version 3.
+The optional `material_isolation` map stores world-to-material holds separately
+from the original layer profiles; absent maps preserve old playback exactly.
+Preview commands resolve the override through the existing profile machinery.
+The optional `color_overrides` map stores stable target and role assignments.
+Missing targets/roles use immutable authored defaults; sessions without this
+field keep their previous appearance. Saving still writes version 3.
+Sessions store settings and track paths, not audio files or shader code; a moved
+session needs an available decoded WAV selected again.
+
+## Current behavior
+
+- Beat tracking estimates approximate spectral periodicity/tempo and confidence
+  from recent spectral flux. Main Blend is chosen by the renderer’s
+  energy/lift/release director with recurrence preferences. With high confidence,
+  a qualified transition opportunity can align to a tick within a bounded
+  0.8-second wait. This establishes neither downbeat, phrase, nor chorus
+  recognition, and Main is not a fixed itinerary.
+- The deterministic shuffled chapter helper remains for shader fixtures only;
+  it does not describe live Main playback.
+- Echo Weave is implemented as the fourth material. Main’s default profile uses
+  the material quartet. Existing three-material saved profiles remain valid;
+  stateful Echo needs moving preview or replay, not a still.
+- Authored restores a world’s authored presentation. Main owns a separate
+  profile. Explicit saved lists are retained rather than silently migrated.
+- Studio sessions retain their supported versioned compatibility behavior.
+
+## Current documentation
+
+- [Roadmap](ROADMAP.md) is the only prioritized backlog.
+- [Technique ownership](TECHNIQUE_LIBRARY.md) maps code responsibilities.
+- [Maintenance contracts](docs/MAINTENANCE_CONTRACTS.md) preserve Cosmic and
+  Elemental boundaries.
+- [Handoff](ZERAWAVE_HANDOFF.md) records the current checkpoint and validation
+  provenance.
+
+The previous detailed Studio narrative is preserved as
+[dated history](docs/history/2026-09-28-development-studio.md). It may describe
+superseded trios, itineraries, proposals, or test results.

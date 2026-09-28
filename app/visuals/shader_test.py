@@ -12,6 +12,8 @@ import glfw
 import moderngl
 
 from renderer import Renderer, VERTEX_SHADER, blend_uniforms, blend_chapter, BLEND_FORMS
+from studio_color_link import configure_colors
+from color_controls import parse_colors
 
 STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35}
 
@@ -24,6 +26,216 @@ def save_png(path, pixels):
     raw = b''.join(b'\x00' + row.tobytes() for row in pixels)
     path.write_bytes(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('!2I5B', width, height, 8, 2, 0, 0, 0))
         + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''))
+
+
+def roots_color_test(baseline_path, output):
+    """Real GPU region/preservation/history checks, not an audiovisual acceptance test."""
+    import time
+    import tracemalloc
+    from color_controls import color_uniforms
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270,seed=7301)
+    old=old_vao=probe=probe_vao=target=None
+    report=dict(resolution=[480,270],updates=240)
+    def pixels():
+        return np.frombuffer(r.ctx.screen.read(components=3,alignment=1),np.uint8).reshape(270,480,3).copy()
+    def copy_uniforms(program):
+        for name in program:
+            if name in r.program and hasattr(program[name],'value'):program[name].value=r.program[name].value
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text(encoding='utf-8'))
+        old_vao=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        source=(Path(__file__).parent/'shaders/dream.frag').read_text(encoding='utf-8')
+        probe=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=source.replace(
+            'fragColor = vec4(color, 1.0);','fragColor = vec4(root_body, membrane_ridge, blossom * effect(128), 1.0);'))
+        probe_vao=r.ctx.simple_vertex_array(probe,r.vertices,'in_position')
+        target=r.ctx.simple_framebuffer((480,270),components=4,dtype='f4')
+        def masks():
+            copy_uniforms(probe);target.use();probe_vao.render(mode=moderngl.TRIANGLE_STRIP)
+            result=np.frombuffer(target.read(components=3,dtype='f4',alignment=1),np.float32).reshape(270,480,3).copy()
+            r.ctx.screen.use();return result
+        edits={
+            'roots.blue':{'electric':{'color':'#FF4400','start':.28,'end':.58}},
+            'roots.pearl':{'lavender':{'color':'#66FF33','start':.28,'end':.58}},
+            'roots.ridge':{'tint':{'color':'#FFAA00'}},
+            'roots.blossoms':{'tint':{'color':'#22FF66'}},
+        }
+        # Exact authored preservation; even supplying colors must not affect other states.
+        for state in range(36):
+            r.debug_state=state;r.set_colors({});r.render(10.+state*.1)
+            authored=pixels();copy_uniforms(old);old_vao.render(mode=moderngl.TRIANGLE_STRIP)
+            old_pixels=pixels()
+            if not np.array_equal(authored,old_pixels):
+                delta=np.abs(authored.astype(int)-old_pixels.astype(int))
+                print('Authored comparison difference',state,'max',delta.max(),'channels',np.count_nonzero(delta),'mean',delta.mean(),flush=True)
+                save_png(output/f'authored-difference-{state}.png',np.concatenate((old_pixels,authored),axis=1)[::-1])
+            assert np.array_equal(authored,old_pixels),('Authored changed',state)
+            if state!=12:
+                r.set_colors(edits);r.render(10.+state*.1)
+                assert np.array_equal(authored,pixels()),('Scope leak',state)
+        # Sequence visits to Roots are not held Roots and must retain authored defaults.
+        r.debug_state=12;r.debug_sequence=(12,11);r.set_colors(edits);r.render(0.)
+        assert r.program['u_roots_blue_on'].value==0
+        r.debug_sequence=();r.set_colors({});r.parameters.flux=.4;r.parameters.sparkle=.5;r.parameters.movement=.45
+        for second in range(20,261,10):
+            r.render(float(second));base_masks=masks()
+            if base_masks[:,:,2].max()>.05:break
+        else:raise AssertionError('No active blossoms sampled')
+        report['sample_seconds']=second
+        baseline=pixels() # redraw after the mask framebuffer
+        r.vao.render(mode=moderngl.TRIANGLE_STRIP);baseline=pixels()
+        save_png(output/'authored.png',baseline[::-1])
+        report['targets']={}
+        for key,edit in edits.items():
+            r.set_colors({key:edit});r.render(float(second));changed=pixels()
+            current_masks=masks()
+            assert np.array_equal(base_masks,current_masks),(key,'Geometry/lifecycle changed')
+            delta=np.max(np.abs(changed.astype(int)-baseline.astype(int)),axis=2)
+            assert np.count_nonzero(delta)>20,(key,'No visible target change')
+            if key in ('roots.ridge','roots.blossoms'):
+                mask=base_masks[:,:,1 if key=='roots.ridge' else 2]
+                assert delta[mask<1e-8].max(initial=0)==0,(key,'Changed unrelated pixels')
+            save_png(output/(key+'.png'),changed[::-1])
+            report['targets'][key]=dict(changed_pixels=int(np.count_nonzero(delta)),mean_rgb_delta=float(np.abs(changed.astype(float)-baseline).mean()))
+        r.set_colors({});r.render(float(second));assert np.array_equal(baseline,pixels()),'Reset must restore authored pixels'
+        # Blossom color cannot enable a disabled detail; material profiles retain identity.
+        from preview_layers import MATERIALS
+        for material in MATERIALS:
+            r.layer_profiles={'organic':dict(mode='together',seconds=12.,items=[dict(id=material,enabled=True)])}
+            r.set_colors({});r.render(float(second));no_blossom=pixels()
+            r.set_colors({'roots.blossoms':edits['roots.blossoms']});r.render(float(second))
+            assert np.array_equal(no_blossom,pixels()),(material,'Color enabled disabled blossoms')
+        # Repeated changes while Echo stays alive must not allocate new GPU objects or reset clocks.
+        r.layer_profiles['organic']['items'].append(dict(id='blossoms',enabled=True))
+        resources=tuple(sorted(id(obj) for group in r.echo_resources[:2] for obj in group))
+        resources+=(r.program.glo,r.vertices.glo,r.vao.glo)
+        start_clock=r.echo_clock;start_flow=r.flow_time
+        tracemalloc.start();r.set_colors(edits);r.render(second+.01)
+        before=tracemalloc.get_traced_memory()[0];cost=[];gpu=[]
+        for frame in range(240):
+            data={'roots.blossoms':{'tint':{'color':f'#{frame%256:02X}CC66'}}}
+            started=time.perf_counter();r.set_colors(data);cost.append((time.perf_counter()-started)*1000.)
+            with r.ctx.query(time=True) as query:r.render(second+(frame+1)/60.)
+            gpu.append(query.elapsed/1e6)
+            assert tuple(sorted(id(obj) for group in r.echo_resources[:2] for obj in group))+(r.program.glo,r.vertices.glo,r.vao.glo)==resources
+        growth=tracemalloc.get_traced_memory()[0]-before;tracemalloc.stop()
+        assert growth<300000,('Unexpected retained Python growth',growth)
+        assert r.echo_clock>start_clock and r.flow_time>start_flow and r.last_render_time==second+4.
+        previous=r.color_overrides
+        try:r.set_colors({'roots.blossoms':{'tint':{'color':'invalid'}}})
+        except ValueError:pass
+        else:raise AssertionError('Renderer accepted invalid colors')
+        assert r.color_overrides==previous
+        report.update(retained_python_bytes=growth,median_validation_ms=float(np.median(cost)),
+                      median_render_gpu_ms=float(np.median(gpu)),gpu=r.ctx.info['GL_RENDERER'],
+                      note='Scripted 480x270 GPU frames, including Echo; no frame-rate guarantee or audiovisual listening review.')
+        (output/'checks.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print('PASS: authored pixels and scope (36 states), target-region masks, reset, material/detail independence, 240 live uniform changes with continuing clocks and stable GPU resources.')
+        print(json.dumps(report,indent=2))
+    finally:
+        if old_vao:old_vao.release()
+        if old:old.release()
+        if probe_vao:probe_vao.release()
+        if probe:probe.release()
+        if target:target.release()
+        r.close()
+
+
+def planet_palette_test(baseline_path, output):
+    """Matched GPU draws share every uniform and Echo history; no audio playback."""
+    from preview_layers import MATERIALS
+    output.mkdir(parents=True, exist_ok=True)
+    r = Renderer(width=640, height=360, seed=2)
+    old = old_vao = None
+    report = dict(materials={}, scope_states=36)
+    def pixels():
+        return np.frombuffer(r.ctx.screen.read(components=3), np.uint8).reshape(360,640,3)[::-1].copy()
+    try:
+        glfw.init(); glfw.window_hint(glfw.VISIBLE, glfw.FALSE); r.create()
+        old = r.ctx.program(vertex_shader=VERTEX_SHADER, fragment_shader=baseline_path.read_text(encoding='utf-8'))
+        old_vao = r.ctx.simple_vertex_array(old, r.vertices, 'in_position')
+        report['gpu'] = r.ctx.info['GL_RENDERER']
+        for state in range(36):
+            r.debug_state = state
+            r.preview_palette = 'authored'
+            r.render(elapsed_time=25.+state*.1)
+            authored = pixels()
+            for name in old:
+                if name in r.program and hasattr(old[name], 'value'):
+                    old[name].value = r.program[name].value
+            old_vao.render(mode=moderngl.TRIANGLE_STRIP)
+            assert np.array_equal(authored, pixels()), ('Authored changed', state)
+            # Force opt-in at shader level too: all other worlds must ignore it.
+            r.program['u_planet_palette'].value = 1
+            r.vao.render(mode=moderngl.TRIANGLE_STRIP)
+            if state != 5: assert np.array_equal(authored, pixels()), ('scope leak', state)
+        r.preview_palette = 'soft-dream'
+        r.debug_sequence = (5, 0, 3)
+        for t, expected in ((0.,1),(28.,0),(56.,0)):
+            r.render(elapsed_time=t)
+            assert r.program['u_planet_palette'].value == expected
+        r.debug_sequence = ()
+        r.debug_state = 5
+        r.release_echo()
+        clock = 57.
+        luminance_weights = np.array([.2126,.7152,.0722])
+        for material in MATERIALS:
+            r.layer_profiles = {'cosmic':dict(mode='together', seconds=12., items=[
+                dict(id=k, enabled=True) for k in (material,'stars','rings','moons')])}
+            r.preview_palette = 'authored'
+            previous = [None,None]
+            max_step = [0.,0.]
+            max_luma_error = 0.
+            samples = []
+            timings = [[],[]]
+            last_flow = r.flow_time
+            for i in range(361):
+                t = i/30.
+                level = .06 if t < 3. or t >= 8. else .85
+                r.parameters.scale = r.parameters.flux = r.parameters.sparkle = level
+                r.parameters.movement = level
+                r.parameters.impact = .6 if 90 <= i < 240 and i % 15 == 0 else 0.
+                r.render(elapsed_time=clock+t)
+                assert r.flow_time >= last_flow
+                last_flow = r.flow_time
+                pair = []
+                # Redraw only: neither palette advances clocks or Echo feedback.
+                for palette in (0,1):
+                    r.program['u_planet_palette'].value = palette
+                    with r.ctx.query(time=True) as query:
+                        r.vao.render(mode=moderngl.TRIANGLE_STRIP)
+                    picture = pixels()
+                    if i > 20: timings[palette].append(query.elapsed/1e6)
+                    pair.append(picture)
+                    if previous[palette] is not None:
+                        max_step[palette] = max(max_step[palette], float(np.abs(picture.astype(float)-previous[palette]).mean()))
+                    previous[palette] = picture.astype(float)
+                luma = [image @ luminance_weights for image in pair]
+                max_luma_error = max(max_luma_error, float(np.abs(luma[0]-luma[1]).mean()))
+                assert np.abs(luma[0]-luma[1]).mean() < .6, (material,t,'lighting/detail changed')
+                if i in (60,180,360):
+                    phase = {60:'quiet',180:'strong',360:'release'}[i]
+                    save_png(output/f'{material}-{phase}.png',np.concatenate(pair,axis=1))
+                    samples.append(dict(phase=phase,seconds=clock+t,flow_rate=r.flow_rate,
+                        rgb_difference=float(np.abs(pair[0].astype(float)-pair[1]).mean()),
+                        luminance_std=[float(a.std()) for a in luma],
+                        clipped_fraction=[float((a.max(axis=2)>=250).mean()) for a in pair]))
+            assert all(row['rgb_difference'] > .3 for row in samples), (material,'no contrast')
+            assert samples[1]['flow_rate'] > samples[0]['flow_rate'] and samples[2]['flow_rate'] < samples[1]['flow_rate']
+            report['materials'][material] = dict(samples=samples,max_frame_step=max_step,
+                max_mean_luminance_error=max_luma_error,
+                gpu_ms_median=[float(np.median(a)) for a in timings],
+                gpu_ms_p95=[float(np.percentile(a,95)) for a in timings])
+            clock += 13.
+        report['note'] = 'Synthetic quiet/strong/release at 30 Hz; paired GPU draws at 640x360, Authored left. Timing excludes Echo update common to both.'
+        (output/'checks.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print('PASS: Planet palette scope, Authored preservation, four continuous materials, luminance, release and GPU timing.', flush=True)
+        print(json.dumps(report,indent=2), flush=True)
+    finally:
+        if old_vao is not None: old_vao.release()
+        if old is not None: old.release()
+        r.close()
 
 
 def echo_test(output):
@@ -90,7 +302,7 @@ def echo_test(output):
     print('PASS: Echo Weave', report)
 
 
-def capture(output, seconds, profile="standard", debug_state=0, layers=None):
+def capture(output, seconds, profile="standard", debug_state=0, layers=None, palette="authored"):
     """Save a reproducible synthetic frame and GPU-evaluated state weights."""
     if echo_weave_at(layers or {}, debug_state, seconds) > 0. or any(any(item['id'] == 'echo_weave' and item['enabled'] for item in profile['items'])
            and profile['mode'] != 'authored' for profile in (layers or {}).values()):
@@ -103,7 +315,8 @@ def capture(output, seconds, profile="standard", debug_state=0, layers=None):
                   u_sparkle=.2, u_impact=.05, u_intensity=1., u_distortion=1.,
                   u_debug_state=float(debug_state))
     layer_mode, layer_mask = layers_at(validate_layers(layers or {}), debug_state, seconds)
-    values.update(u_layer_mode=layer_mode, u_layer_mask=layer_mask,
+    values.update(u_planet_palette=int(palette == "soft-dream" and debug_state == 5),
+                  u_layer_mode=layer_mode, u_layer_mask=layer_mask,
                   u_material_mix=materials_at(layers or {},debug_state,seconds),u_event_blasts=0)
     from preview_layers import earth_details_at
     values['u_earth_details']=earth_details_at(layers or {},debug_state,seconds)
@@ -2354,7 +2567,7 @@ def fire_test(baseline_path, output, molten_expansion=False, firescape_expansion
         renderer.close()
 
 
-def main(debug_state=0, states=None, layers=None):
+def main(debug_state=0, states=None, layers=None, palette="authored", colors=None, color_input=False):
     renderer = Renderer(
         width=1280,
         height=720,
@@ -2364,9 +2577,11 @@ def main(debug_state=0, states=None, layers=None):
 
     try:
         renderer.create()
+        renderer.preview_palette = palette
         renderer.debug_state = debug_state
         renderer.debug_sequence = tuple(STATES[name] for name in (states or ()))
         renderer.layer_profiles = validate_layers(layers or {})
+        configure_colors(renderer, colors, color_input)
 
         while not renderer.should_close():
             current_time = renderer.get_time()
@@ -3004,6 +3219,7 @@ def spatial_test(output):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--roots-color-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--world-repairs-test", nargs=2,type=Path)
     parser.add_argument("--spatial-test", type=Path)
     parser.add_argument("--corridor-clearance-test", nargs=2,type=Path)
@@ -3016,6 +3232,7 @@ if __name__ == "__main__":
     parser.add_argument("--firescape-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--molten-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--fire-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
+    parser.add_argument("--planet-palette-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--echo-test", type=Path)
     parser.add_argument("--sweep", type=Path)
     parser.add_argument("--layer-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
@@ -3048,7 +3265,17 @@ if __name__ == "__main__":
     parser.add_argument("--fog-reference", type=Path, help="Accepted Fog shader for Nebula/Pressure preservation checks.")
     parser.add_argument("--earth-test", nargs=2, type=Path)
     parser.add_argument("--air-test", nargs=2, type=Path)
+    parser.add_argument("--palette", choices=("authored", "soft-dream"), default="authored",
+                        help="Experimental pigment choice; only held Planet Canvas uses soft-dream.")
+    parser.add_argument('--colors', type=parse_colors, default={}, help='Declared held-scene color overrides as JSON.')
+    parser.add_argument('--studio-color-input', action='store_true', help='Read bounded Studio color snapshots from stdin (held Roots only).')
     args = parser.parse_args()
+    if args.roots_color_test:
+        roots_color_test(*args.roots_color_test)
+        raise SystemExit(0)
+    if args.planet_palette_test:
+        planet_palette_test(*args.planet_palette_test)
+        raise SystemExit(0)
     if args.world_repairs_test:
         world_repairs_test(*args.world_repairs_test)
         raise SystemExit(0)
@@ -3138,8 +3365,8 @@ if __name__ == "__main__":
         handoff_test(args.handoff_test)
     elif args.capture:
         capture(args.capture, args.seconds, args.profile,
-                STATES[args.state], args.layers)
+                STATES[args.state], args.layers, args.palette)
     elif args.sweep:
         sweep(args.sweep)
     else:
-        main(STATES[args.state], args.states, args.layers)
+        main(STATES[args.state], args.states, args.layers, args.palette, args.colors, args.studio_color_input)

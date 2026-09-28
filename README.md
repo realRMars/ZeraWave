@@ -1,0 +1,21 @@
+# ZeraWave
+
+ZeraWave is a Windows music-reactive visualizer. The current checkout is the
+development source; the portable preview is a preserved, older checkpoint.
+
+- [Player instructions](PLAYER.md)
+- [Development Studio instructions](DEVELOPMENT_STUDIO.md)
+- [Prioritized roadmap](ROADMAP.md)
+- [Visual identity](ZERAWAVE_VISUAL_IDENTITY.md)
+- [Technique ownership](TECHNIQUE_LIBRARY.md)
+- [Current handoff](ZERAWAVE_HANDOFF.md)
+- [Historical record](docs/history/README.md)
+
+Use `run_zerawave.bat` to open the player or `run_development_studio.bat` for
+development review. Studio is a development tool, not a product offering;
+ZeraWave Studio 1 is only a future possibility.
+
+For agents: read [AGENTS.md](AGENTS.md), then the current handoff and roadmap.
+The Overseer maintains shared planning; workers own their assigned changes and
+may keep optional [task notes](docs/agent-notes/README.md). New visuals are
+reviewed through the existing Dev Studio before approved Main integration.

@@ -22,12 +22,16 @@ from live_visual_test import LIVE_STATES, analyze_samples
 from onset_detector import OnsetDetector
 from parameter_mapper import VisualParameterMapper
 from renderer import Renderer
+from studio_color_link import configure_colors
+from color_controls import parse_colors
 from preview_layers import parse_layers, validate_layers, layers_at
 from signal_processor import SignalProcessor, VisualSignalConditioner
 
 
 def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
-           capture_dir=None, capture_interval=15.0, states=None, layers=None, seed=None):
+           capture_dir=None, capture_interval=15.0, states=None, layers=None, seed=None, palette="authored", comparison_label=None, colors=None, color_input=False):
+    if palette not in ("authored", "soft-dream"):
+        raise ValueError("Unknown preview palette")
     if not math.isfinite(speed) or speed < 0:
         raise ValueError("Speed must be finite and nonnegative")
     if max_seconds is not None and (not math.isfinite(max_seconds) or max_seconds <= 0):
@@ -52,16 +56,21 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
         conditioner = VisualSignalConditioner(quiet_threshold=0.06)
         mapper = VisualParameterMapper()
         detectors = {name: OnsetDetector(threshold=0.2) for name in ("bass", "mids", "highs")}
-        renderer = Renderer(title="ZeraWave WAV Replay", seed=seed)
+        renderer = Renderer(title=(f"ZeraWave Matched {comparison_label} - {palette}" if comparison_label else "ZeraWave WAV Replay"), seed=seed)
+        renderer.preview_palette = palette
         renderer.debug_state = debug_state
         renderer.debug_sequence = tuple(LIVE_STATES[name] for name in (states or ()))
         renderer.layer_profiles = validate_layers(layers or {})
+        configure_colors(renderer, colors, color_input)
         rows = []
         chunk = 2048
         song_time = 0.0
 
         try:
             renderer.create()
+            if comparison_label:
+                import glfw
+                glfw.set_window_attrib(renderer.window, glfw.RESIZABLE, glfw.FALSE)
             replay_start = time.perf_counter()
             while not renderer.should_close() and song_time < (max_seconds or float("inf")):
                 raw = audio.readframes(chunk)
@@ -118,7 +127,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                 writer.writerows(rows)
     if capture_dir is not None:
         (capture_dir / "captures.json").write_text(json.dumps(dict(
-            source=str(path), state=state, states=states, layers=renderer.layer_profiles, song_seconds=song_time,
+            source=str(path), state=state, states=states, palette=palette, layers=renderer.layer_profiles, song_seconds=song_time,
             analyzed_frames=len(rows), captures=captures,
             director_seed=renderer.director_seed, director_history=renderer.director_history,
             note="Decoded music through the real analysis and GPU pipeline; no audible playback."),
@@ -138,9 +147,14 @@ def main():
     parser.add_argument("--states", nargs="+", choices=tuple(LIVE_STATES), help="Development cycle: hold each state for 28 song seconds.")
     parser.add_argument("--layers", type=parse_layers, default={}, help="Development per-world effect settings as JSON.")
     parser.add_argument("--seed", type=int, help="Repeatable visual choices for development replay.")
+    parser.add_argument("--palette", choices=("authored", "soft-dream"), default="authored",
+                        help="Experimental pigment choice; only held Planet Canvas uses soft-dream.")
+    parser.add_argument("--comparison-label", choices=("A", "B"), help="Studio matched replay label; locks window size.")
+    parser.add_argument('--colors', type=parse_colors, default={}, help='Declared held-scene color overrides as JSON.')
+    parser.add_argument('--studio-color-input', action='store_true', help='Read bounded Studio color snapshots from stdin (held Roots only).')
     args = parser.parse_args()
     seconds, rows = replay(args.wav, args.speed, args.max_seconds, args.metrics, args.state,
-                           args.capture_dir, args.capture_interval, args.states, args.layers, args.seed)
+                           args.capture_dir, args.capture_interval, args.states, args.layers, args.seed, args.palette, args.comparison_label, args.colors, args.studio_color_input)
     print(f"Replay complete: {seconds:.1f}s song time, {len(rows)} analyzed frames")
 
 

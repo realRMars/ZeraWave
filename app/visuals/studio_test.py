@@ -16,6 +16,385 @@ import numpy as np
 from preview_layers import material_weights, material_quartet_profile, echo_weave_at, EFFECTS, BITS, layers_at, validate_layers, parse_layers, materials_at, material_trio_profile, WORLDS, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
 
 
+def planet_palette_studio_test():
+    """Studio callbacks/session routing with real GPU draws; live input is controlled."""
+    import runpy
+    import sys
+    from contextlib import ExitStack
+    from preview_layers import MATERIALS
+    from studio import SOURCES
+    with tempfile.TemporaryDirectory(dir=ROOT/'work') as temporary:
+        folder = Path(temporary)
+        # Existing version 1/2/3 files without the additive field remain Authored.
+        for version in (1,2,3):
+            old = dict(version=version,state='canvas',selection=['cosmic','canvas'])
+            assert validate_session(old)['planet_palette'] == 'authored'
+        for invalid in ('unknown',None,[],1):
+            try: validate_session(dict(version=3,selection=['cosmic','canvas'],planet_palette=invalid))
+            except ValueError: pass
+            else: raise AssertionError(('invalid palette accepted',invalid))
+        root = tk.Tk(); root.withdraw(); app = Studio(root)
+        try:
+            root.geometry('680x800'); root.deiconify()
+            app.select(['cosmic','canvas'])
+            assert str(app.palette_box['state']) == 'readonly'
+            app.palette_choice.set('Soft Dream'); app.palette_box.event_generate('<<ComboboxSelected>>')
+            root.update()
+            assert app.values()['planet_palette'] == 'soft-dream'
+            assert app.stop_button.winfo_y()+app.stop_button.winfo_height() <= app.preview.winfo_height()
+            # Populate the existing material table using its normal Add action.
+            app.sections.select(app.section_frames['Materials']);app.refresh_layers()
+            app.effect_category.set('Material'); app.refresh_effect_picker()
+            for key in MATERIALS:
+                app.effect_choice.set(EFFECTS[key][0]); app.add_layer()
+            for key in MATERIALS:
+                app.layer_table.selection_set(key); app.edit_layer('solo')
+                assert material_weights(app.layer_profiles,5,0.)[MATERIALS.index(key)] == 1.
+                assert app.values()['planet_palette'] == 'soft-dream'
+            for item in list(app.layer_profiles['cosmic']['items']):
+                if not item['enabled']:
+                    app.layer_table.selection_set(item['id']); app.edit_layer('toggle')
+            app.layer_mode.set('Meld materials'); app.layer_hold.set('12'); app.change_layer_playback()
+            for index in range(4):
+                assert material_weights(app.layer_profiles,5,index*12.)[index] == 1.
+            expected = validate_layers(app.layer_profiles)
+            app.session_path = folder/'palette.json'; app.save(); app.new()
+            assert app.values()['planet_palette'] == 'authored'
+            with patch('studio.filedialog.askopenfilename',return_value=str(folder/'palette.json')): app.load()
+            assert app.palette_choice.get() == 'Soft Dream' and app.values()['layers'] == expected
+            # Changing palette never mutates material profiles or playback.
+            app.palette_choice.set('Authored'); app.change_palette()
+            assert app.values()['layers'] == expected
+            app.palette_choice.set('Soft Dream'); app.change_palette()
+            for selection in ([],['elements','water','sea']):
+                app.select(selection); root.update()
+                assert str(app.palette_box['state']) == 'disabled' and app.palette_choice.get() == 'Authored'
+                assert '--palette' not in command(app.values(),folder)
+                assert app.values()['layers'] == expected and 'blend' not in app.layer_profiles
+            app.select(['cosmic','canvas'])
+            assert app.palette_choice.get() == 'Soft Dream'
+            # Legacy load also clears a previous opt-in choice.
+            (folder/'legacy.json').write_text(json.dumps(dict(version=3,selection=['cosmic','canvas'])))
+            with patch('studio.filedialog.askopenfilename',return_value=str(folder/'legacy.json')): app.load()
+            assert app.palette_choice.get() == 'Authored'
+            app.layer_profiles = expected
+            app.vars['track'].set(str(tracks()[0])); app.vars['captures'].set(False)
+            launch_values = app.values()
+        finally: app.close()
+
+        class ControlledCapture:
+            def __init__(self, **kwargs): pass
+            def find_device(self): return 'Controlled zero samples (no live audio review)'
+            def start(self): pass
+            def read(self, **kwargs): return np.zeros((2048,2),dtype=np.float32)
+            def stop(self): pass
+
+        # Use Studio's exact generated argv through each existing entry point.
+        # Observe real renderer uniforms; bound preview length in the test only.
+        for source in SOURCES:
+            for palette in ('authored','soft-dream'):
+                seen = []
+                class ObservedRenderer(Renderer):
+                    def __init__(self, *args, **kwargs):
+                        kwargs.update(width=320,height=180,seed=2)
+                        super().__init__(*args, **kwargs)
+                    def create(self):
+                        glfw.init(); glfw.window_hint(glfw.VISIBLE,glfw.FALSE)
+                        super().create()
+                    def should_close(self): return len(seen) >= 5
+                    def render(self, elapsed_time=None):
+                        # Advance the existing material meld to each material and a blend.
+                        seconds = (0.,12.,24.,36.,44.5)[len(seen)]
+                        super().render(elapsed_time=seconds)
+                        assert self.preview_palette == palette
+                        assert self.program['u_planet_palette'].value == int(palette == 'soft-dream')
+                        assert self.program['u_debug_state'].value == 5.
+                        assert np.allclose(self.program['u_material_mix'].value,materials_at(expected,5,seconds))
+                        assert abs(self.program['u_echo_weave'].value-echo_weave_at(expected,5,seconds)) < 1e-6
+                        seen.append(seconds)
+                values = dict(launch_values,source=source,planet_palette=palette)
+                args = command(values,folder)
+                script_index = next(i for i,a in enumerate(args) if a.endswith('.py'))
+                with ExitStack() as stack:
+                    stack.enter_context(patch('renderer.Renderer',ObservedRenderer))
+                    stack.enter_context(patch.object(sys,'argv',args[script_index:]))
+                    if source == 'Live system audio':
+                        stack.enter_context(patch('capture.AudioCapture',ControlledCapture))
+                    runpy.run_path(args[script_index],run_name='__main__')
+                assert len(seen) == 5,(source,palette,seen)
+        print('PASS: Studio palette UI, old/new sessions, four materials/meld, scope gating; all three Studio argv routes reached real GPU palette/material uniforms. Live audio used controlled samples.')
+
+
+def studio_comparison_test():
+    """Real Studio children + decoded audio, and fixed GPU history/pixel checks."""
+    import wave
+    from copy import deepcopy
+    from studio import (effect_section, preview_profiles, comparison_runs,
+                        replay_identity, completed_comparison_run)
+    from preview_layers import MATERIALS, default_profile
+    from shader_test import save_png
+    assert [effect_section(key) for key in MATERIALS] == ['Materials'] * 4
+    assert effect_section('sparkles') == effect_section('tunnel') == effect_section('shooting_stars') == 'Shared FX'
+    assert effect_section('daddy_long_legs') == effect_section('rings') == effect_section('water_rain') == 'World details'
+    profile = dict(mode='cycle', seconds=4., items=[dict(id=key, enabled=enabled) for key, enabled in
+        [('alloy', True), ('rings', True), ('tunnel', True), ('echo_weave', True), ('moons', False)]])
+    values = dict(DEFAULTS, selection=['cosmic', 'canvas'], state='canvas', layers={'cosmic':profile})
+    old = deepcopy(values)
+    assert preview_profiles(values) == old['layers']
+    for i, key in enumerate(('alloy', 'rings', 'tunnel', 'echo_weave')):
+        assert layers_at(preview_profiles(values), 5, i*4.) == (1, BITS[key])
+    values['material_isolation'] = {'cosmic':'echo_weave'}
+    effective = preview_profiles(values)
+    assert values['layers'] == old['layers']
+    for second in (0.,4.,8.,12.,88.):
+        assert material_weights(effective,5,second) == (0.,0.,0.,1.)
+        assert layers_at(effective,5,second)[1] == BITS['rings'] | BITS['tunnel']
+    assert default_profile('blend')['mode'] == 'meld' and len(MATERIALS) == 4
+    assert preview_profiles(dict(DEFAULTS)) == {} and layers_at({},5,0.) == (0,0)
+    for invalid in (None, [], {'cosmic':'rings'}, {'unknown':'alloy'}):
+        try: validate_session(dict(version=3, **dict(values,material_isolation=invalid)))
+        except ValueError: pass
+        else: raise AssertionError(invalid)
+    assert validate_session(dict(version=3, **values))['material_isolation'] == values['material_isolation']
+    output = ROOT/'work/studio-controls-check'/time.strftime('%Y%m%d-%H%M%S')
+    output.mkdir(parents=True)
+    # Decode is already done by the project; copy a bounded PCM segment for fast end-to-end tests.
+    track = output/'two-second-decoded.wav'
+    with wave.open(str(tracks()[0]),'rb') as source, wave.open(str(track),'wb') as target:
+        target.setparams(source.getparams()); target.writeframes(source.readframes(96000))
+    values.update(track=str(track), source='Test track')
+    pair = comparison_runs(values)
+    a, b = pair[0][1], pair[1][1]
+    assert dict(a, planet_palette='soft-dream') == b and a['layers'] == effective
+    assert a['duration'] == '30 seconds' and a['speed'] == 'Real time'
+    assert values['layers'] == old['layers']
+    for changes in (dict(source='Live system audio'), dict(source='Synthetic preview'),
+                    dict(selection=[]), dict(material_isolation={})):
+        try: comparison_runs(dict(values, **changes))
+        except ValueError: pass
+        else: raise AssertionError(changes)
+    root = tk.Tk(); app = Studio(root)
+    try:
+        root.geometry('680x800'); app.select(values['selection']); app.layer_profiles = deepcopy(values['layers'])
+        app.isolate_choice.set('Echo Weave'); app.isolate_material()
+        assert app.material_isolation == {'cosmic':'echo_weave'}
+        for key in DEFAULTS: app.vars[key].set(values[key])
+        app.refresh_layers(); app.refresh_palette()
+        for frame in app.section_frames.values():
+            app.tabs.select(app.layers_tab); app.sections.select(frame); root.update()
+            assert app.layer_table.winfo_height() >= 48
+            assert app.footer.winfo_height() >= 32
+            assert app.footer.winfo_y() + app.footer.winfo_height() <= root.winfo_height()
+            for child in app.layers_tab.winfo_children():
+                assert child.winfo_ismapped(), child
+                assert child.winfo_y() + child.winfo_height() <= app.layers_tab.winfo_height(), (child, child.winfo_y(), child.winfo_height())
+        app.session_path = output/'session.json'; app.save(); saved = app.values()
+        app.new()
+        with patch('studio.filedialog.askopenfilename',return_value=str(output/'session.json')): app.load()
+        assert app.values() == saved
+        app.restore_materials(); assert app.layer_profiles == old['layers'] and not app.material_isolation
+        app.isolate_material(); before = app.values()
+        app.start_comparison(); assert app.process is not None
+        destination = app.output
+        deadline = time.monotonic()+90
+        while app.process is not None and time.monotonic()<deadline:
+            root.update(); time.sleep(.03)
+        assert app.process is None, 'Matched children timed out'
+        manifest = json.loads((destination/'comparison.json').read_text())
+        assert manifest['status'] == 'matched complete', (manifest['status'], app.status.get())
+        assert app.values() == before
+        count = replay_identity(track)[1]
+        completed_comparison_run(destination, 'B', count)
+        try: completed_comparison_run(destination, 'A', count+1)
+        except ValueError: pass
+        else: raise AssertionError('Early exit accepted')
+        # Cancellation cannot automatically launch B.
+        app.start_comparison(); cancelled = app.output; app.stop(); root.update()
+        assert not app.comparison_queue and app.process is None
+        assert json.loads((cancelled/'comparison.json').read_text())['status'] == 'cancelled'
+        assert not (cancelled/'B').exists()
+    finally: app.close()
+    # Same fixed input/time/camera, fresh renderer every time, including zeroed Echo history.
+    images, histories, clocks = [], [], []
+    for index, palette in enumerate(('authored','authored','soft-dream')):
+        renderer = Renderer(width=320,height=180,seed=7301)
+        try:
+            glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE); renderer.create()
+            renderer.debug_state=5; renderer.layer_profiles=effective; renderer.preview_palette=palette
+            assert renderer.echo_resources is None and renderer.last_render_time is None
+            for frame in range(61):
+                renderer.parameters.scale=.45;renderer.parameters.movement=.45
+                renderer.parameters.flux=.45;renderer.parameters.sparkle=.25
+                renderer.render(elapsed_time=frame/60.)
+            histories.append(renderer.echo_resources[0][0].read())
+            clocks.append((renderer.flow_time,renderer.star_time,renderer.echo_clock))
+            pixels=np.frombuffer(renderer.ctx.screen.read(components=3,alignment=1),dtype=np.uint8).reshape(180,320,3)
+            images.append(pixels.copy()); save_png(output/f'{index}-{palette}.png',pixels[::-1])
+            assert renderer.program['u_planet_palette'].value == int(palette=='soft-dream')
+        finally: renderer.close()
+    assert np.array_equal(images[0],images[1]), 'Fresh Authored runs must agree pixel-for-pixel'
+    assert histories[0] == histories[1] == histories[2] and clocks[0] == clocks[1] == clocks[2]
+    assert np.abs(images[0].astype(float)-images[2]).mean() > .1, 'Palette must reach pixels'
+    print('PASS: categories, mixed order, isolation/restore/session, unchanged defaults, real sequential A/B children, cancellation/early-exit rejection, identical decoded metrics and Echo histories; Authored repeat pixels equal. Evidence:',output)
+
+
+def roots_colors_studio_test():
+    import os
+    import runpy
+    import sys
+    import wave
+    from copy import deepcopy
+    from contextlib import ExitStack
+    from color_controls import (TARGETS, validate_colors, resolved_slots, color_preset, validate_preset)
+    from studio_color_link import ColorInbox, MAX_MESSAGE
+    assert len({target.id for target in TARGETS}) == len(TARGETS) == 4
+    assert [len(target.slots) for target in TARGETS] == [5,5,1,1]
+    authored=deepcopy(TARGETS)
+    sample={'roots.blossoms':{'tint':{'color':'#12abEF'}},
+            'roots.blue':{'electric':{'color':'#CC3322','start':.32,'end':.62}}}
+    clean=validate_colors(sample)
+    assert clean['roots.blossoms']['tint']['color']=='#12ABEF'
+    assert resolved_slots(TARGETS[0],{})[0][0]==(.004,.006,.016)
+    for invalid in (None,[],{'bogus':{}},{'roots.blossoms':{'glow':{'color':'#FFFFFF'}}},
+                    {'roots.blossoms':{'tint':{'color':'red'}}},
+                    {'roots.blossoms':{'tint':{'color':[1,0,0]}}},
+                    {'roots.blue':{'deep':{'start':.1}}},
+                    {'roots.blue':{'electric':{'start':float('nan')}}},
+                    {'roots.blue':{'electric':{'start':True}}},
+                    {'roots.blue':{'electric':{'start':.7,'end':.3}}},
+                    {'roots.blue':{'electric':{'end':.99}}}):
+        try:validate_colors(invalid)
+        except ValueError:pass
+        else:raise AssertionError(invalid)
+    preset=color_preset('Warm blossoms','roots',clean)
+    assert validate_preset(preset)==preset
+    for invalid in ({},dict(preset,kind='palette'),dict(preset,scene='water')):
+        try:validate_preset(invalid)
+        except ValueError:pass
+        else:raise AssertionError(invalid)
+    assert TARGETS==authored
+    # Real bounded OS pipe: partial framing, latest-wins, malformed/oversize and stale revisions.
+    read_fd,write_fd=os.pipe();inbox=ColorInbox(read_fd)
+    def wait_for(predicate, timeout=5):
+        deadline=time.monotonic()+timeout
+        while not predicate() and time.monotonic()<deadline:time.sleep(.01)
+        assert predicate(),'Timed out'
+    try:
+        payload=json.dumps(dict(kind='colors',revision=1,targets=clean)).encode()+b'\n'
+        os.write(write_fd,payload[:20]);time.sleep(.03);assert inbox.take() is None
+        os.write(write_fd,payload[20:]);wait_for(lambda:inbox.revision==1)
+        assert inbox.take()==(1,clean)
+        os.write(write_fd,b'x'*(MAX_MESSAGE+1)+b'\n')
+        os.write(write_fd,json.dumps(dict(kind='colors',revision=2,targets={'bad':{}})).encode()+b'\n')
+        os.write(write_fd,json.dumps(dict(kind='colors',revision=3,targets={})).encode()+b'\n')
+        wait_for(lambda:inbox.revision==3);assert inbox.take()==(3,{})
+        os.write(write_fd,payload);time.sleep(.03);assert inbox.take() is None
+    finally:
+        inbox.close();os.close(write_fd);inbox.thread.join(1);os.close(read_fd)
+    output=ROOT/'work/roots-color-studio-check'/time.strftime('%Y%m%d-%H%M%S');output.mkdir(parents=True)
+    root=tk.Tk();root.withdraw();app=Studio(root)
+    try:
+        app.select(['organic','roots']);app.open_color_inspector();editor=app.color_editor
+        root.update();assert editor.rows.keys()=={'deep','cobalt','electric','cyan','pale'}
+        editor.target_choice.set('Blossoms');editor.refresh()
+        editor.rows['tint'][0].set('#00FF88');editor.edit_hex('tint')
+        assert app.color_overrides=={'roots.blossoms':{'tint':{'color':'#00FF88'}}}
+        editor.rows['tint'][0].set('invalid');editor.edit_hex('tint')
+        assert app.color_overrides['roots.blossoms']['tint']['color']=='#00FF88'
+        editor.reset_target();assert app.color_overrides=={}
+        app.set_color_setup(clean);editor.refresh()
+        with patch('color_inspector.simpledialog.askstring',return_value='Warm blossoms'), patch(
+                'color_inspector.filedialog.asksaveasfilename',return_value=str(output/'look.json')):
+            editor.save_preset()
+        preset_bytes=(output/'look.json').read_bytes()
+        editor.reset_scene();assert app.color_overrides=={}
+        with patch('color_inspector.filedialog.askopenfilename',return_value=str(output/'look.json')):editor.load_preset()
+        assert app.color_overrides==clean and (output/'look.json').read_bytes()==preset_bytes
+        app.session_path=output/'session.json';app.save();app.new()
+        assert app.color_overrides=={}
+        with patch('studio.filedialog.askopenfilename',return_value=str(output/'session.json')):app.load()
+        assert app.color_overrides==clean
+        for version in (1,2,3):
+            legacy=validate_session(dict(version=version,state='roots',selection=['organic','roots']))
+            assert 'color_overrides' not in legacy
+        for selection in ([],['organic'],['organic','membrane'],['cosmic','canvas']):
+            app.select(selection);assert '--colors' not in command(app.values(),output)
+            assert app.color_overrides==clean
+        app.select(['organic','roots']);assert '--colors' in command(app.values(),output)
+        app.layer_profiles={'organic':dict(mode='together',seconds=12.,items=[dict(id=key,enabled=True) for key in ('echo_weave','blossoms')])}
+        app.vars['source'].set('Synthetic preview');app.start()
+        pid=app.process.pid;link=app.color_link
+        def pump_until(predicate,timeout=45):
+            deadline=time.monotonic()+timeout
+            while not predicate() and time.monotonic()<deadline:
+                root.update();time.sleep(.02)
+            assert predicate(),app.status.get()+' / '+app.color_status.get()
+        pump_until(lambda:app.color_link and app.color_link.get_status().get('applied')==1)
+        first=link.get_status()
+        for index in range(100):app.set_color_setup({'roots.blossoms':{'tint':{'color':f'#{index:02X}44FF'}}})
+        pump_until(lambda:link.get_status().get('applied')==2)
+        second=link.get_status()
+        assert app.process.pid==pid and second['seconds']>first['seconds'] and second['echo_clock']>=first['echo_clock']
+        assert link.revision==2, 'Rapid Tk edits must coalesce'
+        editor.revert();assert app.color_overrides==clean
+        pump_until(lambda:link.get_status().get('applied')==3)
+        deadline=time.monotonic()+.6
+        while time.monotonic()<deadline:
+            app.set_color_setup(clean);root.update();time.sleep(.01)
+        assert link.revision>=6, 'Continuous dragging must deliver during the gesture'
+        pump_until(lambda:link.get_status().get('applied')==link.revision and app.color_send_after is None)
+        app.stop();assert not link.writer.is_alive() and not link.reader.is_alive()
+        assert app.color_send_after is None and app.color_link is None
+        # Natural EOF exercises reader cleanup and restarting with the current saved setup.
+        track=output/'four-second-decoded.wav'
+        with wave.open(str(tracks()[0]),'rb') as src, wave.open(str(track),'wb') as dst:
+            dst.setparams(src.getparams());dst.writeframes(src.readframes(4*48000))
+        app.vars['source'].set('Test track');app.vars['track'].set(str(track));app.vars['speed'].set('Real time')
+        app.start();replay_folder=app.output;link=app.color_link
+        pump_until(lambda:link.get_status().get('applied')==1)
+        app.set_color_setup({'roots.ridge':{'tint':{'color':'#FFCC00'}}})
+        pump_until(lambda:link.get_status().get('applied')==2)
+        pump_until(lambda:app.process is None)
+        assert not link.reader.is_alive() and not link.writer.is_alive()
+        assert (replay_folder/'metrics.csv').is_file()
+        values=app.values()
+        values.update(source='Live system audio',color_overrides=clean)
+    finally:app.close()
+    # Existing live path + real GPU; controlled samples explicitly are not live listening.
+    read_fd,write_fd=os.pipe(); seen=[]
+    class Stdin:
+        def fileno(self):return read_fd
+    class ControlledCapture:
+        def __init__(self,**kwargs):self.count=0
+        def find_device(self):return 'Controlled samples for live color routing'
+        def start(self):pass
+        def stop(self):pass
+        def read(self,**kwargs):
+            self.count+=1
+            if self.count==2:os.write(write_fd,json.dumps(dict(kind='colors',revision=1,targets={'roots.ridge':{'tint':{'color':'#CC5522'}}})).encode()+b'\n')
+            time.sleep(.03)
+            return np.zeros((2048,2),dtype=np.float32)
+    class ObservedRenderer(Renderer):
+        def __init__(self,*args,**kwargs):super().__init__(width=320,height=180,seed=2)
+        def create(self):glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);super().create()
+        def should_close(self):return len(seen)>=6
+        def render(self,elapsed_time=None):
+            super().render(elapsed_time)
+            seen.append((self.program['u_roots_ridge_on'].value,self.program['u_roots_ridge'].value,self.last_render_time))
+    args=command(values,output)+['--studio-color-input','--quiet'];offset=next(i for i,a in enumerate(args) if a.endswith('.py'))
+    try:
+        with ExitStack() as stack:
+            stack.enter_context(patch('renderer.Renderer',ObservedRenderer))
+            stack.enter_context(patch('capture.AudioCapture',ControlledCapture))
+            stack.enter_context(patch.object(sys,'stdin',Stdin()))
+            stack.enter_context(patch.object(sys,'argv',args[offset:]))
+            runpy.run_path(args[offset],run_name='__main__')
+        assert seen[0][0]==0 and seen[-1][0]==1 and seen[-1][2]>seen[0][2]
+        assert np.allclose(seen[-1][1],(204/255,85/255,34/255))
+    finally:os.close(write_fd);os.close(read_fd)
+    print('PASS: declared colors/gradients, bounded pipe framing/rejection, generated inspector, resets/revert/presets/sessions, coalesced live updates, synthetic + decoded child restart/EOF, real GPU controlled-live routing. Evidence:',output)
+
+
 def main():
     found = find_code('water_current')
     assert any(r['symbol'] == 'water_current' and r['language'] == 'GLSL' for r in found)
@@ -142,7 +521,14 @@ def main():
         dict(id='water_rain',enabled=True),dict(id='water_ripples',enabled=True)])})
     assert layers_at(water_layers,13,0)==(1,BITS['water_rain'])
     assert layers_at(water_layers,13,4)==(1,BITS['water_ripples'])
-    assert selection_states(['cosmic'])==['canvas','cosmic']
+    assert selection_states(['cosmic'])==['canvas']
+    assert list(WORLD_TREE['cosmic']['children']) == ['canvas']
+    assert not any(row.get('selection') == ['cosmic','geometry'] for row in catalog)
+    from renderer import LIVE_FORMS
+    assert 3 not in LIVE_FORMS and 5 in LIVE_FORMS
+    for version in (1,2,3):
+        legacy = validate_session(dict(version=version,state='cosmic',selection=['cosmic','geometry']))
+        assert legacy['selection'] == ['cosmic','canvas'] and legacy['state'] == 'canvas'
     assert selection_states([])==['blend']
     # A second future branch must not truncate Water's descendants to one hold.
     with patch.dict(WORLD_TREE['elements']['children'], {'test-other':dict(label='Test',state='organic')}):
@@ -162,12 +548,12 @@ def main():
         folder=Path(temporary)
         for state in LIVE_STATES:
             args=command(dict(values,state=state),folder)
-            assert args[args.index('--state')+1]==state
+            assert args[args.index('--state')+1]==('canvas' if state=='cosmic' else state)
             legacy=validate_session(dict(version=1,**dict(values,state=state)))
             assert legacy['selection']==path_for_state(state)
         for source in ('Test track','Synthetic preview','Live system audio'):
             args=command(dict(values,source=source,selection=['cosmic'],layers=profiles),folder)
-            assert args[args.index('--states')+1:args.index('--states')+3]==['canvas','cosmic']
+            assert '--states' not in args and args[args.index('--state')+1]=='canvas'
             assert parse_layers(args[args.index('--layers')+1])==profiles
         root=tk.Tk();root.withdraw()
         app=Studio(root)
@@ -200,10 +586,16 @@ def main():
             assert str(app.library_choose['state']) == 'disabled'
             app.library_sources.set(True); app.show_library_entry()
             assert 'preview_layers.py' in app.library_detail.get('1.0', 'end')
-            root.geometry('680x700'); root.update()
+            root.geometry('680x800'); root.update()
             assert app.library_choose.winfo_rooty() + app.library_choose.winfo_height() < root.winfo_rooty() + root.winfo_height()
             app.tabs.select(app.preview); root.update()
             assert len(tracks()) == 3
+            (folder/'old-geometry.json').write_text(json.dumps(dict(version=3,
+                track=str(tracks()[0]),selection=['cosmic','geometry'])))
+            with patch('studio.filedialog.askopenfilename',return_value=str(folder/'old-geometry.json')):
+                app.load()
+            assert app.selection == ['cosmic','canvas']
+            assert tuple(app.selector_rows[1][1]['values']) == ('','Planet canvas')
             assert app.stop_button.winfo_y()+app.stop_button.winfo_height() <= app.preview.winfo_height()
             app.session_path=folder/'session.json'
             app.select(['elements','water','rain']);app.vars['speed'].set('6×')
@@ -223,6 +615,7 @@ def main():
             assert app.values()['state']=='roots'
             # Real layer table callbacks: independent worlds, enable/solo/order/save.
             app.select(['geometric','corridor'])
+            app.sections.select(app.section_frames['Materials']);app.refresh_layers()
             app.effect_category.set('Material');app.refresh_effect_picker()
             app.effect_choice.set('Living artifacts');app.add_layer()
             app.effect_choice.set('Drifting flecks');app.add_layer()
@@ -235,6 +628,7 @@ def main():
             expected=validate_layers(app.layer_profiles)
             app.select(['cosmic','canvas'])
             assert app.layer_mode.get()=='Authored' and not app.layer_table.get_children()
+            app.sections.select(app.section_frames['World details']);app.refresh_layers()
             app.effect_category.set('World details');app.refresh_effect_picker()
             app.effect_choice.set('Drifting starfield');app.add_layer()
             app.edit_layer('remove')
@@ -246,11 +640,12 @@ def main():
             assert app.layer_profiles['geometric']==expected['geometric']
             assert app.layer_mode.get()=='Cycle list'
             # Verify layer tab at the minimum supported window size.
-            root.geometry('680x700');app.tabs.select(app.layers_tab);root.update()
+            root.geometry('680x800');app.tabs.select(app.layers_tab);root.update()
             for widget in app.layers_tab.winfo_children():
                 assert widget.winfo_y()+widget.winfo_height()<=app.layers_tab.winfo_height(), widget
                 assert widget.winfo_x()+widget.winfo_width()<=app.layers_tab.winfo_width(), widget
             app.select(['elements','water','currents'])
+            app.sections.select(app.section_frames['World details']);app.refresh_layers()
             app.effect_category.set('Water details');app.refresh_effect_picker()
             assert len(app.effect_box['values'])==5
             app.effect_choice.set('Rain streaks');app.add_layer()
@@ -264,6 +659,7 @@ def main():
             for widget in app.layers_tab.winfo_children():
                 assert widget.winfo_y()+widget.winfo_height()<=app.layers_tab.winfo_height(), widget
             app.select(['elements','fire','sheets'])
+            app.sections.select(app.section_frames['World details']);app.refresh_layers()
             app.effect_category.set('Fire details');app.refresh_effect_picker()
             assert set(app.effect_box['values'])=={'Coals','Embers','Hot seams','Ash'}
             app.effect_choice.set('Embers');app.add_layer()
@@ -277,11 +673,13 @@ def main():
             assert layers_at(restored['layers'],15,0)==(1,BITS['fire_embers'])
             assert layers_at(restored['layers'],16,0)==(1,BITS['fire_embers'])
             app.select(['elements','fire','firescape'])
+            app.sections.select(app.section_frames['World details']);app.refresh_layers()
             app.effect_category.set('Fire details');app.refresh_effect_picker()
             app.effect_choice.set('Ash');app.add_layer()
             app.session_path=folder/'firescape-layers.json';app.save()
             wild=validate_session(json.loads(app.session_path.read_text(encoding='utf-8')))
             app.select(['elements','fire','aftershock'])
+            app.sections.select(app.section_frames['World details']);app.refresh_layers()
             app.effect_category.set('Aftershock details');app.refresh_effect_picker()
             assert set(app.effect_box['values'])=={'Inversion flash','Dust shockwaves','Ground fire','Aurora'}
             app.effect_choice.set('Dust shockwaves');app.add_layer()
@@ -300,6 +698,7 @@ def main():
             root.update()
             for widget in app.layers_tab.winfo_children():
                 assert widget.winfo_y()+widget.winfo_height()<=app.layers_tab.winfo_height(), widget
+            app.sections.select(app.section_frames['Materials']);app.refresh_layers()
             app.effect_category.set('Material');app.refresh_effect_picker()
             assert 'Liquid Alloy' in app.effect_box['values'] and 'Prismatic Lattice' in app.effect_box['values']
             app.session_path=folder/'materials.json';app.save()
@@ -416,4 +815,19 @@ def main():
     print('PASS: Library search/catalog/source anchors, safe selection, minimum layout, recursive forms, per-world layer table/solo/order, legacy/v3 sessions, validation, all launch modes, minimum layout, UI lifecycle, real replay state/effect metadata and pacing, continuous GPU clocks.')
 
 
-if __name__=='__main__':main()
+if __name__=='__main__':
+    import subprocess
+    import sys
+    if '--roots-colors-test' in sys.argv:
+        roots_colors_studio_test()
+    elif '--studio-comparison-test' in sys.argv:
+        studio_comparison_test()
+    elif '--planet-palette-test' in sys.argv:
+        planet_palette_studio_test()
+    else:
+        main()
+        # Keep Tk interpreters in separate processes so destroyed-window timers
+        # from the existing lifecycle test cannot run in the palette test.
+        subprocess.run([sys.executable,'-X','utf8',__file__,'--planet-palette-test'],check=True)
+        subprocess.run([sys.executable,'-X','utf8',__file__,'--studio-comparison-test'],check=True)
+        subprocess.run([sys.executable,'-X','utf8',__file__,'--roots-colors-test'],check=True)

@@ -1,129 +1,147 @@
 # ZeraWave technique map
 
-Start here before extending a visual. This map describes current ownership;
-it is not a request to extract every shader function into a new framework.
+This document maps current code ownership and reuse boundaries. It is not a
+backlog; see [ROADMAP.md](ROADMAP.md) for priorities.
 
-## Code lookup for developers and agents
+## Discovery
 
-Run from the project root, without starting Studio:
+Run from the project root without opening Studio:
 
 ```powershell
 .\.venv\Scripts\python.exe app/visuals/technique_library.py water_current
 .\.venv\Scripts\python.exe app/visuals/technique_library.py "feedback" --json
 ```
 
-The Python API is `find_code(query, root=None)` in
-`app/visuals/technique_library.py`. It scans current app Python definitions using
-AST and GLSL function definitions, searches implementation bodies as well as
-names and technique descriptions, and returns current source paths/line numbers.
-There is no stale generated index and no renderer import or UI launch. Use the
-JSON output for automated workflows. No results means try synonyms and direct
-source search, not proof that a capability is absent. GLSL discovery covers the
-project's current function syntax, not a complete shader language parser.
+Studio > Library searches catalogued worlds/effects. The command searches current
+Python and GLSL definitions; no result is not proof of absence.
 
-## Find and reuse
+## Ownership
 
-1. Search Studio > Library for the world, effect or technique. World and effect
-   entries come from the existing catalogs, so new catalog entries appear there.
-2. Use the symbols below to find implementation; line numbers are deliberately
-   omitted because shader edits move them. Check callers and coordinate systems.
-3. Isolate the form in Studio, then use Effects & layers for optional treatments.
-   Not every internal technique is independently toggleable or portable.
-4. Test the change in isolation and Main blend. Preserve opacity, clock continuity,
-   accepted colors and session IDs. Do not retune global audio to fix one scene.
-
-## Ownership and extension points
-
-| Need | Existing owner | Reuse boundary |
+| Need | Owner | Boundary |
 | --- | --- | --- |
-| World/category/form navigation | app/visuals/studio.py: WORLD_TREE | Stable selection paths; descendants generate Library entries automatically. |
-| Effect names, compatibility, saved profiles | app/visuals/preview_layers.py: EFFECTS, validate_layers | Preserve IDs/order; all 31 positive legacy mask bits are occupied. New detail groups use explicit uniforms. |
-| Technique descriptions and search | app/visuals/technique_library.py: TECHNIQUES, entries, search | Read-only discovery, not a second runtime registry. Add a description and verified symbol when adding a reusable technique. |
-| Music-aware world choice | app/visuals/renderer.py: choose_world, update_blend | Energy/lift/release heuristics, not BPM or chorus recognition. |
-| Motion, event histories, graphics lifecycle | app/visuals/renderer.py: render, close | Continuous clocks and bounded events. Resource allocation/release belongs here. |
-| Materials and world gathering | app/visuals/shaders/dream.frag | Living Artifacts is inline in main; liquid_alloy, prismatic_lattice and musical_material are named helpers. |
-| Shared spatial treatment | dream.frag: spatial_carrier, spatial_weights | Material coordinates; do not distort solid depth geometry inadvertently. |
-| Planet/star treatment | dream.frag: isolated_cosmic_scene, cosmic_star_layer | Separate continuous star clock and surface gathering. |
-| Corridor perspective | dream.frag: geometric_surface | Shared with Stormfront's vault; preserve both callers. |
-| Liquid surfaces | dream.frag: water_current, water_height, water_surface, waterfall_surface | Procedural flow/height and surface projection, not a physical fluid solver. |
-| Fire motion and events | dream.frag: firescape_tree, blast_ring; renderer.py event state | Growth/decay and bounded disturbances; avoid frame-dependent lifetimes. |
-| Castle and terrain depth | dream.frag: air_castle_map, earth_map, earth_surface | Solid ray queries, directional shading and conservative rejection bounds. |
-| Vapor and pressure | dream.frag: fog_density, fog_scene | Deliberate volume translucency with opaque solid surfaces. |
-| Electrical structures | dream.frag: plasma_scene, plasma_loop | Filaments, localized discharges and form-specific skies. |
-| Regional transitions | dream.frag: handoff_front, handoff_share | Blend scene regions while retaining each world's own projection. |
-| Audio features and mapping | app/audio/audio_frame.py; app/visuals/parameter_mapper.py | Audio meaning remains separate from scene interpretation. |
+| World/form navigation and sessions | `app/visuals/studio.py` | Stable selection paths and versioned sessions. |
+| Effects, material profiles, compatibility | `app/visuals/preview_layers.py` | Preserve IDs/order and saved-profile support. |
+| Beat estimation and Main world choice | `app/audio/beat_tracker.py:BeatTracker.update_flux`; `app/visuals/renderer.py:update_blend` | Approximate spectral periodicity/tempo and confidence; qualified transitions may wait up to 0.8 s for a confident tick. No downbeat, phrase, or chorus recognition. |
+| Deterministic fixture itinerary | `app/visuals/renderer.py:blend_chapter` | Shader-test fixture only; never document it as live Main behavior. |
+| Echo Weave lifetime/resources | `app/visuals/renderer.py:update_echo` and `shaders/echo_weave.frag` | Fourth material; bounded history buffers and reset behavior. |
+| Shader worlds/materials | `app/visuals/shaders/dream.frag` | Reuse coordinate/depth assumptions; do not erase structural geometry. |
+| Audio features/mapping | `app/audio/` and `app/visuals/parameter_mapper.py` | Keep analysis separate from visual interpretation. |
+| Player and portable builder | `app/player.py`, `build_portable.py` | Player is the product entry; builder creates new output only. |
+
+## Review contracts
+
+Search before adding a technique. Preserve opacity, continuous clocks, accepted
+Authored visuals, and session IDs. Review a change in isolation and Main motion,
+including quiet and sustained passages. For Cosmic and Elemental-specific
+contracts, see [docs/MAINTENANCE_CONTRACTS.md](docs/MAINTENANCE_CONTRACTS.md).
+
+Echo Weave is implemented and Main defaults to the material quartet; saved trio
+profiles remain valid. Do not confuse this compatibility fact with a current
+feature proposal. Potential palette, surface-treatment, and feedback work is
+prioritized only in [ROADMAP.md](ROADMAP.md).
+
+## Maintenance details
+
+- **Onset ordering:** detect per-band onsets from the intended normalized/smoothed
+  band signal **before** `VisualSignalConditioner` applies visual slew limiting.
+  Then carry those onset values into `AudioFrame.impact` and visual mapping.
+  Onsets are fresh changes, not sustained levels; preserve this ordering when
+  altering analysis or event consumers.
+- **Layer compatibility:** `EFFECTS` IDs and the 31 occupied positive mask bits
+  are compatibility data. Do not reorder them. New groups that cannot use the
+  mask require the existing explicit-uniform pattern and session validation.
+- **Echo Weave:** `Renderer.update_echo` owns two 512×512 half-float history
+  textures, fixed 60 Hz stepping, and resource release. It clears on backward
+  time or a gap over one second, stays warm while selected, and releases when
+  disabled and no longer kept alive. Use moving replay or
+  `shader_test.py --echo-test <output>`; a one-frame capture cannot validate it.
+- **Baseline comparisons:** when a verification mode takes a baseline shader,
+  use the identified accepted baseline and compare identical state, time,
+  dimensions, and audio profile. A baseline comparison protects only the cases
+  it samples; it does not establish subjective motion quality or live-audio
+  behavior.
+
+The current Cosmic/Elemental boundaries and concrete evidence paths are in
+[maintenance contracts](docs/MAINTENANCE_CONTRACTS.md); detailed accepted
+records remain in [dated history](docs/history/README.md).
 
 ## Verification entry points
 
-Use the production scripts under **app/visuals/**, not similarly named untracked
-root scripts. Run with the project's .venv Python from the project root.
+Use the production scripts under `app/visuals/` with the project `.venv`:
+`studio_test.py` for Studio/session behavior, `shader_test.py` for deterministic
+GPU captures, `replay_test.py` for decoded-track replay, and
+`live_visual_test.py` for real system audio. Distinguish these scopes in reports.
 
-- studio_test.py: saved sessions, navigation, layer controls, launch commands,
-  replay and GPU integration. Library search/navigation coverage lives here too.
-- shader_test.py: deterministic captures, handoffs and performance checks; inspect
-  its CLI before choosing a mode.
-- replay_test.py: actual decoded tracks through analyzer, mapper and renderer;
-  accelerated replay is silent and does not skip analysis chunks.
-- live_visual_test.py: real system audio. Do not report decoded replay as live listening.
-- parameter_mapper_test.py and app/audio/*_test.py: targeted signal changes only.
+## Declared live color controls — extension pattern
 
-## Vocabulary and boundaries
+Roots is the first review gate, not an infrastructure special case. Do not expand
+support simply because the plumbing exists; each additional scene/material/effect
+needs a bounded declaration, shader hook, compatibility check and user review.
 
-World is the environment; form is its composition; material is its visible pigment
-or substance; spatial effect changes its coordinate flow; detail belongs to a
-particular world; technique is an internal building block; experiment is opt-in.
-A layer list controls selection and cycling, not arbitrary GPU render-stack order.
-Main has its own profile; individual world profiles are not automatically imported.
+- `app/visuals/color_controls.py` owns immutable `ColorTarget` / `ColorSlot`
+  declarations, validation, preset/session data, authored defaults and uniform
+  values. These describe color support only; reuse `EFFECTS`, `MATERIALS` and
+  existing state IDs rather than adding another world/effect catalog.
+- Current target IDs are `roots.blue`, `roots.pearl`, `roots.ridge` and
+  `roots.blossoms`. Role IDs are stable storage contracts, independent of labels.
+  `color` is a fixed tint; `staged_gradient` represents the shader's actual five
+  fixed colors and four overlapping smoothstep ranges. It is not an arbitrary
+  variable-length gradient. No add/remove affordance is appropriate here.
+- Declarations contain scene compatibility, artistic labels, control type,
+  uniform prefix, named slots, exact authored RGB defaults, transition defaults
+  and a scope note. The generated inspector (`color_inspector.py`) uses these;
+  it does not contain Roots-specific lists of fields. Extend control types only
+  when a real effect needs different semantics. Future variable gradients need
+  explicit validated limits, not an unbounded collection masquerading as slots.
+- JSON stores only explicit overrides as `target -> role -> {color, start, end}`;
+  color is `#RRGGBB`, and positions apply only to declared gradient roles. Missing
+  values use authored defaults. Unknown IDs, malformed colors, nonfinite/range
+  errors and reversed transitions are rejected transactionally. UI swatches
+  round authored float RGB to hex for display; an untouched field does not write
+  this rounding back into the authored shader path.
+- Keep original shader expressions for absent targets. Current overrides replace
+  field-gradient pigment or add the tint difference to existing ridge/blossom
+  contributions, preserving masks, lighting/brightness equations, audio response
+  and composition. No geometry, opacity or material identity should depend on a
+  missing color slot. Explicit colors can change perceived contrast; that is an
+  artistic choice, not a reason to modify the shading pipeline.
+- `Renderer.set_colors` validates before replacing state. Color uniforms upload
+  only when settings/scope change, on the renderer thread. Held Roots requires
+  debug state 12 and no development sequence; the shader also gates to held Roots
+  with no Main director. Future support must deliberately extend these backend
+  scope gates as well as declarations; adding a UI label alone is insufficient.
+- `studio_color_link.py` uses existing child stdin/stdout pipes: newline JSON,
+  monotonically numbered complete snapshots, a 16 KiB bound, one pending update
+  and one acknowledgement record. Tk coalesces at a bounded 75 ms cadence (continuous dragging still sends); background threads handle
+  pipe IO; the child reader validates into a one-slot mailbox. Rendering consumes
+  it in memory and acknowledges after drawing. No per-frame disk access, network
+  service, GL calls from the reader, or new audio pipeline is involved.
+- Preview manifests record launch settings. The normal run log includes revision
+  acknowledgements and visual/Echo clocks. Studio owns and closes each link with
+  its exact child; restart creates a fresh link and revert snapshot. A live edit
+  does not reset time or stateful history. Dynamic edits persist only on explicit
+  session/preset save, not by rewriting the launch manifest or loaded preset.
+- A named color preset has kind `zerawave-color-preset`, version 1, name, scene,
+  and target assignments. It is distinct from Planet's palette choice and from
+  a full Studio session. Loading applies a copy; it never edits another preset.
 
-Daddy Long Legs remains dormant. Echo Weave is the fourth material:
-renderer.py:update_echo owns its two fixed-resolution half-float buffers and
-fixed-step lifetime; shaders/echo_weave.frag advances the field; dream.frag:
-echo_material shades it through the existing material domain. It joins Main's default quartet; saved trio profiles remain valid. See DEVELOPMENT_STUDIO.md for isolation and reset behavior.
-The original proposal remains in MILKDROP_COMPARISON.md.
+Verification for an extension: declaration/default validation, rejected updates,
+old sessions, reset/revert/preset round trips, all supported preview routes, exact
+or explicitly investigated authored pixel comparisons, unsupported-scene scope,
+intended-region mask checks, and repeated edits with continuous clocks and stable
+resources. Keep captured/synthetic/decoded/live audiovisual evidence distinct.
+Existing entry points are `studio_test.py --roots-colors-test` and
+`shader_test.py --roots-color-test <pre-edit-shader> <new-output-directory>`.
 
-## Next cleanup, only when needed
+Likely later candidates: Membrane shares these two gradients and ridge tint, but
+needs its own reviewed target identity/scope. Planet already has a surface/ring
+palette experiment; independently editable planet, ring and moon colors need
+careful separation of shared material pigment from per-object tint/lighting.
+Stateful materials such as Echo may require distinguishing display tint from
+colors stored in feedback history. None of these expansions is implemented here.
 
-The shader is large, but moving code merely to shorten it risks changing shared
-coordinate assumptions. First establish this index and tests. Extract a helper
-only when a concrete second caller or independent test benefits. Keep historical
-research and untracked scripts intact until their ownership and value are clear.
-
-
-## Musical timing and player packaging
-
-- app/audio/beat_tracker.py: BeatTracker.update_flux estimates periodicity and
-  confidence from spectral activity; no normalization or visual accent changes.
-- renderer.py:update_blend uses an .8-second bounded wait for already-justified
-  transition opportunities when confidence is high. No forced global pulse.
-- preview_layers.py:material_weights returns four absolute weights. materials_at
-  retains a normalized vec3 for the old shader interface; echo_weave_at supplies
-  the fourth weight. echo_selected keeps history warm while selected.
-- app/player.py owns player preferences/child launch, not another audio pipeline.
-- build_portable.py copies the installed Windows runtime/dependencies with notices,
-  excludes the project's work/music/research folders, and smoke-tests the runtime.
-- app/audio/beat_tracker_test.py, capture_selection_test.py, app/player_test.py
-  cover timing confidence, device identity and preference/error recovery.
-
-## World repair / sky extension (accepted 2026-09-28)
-
-- `cavern_formation` owns stable cell-local formations. `earth_map` evaluates
-  nearby footprints and bounds steps toward omitted cells, including for normals.
-- `shooting_star_radiance(direction)` returns directional light, not an overlay.
-  `water_environment` uses it for sky and reflected rays, before island occlusion;
-  `cosmic_star_layer` also supports it. Sky effects > Shooting stars is independently
-  selectable. Water authored mode enables it; Cosmic authored mode stays unchanged.
-  Explicit older saved lists retain their selection and need the new row added.
-- `Renderer.update_blasts` recycles the oldest event at eight sites on a fresh
-  qualifying onset, with a .70-second spacing guard. Constant high impact does not
-  retrigger. It no longer waits for the pool's 20-second lifetimes to expire.
-
-Next extension direction (not implemented): independent palette families, then
-surface-light treatments (pearlescence, caustics, ink absorption), and flow-driven
-feedback. Keep material, spatial, sky/light and palette responsibilities distinct.
-For each reusable effect document coordinate space, occlusion/reflection support,
-quiet/peak audio roles, compatible worlds and measured cost. No new framework or
-third-party source is required for this incremental approach.
-
-Next-work priority and acceptance status live in ZERAWAVE_HANDOFF.md. Reusable
-style presets are a later proposal using existing session/profile machinery,
-not a new preset format. The portable checkpoint does not include this sky pass.
+Proposed standing policy for the Overseer (not an AGENTS.md change): future visual
+features should expose meaningful editable colors through this mechanism where
+applicable, preserve authored defaults/shading/music response, use stable IDs and
+clear artistic names, document inapplicable or unsupported controls, and verify
+through Dev Studio. Expose useful choices, not every computed shader expression.

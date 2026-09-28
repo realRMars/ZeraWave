@@ -15,14 +15,9 @@ from capture import AudioCapture
 from onset_detector import OnsetDetector
 from parameter_mapper import VisualParameterMapper
 from renderer import Renderer
-from studio_color_link import configure_colors
-from color_controls import parse_colors
-from preview_layers import parse_layers, validate_layers
 from signal_processor import SignalProcessor, VisualSignalConditioner
 
-LIVE_STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3,
-               "transition": 4, "canvas": 5, "water": 6, "sea": 7,
-               "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35}
+LIVE_STATES = {"blend": 0, "geometric": 2, "transition": 4, "canvas": 5}
 
 
 def make_bar(value, width=30):
@@ -32,7 +27,7 @@ def make_bar(value, width=30):
 
 
 def analyze_samples(samples, analyzer, processor, conditioner, detectors):
-    """Shared live/replay analysis; detect events before visual slew limiting."""
+    """Shared live/replay analysis; preserve the existing conditioning order."""
     if samples.ndim > 1:
         samples = samples.mean(axis=1)
 
@@ -41,7 +36,6 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors):
         samplerate=48000,
     )
 
-    flux_raw = analyzer.spectral_flux(magnitudes)
     flux_processed = conditioner.condition(
         "flux",
         processor.process_adaptive(
@@ -49,7 +43,7 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors):
             # Provisional scale: 10s live sample showed raw
             # flux mean ~40, max ~344; 180 gives ordinary passages
             # room below the ceiling while preserving headroom for spikes.
-            flux_raw,
+            analyzer.spectral_flux(magnitudes),
             0.0,
             180.0,
         ),
@@ -102,13 +96,6 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors):
         1.0,
     )
 
-    # Detect normalized transients before visual conditioning caps each rise
-    # at 0.12, below the existing onset threshold of 0.2. Continuous controls
-    # still use exactly the same normalization, smoothing and conditioning.
-    bass_onset = detectors["bass"].detect(bass_processed)
-    mids_onset = detectors["mids"].detect(mids_processed)
-    highs_onset = detectors["highs"].detect(highs_processed)
-
     bass_processed = conditioner.condition(
         "bass",
         bass_processed,
@@ -122,6 +109,18 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors):
         highs_processed,
     )
 
+    bass_onset = detectors["bass"].detect(
+        bass_processed
+    )
+
+    mids_onset = detectors["mids"].detect(
+        mids_processed
+    )
+
+    highs_onset = detectors["highs"].detect(
+        highs_processed
+    )
+
     frame = AudioFrame(
         bass_processed,
         mids_processed,
@@ -131,13 +130,11 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors):
         highs_onset,
         flux=flux_processed,
     )
-    for key, value in analyzer.beat_tracker.update_flux(flux_raw, len(samples)/48000., frame.energy).items():
-        setattr(frame, key, value)
     return frame
 
 
-def main(state="blend", states=None, layers=None, device=None, quiet=False, palette="authored", colors=None, color_input=False):
-    capture = AudioCapture(device_name=device)
+def main(state="blend"):
+    capture = AudioCapture()
     analyzer = AudioAnalyzer()
     processor = SignalProcessor(smoothing=0.5)
     # Wider quiet dead-zone than the class default (0.03): gives the
@@ -146,11 +143,7 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
     conditioner = VisualSignalConditioner(quiet_threshold=0.06)
     mapper = VisualParameterMapper()
     renderer = Renderer(title=f"ZeraWave - live {state}")
-    renderer.preview_palette = palette
     renderer.debug_state = LIVE_STATES[state]
-    renderer.debug_sequence = tuple(LIVE_STATES[name] for name in (states or ()))
-    renderer.layer_profiles = validate_layers(layers or {})
-    configure_colors(renderer, colors, color_input)
 
     detectors = {
         "bass": OnsetDetector(threshold=0.2),
@@ -191,8 +184,6 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
             renderer.parameters.sparkle = result["sparkle"]
             renderer.parameters.impact = result["impact"]
             renderer.parameters.flux = frame.flux
-            renderer.parameters.beat_confidence = frame.beat_confidence
-            renderer.parameters.beat_tick = frame.beat_tick
             renderer.render()
             renderer.swap_buffers()
             renderer.poll_events()
@@ -203,7 +194,7 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
                     value,
                 )
 
-            if not quiet: print(
+            print(
                 "\033[H\033[J"
                 "ZeraWave Live Visualizer\n"
                 "=========================\n"
@@ -245,14 +236,6 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ZeraWave with live system audio.")
     parser.add_argument("--state", choices=tuple(LIVE_STATES), default="blend",
-                        help="blend: normal flow; canvas: hold planet; transition: 40-second diagnostic cycle; water: isolated liquid world")
-    parser.add_argument("--states", nargs="+", choices=tuple(LIVE_STATES), help="Development cycle: hold each state for 28 seconds.")
-    parser.add_argument("--layers", type=parse_layers, default={}, help="Development per-world effect settings as JSON.")
-    parser.add_argument("--device", help="Output device ID or exact name; omit for system default.")
-    parser.add_argument("--quiet", action="store_true", help="Keep logs compact.")
-    parser.add_argument("--palette", choices=("authored", "soft-dream"), default="authored",
-                        help="Experimental pigment choice; only held Planet Canvas uses soft-dream.")
-    parser.add_argument('--colors', type=parse_colors, default={}, help='Declared held-scene color overrides as JSON.')
-    parser.add_argument('--studio-color-input', action='store_true', help='Read bounded Studio color snapshots from stdin (held Roots only).')
+                        help="blend: normal flow; geometric: hold rooms; canvas: hold planet; transition: 40s cycle")
     args = parser.parse_args()
-    main(args.state, args.states, args.layers, args.device, args.quiet, args.palette, args.colors, args.studio_color_input)
+    main(args.state)
