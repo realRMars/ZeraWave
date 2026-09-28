@@ -32,6 +32,8 @@ uniform int u_layer_mode;
 uniform int u_layer_mask;
 uniform vec4 u_shockwaves[8];
 uniform vec3 u_material_mix;
+uniform float u_echo_weave;
+uniform sampler2D u_echo_history;
 uniform int u_directed;
 uniform vec4 u_world_mix; // corridor, planet, water, fire
 uniform vec4 u_water_mix; // sea, dyes, rain, falls, normalized within water
@@ -2050,6 +2052,21 @@ vec3 selected_materials() {
     vec3 chosen=vec3(effect(1),effect(33554432),effect(67108864));
     return chosen/max(1.,chosen.x+chosen.y+chosen.z);
 }
+vec3 echo_material(vec2 q) {
+    vec2 uv=.5+.46*sin(q*.38);
+    vec2 ink=texture(u_echo_history,uv).rg;
+    float density=ink.x+ink.y;
+    vec2 h=vec2(1./512.,0.);
+    float gx=texture(u_echo_history,uv+h).r-texture(u_echo_history,uv-h).r;
+    float gy=texture(u_echo_history,uv+h.yx).r-texture(u_echo_history,uv-h.yx).r;
+    float ridge=clamp(length(vec2(gx,gy))*26.,0.,1.);
+    float hue=ink.y/max(density,.001)*1.7+q.y*.06+.08*sin(u_drift_time*.08);
+    vec3 pigment=.5+.5*cos(6.28318*(hue+vec3(0.,.34,.67)));
+    float body=smoothstep(.012,.20,density);
+    float strands=pow(.5+.5*sin(log(1.+density*12.)*25.+ink.y*9.),10.);
+    return pigment*body*(.22+strands*1.65+ridge*.8);
+}
+
 vec3 liquid_alloy(vec2 q,float bass,float flux,float sparkle,float impact) {
     vec2 stream=q;
     stream += vec2(sin(q.y*1.7-u_time*.18),cos(q.x*1.3+u_time*.15))*.12;
@@ -4431,9 +4448,9 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     color += art_accent * art_edge * effect(1) * (0.35 + geometric_weight * 0.30)
         * (1.0-water_takeover*.80);
 
-    vec3 material_mix=selected_materials();
+    vec3 material_mix=selected_materials()*(1.-u_echo_weave);
     vec3 sibling_delta=vec3(0.);
-    if(material_mix.y+material_mix.z>0.) {
+    if(material_mix.y+material_mix.z+u_echo_weave>0.) {
         vec3 living=color-before_artifacts;
         vec3 siblings=vec3(0.);
         // Authored playback retains its original stable sphere source.
@@ -4443,10 +4460,11 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         vec2 sibling_q=(shared_spatial() ? q : mix(q,fractal_domain,stable_domain))+material_travel;
         if(material_mix.y>0.) siblings+=liquid_alloy(sibling_q,bass_pressure,flux,sparkle,impact)*material_mix.y;
         if(material_mix.z>0.) siblings+=prismatic_lattice(sibling_q,bass_pressure,flux,sparkle,impact)*material_mix.z;
+        if(u_echo_weave>0.) siblings+=echo_material(sibling_q)*u_echo_weave;
         sibling_delta=siblings-living*(1.-material_mix.x);
     }
     vec3 fire_material = material_before_effects + color - before_artifacts;
-    if(material_mix.y+material_mix.z>0.) fire_material+=sibling_delta;
+    if(material_mix.y+material_mix.z+u_echo_weave>0.) fire_material+=sibling_delta;
 
     // Falling/drifting world elements: unlocked strongly by the
     // horizon state, but audio decides what populates it -- highs for
@@ -4551,7 +4569,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     color += laser_color * laser_mask * effect(8) * 1.4 * (1.0-water_takeover);
 
     vec3 material_effects = color - material_before_effects;
-    if(material_mix.y+material_mix.z>0.) {
+    if(material_mix.y+material_mix.z+u_echo_weave>0.) {
         material_effects+=sibling_delta;
         color+=sibling_delta;
     }

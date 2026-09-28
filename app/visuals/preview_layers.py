@@ -52,19 +52,21 @@ EFFECTS = {
     'plasma_arcs': ('Discharges & traveling pulses', 'Plasma details', ('blend', 'plasma')),
     'plasma_sparks': ('Charged particles & distant stars', 'Plasma details', ('blend', 'plasma')),
 }
+EFFECTS['echo_weave'] = ('Echo Weave', 'Material', WORLDS)
 # All 31 positive signed-mask bits are occupied; later effects use explicit uniforms.
 EXPERIMENTS = ('daddy_long_legs',)
+EXPLICIT_MATERIALS = ('echo_weave',)
 EARTH_DETAILS = ('earth_sediment', 'earth_veins', 'earth_dust', 'earth_worm')
 FOG_DETAILS = ('fog_volume', 'fog_lights', 'fog_fronts')
 PLASMA_DETAILS = ('plasma_field', 'plasma_arcs', 'plasma_sparks')
-BITS = {key: (0 if key in EXPERIMENTS + EARTH_DETAILS + FOG_DETAILS + PLASMA_DETAILS else 1 << i) for i, key in enumerate(EFFECTS)}
+BITS = {key: (0 if key in EXPERIMENTS + EXPLICIT_MATERIALS + EARTH_DETAILS + FOG_DETAILS + PLASMA_DETAILS else 1 << i) for i, key in enumerate(EFFECTS)}
 MODES = {'authored': 'Authored', 'together': 'Selected together', 'cycle': 'Cycle list', 'meld': 'Meld materials'}
-MATERIALS = ('artifacts', 'alloy', 'lattice')
+MATERIALS = ('artifacts', 'alloy', 'lattice', 'echo_weave')
 
 
 def default_profile(world=None):
     if world == 'blend':
-        profile = material_trio_profile(world)
+        profile = material_quartet_profile(world)
         profile['seconds'] = 22.
         return profile
     return dict(mode='authored', seconds=12., items=[])
@@ -124,27 +126,34 @@ def layers_at(profiles, state, seconds):
     return (2 if profile['mode'] == 'meld' else 1), sum(BITS[key] for key in ids)
 
 
-def materials_at(profiles, state, seconds):
-    """Ordered material-only fade; other effects retain their enabled state."""
+def material_weights(profiles, state, seconds):
+    """Four absolute material weights; IDs and old three-material lists remain valid."""
     profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
-    if profile['mode'] == 'authored': return (1., 0., 0.)
-    ids = [item['id'] for item in profile['items']
-           if item['enabled'] and item['id'] in MATERIALS]
-    if not ids: return (0., 0., 0.)
-    weights = [0., 0., 0.]
+    if profile['mode'] == 'authored': return (1., 0., 0., 0.)
+    ids = [item['id'] for item in profile['items'] if item['enabled'] and item['id'] in MATERIALS]
+    weights = [0.] * 4
+    if not ids: return tuple(weights)
     if profile['mode'] == 'meld':
         phase = max(0., seconds) / profile['seconds']
         index = int(phase) % len(ids)
-        blend = max(0., min(1., ((phase % 1.) - .65) / .35))
-        blend = blend * blend * (3. - 2. * blend)
-        weights[MATERIALS.index(ids[index])] += 1. - blend
-        weights[MATERIALS.index(ids[(index + 1) % len(ids)])] += blend
+        fade = max(0., min(1., ((phase % 1.) - .65) / .35))
+        fade = fade * fade * (3. - 2. * fade)
+        weights[MATERIALS.index(ids[index])] += 1. - fade
+        weights[MATERIALS.index(ids[(index + 1) % len(ids)])] += fade
     else:
         if profile['mode'] == 'cycle':
-            _, mask = layers_at(profiles, state, seconds)
-            ids = [key for key in ids if mask & BITS[key]]
+            enabled = [item['id'] for item in profile['items'] if item['enabled']]
+            selected = enabled[int(max(0., seconds) // profile['seconds']) % len(enabled)]
+            ids = [key for key in ids if key == selected]
         for key in ids: weights[MATERIALS.index(key)] = 1. / len(ids)
     return tuple(weights)
+
+
+def materials_at(profiles, state, seconds):
+    # Preserve the vec3 shader interface; Echo's separate weight scales this trio.
+    weights = material_weights(profiles, state, seconds)[:3]
+    total = sum(weights)
+    return tuple(w / total for w in weights) if total else (0., 0., 0.)
 
 
 def daddy_long_legs_at(profiles, state, seconds):
@@ -188,4 +197,19 @@ def plasma_details_at(profiles, state, seconds):
 def material_trio_profile(world):
     """Authored details plus the three materials, suitable for main-live testing."""
     return dict(mode='meld', seconds=36., items=[dict(id=key, enabled=True)
-        for key, info in EFFECTS.items() if world in info[2] and key not in EXPERIMENTS])
+        for key, info in EFFECTS.items() if world in info[2] and key not in EXPERIMENTS + EXPLICIT_MATERIALS])
+
+
+def material_quartet_profile(world):
+    profile = material_trio_profile(world)
+    profile['items'].append(dict(id='echo_weave', enabled=True))
+    return profile
+
+
+def echo_weave_at(profiles, state, seconds):
+    return material_weights(profiles, state, seconds)[3]
+
+
+def echo_selected(profiles, state):
+    profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
+    return profile['mode'] != 'authored' and any(item['id'] == 'echo_weave' and item['enabled'] for item in profile['items'])

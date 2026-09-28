@@ -2,7 +2,97 @@
 
 Updated: 2026-09-27
 
-## Studio contrast and developer lookup (uncommitted)
+## Completed material, timing and portable preview pass (2026-09-27)
+
+User approved Echo Weave's appearance and explicitly requested completing its
+integration, musical timing, full-show review and a shareable build, then commit.
+This section supersedes the earlier experimental status below.
+
+- Main's default profile melds Living Artifacts, Liquid Alloy, Prismatic Lattice
+  and Echo Weave on 22-second slots. The old trio preset and saved lists remain
+  supported. Echo uses a separate weight with the existing vec3 material interface;
+  history stays warm while selected, including invisible portions of a fade.
+- Spectral periodicity/confidence is estimated separately in BeatTracker.update_flux.
+  Existing normalization, onsets, mapper and scene accent responses are unchanged.
+  The director waits at most .8 seconds for a predicted beat only after an existing
+  musical opportunity. Low confidence and deadlines preserve fallback behavior.
+  This is approximate beat-grid timing, not downbeat/phrase/chorus recognition;
+  half/double-tempo ambiguity remains possible.
+- run_zerawave.bat opens a simple player with output-device selection, persistent
+  settings and a child-process log. Failed playback returns to a restartable state.
+  Audio selection matches loopback IDs/exact names, never a same-named microphone.
+  Reconnection is manual (refresh/select/restart), not automatic hotplug recovery.
+- build_portable.py creates a new Windows folder and ZIP using the installed Python
+  3.14 runtime/dependencies. No downloads, installer or visualization dependencies.
+  App hashes/dependency versions and distribution notices are retained. Work,
+  private songs and research folders are excluded.
+
+Validation completed:
+- Studio suite: old sessions, trio parity, quartet weight sum/continuity, director
+  beat wait/deadline, UI/navigation, replay metadata and GPU integration passed.
+- Echo GPU checks: 36 states with Echo disabled matched baseline 741969f exactly;
+  fixed-input history at 30/60/144 updates matched; seek/gap/reset/release passed.
+- Beat tracker: periodic pulses, tempo tolerance, irregular noise, silence and gap
+  tests passed. An earlier onset-only approach was replaced after real-song data
+  showed insufficient confidence; noise rejection was tightened before final runs.
+- Final Main replay: Balloon 226.80s/5316 frames; Chasing You 133.80s/3136 frames;
+  Warbot Jazz 299.29s/7015 frames. About 11 minutes and 15,467 analyzed frames total.
+  Confidence >= .65 on 69.8%, 76.8%, 77.2% respectively; these are estimator
+  confidence rates, not externally measured beat accuracy. Echo visible > .01 on
+  25.4%, 21.5%, 28.8%. Metrics, ten-second captures and inspected contact sheets
+  are in work/release-final. These were silent decoded replays; frame sequences
+  were visually inspected, not a continuous audiovisual listening review.
+  Dark intervals in Arc Constellation retained visible structure; no global
+  brightness increase was applied simply to eliminate intentional dark space.
+- Audio analyzer, signals, normalization, onsets, mapper, player settings/error
+  recovery and output-only device-selection checks passed.
+- Packaged Player also started/stopped its live child with isolated settings/logs.
+- Portable runtime import/Tk smoke passed outside the checkout with isolated
+  Python. Packaged live loopback + analyzer + GPU rendered eight real frames.
+  SoundCard emitted two data-discontinuity warnings during that short startup
+  smoke; rendering completed. This is documented, not a guarantee of glitch-free
+  capture on every device.
+
+Shareable artifact: work/releases/ZeraWave-preview-final.zip (~33.7 MiB).
+Extract all, run Start ZeraWave.cmd. PLAYER.md documents usage/build steps.
+This is unsigned and tested on this Windows machine; clean second-PC testing
+remains required before general release. No new code from MilkDrop/projectM.
+Earlier development records below are historical. Unrelated untracked files
+remain untouched and are excluded from the approved commit.
+
+## Echo Weave experiment (uncommitted, 2026-09-27)
+
+Accepted Studio cleanup/index committed as 741969f with explicit user approval.
+User then authorized starting Echo Weave. It is now an opt-in FX experiment
+(replacing selected material while active), not a fourth automatic trio member.
+In Studio choose a form, Effects & layers > FX experiments > Echo Weave > Add >
+Solo. Planet canvas, Neon corridor and Membrane were reviewed in captures.
+
+renderer.py:update_echo owns a pair of 512x512 RGBA16F history textures (4 MiB),
+allocated only when enabled. Fixed 1/60-second steps advect a two-channel dye
+field with coherent curl, field gradients, sparse seeds and bounded decay.
+dream.frag:echo_material turns the field into colored contour strands in the
+existing material coordinates; opaque world geometry remains in the existing
+scene pass. No prior-screen capture, external code or new dependencies.
+History resets on disable, backward time or gaps over one second. Delta catchup
+is bounded at .25 seconds. Fixed-frame capture rejects this stateful effect;
+use evolving replay. Cycle list works; Meld materials does not fade it as a
+fourth material yet. Default Main remains unchanged.
+
+Validation: shader_test.py --echo-test work/echo-weave/final-checks passed.
+All 36 disabled states matched shader 741969f pixel-for-pixel. Fixed-input field
+histories matched exactly at 30/60/144 update rates after 8 seconds. Reset and
+resource release passed. Twelve quiet/strong/release captures saved; selected
+captures inspected. All three decoded tracks completed 30.037 seconds / 704
+analyzed frames each across Planet, Corridor and Membrane, with captures and
+metrics in work/echo-weave/replay. These were silent decoded replays, not live
+listening or a continuous-motion visual review. Studio regression suite passed.
+History-update GPU median: .0256 ms over 100 post-warmup samples on this machine;
+this excludes the scene draw and is not an end-to-end performance guarantee.
+User visual review remains pending. Echo Weave is a first experiment, not a
+finished Main integration. Existing unrelated untracked files remain untouched.
+
+## Studio contrast and developer lookup (committed in 741969f)
 
 User clarified that the index must help agents find existing code, independently
 of the UI. technique_library.py now offers find_code() and a text/JSON CLI,

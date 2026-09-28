@@ -18,7 +18,7 @@ if not exist "%LIVE_TEST%" (
 )
 
 echo Starting ZeraWave live visualizer...
-echo Play music in Opera, then close the visualizer window when finished.
+echo Play music through your system audio output, then close the visualizer window when finished.
 echo.
 
 "%PYTHON_EXE%" "%LIVE_TEST%"

@@ -1,6 +1,6 @@
 import math
 import argparse
-from preview_layers import parse_layers, validate_layers, layers_at, materials_at
+from preview_layers import echo_weave_at, parse_layers, validate_layers, layers_at, materials_at
 import hashlib
 import json
 import struct
@@ -26,8 +26,75 @@ def save_png(path, pixels):
         + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''))
 
 
+def echo_test(output):
+    """Stateful material checks through the production renderer, not a mock."""
+    import subprocess
+    output.mkdir(parents=True, exist_ok=True)
+    r = Renderer(width=640, height=360, seed=2)
+    report = {}
+    try:
+        glfw.init(); glfw.window_hint(glfw.VISIBLE, glfw.FALSE); r.create()
+        from preview_layers import material_trio_profile
+        r.layer_profiles = {'blend': material_trio_profile('blend')}
+        baseline = subprocess.check_output(['git', 'show', '741969f:app/visuals/shaders/dream.frag'], text=True)
+        old = r.ctx.program(vertex_shader=VERTEX_SHADER, fragment_shader=baseline)
+        old_vao = r.ctx.simple_vertex_array(old, r.vertices, 'in_position')
+        try:
+            for state in range(36):
+                r.debug_state = state; r.render(elapsed_time=25.+state*.1)
+                actual = r.ctx.screen.read(components=3)
+                for name in old:
+                    if name in r.program and hasattr(old[name], 'value'):
+                        old[name].value = r.program[name].value
+                old_vao.render(mode=moderngl.TRIANGLE_STRIP)
+                assert actual == r.ctx.screen.read(components=3), ('disabled changed', state)
+                assert r.echo_resources is None
+            report['disabled_pixel_identical_states'] = 36
+        finally: old_vao.release(); old.release()
+        r.parameters.scale=.65; r.parameters.flux=.6; r.parameters.impact=.15
+        fields=[]
+        for fps in (30, 60, 144):
+            r.release_echo()
+            for i in range(fps*8+1): r.update_echo(i/fps, True)
+            field=np.frombuffer(r.echo_resources[0][0].read(),np.float16).reshape(512,512,4).copy()
+            assert np.isfinite(field).all() and field[:,:,:2].max() <= 1.
+            fields.append(field)
+        assert all(np.array_equal(fields[0], f) for f in fields[1:])
+        report['fixed_step_rates']=[30,60,144]
+        r.update_echo(0.,True)
+        assert np.frombuffer(r.echo_resources[0][0].read(),np.float16).max()==0.
+        r.update_echo(10.,True)
+        assert r.echo_clock==0.
+        report['seek_gap_reset']=True
+        # Continuous evolving run, with captures during quiet/strong/release.
+        for i in range(1801):
+            t=i/60.
+            strong=8.<=t<20.
+            r.parameters.scale=.85 if strong else .08
+            r.parameters.flux=.75 if strong else .06
+            r.parameters.impact=.6 if strong and i%30==0 else 0.
+            r.update_echo(t,True)
+            if i in (240,720,1200,1800):
+                for state,world in ((11,'organic'),(5,'cosmic'),(2,'geometric')):
+                    r.debug_state=state
+                    r.layer_profiles={world:dict(mode='together',seconds=12.,items=[dict(id='echo_weave',enabled=True)])}
+                    r.render(elapsed_time=t)
+                    pixels=np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(360,640,3)[::-1]
+                    assert pixels.std()>2
+                    save_png(output/f'{world}-{i}.png',pixels)
+        report['quiet_peak_release_captures']=12
+        r.update_echo(30.,False); assert r.echo_resources is None
+        report['disable_releases_history']=True
+        (output/'checks.json').write_text(json.dumps(report,indent=2))
+    finally: r.close()
+    print('PASS: Echo Weave', report)
+
+
 def capture(output, seconds, profile="standard", debug_state=0, layers=None):
     """Save a reproducible synthetic frame and GPU-evaluated state weights."""
+    if echo_weave_at(layers or {}, debug_state, seconds) > 0. or any(any(item['id'] == 'echo_weave' and item['enabled'] for item in profile['items'])
+           and profile['mode'] != 'authored' for profile in (layers or {}).values()):
+        raise ValueError('Echo Weave needs evolving history. Use Studio track replay or --echo-test, not a single-frame capture.')
     output.mkdir(parents=True, exist_ok=True)
     renderer = Renderer(width=640, height=360, title="ZeraWave capture")
     source = (Path(__file__).parent / "shaders/dream.frag").read_text(encoding="utf-8")
@@ -2859,6 +2926,7 @@ if __name__ == "__main__":
     parser.add_argument("--firescape-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--molten-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--fire-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
+    parser.add_argument("--echo-test", type=Path)
     parser.add_argument("--sweep", type=Path)
     parser.add_argument("--layer-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--currents-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
@@ -2891,6 +2959,9 @@ if __name__ == "__main__":
     parser.add_argument("--earth-test", nargs=2, type=Path)
     parser.add_argument("--air-test", nargs=2, type=Path)
     args = parser.parse_args()
+    if args.echo_test:
+        echo_test(args.echo_test)
+        raise SystemExit(0)
     if args.optimization_test:
         choreography_test(*args.optimization_test,optimization=True)
         raise SystemExit(0)

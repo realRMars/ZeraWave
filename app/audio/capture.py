@@ -11,22 +11,13 @@ class AudioCapture:
         self.recorder = None
 
     def find_device(self):
-        loopbacks = sc.all_microphones(include_loopback=True)
-
-        if self.device_name is None:
+        loopbacks = [mic for mic in sc.all_microphones(include_loopback=True) if mic.isloopback]
+        target_name = self.device_name
+        if target_name is None:
             speaker = sc.default_speaker()
-            target_name = speaker.name
-        else:
-            target_name = self.device_name
-
-        self.loopback = next(
-            (
-                mic
-                for mic in loopbacks
-                if target_name in mic.name
-            ),
-            None,
-        )
+            if speaker is None: raise RuntimeError('No audio output device is available.')
+            target_name = speaker.id
+        self.loopback = next((mic for mic in loopbacks if mic.id == target_name or mic.name == target_name), None)
 
         if self.loopback is None:
             raise RuntimeError(

@@ -8,7 +8,7 @@ import moderngl
 import math
 
 from parameters import VisualParameters
-from preview_layers import layers_at, materials_at, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
+from preview_layers import echo_selected, echo_weave_at, layers_at, materials_at, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
 
 VERTEX_SHADER = """
 #version 330
@@ -132,6 +132,10 @@ class Renderer:
         self.program = None
         self.vertices = None
         self.vao = None
+        self.echo_resources = None
+        self.echo_last_time = None
+        self.echo_clock = 0.
+        self.echo_remainder = 0.
 
         self.start_time = None
         self.last_render_time = None
@@ -172,6 +176,7 @@ class Renderer:
         self.director_armed = True
         self.director_last_seen = {}
         self.director_history = []
+        self.director_pending = None
         self.planet_visits = 0
         self.blast_events = []
         self.blast_serial = 0
@@ -254,6 +259,19 @@ class Renderer:
             elif release:reason='release'
             elif hit and self.director_fast>.45:reason='strong hit'
             elif age>=self.director_max_hold:reason='breathing interval'
+        # Only quantize an already justified opportunity. Uncertain rhythm keeps
+        # the original director, and a bounded deadline prevents waiting forever.
+        confidence = self.parameters.beat_confidence
+        if self.director_pending is not None:
+            pending_reason, deadline = self.director_pending
+            if self.parameters.beat_tick or now >= deadline or confidence < .5:
+                reason = pending_reason
+                self.director_pending = None
+            else:
+                reason = None
+        elif reason and confidence >= .65 and not self.parameters.beat_tick:
+            self.director_pending = (reason, now + .8)
+            reason = None
         if reason:
             self.director_target=self.choose_world(energy if release else max(energy,self.director_fast),lift)
             self.director_transition=now
@@ -371,6 +389,57 @@ class Renderer:
 
         self.start_time = time.perf_counter()
 
+    def release_echo(self):
+        if self.echo_resources is not None:
+            textures, targets, program, vao = self.echo_resources
+            for resource in [vao, program, *targets, *textures]: resource.release()
+            self.echo_resources = None
+        self.echo_last_time = None
+        self.echo_clock = self.echo_remainder = 0.
+
+    def update_echo(self, seconds, enabled, keep_alive=False):
+        self.program['u_echo_weave'].value = float(enabled)
+        if not enabled and not keep_alive:
+            self.release_echo()
+            return
+        target, viewport = self.ctx.fbo or self.ctx.screen, self.ctx.viewport
+        try:
+            if self.echo_resources is None:
+                textures = [self.ctx.texture((512, 512), 4, dtype='f2') for _ in range(2)]
+                for texture in textures:
+                    texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+                    texture.repeat_x = texture.repeat_y = False
+                targets = [self.ctx.framebuffer(color_attachments=[texture]) for texture in textures]
+                program = self.ctx.program(vertex_shader=VERTEX_SHADER,
+                    fragment_shader=(Path(__file__).parent/'shaders/echo_weave.frag').read_text())
+                vao = self.ctx.simple_vertex_array(program, self.vertices, 'in_position')
+                self.echo_resources = textures, targets, program, vao
+                for framebuffer in targets: framebuffer.clear()
+            textures, targets, program, vao = self.echo_resources
+            delta = 0. if self.echo_last_time is None else seconds-self.echo_last_time
+            if delta < 0. or delta > 1.:
+                for framebuffer in targets: framebuffer.clear()
+                self.echo_clock = self.echo_remainder = 0.
+                delta = 0.
+            self.echo_last_time = seconds
+            self.echo_remainder += min(.25, delta)
+            program['history'].value = 0
+            program['audio'].value = (self.parameters.scale, self.parameters.flux,
+                                      self.parameters.sparkle, self.parameters.impact)
+            while self.echo_remainder >= 1./60.-1e-9:
+                self.echo_clock += 1./60.
+                program['clock'].value = self.echo_clock
+                textures[0].use(0); targets[1].use()
+                self.ctx.viewport = (0, 0, 512, 512)
+                vao.render(mode=moderngl.TRIANGLE_STRIP)
+                textures.reverse(); targets.reverse()
+                self.echo_remainder -= 1./60.
+            textures[0].use(0)
+            self.program['u_echo_history'].value = 0
+        finally:
+            target.use()
+            self.ctx.viewport = viewport
+
     def render(self, elapsed_time=None):
         if self.window is None:
             raise RuntimeError("Renderer has not been created")
@@ -487,6 +556,8 @@ class Renderer:
         self.update_shockwaves(current_time)
         self.program['u_shockwaves'].value = self.shockwaves + [
             (-1000., 0., 0., 0.)] * (8 - len(self.shockwaves))
+        self.update_echo(current_time, echo_weave_at(self.layer_profiles, self.state_at(current_time), current_time),
+                         echo_selected(self.layer_profiles, self.state_at(current_time)))
         self.vao.render(mode=moderngl.TRIANGLE_STRIP)
 
     def should_close(self):
@@ -505,6 +576,7 @@ class Renderer:
         return time.perf_counter() - self.start_time
 
     def close(self):
+        self.release_echo()
         if self.vao is not None:
             self.vao.release()
 

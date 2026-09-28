@@ -7,3 +7,5 @@ class VisualParameters:
         self.sparkle = 0.0
         self.impact = 0.0
         self.flux = 0.0
+        self.beat_confidence = 0.
+        self.beat_tick = False

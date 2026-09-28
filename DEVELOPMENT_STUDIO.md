@@ -1,5 +1,21 @@
 # ZeraWave Development Studio
 
+## Echo Weave and Main's material quartet
+
+Echo Weave now lives in **Material**, alongside Living Artifacts, Liquid Alloy
+and Prismatic Lattice. Main's default list melds all four on independent
+22-second slots. Echo's history warms before its visible fade and stays alive
+while it remains enabled. Removing/disabling it releases its buffers.
+
+Choose **Presets > Material quartet — all worlds** to try the same materials
+on isolated forms. The existing trio preset and saved three-material lists keep
+their original order and behavior. Authored held forms are unchanged. Selected
+together shares material weight equally; Meld materials fades in list order;
+Cycle list remains a diagnostic cut between enabled rows.
+
+Stateful Echo needs track replay or a moving preview, not a single-frame capture.
+History resets on backward time or gaps over one second; catchup is bounded.
+
 ## Current workflow and navigation (2026-09-27)
 
 Launch `run_development_studio.bat`. Start in **Library** when you want to find
@@ -16,7 +32,9 @@ For development ownership and reuse, see [the technique map](TECHNIQUE_LIBRARY.m
 4. **Library:** discover existing capabilities before adding new ones.
 
 Current Main uses the renderer's energy/lift/release director with session
-entropy and recurrence preferences. It is not the old fixed or shuffled timed
+entropy and recurrence preferences. When spectral beat confidence is high, justified
+transition opportunities wait at most .8 seconds for a beat. Uncertain rhythm
+keeps the existing timing. This is not phrase/downbeat/chorus recognition. It is not the old fixed or shuffled timed
 itinerary and does not detect actual choruses. Water, Fire, Air, Earth, Fog/Gas
 and Plasma are integrated. Existing v1/v2/v3 sessions remain supported.
 

@@ -13,7 +13,7 @@ from replay_test import replay
 from renderer import Renderer
 import glfw
 import numpy as np
-from preview_layers import EFFECTS, BITS, layers_at, validate_layers, parse_layers, materials_at, material_trio_profile, WORLDS, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
+from preview_layers import material_weights, material_quartet_profile, echo_weave_at, EFFECTS, BITS, layers_at, validate_layers, parse_layers, materials_at, material_trio_profile, WORLDS, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
 
 
 def main():
@@ -23,6 +23,27 @@ def main():
     assert any(r['symbol'] == 'Renderer.choose_world' for r in find_code('choose_world'))
     for row in found:
         assert row['symbol'] in (ROOT / row['path']).read_text(encoding='utf-8').splitlines()[row['line'] - 1]
+    quartet={'blend':material_quartet_profile('blend')}
+    for t in np.linspace(0.,300.,1001):
+        weights=np.array(material_weights(quartet,0,t))
+        assert abs(weights.sum()-1.)<1e-10 and weights.min()>=0.
+        assert np.abs(weights-np.array(material_weights(quartet,0,t+.0001))).max()<.001
+    assert material_weights(quartet,0,108.)==(0.,0.,0.,1.)
+    assert echo_weave_at({'blend':material_trio_profile('blend')},0,108.)==0.
+    assert echo_weave_at({},0,66.)==1.
+    director=Renderer(seed=2)
+    director.parameters.beat_confidence=.9
+    director.parameters.scale=.6;director.parameters.movement=.6
+    director.update_blend(0.,0.)
+    director.director_min_hold=1.;director.director_max_hold=1.
+    director.update_blend(2.,2.)
+    assert director.director_pending is not None and director.director_target is None
+    director.parameters.beat_tick=True;director.update_blend(2.1,.1)
+    assert director.director_target is not None and director.director_pending is None
+    director=Renderer(seed=2);director.parameters.beat_confidence=.9
+    director.update_blend(0.,0.);director.director_min_hold=1.;director.director_max_hold=1.
+    director.update_blend(2.,2.);director.update_blend(3.,1.)
+    assert director.director_target is not None  # deadline cannot freeze a show
     catalog = entries(WORLD_TREE)
     assert len({row['id'] for row in catalog}) == len(catalog)
     assert {row['id'][7:] for row in catalog if row['id'].startswith('effect:')} == set(EFFECTS)

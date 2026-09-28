@@ -1,9 +1,11 @@
 import numpy as np
+from beat_tracker import BeatTracker
 
 
 class AudioAnalyzer:
     def __init__(self):
         self.previous_magnitudes = None
+        self.beat_tracker = BeatTracker()
 
     def rms(self, samples):
         return float(np.sqrt(np.mean(samples**2)))

@@ -77,6 +77,8 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                 renderer.parameters.sparkle = result["sparkle"]
                 renderer.parameters.impact = result["impact"]
                 renderer.parameters.flux = frame.flux
+                renderer.parameters.beat_confidence = frame.beat_confidence
+                renderer.parameters.beat_tick = frame.beat_tick
                 active_state = states[int(song_time // 28.) % len(states)] if states else state
                 layer_mode, layer_mask = layers_at(renderer.layer_profiles, LIVE_STATES[active_state], song_time)
                 renderer.render(elapsed_time=song_time)
@@ -87,7 +89,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                     filename = f"frame-{song_time:08.3f}.png"
                     save_png(capture_dir / filename, pixels[::-1])
                     captures.append(dict(file=filename, seconds=song_time,
-                        state=active_state, flow_rate=renderer.flow_rate, planet_visits=renderer.planet_visits, blast_events=list(renderer.blast_events), world_mix=renderer.blend_values, material_mix=list(renderer.program["u_material_mix"].value), shockwaves=list(renderer.shockwaves), layer_mode=layer_mode, layer_mask=layer_mask, bass=frame.bass, mids=frame.mids, highs=frame.highs,
+                        state=active_state, flow_rate=renderer.flow_rate, planet_visits=renderer.planet_visits, blast_events=list(renderer.blast_events), world_mix=renderer.blend_values, echo_weight=renderer.program["u_echo_weave"].value, beat_confidence=frame.beat_confidence, tempo=frame.tempo, material_mix=list(renderer.program["u_material_mix"].value), shockwaves=list(renderer.shockwaves), layer_mode=layer_mode, layer_mask=layer_mask, bass=frame.bass, mids=frame.mids, highs=frame.highs,
                         flux=frame.flux, **result,
                         contrast=float(pixels.astype(float).std(axis=(0, 1)).mean()),
                         dark_fraction=float((pixels.max(axis=2) < 35).mean()),
@@ -95,7 +97,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                     next_capture += capture_interval
                 renderer.swap_buffers()
                 renderer.poll_events()
-                rows.append({"seconds": song_time, "state": active_state, "shockwave_count": len(renderer.shockwaves), "blast_count": len(renderer.blast_events), "planet_visits": renderer.planet_visits, "flow_rate": renderer.flow_rate, "layer_mode": layer_mode, "layer_mask": layer_mask, "bass": frame.bass, "mids": frame.mids,
+                rows.append({"seconds": song_time, "beat_confidence": frame.beat_confidence, "tempo": frame.tempo, "echo_weight": renderer.program["u_echo_weave"].value, "state": active_state, "shockwave_count": len(renderer.shockwaves), "blast_count": len(renderer.blast_events), "planet_visits": renderer.planet_visits, "flow_rate": renderer.flow_rate, "layer_mode": layer_mode, "layer_mask": layer_mask, "bass": frame.bass, "mids": frame.mids,
                              "highs": frame.highs, "flux": frame.flux, **result})
                 song_time += len(samples) / rate
                 if speed > 0:

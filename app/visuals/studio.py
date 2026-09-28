@@ -10,7 +10,7 @@ from tkinter import ttk, filedialog, messagebox
 
 from technique_library import entries as library_entries, search as search_library
 from live_visual_test import LIVE_STATES
-from preview_layers import (EFFECTS, MODES, default_profile, validate_layers, world_for_state, material_trio_profile, WORLDS)
+from preview_layers import (EFFECTS, MODES, default_profile, validate_layers, world_for_state, material_trio_profile, material_quartet_profile, WORLDS)
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEEDS = {'Real time': 1., '2×': 2., '6×': 6., '12×': 12., 'Fastest': 0.}
@@ -572,6 +572,11 @@ class Studio:
         transfer.add_command(label='Export session…',command=lambda:self.save(True))
         bar.add_cascade(label='Import / export',menu=transfer)
         self.root.config(menu=bar)
+
+    def material_quartet(self):
+        self.layer_profiles = {world: material_quartet_profile(world) for world in WORLDS}
+        self.refresh_layers()
+        self.tabs.select(self.layers_tab)
 
     def material_trio(self):
         self.layer_profiles = {world: material_trio_profile(world) for world in WORLDS}

@@ -75,8 +75,11 @@ particular world; technique is an internal building block; experiment is opt-in.
 A layer list controls selection and cycling, not arbitrary GPU render-stack order.
 Main has its own profile; individual world profiles are not automatically imported.
 
-Daddy Long Legs remains dormant. Echo Weave is proposed in MILKDROP_COMPARISON.md,
-not implemented. No feedback buffers exist yet in the production renderer.
+Daddy Long Legs remains dormant. Echo Weave is the fourth material:
+renderer.py:update_echo owns its two fixed-resolution half-float buffers and
+fixed-step lifetime; shaders/echo_weave.frag advances the field; dream.frag:
+echo_material shades it through the existing material domain. It joins Main's default quartet; saved trio profiles remain valid. See DEVELOPMENT_STUDIO.md for isolation and reset behavior.
+The original proposal remains in MILKDROP_COMPARISON.md.
 
 ## Next cleanup, only when needed
 
@@ -84,3 +87,19 @@ The shader is large, but moving code merely to shorten it risks changing shared
 coordinate assumptions. First establish this index and tests. Extract a helper
 only when a concrete second caller or independent test benefits. Keep historical
 research and untracked scripts intact until their ownership and value are clear.
+
+
+## Musical timing and player packaging
+
+- app/audio/beat_tracker.py: BeatTracker.update_flux estimates periodicity and
+  confidence from spectral activity; no normalization or visual accent changes.
+- renderer.py:update_blend uses an .8-second bounded wait for already-justified
+  transition opportunities when confidence is high. No forced global pulse.
+- preview_layers.py:material_weights returns four absolute weights. materials_at
+  retains a normalized vec3 for the old shader interface; echo_weave_at supplies
+  the fourth weight. echo_selected keeps history warm while selected.
+- app/player.py owns player preferences/child launch, not another audio pipeline.
+- build_portable.py copies the installed Windows runtime/dependencies with notices,
+  excludes the project's work/music/research folders, and smoke-tests the runtime.
+- app/audio/beat_tracker_test.py, capture_selection_test.py, app/player_test.py
+  cover timing confidence, device identity and preference/error recovery.

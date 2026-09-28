@@ -30,7 +30,9 @@ class AudioFrame:
         self.impact = max(bass_onset, mids_onset, highs_onset)
         self.is_silent = self.energy <= silence_threshold
 
-        # No tempo/BPM estimation exists yet, so rhythmic activity is
-        # approximated with the only rhythm-related signal currently
-        # available: transient (onset) strength.
+        # Optional timing estimates are populated by the shared analysis path.
         self.rhythmic_activity = self.impact
+        self.beat_confidence = 0.
+        self.beat_phase = 0.
+        self.beat_tick = False
+        self.tempo = 0.
