@@ -2,6 +2,49 @@
 
 Updated: 2026-09-27
 
+## Main Blend choreography after 044e260
+
+User authorized completing this pass and committing it. All six accepted Elemental
+families remain intact. This pass changes only Main handoff selection/compositing,
+with no audio normalization or isolated world helper changes.
+
+Related pairs have a modest 1.65 selection preference, still subject to energy,
+novelty, cooldown and the existing Corridor/Planet anchor priorities. Existing
+musical entry gates, rest durations and session entropy remain in place.
+Four bidirectional handoff styles use moving regional ownership:
+- Water/Molten: a connected flowing bank.
+- Stormfront or Vortex/Plasma: opening electrical channels.
+- Earth/Fog: a broad billowing veil.
+- Citadel/Magnetic Bloom: an orbital opening.
+
+The new optional u_handoff metadata defaults to inactive for held scenes and
+existing fixtures. Specialized handoffs replace the generic screen warp; all
+other pairs retain their accepted behavior. Final scene shading is skipped in
+regions wholly owned by the other scene. Shared pigment/domain computation
+remains continuous, preserving how worlds gather existing materials.
+
+Validation: director CPU tests passed (repeatability, varied openings, musical
+selection, longer quiet rests, anchor recurrence, frame-rate agreement, metadata
+routing and disabled-clock freeze). GPU choreography tests passed 72 held-scene
+comparisons (36 states in authored/custom modes), unchanged accepted helper source,
+and 98 bidirectional handoff samples with endpoint preservation and continuity.
+Largest mean RGB change for a 0.0001 progress increment: 0.209/255.
+Evidence and before/after replay captures are under ignored work/main-choreography.
+Studio standalone tests passed, including session/UI lifecycle, isolation,
+material routing, replay pacing and continuous GPU clocks. WarbotJazz, Balloon
+and ChasingYou each completed 120 seconds / 2813 analyzed frames before and after;
+sampled capture sequences were inspected. These were decoded-audio GPU replays,
+not audible live playback or a claim of exhaustive continuous-motion review.
+
+Sequential 720p GPU midpoint measurements (median, before -> after milliseconds):
+Magnetic/Citadel 22.64 -> 23.71; Storm/Arcs 13.07 -> 10.37;
+Dunes/Marsh 20.41 -> 18.93; Sea/Molten 7.31 -> 6.35.
+Selective shading helps three measured pairs, but does not solve the expensive
+Citadel overlap; that pairing and Dunes/Marsh still exceed a 16.7 ms GPU budget.
+No blanket 60 fps claim. Future performance work should profile shared domains
+and Citadel shading before changing their accepted appearance.
+
+
 ## Accepted Plasma checkpoint
 
 User passed all three Plasma states and their animated skies, then explicitly

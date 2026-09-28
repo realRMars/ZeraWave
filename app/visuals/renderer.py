@@ -69,7 +69,25 @@ def blend_uniforms(seconds, enabled=True):
     return world_uniforms(weights, x, enabled)
 
 
-def world_uniforms(weights, progress=0., enabled=True):
+def handoff_kind(source, target):
+    """Related physical transitions remain optional, never a fixed itinerary."""
+    pair = {source, target}
+    if 15 in pair and pair.intersection((7,8,9,10,13)): return 1
+    if pair.intersection((20,21)) and pair.intersection(PLASMA_FORMS): return 2
+    if pair.intersection(EARTH_FORMS) and pair.intersection(FOG_FORMS): return 3
+    if pair == {22,32}: return 4
+    return 0
+
+
+def world_family(state):
+    if state in (7,8,9,10,13): return 3
+    if state in (14,15,17,18): return 4
+    for family, forms in ((5,AIR_FORMS),(6,EARTH_FORMS),(7,FOG_FORMS),(8,PLASMA_FORMS)):
+        if state in forms: return family
+    return 0
+
+
+def world_uniforms(weights, progress=0., enabled=True, handoff=None):
     """Shared packing for the live director and deterministic shader fixtures."""
     air = sum(weights.get(i,0.) for i in AIR_FORMS)
     air_mix = tuple(weights.get(i,0.)/max(air,1e-12) for i in AIR_FORMS)
@@ -88,7 +106,8 @@ def world_uniforms(weights, progress=0., enabled=True):
     # Root structure also contributes to the shared source canvas. Fade it
     # with world coverage so it cannot switch inside a departing corridor.
     root = weights.get(12,0.)
-    return dict(u_directed=int(enabled), u_world_mix=tuple(world), u_water_mix=water,
+    transition = (handoff_kind(*handoff), progress, *(world_family(i) for i in handoff)) if handoff and enabled else (0.,0.,0.,0.)
+    return dict(u_handoff=transition, u_directed=int(enabled), u_world_mix=tuple(world), u_water_mix=water,
                 u_current_mix=weights.get(13,0.)/max(world[2],1e-12),
                 u_fire_mix=fire, u_root_mix=root, u_world_warp=math.sin(math.pi*progress),
                 u_air_weight=air, u_air_mix=air_mix,
@@ -185,7 +204,8 @@ class Renderer:
                 waiting=self.director_time-(last if last is not None else 0.)
                 anchor=1.6+min(24.,(max(0.,waiting-35.)/18.)**2)
             if state==5 and lift:anchor*=2.5
-            choices.append(state);scores.append(fit*novelty*anchor)
+            affinity = 1.65 if handoff_kind(self.director_current,state) else 1.
+            choices.append(state);scores.append(fit*novelty*anchor*affinity)
         return self.director_rng.choices(choices,weights=scores,k=1)[0]
 
     def update_blend(self, seconds, delta, enabled=True):
@@ -225,7 +245,7 @@ class Renderer:
             else:
                 progress=progress*progress*(3.-2.*progress)
                 self.blend_values=world_uniforms({self.director_current:1.-progress,
-                    self.director_target:progress},progress)
+                    self.director_target:progress},progress, handoff=(self.director_current,self.director_target))
                 return
         age=now-self.director_since
         reason=None

@@ -141,6 +141,66 @@ def sweep(output):
         renderer.close()
 
 
+def choreography_test(baseline_path, output):
+    """Preserve held worlds and verify bidirectional Main handoff continuity."""
+    from renderer import world_uniforms
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270,seed=42);old=mesh=None
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        source=(Path(__file__).parent/'shaders/dream.frag').read_text()
+        baseline=baseline_path.read_text()
+        assert baseline[baseline.index('float effect('):baseline.index('void main()')].strip()==source[source.index('float effect('):source.index('// Main-only physical handoffs.')].strip(), 'Accepted world helpers changed'
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline)
+        mesh=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        def frame(state,t=16.,energy=.65,hit=0.,weights=None,previous=False,details=(1.,1.,1.),mask=2147483647,mode=0,material=(1.,0.,0.),signals=None):
+            pr,vao=(old,mesh) if previous else (r.program,r.vao)
+            values=dict(u_time=t*.75,u_star_time=t,u_drift_time=t,u_resolution=(480.,270.),u_scale=energy,u_flux=energy,
+                u_sparkle=energy,u_impact=hit,u_intensity=1.,u_distortion=1.,u_debug_state=float(state),u_event_blasts=0,
+                u_layer_mode=mode,u_layer_mask=mask,u_material_mix=material,u_air_flash_id=2.,u_air_afterglow=hit,
+                u_daddy_long_legs=0.,u_earth_details=(1.,1.,1.,1.),u_fog_details=(1.,1.,1.),u_plasma_details=details,**world_uniforms(weights or {},enabled=weights is not None))
+            values.update(signals or {})
+            for k,v in values.items():
+                if k in pr:pr[k].value=v
+            pr['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+            pr['u_air_trails'].value=[(0.,0.)]*3
+            vao.render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)[::-1].copy()
+        checks=0
+        for state in range(36):
+            for mode in (0,2):
+                delta=np.abs(frame(state,mode=mode).astype(float)-frame(state,mode=mode,previous=True))
+                assert delta.mean()<.05 and (delta>2).mean()<.0025,('held changed',state,mode,delta.mean())
+                checks+=1
+        print('Held preservation passed:',checks,flush=True)
+        from renderer import handoff_kind,world_family
+        pairs=((7,15),(8,15),(20,33),(21,34),(24,29),(26,28),(22,32))
+        continuity=[]
+        for first,second in pairs:
+            for a,b in ((first,second),(second,first)):
+                tiles=[]
+                def transition(x,previous=False):
+                    return frame(0,weights={a:1.-x,b:x},mode=2,previous=previous,
+                        signals=dict(u_world_warp=0.,u_handoff=(handoff_kind(a,b),x,world_family(a),world_family(b))))
+                for x in (0.,.2,.4,.5,.6,.8,1.):
+                    pixels=transition(x)
+                    near=transition(min(1.,x+.0001))
+                    delta=float(np.abs(pixels.astype(float)-near).mean())
+                    assert delta<2.,('discontinuity',a,b,x,delta)
+                    assert pixels.std()>2.,('blank',a,b,x)
+                    if x in (0.,1.):
+                        error=np.abs(pixels.astype(float)-transition(x,True))
+                        assert error.mean()<.05,('endpoint',a,b,x,error.mean())
+                    continuity.append(delta);tiles.append(pixels)
+                save_png(output/f'pair-{a}-{b}.png',np.concatenate(tiles,axis=1))
+        report=dict(held_checks=checks,pair_frames=len(continuity),max_continuity_delta=max(continuity))
+        (output/'checks.json').write_text(json.dumps(report,indent=2));print(report,flush=True)
+    finally:
+        if mesh is not None:mesh.release()
+        if old is not None:old.release()
+        r.close()
+
+
 def plasma_test(baseline_path, output,accepted_path=None):
     """GPU preservation, musical expression, opacity, isolation and regional handoffs."""
     from renderer import world_uniforms
@@ -915,6 +975,7 @@ def musical_color_test(baseline_path, output):
 
 def director_test():
     """Exercise production selection with synthetic parameters, without graphics."""
+    from renderer import handoff_kind, world_family
     def run(seed,profile,duration=600.,fps=20):
         r=Renderer(seed=seed);previous=None;target=None;events=[]
         for i in range(int(duration*fps)+1):
@@ -925,6 +986,12 @@ def director_test():
             r.parameters.impact=.8 if profile!='quiet' and i%(fps//2)==0 else 0.
             r.update_blend(t,0. if i==0 else 1/fps)
             v=r.blend_values;w=np.array(v['u_world_mix'])
+            style,phase,source,target_family=v['u_handoff']
+            if style:
+                assert r.director_target is not None
+                assert style==handoff_kind(r.director_current,r.director_target)
+                assert (source,target_family)==(world_family(r.director_current),world_family(r.director_target))
+                assert 0.<=phase<=1.
             assert (w>=0).all() and w.sum()<=1.000001
             assert sum(w>0)<=2,('stacked takeovers',t,w)
             assert abs(sum(v['u_water_mix'])+v['u_current_mix']-(1. if w[2]>0 else 0.))<1e-6
@@ -2760,6 +2827,7 @@ if __name__ == "__main__":
     parser.add_argument("--layers", type=parse_layers, default={}, help="Development per-world effect settings as JSON.")
     parser.add_argument("--ownership-test", nargs=2, type=Path)
     parser.add_argument("--director-test", action="store_true")
+    parser.add_argument("--choreography-test", nargs=2, type=Path)
     parser.add_argument("--musical-color-test", nargs=2, type=Path)
     parser.add_argument("--water-meld-test", nargs=2, type=Path)
     parser.add_argument("--fire-expression-test", type=Path)
@@ -2770,6 +2838,9 @@ if __name__ == "__main__":
     parser.add_argument("--earth-test", nargs=2, type=Path)
     parser.add_argument("--air-test", nargs=2, type=Path)
     args = parser.parse_args()
+    if args.choreography_test:
+        choreography_test(*args.choreography_test)
+        raise SystemExit(0)
     if args.plasma_test:
         plasma_test(*args.plasma_test,accepted_path=args.plasma_reference)
         raise SystemExit(0)

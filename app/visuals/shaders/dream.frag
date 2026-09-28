@@ -39,6 +39,7 @@ uniform float u_current_mix;
 uniform vec4 u_fire_mix; // sheets, molten, firescape, aftershock
 uniform float u_root_mix;
 uniform float u_world_warp;
+uniform vec4 u_handoff; // style, progress, departing family, arriving family
 uniform int u_event_blasts;
 uniform vec4 u_blast_events[8]; // birth, stable id, world x, world z
 float effect(int bit) {
@@ -3464,6 +3465,36 @@ vec3 plasma_scene(vec2 p,vec3 material,int form) {
     return color+emission/(1.+emission*.65);
 }
 
+// Main-only physical handoffs. Accepted isolated world helpers stay unchanged.
+float handoff_front(vec2 p) {
+    float phase=u_handoff.y;
+    float field=.5;
+    if(u_handoff.x<1.5) {
+        // A connected liquid bank advances with broad flowing bends.
+        field=.5+p.y*.62+.10*sin(p.x*5.+u_time*.13)
+            +.04*sin(p.x*11.-u_time*.17);
+    } else if(u_handoff.x<2.5) {
+        // Electrical channels open locally, then join into one weather field.
+        float bend=p.x+.12*sin(p.y*9.+u_time*.09);
+        field=.12+abs(bend)*.75+.09*sin(p.y*6.-u_time*.11);
+    } else if(u_handoff.x<3.5) {
+        // A broad, billowing veil reveals solid terrain behind it.
+        field=.5+p.x*.43+.11*sin(p.y*5.+u_time*.09)
+            +.05*sin(p.x*6.-p.y*8.+u_time*.12);
+    } else {
+        // Orbital opening preserves a readable island beside the magnetic sky.
+        field=length((p-vec2(.12,.04))*vec2(.8,1.))*.85;
+    }
+    field=clamp(field,.12,.88);
+    return smoothstep(field-.085,field+.085,phase);
+}
+float handoff_share(float family,float front) {
+    if(u_directed==0 || u_handoff.x<.5) return 1.;
+    if(abs(u_handoff.z-family)<.1) return 1.-front;
+    if(abs(u_handoff.w-family)<.1) return front;
+    return 1.;
+}
+
 void main()
 {
     bool directed = u_directed == 1;
@@ -3481,7 +3512,7 @@ void main()
     vec2 p = uv - 0.5;
     p.x *= u_resolution.x / u_resolution.y;
     if (directed) {
-        float warp=u_world_warp*(.12+.12*clamp(u_scale+u_flux,0.,1.));
+        float warp=(u_handoff.x>.5 ? 0. : u_world_warp)*(.12+.12*clamp(u_scale+u_flux,0.,1.));
         float angle=warp*exp(-dot(p,p)*1.2)*sin(length(p)*3.+u_time*.12);
         p=mat2(cos(angle),sin(angle),-sin(angle),cos(angle))*p;
         p*=1.+warp*(.6-length(p)*.3);
@@ -4575,6 +4606,9 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     // Geometry keeps absolute weights; normalize only the background compositing.
     vec4 background_mix=u_world_mix/max(1.-u_air_weight-u_earth_weight-u_fog_weight-u_plasma_weight,.000001);
     vec4 coverage = directed ? world_coverage(background_mix,screen_p) : u_world_mix;
+    float front=handoff_front(screen_p);
+    bool physical_handoff=directed && u_handoff.x>.5;
+    if(physical_handoff && u_handoff.x<1.5) coverage.w=handoff_share(4.,front);
     if (geometric_weight > 0.0)
     {
         float geo_canvas = 0.85 + 0.15 * clamp(u_flux, 0.0, 1.0);
@@ -4588,15 +4622,16 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         float amount = directed ? coverage.y/max(1.-coverage.z-coverage.w,.000001) : cosmic_takeover;
         color = mix(color, world, clamp(amount,0.,1.));
     }
-    if (water_mode) {
+    if (water_mode && handoff_share(3.,front)>0.) {
         float liquid_currents;
         vec4 liquid_forms=water_coverage(screen_p,liquid_currents);
         vec3 liquid = isolated_water_scene(water, directed ? expressive_canvas : color,liquid_forms,liquid_currents);
         if (forms.w > 0.0) liquid = mix(liquid,water_falls(falls,directed ? expressive_canvas : color),liquid_forms.w);
         float amount = directed ? coverage.z/max(1.-coverage.w,.000001) : water_takeover;
+        if(physical_handoff && u_handoff.x<1.5) amount=1.;
         color = mix(color,liquid,clamp(amount,0.,1.));
     }
-    if (fire_mode) {
+    if (fire_mode && handoff_share(4.,front)>0.) {
         float molten=molten_weight(), wild=firescape_weight();
         vec3 before_fire=color;
         vec4 weights=directed ? u_fire_mix : (u_debug_state>17.5 ? vec4(0,0,0,1)
@@ -4610,7 +4645,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         if (directed) color=mix(before_fire,color,coverage.w);
     }
     float air_amount=directed ? u_air_weight/max(1.-u_earth_weight-u_fog_weight-u_plasma_weight,.000001) : (held_air ? 1. : 0.);
-    if(air_amount>0.) {
+    if(air_amount>0. && handoff_share(5.,front)>0.) {
         vec4 af=air_forms();
         vec4 regions=air_coverage(screen_p,af);
         vec3 sky=vec3(0.);
@@ -4624,7 +4659,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         float coverage=score/max(score+pow(1.-air_amount,3.),.000001);
         color=mix(color,sky,coverage);
     }
-    if(earth_amount>0.) {
+    if(earth_amount>0. && handoff_share(6.,front)>0.) {
         vec3 regions=ef*ef*ef*exp(earth_territory(screen_p)*5.);
         regions/=max(dot(regions,vec3(1.)),1e-12);
         vec3 earth=vec3(0.);
@@ -4636,7 +4671,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         float coverage=score/max(score+pow(1.-amount,3.),1e-12);
         color=mix(color,earth,coverage);
     }
-    if(fog_amount>0.) {
+    if(fog_amount>0. && handoff_share(7.,front)>0.) {
         vec3 forms=fog_forms();
         vec3 scores=forms*forms*forms*exp(vec3(screen_p.y,-screen_p.y,.3-length(screen_p))*3.);
         scores/=max(dot(scores,vec3(1.)),1e-12);
@@ -4645,9 +4680,10 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         float amount=directed ? fog_amount/max(1.-u_plasma_weight,.000001) : fog_amount;
         float score=pow(amount,3.)*exp((.25-length(screen_p)*.4)*3.);
         float coverage=score/max(score+pow(1.-amount,3.),1e-12);
+        if(physical_handoff && abs(u_handoff.x-3.)<.1) coverage=handoff_share(7.,front);
         color=mix(color,vapor,coverage);
     }
-    if(plasma_amount>0.) {
+    if(plasma_amount>0. && handoff_share(8.,front)>0.) {
         vec3 forms=plasma_forms();
         vec3 scores=forms*forms*forms*exp(vec3(-screen_p.x,screen_p.x,screen_p.y)*3.);
         scores/=max(dot(scores,vec3(1.)),1e-12);
@@ -4655,6 +4691,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         for(int i=0;i<3;i++)if(forms[i]>0.)plasma+=plasma_scene(screen_p,expressive_canvas,i)*scores[i];
         float score=pow(plasma_amount,3.)*exp((.4-length(screen_p))*3.);
         float coverage=score/max(score+pow(1.-plasma_amount,3.),1e-12);
+        if(physical_handoff) coverage=handoff_share(8.,front);
         color=mix(color,plasma,coverage);
     }
     fragColor = vec4(color, 1.0);
