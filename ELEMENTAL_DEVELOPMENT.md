@@ -1,5 +1,18 @@
 # Elemental vocabulary: Water foundation
 
+## Plasma foundation (2026-09-27, accepted)
+
+Magnetic Bloom: colored field loops stretch around an opaque charged core.
+Arc Constellation: moving charged nodes exchange branched discharges and pulses.
+Auroral Veil: folded vertical sheets glow in layered curtains with open dark gaps.
+All three have musical response, native transitions, Studio detail isolation
+and Main Blend integration. The native cycle lasts 108 seconds.
+
+User accepted all three states and their animated skies. This completes an
+accepted foundation for all six Elemental families. Further expansion should follow observed weaknesses
+or requested compositions rather than adding families automatically. See the
+handoff for techniques, verification and limitations.
+
 ## Fog / Gas expansion (2026-09-27, accepted)
 
 Nebula Banks flies through blue/rose vapor with broad openings. Ghostlight Marsh
@@ -15,11 +28,7 @@ gyroid-like density field. Existing integrated musical time controls travel;
 bass, flux, sparkle and impact have independently tested visual responses.
 See the current handoff for verification and approximation/performance limits.
 
-Plasma is the remaining future Elemental family: magnetic loops that stretch
-and reconnect, branching arcs between moving charged nodes, and auroral
-curtains that fold into deep space. Keep those as starting concepts until
-Fog has been reviewed and the next implementation is requested. Both conditions
-are now met; Plasma is the next authorized implementation.
+The Plasma foundation above supersedes the earlier future-family concepts.
 
 ## Earth expansion (2026-09-27, commit authorized)
 
@@ -42,7 +51,7 @@ existing musical director, cycling materials and spatial folds, with shorter
 regional overlaps between Earth forms. See the latest handoff checkpoint.
 
 The Fog expansion above supersedes this checkpoint's earlier Fog backlog.
-Plasma remains a future world of magnetic loops, branching arcs and curtains.
+See the Plasma foundation above for the current implementation.
 
 ## Air / Wind expansion (2026-09-27)
 

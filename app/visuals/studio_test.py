@@ -12,7 +12,7 @@ from replay_test import replay
 from renderer import Renderer
 import glfw
 import numpy as np
-from preview_layers import BITS, layers_at, validate_layers, parse_layers, materials_at, material_trio_profile, WORLDS, daddy_long_legs_at, earth_details_at, fog_details_at
+from preview_layers import BITS, layers_at, validate_layers, parse_layers, materials_at, material_trio_profile, WORLDS, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
 
 
 def main():
@@ -49,7 +49,7 @@ def main():
         except ValueError:pass
         else:raise AssertionError(invalid)
     trio=validate_layers({world:material_trio_profile(world) for world in WORLDS})
-    for state in range(32):
+    for state in range(36):
         assert layers_at(trio,state,23.)[0]==2
         a=np.array(materials_at(trio,state,35.999))
         b=np.array(materials_at(trio,state,36.001))
@@ -63,8 +63,15 @@ def main():
     assert materials_at({'water':reversed_profile},7,0.)==(0.,0.,1.)
     assert layers_at(trio,9,20.)[1]&BITS['water_rain']
     assert layers_at(trio,9,28.)[1]&BITS['water_rain']
-    assert selection_states(['elements'])==['nebula','marsh','pressure','dunes','strata','cavern','windstreams','stormfront','vortex','citadel','sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock']
+    assert selection_states(['elements'])==['magnetic','arcs','auroral','nebula','marsh','pressure','dunes','strata','cavern','windstreams','stormfront','vortex','citadel','sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock']
     assert selection_states(['elements','fog'])==['fog']
+    assert selection_states(['elements','plasma'])==['plasma']
+    assert selection_states(['elements','plasma','arcs'])==['arcs']
+    assert plasma_details_at({},32,0.)==(1.,1.,1.)
+    plasma_layers=validate_layers({'plasma':dict(mode='cycle',seconds=4.,items=[dict(id='plasma_field',enabled=True),dict(id='plasma_arcs',enabled=True)])})
+    assert plasma_details_at(plasma_layers,33,0.)==(1.,0.,0.)
+    assert plasma_details_at(plasma_layers,33,4.)==(0.,1.,0.)
+    assert validate_session(dict(version=3,**dict(DEFAULTS,selection=['elements','plasma','arcs'],layers=plasma_layers)))['layers']==plasma_layers
     assert selection_states(['elements','fog','marsh'])==['marsh']
     assert fog_details_at({},29,0.)==(1.,1.,1.)
     fog_layers=validate_layers({'fog':dict(mode='cycle',seconds=4.,items=[dict(id='fog_volume',enabled=True),dict(id='fog_lights',enabled=True)])})
@@ -99,7 +106,7 @@ def main():
     assert selection_states([])==['blend']
     # A second future branch must not truncate Water's descendants to one hold.
     with patch.dict(WORLD_TREE['elements']['children'], {'test-other':dict(label='Test',state='organic')}):
-        assert selection_states(['elements'])==['nebula','marsh','pressure','dunes','strata','cavern','windstreams','stormfront','vortex','citadel','sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock','organic']
+        assert selection_states(['elements'])==['magnetic','arcs','auroral','nebula','marsh','pressure','dunes','strata','cavern','windstreams','stormfront','vortex','citadel','sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock','organic']
     assert selection_states(['future'], {'future':dict(children={
         'a':dict(children={'b':dict(children={'c':dict(state='rain')})}),
         'd':dict(state='sea')})})==['rain','sea']
@@ -330,6 +337,10 @@ def main():
         assert renderer.program['u_fog_details'].value==(1.,0.,0.)
         renderer.layer_profiles={};renderer.render(elapsed_time=97.)
         assert renderer.program['u_fog_details'].value==(1.,1.,1.)
+        renderer.layer_profiles=plasma_layers;renderer.debug_state=33;renderer.render(elapsed_time=100.)
+        assert renderer.program['u_plasma_details'].value==(0.,1.,0.)
+        renderer.layer_profiles={};renderer.render(elapsed_time=101.)
+        assert renderer.program['u_plasma_details'].value==(1.,1.,1.)
         assert renderer.program['u_daddy_long_legs'].value==0.
     finally:renderer.close()
     print('PASS: recursive forms, per-world layer table/solo/order, legacy/v3 sessions, validation, all launch modes, minimum layout, UI lifecycle, real replay state/effect metadata and pacing, continuous GPU clocks.')

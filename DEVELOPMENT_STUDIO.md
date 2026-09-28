@@ -1,5 +1,17 @@
 # DreamWave Development Studio
 
+## Plasma (2026-09-27)
+
+Restart Studio and choose Elements > Plasma. Leave the form blank for the
+108-second cycle, or hold Magnetic Bloom, Arc Constellation or Auroral Veil.
+All three participate in Main Blend's existing musical director.
+
+Plasma details contains Magnetic filaments & curtains, Discharges & traveling
+pulses, and Charged particles & distant stars. Existing solo, order, cycle and
+material controls apply. Opaque charged cores stay structural when effects
+are disabled. New explicit detail lists need these rows added; authored
+defaults include all three. Existing sessions remain valid.
+
 ## Fog / Gas (2026-09-27)
 
 Choose Elements > Fog / Gas. Leave the form blank for the 114-second native

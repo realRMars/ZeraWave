@@ -34,6 +34,11 @@ WORLD_TREE = {
     }),
     'transition': dict(label='Transition', state='transition'),
     'elements': dict(label='Elements', children={
+        'plasma': dict(label='Plasma', cycle='plasma', children={
+            'magnetic': dict(label='Magnetic Bloom', state='magnetic'),
+            'arcs': dict(label='Arc Constellation', state='arcs'),
+            'auroral': dict(label='Auroral Veil', state='auroral'),
+        }),
         'fog': dict(label='Fog / Gas', cycle='fog', children={
             'nebula': dict(label='Nebula Banks', state='nebula'),
             'marsh': dict(label='Ghostlight Marsh', state='marsh'),

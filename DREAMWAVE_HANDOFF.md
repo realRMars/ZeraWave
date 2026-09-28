@@ -2,6 +2,99 @@
 
 Updated: 2026-09-27
 
+## Accepted Plasma checkpoint
+
+User passed all three Plasma states and their animated skies, then explicitly
+authorized this commit. The pending/uncommitted labels in the Plasma entries
+below describe historical development passes and are superseded here.
+Checkpoint includes Magnetic Bloom, Arc Constellation, Auroral Veil, musical
+sky motion, native/Main transitions, Studio isolation controls, tests and docs.
+All six Elemental families now have user-accepted foundations. Final validation
+is recorded in the sky motion entry below. Unrelated untracked files are excluded.
+
+## Plasma sky motion pass (uncommitted)
+
+User conditionally passed all three foreground compositions and requested an
+active starry background. Only the Plasma sky helper/call changed in the shader.
+Two jittered star layers now rotate and drift at different depths, with musical
+trail length and brightness. Magnetic Bloom applies bounded lens-inspired
+inverse coordinates around its opaque core. Arc Constellation adds sparse
+three-star asterisms whose links wake independently and strengthen on impact.
+Auroral Veil adds coherent scintillation waves behind its absorbing curtains.
+The lens is artistic distortion, not a physical gravitational simulation.
+The existing Plasma particles/stars detail row still controls this background;
+no UI, renderer, audio or accepted Cosmic star implementation changed.
+
+Tests now compare all three foregrounds to the pre-sky shader with the stars
+detail disabled, and separately render the three skies at multiple times to
+check visible motion, distinctness and retained darkness. This revision changes
+dream.frag, shader_test.py and this handoff on top of pending Plasma work.
+
+Validation passed: 64 earlier-world comparisons, 12 Plasma foreground
+comparisons with the sky disabled, nine isolated sky motion frames, opaque
+core probe, 195 handoff samples, audio/detail/material checks and 150 renderer
+frames. Inspected sky-only and full-scene captures, plus an 84-second /1969-frame
+WarbotJazz replay across the three forms. No audible live review. 720p median
+GPU samples were 10.1/7.4/4.9 ms for Magnetic/Arcs/Auroral; the sampled
+Magnetic/Citadel overlap was 23.3 ms. Timing varies and is not an FPS guarantee.
+Python compilation and diff checks passed. Evidence: work/plasma-sky/{final,
+replay,gpu-times.json}. Everything remains uncommitted for user review.
+
+## Plasma foundation (uncommitted, visual review pending)
+
+Accepted Fog/Gas checkpoint is `8878ac1`. Plasma adds Magnetic Bloom (32),
+Arc Constellation (33), Auroral Veil (34), and a 108-second native cycle (35).
+All enter Main's existing musical director; Studio exposes Elements > Plasma
+and three independently controlled detail rows. The legacy mask is unchanged;
+new details follow the existing separate-uniform approach.
+
+Magnetic Bloom projects eight curved magnetic filaments around an opaque core.
+Arc Constellation uses seven moving opaque nodes, segmented discharges, branches
+and traveling highlights. Auroral Veil integrates thin folded emitting sheets
+front to back, preserving depth and dark gaps. Analytic sphere intersections
+occlude lines behind cores; line depth uses perspective-correct interpolation.
+Emission-only compression limits glare without globally desaturating worlds.
+Each magnetic strand is shaded once at its nearest visible segment, avoiding
+repeated glow evaluation and bright segment joints. Eight strands retain forty
+segments each for smooth curves while bounding the pixel cost.
+These are stylized analytic fields, not electromagnetic or particle simulation.
+
+Integrated musical time controls orbit/travel momentum. Bass expands the field
+and nodes; flux changes loop tension and emission; sparkle reveals traveling
+detail; impact brightens discharges and curtain pulses. Independent seeded
+electrical flickers accompany stronger music-triggered light. Existing materials
+modulate pigment; spatial effects affect that source pigment, not core geometry.
+Only filaments, glow and curtains intentionally transmit light. Solid bodies
+remain opaque. The existing continuous star clock drives a separate Plasma
+star layer; Cosmic and earlier world helper implementations are byte-identical.
+
+Final GPU checks passed: 64 earlier-state comparisons, 195 transition samples, three
+native-cycle seams, independent audio/detail/material checks, 150 renderer
+frames and an opaque-core background-swap probe. Earlier-world comparisons use
+the documented sparse precision tolerance from Fog plus a source-identity guard;
+all 64 final reference frames in this run matched exactly.
+Director CPU checks passed with repeatable seeds, frame-rate consistency and
+recurring Corridor/Planet anchors. Full Studio suite passed, including saved
+sessions, hierarchy, effect isolation/cycling and real renderer uploads; this
+preceded the shader-only filament cost reduction, which the final GPU suite covers.
+
+Final decoded replays: WarbotJazz native Plasma 110.037s /2579 frames; Balloon
+isolated forms 84.011s /1969 frames; ChasingYou Main seed 20 64s /1500 frames
+(Pressure, Citadel, Stormfront), then seed 23 48s /1125 frames (Magnetic Bloom,
+Arc Constellation, Flame Sheets). Inspected capture sequences for native cycle,
+second-track isolated forms and the seed-23 Main handoffs. No audible live
+review. Actual replay inputs showed sustained energy, varied transients and
+integrated travel rates, not just synthetic signal fixtures.
+
+Final 720p median GPU samples: Magnetic 11.7 ms, Arcs 7.8 ms, Auroral 5.1 ms;
+Magnetic/Arcs 13.8 ms, Magnetic/Citadel 27.5 ms. That heaviest tested overlap
+can fall below 60 fps; these are GPU timings, not full-session FPS guarantees.
+Optimization reduced Magnetic from 18.6 ms and its Citadel overlap from 36.3 ms.
+Python compilation and diff checks passed. No dependencies or audio pipeline
+changes. Plasma remains uncommitted for visual review; unrelated untracked
+user files remain untouched. Evidence: work/plasma/{final,final-replay,second,
+main-plasma,gpu-times.json}. Earlier checks/replay folders are intermediate.
+
 ## Accepted Fog / Gas checkpoint
 
 User passed Nebula, Pressure and the finished Marsh, then authorized continuing

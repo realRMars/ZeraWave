@@ -13,7 +13,7 @@ import moderngl
 
 from renderer import Renderer, VERTEX_SHADER, blend_uniforms, blend_chapter, BLEND_FORMS
 
-STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31}
+STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35}
 
 
 def save_png(path, pixels):
@@ -42,6 +42,8 @@ def capture(output, seconds, profile="standard", debug_state=0, layers=None):
     values['u_earth_details']=earth_details_at(layers or {},debug_state,seconds)
     from preview_layers import fog_details_at
     values['u_fog_details']=fog_details_at(layers or {},debug_state,seconds)
+    from preview_layers import plasma_details_at
+    values['u_plasma_details']=plasma_details_at(layers or {},debug_state,seconds)
     values.update(blend_uniforms(seconds, debug_state == 0 and layer_mode != 0))
     if profile == "quiet":
         values.update(u_scale=.05, u_flux=.02, u_sparkle=.05, u_impact=0.)
@@ -137,6 +139,146 @@ def sweep(output):
         print(f"Rendered {len(results)} frames; diagnostics: {output}")
     finally:
         renderer.close()
+
+
+def plasma_test(baseline_path, output,accepted_path=None):
+    """GPU preservation, musical expression, opacity, isolation and regional handoffs."""
+    from renderer import world_uniforms
+    from preview_layers import BITS
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270,seed=42);old=mesh=None
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        source=(Path(__file__).parent/'shaders/dream.frag').read_text()
+        baseline=baseline_path.read_text()
+        assert baseline[baseline.index('float effect('):baseline.index('void main()')].strip()==source[source.index('float effect('):source.index('// Plasma keeps')].strip(), 'Earlier world helpers changed'
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline)
+        mesh=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        def frame(state,t=16.,energy=.65,hit=0.,weights=None,previous=False,details=(1.,1.,1.),mask=2147483647,mode=0,material=(1.,0.,0.),signals=None):
+            pr,vao=(old,mesh) if previous else (r.program,r.vao)
+            values=dict(u_time=t*.75,u_star_time=t,u_drift_time=t,u_resolution=(480.,270.),u_scale=energy,u_flux=energy,
+                u_sparkle=energy,u_impact=hit,u_intensity=1.,u_distortion=1.,u_debug_state=float(state),u_event_blasts=0,
+                u_layer_mode=mode,u_layer_mask=mask,u_material_mix=material,u_air_flash_id=2.,u_air_afterglow=hit,
+                u_daddy_long_legs=0.,u_earth_details=(1.,1.,1.,1.),u_fog_details=(1.,1.,1.),u_plasma_details=details,**world_uniforms(weights or {},enabled=weights is not None))
+            values.update(signals or {})
+            for k,v in values.items():
+                if k in pr:pr[k].value=v
+            pr['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
+            pr['u_air_trails'].value=[(0.,0.)]*3
+            vao.render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)[::-1].copy()
+        precision=[]
+        for state in range(32):
+            for mode in (0,2):
+                delta=np.abs(frame(state,mode=mode).astype(float)-frame(state,mode=mode,previous=True))
+                assert delta.mean()<.05 and (delta>2).mean()<.0025,('old world changed',state,mode,delta.max(),delta.mean())
+                precision.append(dict(state=state,mode=mode,mean=float(delta.mean()),outlier_fraction=float((delta>2).mean())))
+        if accepted_path is not None:
+            mesh.release();old.release()
+            old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=accepted_path.read_text())
+            mesh=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+            for state in (32,33,34):
+                for t in (4.,16.):
+                    for energy in (.025,.85):
+                        delta=np.abs(frame(state,t=t,energy=energy,details=(1.,1.,0.)).astype(float)-frame(state,t=t,energy=energy,details=(1.,1.,0.),previous=True))
+                        assert delta.mean()<.05 and (delta>2).mean()<.0025,('Plasma foreground changed',state,t,energy,delta.mean())
+        for state in (32,33,34):
+            quiet=frame(state,energy=.025);active=frame(state,energy=.85,hit=.65)
+            assert quiet.std()>2 and active.std()>3,('blank',state)
+            assert np.abs(quiet.astype(float)-active).mean()>1.,('unreactive',state)
+            assert (active.min(axis=2)>250).mean()<.02,('white glare',state)
+            save_png(output/f'form-{state}.png',np.concatenate((quiet,active),axis=1))
+            for i in range(3):
+                details=[1.,1.,1.];details[i]=0.
+                off=frame(state,energy=.85,hit=.65,details=tuple(details))
+                assert np.abs(active.astype(float)-off).mean()>.005,('inactive detail',state,i)
+            resting=frame(state,energy=.08)
+            for channel in ('u_scale','u_flux','u_sparkle','u_impact'):
+                responding=frame(state,energy=.08,signals={channel:.9})
+                assert np.abs(resting.astype(float)-responding).mean()>.02,('audio channel inactive',state,channel)
+            tiles=[]
+            for material,key in (((1.,0.,0.),'artifacts'),((0.,1.,0.),'alloy'),((0.,0.,1.),'lattice')):
+                plain=frame(state,mode=1,mask=BITS[key],material=material)
+                folded=frame(state,mode=1,mask=BITS[key]+BITS['fractal']+BITS['tunnel'],material=material)
+                assert np.abs(plain.astype(float)-folded).mean()>.02,('material folds missing',state,key)
+                tiles.extend((plain,folded))
+            save_png(output/f'materials-{state}.png',np.concatenate(tiles,axis=1))
+            motion=[frame(state,t=t) for t in (0.,4.,8.,12.)]
+            assert all(np.abs(a.astype(float)-b).mean()>.5 for a,b in zip(motion,motion[1:]))
+            save_png(output/f'motion-{state}.png',np.concatenate(motion,axis=1))
+        handoffs=0
+        for a in (32,33,34):
+            for b in (2,5,7,18,21,22,24,26,28,29,30,32,33,34):
+                if a==b:continue
+                tiles=[]
+                for x in (0.,.25,.5,.75,1.):
+                    pixels=frame(0,weights={a:1.-x,b:x},mode=2)
+                    near=frame(0,weights={a:1.-min(1.,x+.0001),b:min(1.,x+.0001)},mode=2)
+                    assert np.abs(pixels.astype(float)-near).mean()<2.,('handoff discontinuity',a,b,x)
+                    assert pixels.std()>2.,('empty handoff',a,b,x)
+                    handoffs+=1;tiles.append(pixels)
+                if (a,b) in ((32,33),(33,34),(34,32),(32,5),(34,28)):
+                    save_png(output/f'pair-{a}-{b}.png',np.concatenate(tiles,axis=1))
+        for t in (36.,72.,108.):
+            assert np.abs(frame(35,t=t-.0001).astype(float)-frame(35,t=t+.0001)).mean()<1.,('cycle seam',t)
+        probe_source=source.replace('void main()', 'void unused_main()')
+        probe_source=probe_source.replace('vec3 color=vec3(.003,.005,.014)+plasma_stars(p,form)*u_plasma_details.z;', 'vec3 color=vec3(u_test_background,0.,u_test_background);')
+        probe_source=probe_source.replace('uniform float u_time;', 'uniform float u_time;\nuniform float u_test_background;')
+        probe_source+='''
+void main() {
+    vec2 p=gl_FragCoord.xy/u_resolution-.5;p.x*=u_resolution.x/u_resolution.y;
+    fragColor=vec4(plasma_scene(p,vec3(.2),0),1.);
+}
+'''
+        probe=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=probe_source)
+        probe_mesh=r.ctx.simple_vertex_array(probe,r.vertices,'in_position')
+        try:
+            for k,v in dict(u_resolution=(480.,270.),u_time=9.,u_drift_time=12.,u_star_time=12.,u_scale=.2,u_flux=.2,u_sparkle=.2,u_impact=0.,u_plasma_details=(1.,1.,1.)).items():
+                if k in probe:probe[k].value=v
+            tiles=[]
+            for background in (0.,1.):
+                probe['u_test_background'].value=background;probe_mesh.render(mode=moderngl.TRIANGLE_STRIP)
+                tiles.append(np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)[::-1].copy())
+            assert np.array_equal(tiles[0][128:142,233:247],tiles[1][128:142,233:247]),'Background leaked through opaque core'
+            assert np.abs(tiles[0].astype(float)-tiles[1]).mean()>10.,'Core probe did not change background'
+            save_png(output/'opaque-core.png',np.concatenate(tiles,axis=1))
+        finally:probe_mesh.release();probe.release()
+        sky_source=source.replace('void main()', 'void unused_main()')+'''
+void main() {
+    vec2 p=gl_FragCoord.xy/u_resolution-.5;p.x*=u_resolution.x/u_resolution.y;
+    fragColor=vec4(plasma_stars(p,int(u_debug_state)),1.);
+}
+'''
+        probe=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=sky_source)
+        probe_mesh=r.ctx.simple_vertex_array(probe,r.vertices,'in_position')
+        try:
+            for k,v in dict(u_resolution=(480.,270.),u_scale=.75,u_flux=.7,u_sparkle=.8,u_impact=.5).items():
+                if k in probe:probe[k].value=v
+            skies=[]
+            for form in range(3):
+                probe['u_debug_state'].value=float(form);tiles=[]
+                for t in (0.,8.,16.):
+                    probe['u_star_time'].value=t;probe_mesh.render(mode=moderngl.TRIANGLE_STRIP)
+                    pixels=np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)[::-1].copy()
+                    assert pixels.mean()>.05 and (pixels.max(axis=2)<20).mean()>.85,('sky empty or excessive',form,t)
+                    tiles.append(pixels)
+                assert all(np.abs(a.astype(float)-b).mean()>.1 for a,b in zip(tiles,tiles[1:])),('static sky',form)
+                save_png(output/f'sky-{form}.png',np.concatenate(tiles,axis=1));skies.append(tiles[1])
+            assert all(np.abs(skies[a].astype(float)-skies[b]).mean()>.05 for a,b in ((0,1),(1,2),(0,2))), 'Sky identities collapsed'
+        finally:probe_mesh.release();probe.release()
+        last=-1.
+        for i in range(150):
+            r.debug_state=32+(i//50)%3
+            r.parameters.scale=r.parameters.flux=r.parameters.movement=.85 if i%50>20 else .03
+            r.render(elapsed_time=i/30.)
+            assert r.flow_time>last;last=r.flow_time
+        (output/'precision.json').write_text(json.dumps(precision,indent=2))
+        report=dict(preserved_frames=64,foreground_checks=12 if accepted_path else 0,handoff_checks=handoffs,renderer_frames=150,opaque_core=True,sky_motion_frames=9)
+        (output/'checks.json').write_text(json.dumps(report,indent=2));print(report,flush=True)
+    finally:
+        if mesh is not None:mesh.release()
+        if old is not None:old.release()
+        r.close()
 
 
 def fog_test(baseline_path,output,accepted_path=None):
@@ -787,7 +929,7 @@ def director_test():
             assert sum(w>0)<=2,('stacked takeovers',t,w)
             assert abs(sum(v['u_water_mix'])+v['u_current_mix']-(1. if w[2]>0 else 0.))<1e-6
             assert abs(sum(v['u_fire_mix'])-(1. if w[3]>0 else 0.))<1e-6
-            effective=np.append(w,(v['u_air_weight'],v['u_earth_weight'],v['u_fog_weight']))
+            effective=np.append(w,(v['u_air_weight'],v['u_earth_weight'],v['u_fog_weight'],v['u_plasma_weight']))
             assert effective.sum()<=1.000001 and (effective>=0).all()
             if previous is not None:assert np.abs(effective-previous).max()<.03
             if target is not None and r.director_target is not None:
@@ -2621,11 +2763,16 @@ if __name__ == "__main__":
     parser.add_argument("--musical-color-test", nargs=2, type=Path)
     parser.add_argument("--water-meld-test", nargs=2, type=Path)
     parser.add_argument("--fire-expression-test", type=Path)
+    parser.add_argument("--plasma-reference", type=Path)
+    parser.add_argument("--plasma-test", nargs=2, type=Path)
     parser.add_argument("--fog-test", nargs=2, type=Path)
     parser.add_argument("--fog-reference", type=Path, help="Accepted Fog shader for Nebula/Pressure preservation checks.")
     parser.add_argument("--earth-test", nargs=2, type=Path)
     parser.add_argument("--air-test", nargs=2, type=Path)
     args = parser.parse_args()
+    if args.plasma_test:
+        plasma_test(*args.plasma_test,accepted_path=args.plasma_reference)
+        raise SystemExit(0)
     if args.fog_test:
         fog_test(*args.fog_test,accepted_path=args.fog_reference)
         raise SystemExit(0)

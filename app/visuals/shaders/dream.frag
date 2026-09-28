@@ -1,6 +1,9 @@
 #version 330
 
 uniform float u_time;
+uniform vec3 u_plasma_mix;
+uniform float u_plasma_weight;
+uniform vec3 u_plasma_details;
 uniform vec3 u_fog_mix;
 uniform float u_fog_weight;
 uniform vec3 u_fog_details;
@@ -3248,16 +3251,230 @@ vec3 fog_scene(vec2 screen,vec3 material,int form) {
     return accumulated+background*transmittance;
 }
 
+// Plasma keeps opaque charged bodies separate from emitted filament light.
+vec3 plasma_forms() {
+    if(u_directed==1)return u_plasma_mix;
+    if(u_debug_state<34.5) {
+        int id=int(u_debug_state+.5)-32;return vec3(id==0,id==1,id==2);
+    }
+    float phase=mod(u_drift_time,108.)/36.;int id=int(phase),next=(id+1)%3;
+    return mix(vec3(id==0,id==1,id==2),vec3(next==0,next==1,next==2),smoothstep(.68,1.,fract(phase)));
+}
+float plasma_seed(vec2 p) {
+    return fract(sin(dot(mod(p,127.),vec2(41.73,17.91)))*4738.13);
+}
+vec3 plasma_tint(float phase) {
+    return .52+.46*cos(phase+vec3(.2,2.3,4.4));
+}
+vec3 plasma_view(vec3 p) {
+    float yaw=u_time*.085,tilt=.35+.16*sin(u_time*.10);
+    p.xz=mat2(cos(yaw),sin(yaw),-sin(yaw),cos(yaw))*p.xz;
+    p.xy=mat2(cos(tilt),sin(tilt),-sin(tilt),cos(tilt))*p.xy;
+    p.z+=4.1;return p;
+}
+float plasma_sphere(vec3 ray,vec3 center,float radius) {
+    float b=dot(ray,center),h=b*b-dot(center,center)+radius*radius;
+    return h>0. ? b-sqrt(h) : 100.;
+}
+vec2 plasma_segment(vec2 p,vec3 a,vec3 b) {
+    vec2 start=a.xy/a.z*1.35,end=b.xy/b.z*1.35;
+    vec2 delta=end-start;
+    float f=clamp(dot(p-start,delta)/max(dot(delta,delta),1e-8),0.,1.);
+    // Perspective-correct depth at the projected nearest point.
+    return vec2(length(p-start-f*delta),1./mix(1./a.z,1./b.z,f));
+}
+float plasma_sky_line(vec2 p,vec2 a,vec2 b) {
+    vec2 d=b-a;float f=clamp(dot(p-a,d)/max(dot(d,d),1e-8),0.,1.);
+    return length(p-a-f*d);
+}
+vec3 plasma_stars(vec2 p,int form) {
+    float t=u_star_time,drive=clamp(.45*u_scale+.55*u_flux,0.,1.);
+    vec2 sky=p;
+    if(form==0) {
+        // A bounded lens-inspired inverse map bends the remote sky around the core.
+        float r2=dot(p,p);
+        sky*=1.+(.030+.012*u_scale)/(r2+.045);
+        float bend=.08*sin(t*.11)/(1.+r2*8.);
+        sky=mat2(cos(bend),sin(bend),-sin(bend),cos(bend))*sky;
+    } else if(form==2) {
+        // Small coherent scintillation waves travel behind the emitting curtains.
+        sky+=vec2(sin(p.y*7.+t*.23),sin(p.x*5.-t*.18))*.008;
+    }
+    vec3 light=vec3(0.);
+    for(int layer=0;layer<2;layer++) {
+        float depth=float(layer),angle=t*(.020+depth*.012);
+        mat2 rotation=mat2(cos(angle),sin(angle),-sin(angle),cos(angle));
+        vec2 q=rotation*sky*(24.+depth*14.)+vec2(t*.11,t*.035)*(1.+depth*.6);
+        vec2 cell=floor(q);
+        for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++) {
+            vec2 id=cell+vec2(x,y),salt=id+depth*31.;
+            float seed=plasma_seed(salt);
+            if(seed<.87)continue;
+            vec2 star=id+vec2(plasma_seed(salt+7.),plasma_seed(salt+19.));
+            vec2 d=q-star;
+            vec2 tangent=normalize(vec2(-sky.y,sky.x)+vec2(.10,.035));
+            float trail=(.035+.19*drive)*(1.-depth*.25);
+            float along=clamp(dot(d,tangent),0.,trail);
+            vec2 offset=d-tangent*along;
+            float size=.024+.023*seed;
+            float point=exp(-dot(offset,offset)/(size*size))*(1.-.7*along/max(trail,.001));
+            float halo=exp(-length(d)*12.)*.07;
+            float twinkle=.65+.35*sin(t*(.8+seed)+seed*31.);
+            if(form==2)twinkle*=.7+.3*sin(star.x*.25+star.y*.17-t*.65);
+            vec3 hue=mix(vec3(.25,.52,.85),vec3(.85,.52,.30),seed);
+            if(form==2)hue=mix(hue,vec3(.42,.35,.85),.35);
+            light+=hue*(point+halo)*(.35+.45*u_sparkle+.25*u_impact)*twinkle*(1.-depth*.35);
+        }
+    }
+    if(form==1) {
+        // Sparse, fixed three-star asterisms illuminate in sequence on discharges.
+        float angle=t*.020;
+        vec2 q=mat2(cos(angle),sin(angle),-sin(angle),cos(angle))*sky*4.+vec2(t*.018,t*.006);
+        vec2 cell=floor(q),f=fract(q);float seed=plasma_seed(cell+53.);
+        if(seed>.67) {
+            vec2 a=vec2(.18,.20)+.10*vec2(sin(seed*31.),cos(seed*17.));
+            vec2 b=vec2(.76,.39)+.09*vec2(cos(seed*23.),sin(seed*41.));
+            vec2 c=vec2(.40,.78)+.08*vec2(sin(seed*13.),cos(seed*29.));
+            float points=min(length(f-a),min(length(f-b),length(f-c)));
+            float line=min(plasma_sky_line(f,a,b),plasma_sky_line(f,b,c));
+            float wake=pow(.5+.5*sin(t*.8+seed*29.),10.);
+            float charge=(.06+.24*u_impact)*wake;
+            vec3 hue=mix(vec3(.16,.40,.65),vec3(.65,.24,.43),seed);
+            light+=hue*(exp(-points*points/.00015)*(.5+.5*u_sparkle)
+                +exp(-line*line/.000045)*charge);
+        }
+    }
+    return light;
+}
+vec3 plasma_loop(float f,float id) {
+    float theta=mix(.43,2.71159,f),az=id*.7853982;
+    float stretch=1.9+.20*sin(id*2.1+u_time*.19)+u_scale*.30;
+    float radius=stretch*sin(theta)*sin(theta);
+    az+=.24*sin(theta*3.+u_time*.4+id)*(.3+u_flux);
+    return vec3(radius*sin(theta)*cos(az),radius*cos(theta),radius*sin(theta)*sin(az));
+}
+vec3 plasma_node(float id) {
+    float phase=id*.897598+u_time*(.07+.012*sin(id));
+    return vec3(cos(phase)*(1.65+.22*u_scale),sin(phase*1.37+id)*.95,
+        sin(phase)*1.25);
+}
+vec3 plasma_scene(vec2 p,vec3 material,int form) {
+    float energy=clamp(.5*u_scale+.5*u_flux,0.,1.);
+    vec3 ray=normalize(vec3(p,1.35));
+    vec3 color=vec3(.003,.005,.014)+plasma_stars(p,form)*u_plasma_details.z;
+    vec3 pigment=.70+.6*clamp(material,0.,1.);
+    if(form==2) {
+        // Thin folded emitting sheets: absorb behind the folds, retain dark gaps.
+        vec3 sum=vec3(0.);float transmission=1.;
+        float travel=u_time*.55;
+        for(int i=0;i<56;i++) {
+            float distance=.9+float(i)*.27;
+            vec3 q=ray*distance;q.z+=travel;
+            q.x+=.35*sin(travel*.12);
+            float fold=q.x-1.25*sin(q.z*.62+u_time*.08)-.32*sin(q.z*1.9);
+            float ridge=exp(-abs(sin(fold*1.75))*(18.-5.*energy));
+            float hem=-.5+.35*sin(q.z*.5+q.x*.7);
+            float height=q.y-hem;
+            float curtain=exp(-max(0.,height)*.55)*smoothstep(-.18,.10,height);
+            float threads=.45+.55*pow(.5+.5*sin(q.z*19.+fold*8.+u_time*.5),5.);
+            float density=ridge*curtain*(.3+.7*threads)*u_plasma_details.x;
+            float through=exp(-density*.32);
+            float wave=pow(.5+.5*sin(q.z*1.6-u_time*2.4+q.y*.8),8.);
+            vec3 hue=plasma_tint(q.z*.22+q.y*.8+u_time*.07+1.8);
+            vec3 emission=hue*pigment*(.5+energy*.65+u_sparkle*threads*.35);
+            emission+=hue*wave*(.25+u_impact*2.)*u_plasma_details.y;
+            sum+=transmission*(1.-through)*emission;
+            transmission*=through;
+        }
+        return color*transmission+sum;
+    }
+    float solidDepth=100.;vec3 solidCenter=vec3(0.);float solidId=0.;
+    for(int i=0;i<7;i++) {
+        if(form==0 && i>0)break;
+        vec3 center=plasma_view(form==0 ? vec3(0.) : plasma_node(float(i)));
+        float radius=form==0 ? .48+.035*u_scale : .10+.035*plasma_seed(vec2(i,3.));
+        float depth=plasma_sphere(ray,center,radius);
+        if(depth<solidDepth) {solidDepth=depth;solidCenter=center;solidId=float(i);}
+    }
+    if(solidDepth<99.) {
+        vec3 n=normalize(ray*solidDepth-solidCenter);
+        float shade=.20+.80*max(0.,dot(n,normalize(vec3(-.6,.7,-.8))));
+        float bands=.5+.5*sin(n.y*17.+n.x*6.+sin(n.z*9.+n.x*5.)+u_time*.55);
+        vec3 body=plasma_tint(solidId*.7+u_time*.09+n.y*2.);
+        color=body*pigment*(.12+.12*bands)*shade;
+        float rim=pow(1.-max(0.,dot(n,-ray)),3.);
+        color+=body*(rim*.45+pow(bands,10.)*(.10+.3*u_impact))*(.5+energy);
+    }
+    vec3 emission=vec3(0.);
+    if(form==0) {
+        for(int k=0;k<8;k++) {
+            float id=float(k);
+            vec3 a=plasma_view(plasma_loop(0.,id));
+            float nearest=100.,along=0.;
+            for(int j=1;j<=40;j++) {
+                float f=float(j)/40.;vec3 b=plasma_view(plasma_loop(f,id));
+                vec2 sample=plasma_segment(p,a,b);a=b;
+                if(sample.y/ray.z>solidDepth+.005)continue;
+                if(sample.x<nearest) {nearest=sample.x;along=f;}
+            }
+            // Shade the continuous strand once, avoiding bright segment joints.
+            if(nearest>.12)continue;
+            float width=.0024+.0018*u_scale;
+            float filament=exp(-nearest*nearest/(width*width));
+            float halo=exp(-nearest/(width*5.))*.28;
+            float pulse=pow(.5+.5*sin(along*15.-u_time*3.+id*2.),12.);
+            vec3 hue=plasma_tint(id*.55+along*2.+u_time*.065);
+            emission+=hue*pigment*(filament+halo)*(.60+.70*energy)*u_plasma_details.x;
+            emission+=hue*(filament+halo)*pulse*(.12+u_impact*1.2+u_sparkle*.3)*u_plasma_details.y;
+            emission+=hue*filament*pow(pulse,3.)*.3*u_sparkle*u_plasma_details.z;
+        }
+    } else {
+        for(int k=0;k<7;k++) {
+            float id=float(k),seed=plasma_seed(vec2(k,11.));
+            vec3 start=plasma_node(id),end=plasma_node(mod(id+2.,7.));
+            vec3 axis=normalize(end-start),side=normalize(cross(axis,vec3(0,0,1)));
+            float phase=fract(u_drift_time*(.22+seed*.10)+seed);
+            float flash=exp(-phase*18.)*(.08+.40*energy)+u_impact*(.45+.55*seed);
+            vec3 a=plasma_view(start);
+            for(int j=1;j<=18;j++) {
+                float f=float(j)/18.;
+                float jag=sin(f*71.+seed*19.+u_time*.7)*.12+sin(f*133.+seed*5.)*.07;
+                vec3 q=mix(start,end,f)+side*jag*sin(f*3.14159);
+                vec3 b=plasma_view(q);vec2 sample=plasma_segment(p,a,b);a=b;
+                if(sample.y/ray.z<solidDepth+.008) {
+                    float width=.0015+.0015*u_impact;
+                    float line=exp(-sample.x*sample.x/(width*width));
+                    float glow=exp(-sample.x/(width*6.))*.16;
+                    vec3 hue=plasma_tint(seed*5.+u_time*.09+f*.8);
+                    emission+=hue*pigment*(line+glow)*(.10+.20*energy)*u_plasma_details.x;
+                    emission+=hue*(line+glow)*flash*1.5*u_plasma_details.y;
+                    float pulse=pow(.5+.5*sin(f*17.-u_time*4.+id),18.);
+                    emission+=hue*line*pulse*.65*u_sparkle*u_plasma_details.z;
+                }
+                if(j==5 || j==11 || j==15) {
+                    vec3 tip=q+side*(.2+.35*seed)+axis*.20;
+                    vec2 branch=plasma_segment(p,b,plasma_view(tip));
+                    if(branch.y/ray.z<solidDepth+.008)
+                        emission+=plasma_tint(seed*5.+u_time*.09)*exp(-branch.x/.0014)*flash*.65*u_plasma_details.y;
+                }
+            }
+        }
+    }
+    // Compress emitted light alone, retaining saturated cores and dark surroundings.
+    return color+emission/(1.+emission*.65);
+}
+
 void main()
 {
     bool directed = u_directed == 1;
+    bool held_plasma = u_debug_state >= 31.5 && u_debug_state < 35.5;
     bool held_fog = u_debug_state >= 27.5 && u_debug_state < 31.5;
     bool held_earth = u_debug_state >= 23.5 && u_debug_state < 27.5;
     bool held_air = u_debug_state >= 18.5 && u_debug_state < 23.5;
     bool held_fire = u_debug_state > 13.5 && u_debug_state < 18.5;
     bool fire_mode = held_fire || (directed && u_world_mix.w > 0.);
     float fire_takeover = directed ? u_world_mix.w : (held_fire ? 1. : 0.);
-    float debug_state = (held_fire || held_air || held_earth || held_fog) ? 1.0 : (u_debug_state > 10.5 && u_debug_state < 12.5) ? 1.0 : u_debug_state;
+    float debug_state = (held_fire || held_air || held_earth || held_fog || held_plasma) ? 1.0 : (u_debug_state > 10.5 && u_debug_state < 12.5) ? 1.0 : u_debug_state;
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
 
     // Correct for the window's aspect ratio.
@@ -3333,6 +3550,7 @@ void main()
         p=mix(p,air_material_domain(screen_p,air_shape),air_gather*gather);
     }
 
+    float plasma_amount=directed ? u_plasma_weight : (held_plasma ? 1. : 0.);
     float fog_amount=directed ? u_fog_weight : (held_fog ? 1. : 0.);
     float earth_amount=directed ? u_earth_weight : (held_earth ? 1. : 0.);
     vec3 ef=earth_forms();
@@ -4355,7 +4573,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     vec3 expressive_canvas = musical_material(color);
     color = mix(color,expressive_canvas,1.-cosmic_takeover);
     // Geometry keeps absolute weights; normalize only the background compositing.
-    vec4 background_mix=u_world_mix/max(1.-u_air_weight-u_earth_weight-u_fog_weight,.000001);
+    vec4 background_mix=u_world_mix/max(1.-u_air_weight-u_earth_weight-u_fog_weight-u_plasma_weight,.000001);
     vec4 coverage = directed ? world_coverage(background_mix,screen_p) : u_world_mix;
     if (geometric_weight > 0.0)
     {
@@ -4391,7 +4609,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         if(weights.w>0.) color+=isolated_aftershock_scene(screen_p,fire_material)*weights.w;
         if (directed) color=mix(before_fire,color,coverage.w);
     }
-    float air_amount=directed ? u_air_weight/max(1.-u_earth_weight-u_fog_weight,.000001) : (held_air ? 1. : 0.);
+    float air_amount=directed ? u_air_weight/max(1.-u_earth_weight-u_fog_weight-u_plasma_weight,.000001) : (held_air ? 1. : 0.);
     if(air_amount>0.) {
         vec4 af=air_forms();
         vec4 regions=air_coverage(screen_p,af);
@@ -4413,7 +4631,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         if(ef.x>0.)earth+=earth_scene(screen_p,dune,expressive_canvas,0)*regions.x;
         if(ef.y>0.)earth+=earth_scene(screen_p,strata,expressive_canvas,1)*regions.y;
         if(ef.z>0.)earth+=earth_scene(screen_p,cavern,expressive_canvas,2)*regions.z;
-        float amount=directed ? earth_amount/max(1.-u_fog_weight,.000001) : earth_amount;
+        float amount=directed ? earth_amount/max(1.-u_fog_weight-u_plasma_weight,.000001) : earth_amount;
         float score=pow(amount,3.)*exp(dot(ef,earth_territory(screen_p))*4.);
         float coverage=score/max(score+pow(1.-amount,3.),1e-12);
         color=mix(color,earth,coverage);
@@ -4424,9 +4642,20 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         scores/=max(dot(scores,vec3(1.)),1e-12);
         vec3 vapor=vec3(0.);
         for(int i=0;i<3;i++)if(forms[i]>0.)vapor+=fog_scene(screen_p,expressive_canvas,i)*scores[i];
-        float score=pow(fog_amount,3.)*exp((.25-length(screen_p)*.4)*3.);
-        float coverage=score/max(score+pow(1.-fog_amount,3.),1e-12);
+        float amount=directed ? fog_amount/max(1.-u_plasma_weight,.000001) : fog_amount;
+        float score=pow(amount,3.)*exp((.25-length(screen_p)*.4)*3.);
+        float coverage=score/max(score+pow(1.-amount,3.),1e-12);
         color=mix(color,vapor,coverage);
+    }
+    if(plasma_amount>0.) {
+        vec3 forms=plasma_forms();
+        vec3 scores=forms*forms*forms*exp(vec3(-screen_p.x,screen_p.x,screen_p.y)*3.);
+        scores/=max(dot(scores,vec3(1.)),1e-12);
+        vec3 plasma=vec3(0.);
+        for(int i=0;i<3;i++)if(forms[i]>0.)plasma+=plasma_scene(screen_p,expressive_canvas,i)*scores[i];
+        float score=pow(plasma_amount,3.)*exp((.4-length(screen_p))*3.);
+        float coverage=score/max(score+pow(1.-plasma_amount,3.),1e-12);
+        color=mix(color,plasma,coverage);
     }
     fragColor = vec4(color, 1.0);
 }
