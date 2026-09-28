@@ -4,6 +4,9 @@ Updated: 2026-09-27
 
 ## Main Blend choreography after 044e260
 
+Accepted checkpoint: `7334224`. The user visually reviewed this Main Blend pass
+and confirmed "pass and commit". Its choreography is now an accepted foundation.
+
 User authorized completing this pass and committing it. All six accepted Elemental
 families remain intact. This pass changes only Main handoff selection/compositing,
 with no audio normalization or isolated world helper changes.
