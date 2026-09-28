@@ -1,11 +1,11 @@
 @echo off
 setlocal
 if not exist "%~dp0.venv\Scripts\python.exe" (
-    echo DreamWave virtual environment was not found.
+    echo ZeraWave virtual environment was not found.
     pause
     exit /b 1
 )
-echo DreamWave Water with live system audio.
+echo ZeraWave Water with live system audio.
 echo Play music through your default output. Close the visualizer to finish.
 "%~dp0.venv\Scripts\python.exe" "%~dp0app\visuals\live_visual_test.py" --state water
 set "WATER_EXIT=%ERRORLEVEL%"

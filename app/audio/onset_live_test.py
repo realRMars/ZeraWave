@@ -19,7 +19,7 @@ def main():
         "highs": OnsetDetector(threshold=0.2),
     }
 
-    print("DreamWave Live Multi-Band Onset Test")
+    print("ZeraWave Live Multi-Band Onset Test")
     print("-------------------------------------")
 
     print("Finding audio loopback device...")

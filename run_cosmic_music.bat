@@ -3,7 +3,7 @@ setlocal
 set "COSMIC_STATE=canvas"
 if not "%~1"=="" set "COSMIC_STATE=%~1"
 if not exist "%~dp0.venv\Scripts\python.exe" (
-    echo DreamWave virtual environment was not found.
+    echo ZeraWave virtual environment was not found.
     pause
     exit /b 1
 )

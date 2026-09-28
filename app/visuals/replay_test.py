@@ -52,7 +52,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
         conditioner = VisualSignalConditioner(quiet_threshold=0.06)
         mapper = VisualParameterMapper()
         detectors = {name: OnsetDetector(threshold=0.2) for name in ("bass", "mids", "highs")}
-        renderer = Renderer(title="DreamWave WAV Replay", seed=seed)
+        renderer = Renderer(title="ZeraWave WAV Replay", seed=seed)
         renderer.debug_state = debug_state
         renderer.debug_sequence = tuple(LIVE_STATES[name] for name in (states or ()))
         renderer.layer_profiles = validate_layers(layers or {})
@@ -125,7 +125,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Replay a decoded WAV through DreamWave without audio playback.")
+    parser = argparse.ArgumentParser(description="Replay a decoded WAV through ZeraWave without audio playback.")
     parser.add_argument("wav", type=Path)
     parser.add_argument("--speed", type=float, default=12.0, help="Playback pacing multiplier (0 = no pacing).")
     parser.add_argument("--max-seconds", type=float, default=None)

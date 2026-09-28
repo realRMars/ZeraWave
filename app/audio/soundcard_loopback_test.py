@@ -5,7 +5,7 @@ import soundcard as sc
 
 
 def main():
-    print("DreamWave SoundCard Loopback Test")
+    print("ZeraWave SoundCard Loopback Test")
     print("---------------------------------")
 
     speaker = sc.default_speaker()

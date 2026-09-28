@@ -12,7 +12,7 @@ def main():
     analyzer = AudioAnalyzer()
     processor = SignalProcessor(smoothing=0.5)
 
-    print("DreamWave Live Processed Band Test")
+    print("ZeraWave Live Processed Band Test")
     print("----------------------------------")
 
     print("Finding audio loopback device...")

@@ -1,9 +1,9 @@
 @echo off
 setlocal
-echo DreamWave geometric isolate preview
+echo ZeraWave geometric isolate preview
 echo This launcher is hardcoded to geometric rooms. No extra argument needed.
 if not exist "%~dp0.venv\Scripts\python.exe" (
-    echo DreamWave virtual environment was not found.
+    echo ZeraWave virtual environment was not found.
     pause
     exit /b 1
 )

@@ -122,7 +122,7 @@ class Renderer:
     FLOW_CEILING = 1.15
     FLOW_SMOOTHING_SECONDS = 0.6
 
-    def __init__(self, width=1280, height=720, title="DreamWave", seed=None):
+    def __init__(self, width=1280, height=720, title="ZeraWave", seed=None):
         self.width = width
         self.height = height
         self.title = title

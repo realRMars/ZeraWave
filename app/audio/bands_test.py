@@ -45,7 +45,7 @@ def main():
         16000,
     )
 
-    print("DreamWave Frequency Band Test")
+    print("ZeraWave Frequency Band Test")
     print("------------------------------")
     print(f"Bass energy: {bass_energy:.2f}")
     print(f"Mid energy:  {mid_energy:.2f}")

@@ -26,7 +26,7 @@ def main():
     peak_index = np.argmax(magnitudes)
     peak_frequency = frequencies[peak_index]
 
-    print("DreamWave FFT Test")
+    print("ZeraWave FFT Test")
     print("------------------")
     print(f"Expected frequency: {frequency:.1f} Hz")
     print(f"Detected frequency:  {peak_frequency:.1f} Hz")

@@ -1,10 +1,10 @@
-# DreamWave Visual Identity v0.1
+# ZeraWave Visual Identity v0.1
 
 ## 1. Core Definition
 
-**DreamWave is a living visual instrument that translates music into visual expression rather than merely displaying audio data.**
+**ZeraWave is a living visual instrument that translates music into visual expression rather than merely displaying audio data.**
 
-DreamWave should feel as though the music is giving life to something that exists within the visual space.
+ZeraWave should feel as though the music is giving life to something that exists within the visual space.
 
 The goal is not to create a traditional audio visualizer that simply makes shapes react to frequencies.
 
@@ -20,7 +20,7 @@ The goal is to create a system where music has:
 * order
 * continuity
 
-DreamWave should be capable of making different songs feel like different experiences.
+ZeraWave should be capable of making different songs feel like different experiences.
 
 ---
 
@@ -44,15 +44,15 @@ Likewise, improving audio analysis should benefit every visual mode.
 
 ---
 
-# 3. DreamWave's Visual Anatomy
+# 3. ZeraWave's Visual Anatomy
 
-DreamWave's primary musical elements are currently understood as four expressive forces.
+ZeraWave's primary musical elements are currently understood as four expressive forces.
 
 ## Bass — The Heart
 
 Bass is the driving force.
 
-It is the heart of DreamWave.
+It is the heart of ZeraWave.
 
 Bass should generally feel:
 
@@ -83,7 +83,7 @@ Where appropriate, continuous bass energy may create foundational motion while b
 
 ## Mids — The Body
 
-Mids represent DreamWave's body.
+Mids represent ZeraWave's body.
 
 They are its:
 
@@ -107,7 +107,7 @@ Depending on the music and visual mode, mids may:
 * become chaotic
 * create recognizable expression
 
-Mids are where DreamWave can appear to **express itself**.
+Mids are where ZeraWave can appear to **express itself**.
 
 ---
 
@@ -115,7 +115,7 @@ Mids are where DreamWave can appear to **express itself**.
 
 High frequencies represent the ethereal character of music.
 
-They are DreamWave's:
+They are ZeraWave's:
 
 * sparkle
 * sizzle
@@ -152,7 +152,7 @@ Impact is the:
 
 **surprise.**
 
-It is the moment when DreamWave suddenly changes.
+It is the moment when ZeraWave suddenly changes.
 
 An impact may:
 
@@ -177,19 +177,19 @@ It may:
 
 Repeated impacts should be capable of creating anticipation and release.
 
-Impact is one of the primary mechanisms through which DreamWave can communicate the emotional structure of a song.
+Impact is one of the primary mechanisms through which ZeraWave can communicate the emotional structure of a song.
 
 ---
 
 # 4. Silence
 
-Silence does not automatically mean that DreamWave stops existing.
+Silence does not automatically mean that ZeraWave stops existing.
 
-DreamWave should understand different kinds of quiet.
+ZeraWave should understand different kinds of quiet.
 
 ### Short silence
 
-DreamWave may continue to:
+ZeraWave may continue to:
 
 * breathe
 * drift
@@ -199,7 +199,7 @@ DreamWave may continue to:
 
 ### Extended silence
 
-DreamWave may gradually become:
+ZeraWave may gradually become:
 
 * still
 * quiet
@@ -209,7 +209,7 @@ DreamWave may gradually become:
 
 ### Sound returning
 
-DreamWave should respond naturally and immediately when music returns.
+ZeraWave should respond naturally and immediately when music returns.
 
 A silence followed by sound should feel like:
 
@@ -219,7 +219,7 @@ A silence followed by sound should feel like:
 
 # 5. Music Without Percussion
 
-DreamWave must not depend upon drums or obvious rhythmic beats to remain expressive.
+ZeraWave must not depend upon drums or obvious rhythmic beats to remain expressive.
 
 A song may consist primarily of:
 
@@ -234,7 +234,7 @@ A song may consist primarily of:
 
 These should still be capable of producing meaningful visual expression.
 
-DreamWave should respond to the **character of the music**, not merely its percussion.
+ZeraWave should respond to the **character of the music**, not merely its percussion.
 
 A song without drums should not feel like a broken version of a song with drums.
 
@@ -244,7 +244,7 @@ It should feel different.
 
 # 6. Visual Modes
 
-DreamWave should support multiple visual modes.
+ZeraWave should support multiple visual modes.
 
 A mode determines the visual language through which musical information is expressed.
 
@@ -288,7 +288,7 @@ This allows the listener to decide how they want to experience a song.
 
 ## Automatic Mode Selection
 
-DreamWave may eventually recognize changes in the music and select or transition toward an appropriate visual mode.
+ZeraWave may eventually recognize changes in the music and select or transition toward an appropriate visual mode.
 
 Automatic selection should not simply be random.
 
@@ -321,7 +321,7 @@ Audio Analysis
 ↓
 Musical Features
 ↓
-DreamWave Expression
+ZeraWave Expression
 ↓
 Visual Mode
 ↓
@@ -335,7 +335,7 @@ A new visual mode should primarily change **interpretation**, not duplicate the 
 
 # 9. Emotional Range
 
-DreamWave should not always attempt to look beautiful, energetic, or impressive.
+ZeraWave should not always attempt to look beautiful, energetic, or impressive.
 
 It should be capable of:
 
@@ -360,7 +360,7 @@ The system should preserve contrast.
 
 # 10. Emergent Expression
 
-DreamWave should not be reduced to a collection of fixed reactions such as:
+ZeraWave should not be reduced to a collection of fixed reactions such as:
 
 > bass = grow
 > mids = move
@@ -377,13 +377,13 @@ The same musical feature may produce different visual behavior depending on:
 * silence
 * accumulated visual state
 
-DreamWave should therefore be capable of **expression that develops over time**.
+ZeraWave should therefore be capable of **expression that develops over time**.
 
 ---
 
 # 11. Continuity
 
-DreamWave should feel continuous rather than repeatedly resetting every audio frame.
+ZeraWave should feel continuous rather than repeatedly resetting every audio frame.
 
 Visual state may persist through:
 
@@ -403,7 +403,7 @@ Technical correctness is necessary but insufficient.
 
 A parameter can be mathematically correct while producing an uninspiring visual result.
 
-DreamWave development should therefore use two forms of validation:
+ZeraWave development should therefore use two forms of validation:
 
 ### Engineering validation
 
@@ -411,7 +411,7 @@ Does the system behave correctly?
 
 ### Experiential validation
 
-Does it **feel** like DreamWave?
+Does it **feel** like ZeraWave?
 
 Both matter.
 
@@ -421,7 +421,7 @@ A technically successful feature that makes the experience worse should be recon
 
 # 13. Extensibility
 
-DreamWave should be designed so that future visual expression can grow without requiring the entire system to be rebuilt.
+ZeraWave should be designed so that future visual expression can grow without requiring the entire system to be rebuilt.
 
 Potential future capabilities include:
 
@@ -445,7 +445,7 @@ Build only what current evidence requires.
 
 # 14. Current Development Principle
 
-DreamWave v0.1 is an exploration, not a finished visual language.
+ZeraWave v0.1 is an exploration, not a finished visual language.
 
 The purpose of the first implementation is to discover which combinations of:
 
@@ -463,9 +463,9 @@ A failed experiment should be allowed to fail without forcing the entire system 
 
 ---
 
-# 15. DreamWave in One Sentence
+# 15. ZeraWave in One Sentence
 
-> **DreamWave is a living visual instrument where music becomes movement, atmosphere, emotion, and moment — with the ability to express the same musical soul through different visual forms.**
+> **ZeraWave is a living visual instrument where music becomes movement, atmosphere, emotion, and moment — with the ability to express the same musical soul through different visual forms.**
 
 ## 16. Vision evolution: music becomes a dream
 
@@ -473,7 +473,7 @@ Recorded 2026-09-25 from the supplied post-Stage-0 brainstorm and streamlined
 development plan. This extends the identity above; it does not authorize a
 renderer replacement or commit to a particular implementation.
 
-DreamWave should allow forms and worlds to emerge, dwell, mature, and transform.
+ZeraWave should allow forms and worlds to emerge, dwell, mature, and transform.
 A dream can linger while the music animates its internal life. Elapsed time alone
 should not force rapid changes. Transitions may be ambiguous: a branch may begin
 to suggest a fractal, then a galaxy, without a hard scene cut.
@@ -496,6 +496,6 @@ Interaction should remain minimal. A future Bonk control could shake up a
 lingering dream; a tap/Dance control could encourage movement. These are deferred
 ideas, not features to implement in the current repair.
 
-Creative acceptance: DreamWave should produce different visual experiences that
+Creative acceptance: ZeraWave should produce different visual experiences that
 can sustain interest and evolve within their identity, rather than repeatedly
 warping one tunnel or cycling effects rapidly.

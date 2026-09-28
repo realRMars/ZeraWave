@@ -23,7 +23,7 @@ def main():
         ("Recovery", [7.0, 8.0, 9.0]),
     ]
 
-    print("DreamWave Signal Normalization Test")
+    print("ZeraWave Signal Normalization Test")
     print("-----------------------------------")
     print("Input  | Fixed | Adaptive")
 

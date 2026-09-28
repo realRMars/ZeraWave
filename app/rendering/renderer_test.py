@@ -4,7 +4,7 @@ from renderer import Renderer
 def main():
     renderer = Renderer()
 
-    print("DreamWave Renderer Contract Test")
+    print("ZeraWave Renderer Contract Test")
     print("---------------------------------")
 
     try:

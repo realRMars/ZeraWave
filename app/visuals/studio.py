@@ -143,7 +143,7 @@ def tracks():
 
 def validate_session(data):
     if not isinstance(data, dict) or data.get('version') not in (1, 2, 3):
-        raise ValueError('This is not a supported DreamWave development session.')
+        raise ValueError('This is not a supported ZeraWave development session.')
     values = {key: data.get(key, value) for key, value in DEFAULTS.items()}
     selection = (path_for_state(values['state']) if data['version'] == 1
                  else data.get('selection'))
@@ -204,7 +204,7 @@ class Studio:
         style.configure('TButton', padding=(12, 8), background='#283951')
         style.map('TButton', background=[('active', '#365775')])
         root.configure(background='#141a28')
-        self.root.title('DreamWave — Development Studio')
+        self.root.title('ZeraWave — Development Studio')
         self.root.geometry('780x720')
         self.root.minsize(680, 700)
         self.vars = {k: (tk.BooleanVar(value=v) if isinstance(v, bool) else tk.StringVar(value=v))
@@ -221,7 +221,7 @@ class Studio:
         self.layers_tab = ttk.Frame(self.tabs, padding=20)
         self.tabs.add(self.layers_tab, text='Effects & layers')
         self.tabs.add(self.results, text='Review')
-        ttk.Label(self.preview, text='Explore a world before blending it into DreamWave',
+        ttk.Label(self.preview, text='Explore a world before blending it into ZeraWave',
                   font=('Segoe UI', 15)).grid(row=0, column=0, columnspan=3, sticky='w', pady=(0,20))
         def field(row, label, key, options):
             ttk.Label(self.preview, text=label).grid(row=row,column=0,sticky='w',padx=(0,18),pady=8)
@@ -493,7 +493,7 @@ class Studio:
             self.track_box.configure(values=sorted(set(self.track_box['values']) | {path}))
 
     def load(self):
-        path=filedialog.askopenfilename(filetypes=[('DreamWave session','*.json')])
+        path=filedialog.askopenfilename(filetypes=[('ZeraWave session','*.json')])
         if not path:return
         try:
             values=validate_session(json.loads(Path(path).read_text(encoding='utf-8')))
@@ -508,7 +508,7 @@ class Studio:
     def save(self,save_as=False):
         path=self.session_path
         if save_as or path is None:
-            selected=filedialog.asksaveasfilename(defaultextension='.json',filetypes=[('DreamWave session','*.json')])
+            selected=filedialog.asksaveasfilename(defaultextension='.json',filetypes=[('ZeraWave session','*.json')])
             if not selected:return
             path=Path(selected)
         try:

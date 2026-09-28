@@ -43,7 +43,7 @@ and overhead rock spans. Cavern mixes quartz-like needles, blocky minerals and
 limestone stalactites/stalagmites. The worm now uses a low arc and wrapped
 material canvas. Cave walls/ceiling are lit dark stone, with surface-attached
 glints, irregular formations and faster curved travel. Surface pigment uses directional/contact
-shading; emission is concentrated in mineral seams. See DREAMWAVE_HANDOFF.md
+shading; emission is concentrated in mineral seams. See ZERAWAVE_HANDOFF.md
 for tests.
 
 Dunes and Strata now have distinct animated skies. Main Blend uses the
@@ -55,14 +55,14 @@ See the Plasma foundation above for the current implementation.
 
 ## Air / Wind expansion (2026-09-27)
 
-The latest DREAMWAVE_HANDOFF.md supersedes historical Fire/Main limitations below.
+The latest ZERAWAVE_HANDOFF.md supersedes historical Fire/Main limitations below.
 Air adds Windstreams, Stormfront, Vortex and Sky Citadel in Main and Studio, with
 a shared sky/palette/landmark and evolving native cycle. User accepted the Air
 checkpoint and authorized its commit. The Earth expansion above supersedes
 the earlier Earth backlog; see the newest sections for Fog and Plasma status.
 
 Updated 2026-09-26. Base checkpoint: `aa44d54`, accepted Geometric material
-gathering. Read AGENTS.md and the current DREAMWAVE_HANDOFF.md entry first.
+gathering. Read AGENTS.md and the current ZERAWAVE_HANDOFF.md entry first.
 
 ## Accepted Fire development checkpoint and curved horizon
 
@@ -515,7 +515,7 @@ Both music contact sheets and individual form/portrait captures were inspected.
 Existing Cosmic highlights still clip in some main-blend samples (up to 1.50%).
 New forms remain subject to user musical/aesthetic review. No second element.
 
-An open night sea between distant rocky islands carries DreamWave's existing
+An open night sea between distant rocky islands carries ZeraWave's existing
 colored material. Low mist gives the horizon depth; a broken path of reflected
 light gives the waves scale and shape. Colored currents remain visible beneath
 the surface. Quiet water keeps small ripples and slow current. Stronger music
@@ -565,7 +565,7 @@ buffers, persistent particles, textures or separate rendering pipeline.
 
 ## Preview and review
 
-From C:\DreamWave:
+From C:\ZeraWave:
 
 ```powershell
 # Live system audio; start music through the default output yourself.

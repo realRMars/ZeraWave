@@ -1,4 +1,4 @@
-# DreamWave Development Studio
+# ZeraWave Development Studio
 
 ## Plasma (2026-09-27)
 
@@ -55,7 +55,7 @@ above patchwork land. Stormfront follows a curved, mirrored cloud corridor.
 Vortex combines rotating material, wall lightning and free jagged discharges
 rooted at its inner rim. Sky Citadel has a rotating castle with a closed gate,
 attached earth, tower lasers, fireworks and a material-covered planet below.
-Daddy Long Legs remains a dormant FX experiment. See DREAMWAVE_HANDOFF.md
+Daddy Long Legs remains a dormant FX experiment. See ZERAWAVE_HANDOFF.md
 for detailed behavior and validation history.
 
 Restart Studio, choose Elements > Air / Wind, then leave the form blank to see
@@ -64,7 +64,7 @@ Select a form to hold it. Air details provides cloud/ribbon, balloon,
 lightning and castle/celebration controls alongside existing materials.
 All four forms are also available to Main's musical director. The older fixed
 itinerary and quiet Aftershock fallback descriptions below are historical;
-current behavior is documented at the top of DREAMWAVE_HANDOFF.md.
+current behavior is documented at the top of ZERAWAVE_HANDOFF.md.
 
 Run `run_development_studio.bat` from the project folder.
 This small control window launches the existing renderer and analysis tools;

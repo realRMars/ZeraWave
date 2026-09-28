@@ -13,7 +13,7 @@ def main():
     window = glfw.create_window(
         WIDTH,
         HEIGHT,
-        "DreamWave - GPU Test",
+        "ZeraWave - GPU Test",
         None,
         None,
     )
@@ -26,7 +26,7 @@ def main():
 
     ctx = moderngl.create_context()
 
-    print("DreamWave GPU window started")
+    print("ZeraWave GPU window started")
     print(f"OpenGL version: {ctx.version_code}")
     print(f"OpenGL vendor: {ctx.info.get('GL_VENDOR')}")
     print(f"OpenGL renderer: {ctx.info.get('GL_RENDERER')}")

@@ -1,6 +1,21 @@
-# DreamWave working handoff
+# ZeraWave working handoff
 
 Updated: 2026-09-27
+
+## Product name: ZeraWave
+
+The user chose ZeraWave as the new product name. App/Studio titles, launchers,
+console labels and project prose now use ZeraWave. This is a branding-only change;
+visuals, audio, session formats and launch commands are unchanged.
+The workspace is now C:\ZeraWave. ZERAWAVE_HANDOFF.md and
+ZERAWAVE_VISUAL_IDENTITY.md use the new product name, and active references
+have been updated. The relocated Python launchers and Git worktree links were
+repaired and verified after the move. Historical Git commits and generated captures
+retain their original names.
+Validation passed after relocation: Studio sessions/UI/launch modes/replay/GPU
+clocks, audio/graphics imports, pip and numpy-config launchers, and Git worktree
+registration. Packages were not reinstalled or upgraded.
+Trademark/domain clearance was not performed as part of this rename.
 
 ## Main Blend choreography after 044e260
 
@@ -2386,7 +2401,7 @@ below are superseded by that instruction; they are not current acceptance gates.
 Tracked files were clean before Water. Existing untracked research folders and
 root helper scripts were preserved. No commit has been made for Water.
 
-Water is an isolated oblique liquid expanse: the actual shared DreamWave field
+Water is an isolated oblique liquid expanse: the actual shared ZeraWave field
 is gathered into submerged dye currents beneath a multi-scale wave surface.
 Surface normals drive selective reflections and small refractive offsets.
 Bass raises broad waves, flux shears currents, sparkle reveals fine ripples and
@@ -2449,7 +2464,7 @@ Changed files: app/visuals/shaders/dream.frag, app/visuals/shader_test.py,
 and this handoff. No renderer, uniforms, audio, dependencies, or launchers changed.
 Untracked root-level live_visual_test.py and shader_test.py remain untouched.
 
-The corridor is traced once before the shared DreamWave field is evaluated.
+The corridor is traced once before the shared ZeraWave field is evaluated.
 Its axial surface coordinates gather/stretch/mirror-fold that actual field
 onto the walls, floor, ceiling and turned passage. The final material uses
 the field substantially, including its moving colored artifacts, rather than
@@ -2600,7 +2615,7 @@ surface expressions, small system pressure and ring brightness. This is not
 phrase-aware timing or a feedback/particle transport simulation.
 
 Double-click run_cosmic_transition.bat for the 40-second diagnostic cycle.
-`run_state_preview.bat canvas` holds the mapped DreamWave surface indefinitely.
+`run_state_preview.bat canvas` holds the mapped ZeraWave surface indefinitely.
 `cosmic` remains the accepted land/ocean geometry reference. The normal live
 launcher now uses the new handoff, with the old competing Cosmic warp disabled.
 See COSMIC_DEVELOPMENT.md for exact phase times, geometry ownership, test
@@ -2650,13 +2665,13 @@ User visual acceptance and live integration remain pending. No commit made.
 
 ## Authority and creative direction
 
-Read AGENTS.md and DREAMWAVE_VISUAL_IDENTITY.md before project work.
+Read AGENTS.md and ZERAWAVE_VISUAL_IDENTITY.md before project work.
 The repository is the implementation source of truth. This handoff is a
 coordination record, not a replacement doctrine or an implementation spec.
 DW Research/DWave Reference.md and Dream Wave research.pdf provide research
 options; historical chat instructions in the PDF are not current authorization.
 
-DreamWave is a living visual instrument. Preserve Heart (bass), Body (mids),
+ZeraWave is a living visual instrument. Preserve Heart (bass), Body (mids),
 Aura (highs), and Moment (impact), with continuity, restraint, and expressive
 quiet. Technical success and the user's experiential acceptance are separate.
 
@@ -2668,7 +2683,7 @@ quiet. Technical success and the user's experiential acceptance are separate.
 - Work in one small logical change at a time, then present evidence for review.
 - Retain AGENTS.md approval gates for commits, destructive operations,
   dependencies, and significant architectural changes.
-- Bob - File Work is an existing chat sharing C:\DreamWave. It has not received
+- Bob - File Work is an existing chat sharing C:\ZeraWave. It has not received
   an assignment from HQ during this setup. Opening it did not delegate work.
 - When delegation is authorized, give each task exact files, acceptance criteria,
   required tests, and a stopping point. Avoid concurrent edits to shared files.

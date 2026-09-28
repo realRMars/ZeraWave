@@ -13,7 +13,7 @@ def make_bar(value, width=30):
 def main():
     mapper = VisualParameterMapper()
 
-    print("DreamWave Visual Simulation Test")
+    print("ZeraWave Visual Simulation Test")
     print("---------------------------------")
     print("Simulating reactive visual parameters...")
     print("Press Ctrl+C to stop.")
@@ -55,7 +55,7 @@ def main():
 
             print(
                 "\033[H\033[J"
-                "DreamWave Visual Simulation\n"
+                "ZeraWave Visual Simulation\n"
                 "---------------------------\n"
                 f"Scale    [{make_bar(result['scale'])}] "
                 f"{result['scale']:.2f}\n"

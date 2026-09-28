@@ -50,7 +50,7 @@ def main():
     silent_level = analyzer.rms(silent)
     loud_level = analyzer.rms(loud)
 
-    print("DreamWave AudioAnalyzer Test")
+    print("ZeraWave AudioAnalyzer Test")
     print("----------------------------")
     print(f"Silent RMS: {silent_level:.4f}")
     print(f"Loud RMS:   {loud_level:.4f}")

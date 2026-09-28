@@ -440,7 +440,7 @@ float blossom_field(vec2 position, float phase)
 }
 
 // Standalone Cosmic diagnostic composition. This intentionally bypasses the
-// shared DreamWave field so depth order can be judged without contamination.
+// shared ZeraWave field so depth order can be judged without contamination.
 // Orthographic camera looks down -Z. Positive Z is closer to the viewer.
 // Sphere and ring intersections share this depth convention.
 float cosmic_sphere_depth(vec2 p, vec3 center, float radius)
@@ -767,7 +767,7 @@ float geo_tall(float travel)
     return mix(h0, h1, smoothstep(0.15, 0.85, fract(bay)));
 }
 
-// Trace once, then evaluate DreamWave's existing field in this surface domain.
+// Trace once, then evaluate ZeraWave's existing field in this surface domain.
 // No second field evaluation or screen-space texture is required.
 struct GeometricSurface {
     vec2 uv;

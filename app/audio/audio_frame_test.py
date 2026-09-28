@@ -2,7 +2,7 @@ from audio_frame import AudioFrame
 
 
 def main():
-    print("DreamWave AudioFrame Test")
+    print("ZeraWave AudioFrame Test")
     print("-------------------------")
 
     quiet = AudioFrame(0.0, 0.01, 0.0, 0.0, 0.0, 0.0)

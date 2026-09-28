@@ -30,7 +30,7 @@ def main():
         ("highs", 0.3),
     ]
 
-    print("DreamWave Multi-Band Onset Test")
+    print("ZeraWave Multi-Band Onset Test")
     print("--------------------------------")
 
     for name, value in signals:

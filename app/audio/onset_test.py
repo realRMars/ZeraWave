@@ -70,7 +70,7 @@ def main():
         0.1,
     ]
 
-    print("DreamWave Onset Detection Test")
+    print("ZeraWave Onset Detection Test")
     print("--------------------------------")
 
     for value in values:

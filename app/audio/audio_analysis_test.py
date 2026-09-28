@@ -5,7 +5,7 @@ from capture import AudioCapture
 
 
 def main():
-    print("DreamWave Live Audio Analysis Test")
+    print("ZeraWave Live Audio Analysis Test")
     print("----------------------------------")
 
     capture = AudioCapture()

@@ -8,7 +8,7 @@ def main():
     capture = AudioCapture()
     analyzer = AudioAnalyzer()
 
-    print("DreamWave Live Raw Spectral Flux Test")
+    print("ZeraWave Live Raw Spectral Flux Test")
     print("--------------------------------------")
 
     print("Finding audio loopback device...")

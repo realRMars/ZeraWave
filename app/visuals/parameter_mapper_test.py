@@ -43,7 +43,7 @@ def main():
         ),
     ]
 
-    print("DreamWave Visual Parameter Mapper Test")
+    print("ZeraWave Visual Parameter Mapper Test")
     print("---------------------------------------")
 
     for (

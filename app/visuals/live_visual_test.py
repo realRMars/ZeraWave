@@ -140,7 +140,7 @@ def main(state="blend", states=None, layers=None):
     # every small fluctuation, per the "more threshold to breathe" ask.
     conditioner = VisualSignalConditioner(quiet_threshold=0.06)
     mapper = VisualParameterMapper()
-    renderer = Renderer(title=f"DreamWave - live {state}")
+    renderer = Renderer(title=f"ZeraWave - live {state}")
     renderer.debug_state = LIVE_STATES[state]
     renderer.debug_sequence = tuple(LIVE_STATES[name] for name in (states or ()))
     renderer.layer_profiles = validate_layers(layers or {})
@@ -158,7 +158,7 @@ def main(state="blend", states=None, layers=None):
         "impact": 0.0,
     }
 
-    print("DreamWave Live Visual Test")
+    print("ZeraWave Live Visual Test")
     print("--------------------------")
     print("Finding audio loopback device...")
 
@@ -196,7 +196,7 @@ def main(state="blend", states=None, layers=None):
 
             print(
                 "\033[H\033[J"
-                "DreamWave Live Visualizer\n"
+                "ZeraWave Live Visualizer\n"
                 "=========================\n"
                 f"Live state: {state}\n"
                 f"Scale    [{make_bar(result['scale'])}] "
@@ -234,7 +234,7 @@ def main(state="blend", states=None, layers=None):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="DreamWave with live system audio.")
+    parser = argparse.ArgumentParser(description="ZeraWave with live system audio.")
     parser.add_argument("--state", choices=tuple(LIVE_STATES), default="blend",
                         help="blend: normal flow; canvas: hold planet; transition: 40-second diagnostic cycle; water: isolated liquid world")
     parser.add_argument("--states", nargs="+", choices=tuple(LIVE_STATES), help="Development cycle: hold each state for 28 seconds.")

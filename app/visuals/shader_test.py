@@ -29,7 +29,7 @@ def save_png(path, pixels):
 def capture(output, seconds, profile="standard", debug_state=0, layers=None):
     """Save a reproducible synthetic frame and GPU-evaluated state weights."""
     output.mkdir(parents=True, exist_ok=True)
-    renderer = Renderer(width=640, height=360, title="DreamWave capture")
+    renderer = Renderer(width=640, height=360, title="ZeraWave capture")
     source = (Path(__file__).parent / "shaders/dream.frag").read_text(encoding="utf-8")
     values = dict(u_time=seconds * .75, u_star_time=seconds, u_drift_time=seconds,
                   u_resolution=(640., 360.), u_scale=.3, u_flux=.2,
@@ -100,7 +100,7 @@ def capture(output, seconds, profile="standard", debug_state=0, layers=None):
 def sweep(output):
     """Render fixed inputs/times on the real GPU; no audio capture involved."""
     output.mkdir(parents=True, exist_ok=True)
-    renderer = Renderer(width=320, height=180, title="DreamWave diagnostic")
+    renderer = Renderer(width=320, height=180, title="ZeraWave diagnostic")
     try:
         glfw.init()
         glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
@@ -2150,7 +2150,7 @@ def main(debug_state=0, states=None, layers=None):
     renderer = Renderer(
         width=1280,
         height=720,
-        title="DreamWave - " + next(name for name, value in STATES.items() if value == debug_state),
+        title="ZeraWave - " + next(name for name, value in STATES.items() if value == debug_state),
     )
     print(f"State preview active: {debug_state}", flush=True)
 

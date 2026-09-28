@@ -1,12 +1,12 @@
-# DreamWave Engineering Doctrine
+# ZeraWave Engineering Doctrine
 
 Version: 1.0
-Project: DreamWave
-Root: `C:\DreamWave`
+Project: ZeraWave
+Root: `C:\ZeraWave`
 
 ## 1. Mission
 
-DreamWave is a music-reactive visualizer that transforms real audio into a living visual experience.
+ZeraWave is a music-reactive visualizer that transforms real audio into a living visual experience.
 
 The engineering goal is to build upon the existing project incrementally, preserving working systems while expanding capability.
 
@@ -78,7 +78,7 @@ Do not continue to the next implementation step until the current step has been 
 
 ## 6. Testing Requirements
 
-DreamWave currently uses standalone Python test scripts.
+ZeraWave currently uses standalone Python test scripts.
 
 - Do not install or introduce pytest unless explicitly requested.
 - Prefer existing `*_test.py` scripts.
@@ -252,4 +252,4 @@ The objective is deliberate evolution, not permanent attachment to the first des
 
 **Inspect before creating. Preserve before replacing. Test before claiming. Review before committing.**
 
-Build DreamWave from the working project that exists—not from an imagined clean slate.
+Build ZeraWave from the working project that exists—not from an imagined clean slate.

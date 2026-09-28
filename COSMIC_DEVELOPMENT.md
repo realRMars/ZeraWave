@@ -1,10 +1,10 @@
 # Cosmic development and maintenance
 
-Updated 2026-09-26. Read AGENTS.md and DREAMWAVE_HANDOFF.md first.
+Updated 2026-09-26. Read AGENTS.md and ZERAWAVE_HANDOFF.md first.
 
 ## Intended experience
 
-DreamWave's existing imagery contracts, curves onto a rotating planetary
+ZeraWave's existing imagery contracts, curves onto a rotating planetary
 surface, dwells in black space surrounded by rings and moons, and unfolds back
 into the field. The planet is the material's new canvas. User acceptance of
 the geometry prototype is not acceptance of the live handoff.
@@ -97,7 +97,7 @@ they do not listen to music. Normal live launch still defaults to blend.
 Offline replay now accepts `--state canvas` or `--state transition` for the
 same shader routes, without playing the WAV aloud.
 
-From C:\DreamWave:
+From C:\ZeraWave:
 
 ```powershell
 .\run_cosmic_transition.bat
@@ -109,7 +109,7 @@ From C:\DreamWave:
 ```
 
 `transition` is a 40s test cycle: field 0–3s, gather 3–11s, planetary hold
-11–24s, release 24–35s, field 35–40s. `canvas` holds the actual DreamWave
+11–24s, release 24–35s, field 35–40s. `canvas` holds the actual ZeraWave
 material on the sphere. `cosmic` holds the land/ocean geometry reference with
 fast test moons. Normal/live and canvas moons orbit more slowly. Close and
 relaunch an existing window after shader edits: shaders load at creation.

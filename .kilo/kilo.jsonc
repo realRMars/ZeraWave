@@ -14,7 +14,7 @@
         "test_coding_inspection"
       ],
       "environment": {
-        "MCP_GATEWAY_DOCKER_BIND_ALLOWED_PATHS": "C:\\DreamWave;C:\\AI-LIFE"
+        "MCP_GATEWAY_DOCKER_BIND_ALLOWED_PATHS": "C:\\ZeraWave;C:\\AI-LIFE"
       },
       "enabled": true,
       "timeout": 60000

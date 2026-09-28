@@ -1,5 +1,5 @@
 def main():
-    print("DreamWave starting...")
+    print("ZeraWave starting...")
     print("Visual engine: OFFLINE")
     print("Audio input: OFFLINE")
     print("Dream engine: OFFLINE")

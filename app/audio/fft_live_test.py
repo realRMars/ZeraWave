@@ -10,7 +10,7 @@ def main():
     capture = AudioCapture()
     analyzer = AudioAnalyzer()
 
-    print("DreamWave Live FFT Test")
+    print("ZeraWave Live FFT Test")
     print("-----------------------")
 
     print("Finding audio loopback device...")
