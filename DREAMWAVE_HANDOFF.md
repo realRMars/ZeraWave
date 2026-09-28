@@ -2,6 +2,107 @@
 
 Updated: 2026-09-27
 
+## Accepted Fog / Gas checkpoint
+
+User passed Nebula, Pressure and the finished Marsh, then authorized continuing
+with the proposed Fog checkpoint and Plasma work. All Fog implementation and
+refinements below are accepted; their pending/uncommitted labels are historical.
+Checkpoint includes Studio isolation, material/spatial integration, native/Main
+transitions, opaque Marsh headstones with weathering and moving ghostlights.
+Latest verification is recorded in the Marsh finish entry below. Unrelated
+untracked user files are excluded. Plasma begins after this checkpoint.
+
+## Marsh headstone finish (uncommitted)
+
+User accepted Pressure Chamber as well as Nebula. All Marsh markers now use
+arched headstone silhouettes, with varied height/width and shallow depth;
+the rectangular monument branch is removed. Surface-local marble veins,
+green moss patches and branching dark cracks replace plain shading. Weathering
+gradually increases with elapsed session time, with per-stone initial variation;
+it saturates rather than repeatedly healing. These are opaque surface colors,
+not holes or translucent layers. Fireflies, path, lights and camera are unchanged.
+Only dream.frag, shader_test.py and this handoff changed in this revision.
+The optional Fog reference check now includes accepted Pressure and Nebula.
+
+Validation passed: 56 earlier-world comparisons, six Nebula and six Pressure
+reference comparisons, 180 transition samples, 150 renderer frames, opacity
+and 24,000 lamp-clearance samples, plus existing musical/detail/material checks.
+WarbotJazz Marsh replay completed 32 seconds /751 analyzed frames; captures
+inspected for headstone shapes, surface patterns and unchanged light behavior.
+No audible live review. Python compilation and diff checks passed. Evidence:
+work/marsh-stone/{checks,replay}. Changes remain uncommitted for user review.
+
+## Fog refinement: Marsh and Pressure (uncommitted)
+
+User accepted Nebula Banks. Its six quiet/active reference comparisons pass.
+Marsh now mixes arched and sloped headstones with taller squared monuments.
+The opaque ground has a textured central path that darkens toward its edges.
+Green/amber fireflies follow independently phased darting orbits: forward
+stretches briefly accompany travel, then peel away. Their lanes are clear of
+the roadside solids. Musical brightness drives both larger vapor auras and
+cross-shaped ground projections; projection length increases with lamp height.
+These are stylized projected lights, not physically simulated reflections.
+
+Pressure follows a continuous route between seeded twelve-point compass
+offsets. Camera and gas cavity share the route; smooth interpolation produces
+diagonal bends bounded below 45 degrees from forward, rather than snapping.
+No global audio or accepted-world helper changes. This revision changes only
+dream.frag, shader_test.py and these notes on top of the pending Fog work.
+
+GPU suite passed: 56 earlier-world comparisons, six accepted Nebula checks,
+180 transition samples, independent musical/detail/material responses,
+150 renderer frames, opaque-ground probe, and 24,000 firefly/terrain clearance
+samples plus route slope checks. Initial signed-power ground-light math
+produced invalid pixels; corrected to nonnegative power inputs before passing.
+WarbotJazz decoded replay completed 56 seconds /1313 analyzed frames, split
+between Marsh and Pressure; half-second capture sequences inspected for
+flybys, projections and curved travel. No audible live review. 720p median GPU
+samples: Marsh 10.0 ms, Pressure 6.4 ms, their overlap 12.2 ms. Heaviest sampled
+pair remained Nebula/Citadel at 21.2 ms; not a guaranteed session frame rate.
+Python compilation and diff checks passed (Git reports normal LF/CRLF
+conversion warnings). Evidence: work/fog-refine/{checks,replay,gpu-times.json}.
+No commit authorized for this revision.
+
+## Fog / Gas implementation (uncommitted, visual review pending)
+
+Base checkpoint: `cc0c6af`, accepted Earth. Fog adds Nebula Banks (28),
+Ghostlight Marsh (29), Pressure Chamber (30), and a 114-second native cycle
+(31). Studio: Elements > Fog / Gas. All three participate in Main's musical
+director and existing material/spatial controls. No audio normalization,
+dependencies, or earlier world helper implementations changed.
+
+Vapor uses 48 bounded front-to-back samples with exponential extinction,
+density-gradient lighting and coherent 3D advection. Pressure Chamber uses a
+gyroid-like field for connected cavities. Marsh first traces opaque ground,
+rock columns and lamp cores, then stops vapor at that depth. An exact floor
+intersection prevents missed ground holes. Ground reflections are procedural
+lamp glows, not full scene reflections; scattering is an approximation.
+Only vapor is deliberately translucent. Fog details separately controls vapor,
+internal lights/ghostlights, and pressure fronts/fine filaments.
+
+Integrated musical time drives sustained travel and coasting. Bass opens banks
+and cavities and lights surfaces; flux contributes to banking and internal
+lighting; sparkle reveals filaments; impact adds pressure fronts and localized
+light. Materials supply restrained pigment variation rather than an overlay.
+
+Validation passed: full Studio suite, director CPU suite, Python compilation,
+diff checks, and Fog GPU suite: 56 earlier-state image comparisons, 180 handoff
+samples, three cycle seams, independent audio-channel/detail/material checks,
+150 renderer frames and a background-swap probe proving opaque ground coverage.
+Earlier helper source is byte-identical. Expanded shader compilation causes
+sparse procedural-edge pixel variance: worst mean difference .0217/255;
+largest fraction of channels differing by >2 is .164%. Fog's new comparison
+requires mean <.05 and outlier fraction <.25%, plus source identity. Existing
+Earth/Air regression tests were not relaxed. This is not exact pixel equality.
+
+Decoded real-track replays completed: WarbotJazz Fog cycle 116.01s /2719 frames,
+Balloon Main 70s /1641 frames, ChasingYou isolated forms 84s /1969 frames.
+Capture sequences were inspected; Main visited Marsh, Nebula, Vortex, Molten.
+No audible live review. Evidence: work/fog/{checks,replay,main,second}.
+720p GPU timing samples: isolated forms roughly 5.6-7.7 ms; heaviest sampled
+overlap Nebula/Citadel 19.9 ms. These are GPU samples, not guaranteed session FPS.
+Changes remain uncommitted for user review; unrelated untracked files untouched.
+
 ## Earth sky and Main integration checkpoint (2026-09-27)
 
 User authorized the Earth commit after improving skies and blending. This

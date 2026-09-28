@@ -8,7 +8,7 @@ import moderngl
 import math
 
 from parameters import VisualParameters
-from preview_layers import layers_at, materials_at, daddy_long_legs_at, earth_details_at
+from preview_layers import layers_at, materials_at, daddy_long_legs_at, earth_details_at, fog_details_at
 
 VERTEX_SHADER = """
 #version 330
@@ -27,7 +27,8 @@ void main()
 BLEND_FORMS = (11, 12, 2, 5, 7, 8, 9, 10, 13, 14, 15, 17, 18)
 AIR_FORMS = (19, 20, 21, 22)
 EARTH_FORMS = (24, 25, 26)
-LIVE_FORMS = BLEND_FORMS + AIR_FORMS + EARTH_FORMS
+FOG_FORMS = (28, 29, 30)
+LIVE_FORMS = BLEND_FORMS + AIR_FORMS + EARTH_FORMS + FOG_FORMS
 
 @lru_cache(maxsize=8)
 def blend_chapter(chapter):
@@ -73,7 +74,9 @@ def world_uniforms(weights, progress=0., enabled=True):
     air_mix = tuple(weights.get(i,0.)/max(air,1e-12) for i in AIR_FORMS)
     earth = sum(weights.get(i,0.) for i in EARTH_FORMS)
     earth_mix = tuple(weights.get(i,0.)/max(earth,1e-12) for i in EARTH_FORMS)
-    weights = {i:w for i,w in weights.items() if i not in AIR_FORMS + EARTH_FORMS}
+    fog = sum(weights.get(i,0.) for i in FOG_FORMS)
+    fog_mix = tuple(weights.get(i,0.)/max(fog,1e-12) for i in FOG_FORMS)
+    weights = {i:w for i,w in weights.items() if i not in AIR_FORMS + EARTH_FORMS + FOG_FORMS}
     world = [weights.get(2,0.), weights.get(5,0.),
              sum(weights.get(i,0.) for i in (7,8,9,10,13)),
              sum(weights.get(i,0.) for i in (14,15,17,18))]
@@ -86,7 +89,8 @@ def world_uniforms(weights, progress=0., enabled=True):
                 u_current_mix=weights.get(13,0.)/max(world[2],1e-12),
                 u_fire_mix=fire, u_root_mix=root, u_world_warp=math.sin(math.pi*progress),
                 u_air_weight=air, u_air_mix=air_mix,
-                u_earth_weight=earth, u_earth_mix=earth_mix)
+                u_earth_weight=earth, u_earth_mix=earth_mix,
+                u_fog_weight=fog, u_fog_mix=fog_mix)
 
 
 class Renderer:
@@ -163,7 +167,7 @@ class Renderer:
         # Preference, not a playlist: quiet worlds remain possible at high energy.
         preferred = {11:.25,12:.4,2:.75,5:.65,7:.65,8:.3,9:.25,
                      10:.55,13:.25,14:.7,15:.5,17:.8,18:.9,
-                     19:.3,20:.75,21:.85,22:.6,24:.3,25:.65,26:.7}
+                     19:.3,20:.75,21:.85,22:.6,24:.3,25:.65,26:.7,28:.4,29:.25,30:.85}
         choices=[];scores=[]
         for state in LIVE_FORMS:
             if state == self.director_current:continue
@@ -441,6 +445,8 @@ class Renderer:
         self.program['u_layer_mode'].value = mode
         self.program['u_layer_mask'].value = mask
         self.program['u_daddy_long_legs'].value = daddy_long_legs_at(
+            self.layer_profiles, self.state_at(current_time), current_time)
+        self.program['u_fog_details'].value = fog_details_at(
             self.layer_profiles, self.state_at(current_time), current_time)
         self.program['u_earth_details'].value = earth_details_at(
             self.layer_profiles, self.state_at(current_time), current_time)

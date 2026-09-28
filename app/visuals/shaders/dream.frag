@@ -1,6 +1,9 @@
 #version 330
 
 uniform float u_time;
+uniform vec3 u_fog_mix;
+uniform float u_fog_weight;
+uniform vec3 u_fog_details;
 uniform vec3 u_earth_mix;
 uniform float u_earth_weight;
 uniform vec4 u_earth_details;
@@ -3027,15 +3030,234 @@ vec3 earth_scene(vec2 p,EarthSurface surface,vec3 material,int form) {
     return max(vec3(0.),sky);
 }
 
+// Fog/Gas uses bounded front-to-back volume integration, separate from solid depth.
+vec3 fog_forms() {
+    if(u_directed==1)return u_fog_mix;
+    if(u_debug_state<30.5) {
+        int id=int(u_debug_state+.5)-28;
+        return vec3(id==0,id==1,id==2);
+    }
+    float phase=mod(u_drift_time,114.)/38.;
+    int id=int(phase),next=(id+1)%3;
+    return mix(vec3(id==0,id==1,id==2),vec3(next==0,next==1,next==2),smoothstep(.70,1.,fract(phase)));
+}
+float fog_seed(vec2 p) {
+    p=mod(p,127.);
+    return fract(sin(dot(p,vec2(27.13,91.71)))*4375.83);
+}
+float fog_billows(vec3 p) {
+    p+=.55*sin(p.yzx*1.31+vec3(1.,3.,5.));
+    return .5+.22*sin(p.x+sin(p.z))+.16*sin(p.y*1.7-p.z*.6)
+        +.10*sin(p.z*2.5+p.x*1.2)*sin(p.y*2.1);
+}
+vec2 fog_pressure_path(float z) {
+    float section=z/18.,cell=floor(section),f=fract(section);
+    f=f*f*f*(f*(f*6.-15.)+10.);
+    float a=floor(fog_seed(vec2(cell,17.))*12.)*.52359878;
+    float b=floor(fog_seed(vec2(cell+1.,17.))*12.)*.52359878;
+    return mix(vec2(cos(a),sin(a)),vec2(cos(b),sin(b)),f)*4.5;
+}
+float fog_density(vec3 p,int form) {
+    if(form==2)p.xy-=fog_pressure_path(p.z);
+    float t=u_time*.34;
+    vec3 flow=p+vec3(.5*sin(p.z*.18-t),t*.12,-t*.7);
+    float billow=fog_billows(flow*.72);
+    if(form==0) {
+        vec2 channel=vec2(1.4*sin(p.z*.15),.7*sin(p.z*.11));
+        float opening=2.0+.60*u_scale+.35*sin(p.z*.31-t*.4);
+        float bank=smoothstep(opening-.6,opening+1.4,length(p.xy-channel));
+        return (.09+bank*.8)*smoothstep(.25,.72,billow)*1.9;
+    }
+    if(form==1) {
+        float height=exp(-max(0.,p.y+.9)*.65);
+        return height*(.055+.60*smoothstep(.40,.75,billow))*(.65+.25*u_scale);
+    }
+    float angle=p.z*.22-t*.8;
+    vec2 crossSection=mat2(cos(angle),sin(angle),-sin(angle),cos(angle))*p.xy;
+    float cavity=length(crossSection*vec2(1.,.8))-(1.5+.4*u_scale);
+    float shell=smoothstep(-.55,.6,cavity);
+    float front=pow(.5+.5*sin(p.z*.9-t*4.+length(p.xy)*1.5),5.);
+    float gyroid=dot(sin(flow*.85),cos(flow.yzx*.85));
+    return (.03+shell*.85)*smoothstep(.35,1.25,abs(gyroid))
+        +front*.45*u_impact*u_fog_details.z;
+}
+vec3 fog_lamp(float cell,float side) {
+    float seed=fog_seed(vec2(cell,side));
+    float phase=u_time*(.95+seed*.3)+seed*19.;
+    // Forward half of the orbit briefly matches our travel, then darts away.
+    // Keep the entire flight lane clear of the solid roadside silhouettes.
+    float dart=pow(.5+.5*sin(phase*.71+2.),6.);
+    return vec3(side*(1.05+.32*sin(phase*.8)+.12*dart*sin(phase*5.)),
+        -.65+.7*(.5+.5*sin(phase*.63))+.45*dart,
+        cell*8.+4.+2.7*sin(phase));
+}
+float fog_lamp_light(float cell,float side) {
+    float seed=fog_seed(vec2(cell,side));
+    float pulse=.5+.5*sin(u_time*(.7+seed*.4)+seed*23.);
+    return (.08+.92*pulse*pulse)*(.22+.85*u_scale+.6*u_sparkle+1.1*u_impact);
+}
+vec2 fog_terrain(vec3 p) {
+    vec2 result=vec2(p.y+1.4,0.);
+    float cell=floor(p.z/8.);
+    for(int i=0;i<2;i++) {
+        float side=i==0 ? -1. : 1.,seed=fog_seed(vec2(cell,side+4.));
+        vec3 center=vec3(side*(2.6+seed*2.),0.,cell*8.+4.);
+        vec3 q=p-center;
+        float height=.85+seed*1.65;
+        float angle=(seed-.5)*.65;
+        q.xz=mat2(cos(angle),sin(angle),-sin(angle),cos(angle))*q.xz;
+        float width=.35+seed*.40;
+        // Every marker has an arched crown and a thin headstone profile.
+        float cap=length(vec2(q.x,max(0.,p.y+1.4-height+width)))-width;
+        float rock=max(max(cap,abs(q.z)-(.16+seed*.23)),-p.y-1.5);
+        if(rock<result.x)result=vec2(rock*.75,1.);
+    }
+    return result;
+}
+vec3 fog_stone(vec3 p,float light) {
+    float cell=floor(p.z/8.),side=p.x<0. ? -1. : 1.;
+    float seed=fog_seed(vec2(cell,side+4.));
+    vec3 q=p-vec3(side*(2.6+seed*2.),-1.4,cell*8.+4.);
+    float angle=(seed-.5)*.65;
+    q.xz=mat2(cos(angle),sin(angle),-sin(angle),cos(angle))*q.xz;
+    float grain=fog_billows(q*5.+seed*13.);
+    float vein=pow(.5+.5*sin(q.x*13.+q.y*4.+grain*8.),8.);
+    vec3 stone=mix(vec3(.25,.30,.32),vec3(.34,.25,.36),seed);
+    stone*=.75+.35*grain;
+    stone=mix(stone,vec3(.08,.14,.17),vein*.7);
+    // Fixed vein/crack coordinates; only their weathering coverage grows.
+    float age=1.-exp(-max(0.,u_drift_time)*.012-seed*.4);
+    float moss=smoothstep(.43,.68,grain)*
+        (1.-smoothstep(.20+age*.85,.75+age*1.1,q.y));
+    stone=mix(stone,vec3(.075,.19,.095)*(.7+grain*.6),moss*.85);
+    float stem=abs(q.x+.13*sin(q.y*8.+seed*9.)+.12*sin(q.y*3.));
+    float branch=abs(q.x-.43*(q.y-.7)+.08*sin(q.y*14.+seed*5.));
+    float cracks=1.-smoothstep(.008,.022,min(stem,branch));
+    cracks*=1.-smoothstep(age*2.8,age*2.8+.18,q.y);
+    stone*=1.-cracks*.8*smoothstep(.12,.45,age);
+    return stone*light*(.8+.30*u_scale+.35*u_impact);
+}
+vec2 fog_solid(vec3 p) {
+    vec2 result=fog_terrain(p);
+    if(u_fog_details.y>0.) {
+        float cell=floor(p.z/8.);
+        for(int j=-1;j<=1;j++)for(int i=0;i<2;i++) {
+            float orb=length(p-fog_lamp(cell+float(j),i==0 ? -1. : 1.))-.075;
+            if(orb<result.x)result=vec2(orb,2.);
+        }
+    }
+    return result;
+}
+vec3 fog_palette(float phase,int form) {
+    if(form==0)return mix(vec3(.055,.26,.42),vec3(.64,.24,.35),.5+.5*sin(phase*.7));
+    if(form==1)return mix(vec3(.035,.12,.16),vec3(.20,.32,.13),.5+.5*sin(phase));
+    return mix(vec3(.65,.12,.035),vec3(.10,.32,.48),.5+.5*sin(phase));
+}
+vec3 fog_scene(vec2 screen,vec3 material,int form) {
+    float energy=clamp(.5*u_scale+.5*u_flux,0.,1.);
+    float travel=u_time*3.2+u_drift_time*.04;
+    vec3 ro=vec3(1.1*sin(travel*.075),form==1 ? .7 : .3,travel);
+    vec3 forward=normalize(vec3(.0825*cos(travel*.075),form==1 ? -.10 : .03,1.));
+    if(form==2) {
+        ro.xy=fog_pressure_path(travel);
+        forward=normalize(vec3(fog_pressure_path(travel+3.)-ro.xy,3.));
+    }
+    vec3 right=normalize(cross(vec3(0,1,0),forward)),up=cross(forward,right);
+    float roll=.06*sin(travel*.10)*(1.+energy*1.8);
+    vec2 p=mat2(cos(roll),sin(roll),-sin(roll),cos(roll))*screen;
+    vec3 ray=normalize(forward+right*p.x*1.5+up*p.y*1.5);
+    float stop=23.;
+    vec3 background=form==1 ? vec3(.013,.023,.035) : vec3(.006,.010,.025);
+    if(form==1) {
+        // Solid intersections terminate the volume: nothing behind a rock can leak through.
+        float floorDepth=ray.y<-.0001 ? min(23.,(-1.4-ro.y)/ray.y) : 23.;
+        float t=.04;vec2 hit=vec2(1,0);
+        for(int i=0;i<56;i++) {
+            hit=fog_solid(ro+ray*t);
+            if(hit.x<.004+.0005*t || t>=23.)break;
+            t+=clamp(hit.x,.004,1.2);
+        }
+        if(!(t<23. && hit.x<.004+.0005*t) && floorDepth<23.) {
+            t=floorDepth;hit=vec2(0.,0.);
+        }
+        if(t<23. && hit.x<.004+.0005*t) {
+            stop=t;vec3 q=ro+ray*t;float e=.015;
+            vec3 n=normalize(vec3(fog_solid(q+vec3(e,0,0)).x-fog_solid(q-vec3(e,0,0)).x,
+                fog_solid(q+vec3(0,e,0)).x-fog_solid(q-vec3(0,e,0)).x,
+                fog_solid(q+vec3(0,0,e)).x-fog_solid(q-vec3(0,0,e)).x));
+            float light=.25+.65*max(0.,dot(n,normalize(vec3(-.3,.8,-.6))));
+            background=vec3(.12,.16,.18)*light*(.8+.30*u_scale+.35*u_impact);
+            if(hit.y<.5) {
+                float pathCenter=.45*sin(q.z*.13);
+                float path=exp(-pow(abs(q.x-pathCenter)/1.65,3.));
+                float grain=fog_billows(q*vec3(9.,1.,5.));
+                float ripples=.5+.5*sin(q.z*8.+sin(q.x*5.)-u_time*.9);
+                background*=mix(.10,1.5,path)*(.62+.28*grain+.10*ripples);
+                float cell=floor(q.z/8.);
+                for(int j=-1;j<=1;j++)for(int i=0;i<2;i++) {
+                    float id=cell+float(j),side=i==0 ? -1. : 1.;
+                    vec3 lamp=fog_lamp(id,side);
+                    vec2 delta=q.xz-lamp.xz;
+                    float height=lamp.y+1.4,extent=.22+height*.60;
+                    // A longer lower stem and raised crossbar, projected onto the ground.
+                    float stem=exp(-pow(abs(delta.x)/.055,2.)-pow(abs(delta.y)/extent,6.));
+                    float bar=exp(-pow(abs(delta.x)/(extent*.48),6.)-pow(abs(delta.y-extent*.32)/.055,2.));
+                    float reflection=max(stem,bar)+.12*exp(-dot(delta,delta)*3.);
+                    background+=mix(vec3(.14,.50,.32),vec3(.55,.28,.10),float(i))*reflection*fog_lamp_light(id,side)*u_fog_details.y;
+                }
+            } else if(hit.y>1.5) {
+                float cell=floor(q.z/8.),side=q.x<0. ? -1. : 1.;
+                background=mix(vec3(.20,.65,.40),vec3(.65,.30,.08),step(0.,q.x))*fog_lamp_light(cell,side)*1.7;
+            }
+            else background=fog_stone(q,light);
+        }
+    }
+    vec3 accumulated=vec3(0.);float transmittance=1.;
+    const float stepSize=.48;
+    for(int i=0;i<48;i++) {
+        float start=float(i)*stepSize;
+        if(start>=stop || transmittance<.018)break;
+        float stepLength=min(stepSize,stop-start);
+        vec3 q=ro+ray*(start+stepLength*.5);
+        float density=fog_density(q,form)*u_fog_details.x;
+        float through=exp(-density*stepLength);
+        float towardLight=fog_density(q+vec3(-.4,.65,-.25),form);
+        float rim=clamp((density-towardLight)*2.,-.20,.65);
+        float phase=q.z*.16+q.y*.55+u_time*.08;
+        vec3 pigment=fog_palette(phase,form);
+        // Material colors enter the scattering volume, not an extra transparent layer.
+        pigment=mix(pigment,pigment*(.70+clamp(material,0.,1.)*.8),.18);
+        float forwardLight=pow(max(0.,dot(ray,normalize(vec3(-.3,.3,1.)))),6.);
+        vec3 lighting=pigment*(.22+rim+forwardLight*.45);
+        float thread=pow(.5+.5*sin(fog_billows(q*1.8)*11.+phase-u_time),8.);
+        lighting+=pigment*thread*(.08+.30*u_sparkle+.60*u_impact)*u_fog_details.z;
+        if(form==1) {
+            float cell=floor(q.z/8.);
+            for(int j=-1;j<=1;j++)for(int k=0;k<2;k++) {
+                float id=cell+float(j),side=k==0 ? -1. : 1.;
+                float d=length(q-fog_lamp(id,side));
+                lighting+=mix(vec3(.25,.90,.50),vec3(.75,.35,.12),float(k))*exp(-d*.95)*fog_lamp_light(id,side)*2.2*u_fog_details.y;
+            }
+        } else {
+            float pulse=pow(.5+.5*sin(q.z*.65-u_time*2.+q.y),5.);
+            lighting+=pigment*pulse*(.14+.65*energy+1.3*u_impact)*u_fog_details.y;
+        }
+        accumulated+=transmittance*(1.-through)*max(lighting,vec3(0.));
+        transmittance*=through;
+    }
+    return accumulated+background*transmittance;
+}
+
 void main()
 {
     bool directed = u_directed == 1;
+    bool held_fog = u_debug_state >= 27.5 && u_debug_state < 31.5;
     bool held_earth = u_debug_state >= 23.5 && u_debug_state < 27.5;
     bool held_air = u_debug_state >= 18.5 && u_debug_state < 23.5;
     bool held_fire = u_debug_state > 13.5 && u_debug_state < 18.5;
     bool fire_mode = held_fire || (directed && u_world_mix.w > 0.);
     float fire_takeover = directed ? u_world_mix.w : (held_fire ? 1. : 0.);
-    float debug_state = (held_fire || held_air || held_earth) ? 1.0 : (u_debug_state > 10.5 && u_debug_state < 12.5) ? 1.0 : u_debug_state;
+    float debug_state = (held_fire || held_air || held_earth || held_fog) ? 1.0 : (u_debug_state > 10.5 && u_debug_state < 12.5) ? 1.0 : u_debug_state;
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
 
     // Correct for the window's aspect ratio.
@@ -3111,6 +3333,7 @@ void main()
         p=mix(p,air_material_domain(screen_p,air_shape),air_gather*gather);
     }
 
+    float fog_amount=directed ? u_fog_weight : (held_fog ? 1. : 0.);
     float earth_amount=directed ? u_earth_weight : (held_earth ? 1. : 0.);
     vec3 ef=earth_forms();
     EarthSurface dune=EarthSurface(vec3(0),vec3(0,1,0),100.,0.);
@@ -4132,7 +4355,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     vec3 expressive_canvas = musical_material(color);
     color = mix(color,expressive_canvas,1.-cosmic_takeover);
     // Geometry keeps absolute weights; normalize only the background compositing.
-    vec4 background_mix=u_world_mix/max(1.-u_air_weight-u_earth_weight,.000001);
+    vec4 background_mix=u_world_mix/max(1.-u_air_weight-u_earth_weight-u_fog_weight,.000001);
     vec4 coverage = directed ? world_coverage(background_mix,screen_p) : u_world_mix;
     if (geometric_weight > 0.0)
     {
@@ -4168,7 +4391,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         if(weights.w>0.) color+=isolated_aftershock_scene(screen_p,fire_material)*weights.w;
         if (directed) color=mix(before_fire,color,coverage.w);
     }
-    float air_amount=directed ? u_air_weight/max(1.-u_earth_weight,.000001) : (held_air ? 1. : 0.);
+    float air_amount=directed ? u_air_weight/max(1.-u_earth_weight-u_fog_weight,.000001) : (held_air ? 1. : 0.);
     if(air_amount>0.) {
         vec4 af=air_forms();
         vec4 regions=air_coverage(screen_p,af);
@@ -4190,9 +4413,20 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         if(ef.x>0.)earth+=earth_scene(screen_p,dune,expressive_canvas,0)*regions.x;
         if(ef.y>0.)earth+=earth_scene(screen_p,strata,expressive_canvas,1)*regions.y;
         if(ef.z>0.)earth+=earth_scene(screen_p,cavern,expressive_canvas,2)*regions.z;
-        float score=pow(earth_amount,3.)*exp(dot(ef,earth_territory(screen_p))*4.);
-        float coverage=score/max(score+pow(1.-earth_amount,3.),1e-12);
+        float amount=directed ? earth_amount/max(1.-u_fog_weight,.000001) : earth_amount;
+        float score=pow(amount,3.)*exp(dot(ef,earth_territory(screen_p))*4.);
+        float coverage=score/max(score+pow(1.-amount,3.),1e-12);
         color=mix(color,earth,coverage);
+    }
+    if(fog_amount>0.) {
+        vec3 forms=fog_forms();
+        vec3 scores=forms*forms*forms*exp(vec3(screen_p.y,-screen_p.y,.3-length(screen_p))*3.);
+        scores/=max(dot(scores,vec3(1.)),1e-12);
+        vec3 vapor=vec3(0.);
+        for(int i=0;i<3;i++)if(forms[i]>0.)vapor+=fog_scene(screen_p,expressive_canvas,i)*scores[i];
+        float score=pow(fog_amount,3.)*exp((.25-length(screen_p)*.4)*3.);
+        float coverage=score/max(score+pow(1.-fog_amount,3.),1e-12);
+        color=mix(color,vapor,coverage);
     }
     fragColor = vec4(color, 1.0);
 }

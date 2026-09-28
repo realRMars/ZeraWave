@@ -6,7 +6,7 @@ do not reorder them. Absent held-world profiles preserve authored visuals; Main 
 import json
 import math
 
-WORLDS = ('blend', 'organic', 'geometric', 'cosmic', 'transition', 'water', 'fire', 'air', 'earth')
+WORLDS = ('blend', 'organic', 'geometric', 'cosmic', 'transition', 'water', 'fire', 'air', 'earth', 'fog')
 FIELD = ('blend', 'organic', 'geometric', 'cosmic', 'transition')
 EFFECTS = {
     'artifacts': ('Living artifacts', 'Material', WORLDS),
@@ -45,11 +45,15 @@ EFFECTS = {
     'earth_veins': ('Mineral veins & crystal light', 'Earth details', ('blend', 'earth')),
     'earth_dust': ('Surface mineral glints', 'Earth details', ('blend', 'earth')),
     'earth_worm': ('Sand worm', 'Earth inhabitants', ('blend', 'earth')),
+    'fog_volume': ('Vapor banks', 'Fog details', ('blend', 'fog')),
+    'fog_lights': ('Internal light & ghostlights', 'Fog details', ('blend', 'fog')),
+    'fog_fronts': ('Pressure fronts & fine filaments', 'Fog details', ('blend', 'fog')),
 }
 # All 31 positive signed-mask bits are occupied; later effects use explicit uniforms.
 EXPERIMENTS = ('daddy_long_legs',)
 EARTH_DETAILS = ('earth_sediment', 'earth_veins', 'earth_dust', 'earth_worm')
-BITS = {key: (0 if key in EXPERIMENTS + EARTH_DETAILS else 1 << i) for i, key in enumerate(EFFECTS)}
+FOG_DETAILS = ('fog_volume', 'fog_lights', 'fog_fronts')
+BITS = {key: (0 if key in EXPERIMENTS + EARTH_DETAILS + FOG_DETAILS else 1 << i) for i, key in enumerate(EFFECTS)}
 MODES = {'authored': 'Authored', 'together': 'Selected together', 'cycle': 'Cycle list', 'meld': 'Meld materials'}
 MATERIALS = ('artifacts', 'alloy', 'lattice')
 
@@ -94,6 +98,7 @@ def parse_layers(text):
 
 
 def world_for_state(state):
+    if 28 <= state <= 31: return 'fog'
     if 24 <= state <= 27: return 'earth'
     if 19 <= state <= 23: return 'air'
     if state in (1, 11, 12): return 'organic'
@@ -155,6 +160,15 @@ def earth_details_at(profiles, state, seconds):
     if profile['mode'] == 'cycle' and ids:
         ids = [ids[int(max(0., seconds) // profile['seconds']) % len(ids)]]
     return tuple(float(key in ids) for key in EARTH_DETAILS)
+
+
+def fog_details_at(profiles, state, seconds):
+    profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
+    if profile['mode'] == 'authored': return (1., 1., 1.)
+    ids = [item['id'] for item in profile['items'] if item['enabled']]
+    if profile['mode'] == 'cycle' and ids:
+        ids = [ids[int(max(0., seconds) // profile['seconds']) % len(ids)]]
+    return tuple(float(key in ids) for key in FOG_DETAILS)
 
 
 def material_trio_profile(world):

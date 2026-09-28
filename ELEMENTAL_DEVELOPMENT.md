@@ -1,5 +1,26 @@
 # Elemental vocabulary: Water foundation
 
+## Fog / Gas expansion (2026-09-27, accepted)
+
+Nebula Banks flies through blue/rose vapor with broad openings. Ghostlight Marsh
+passes opaque marbled headstones above a dark textured path, with green/amber
+fireflies, growing moss and cracks, and cross-shaped light projections in mist.
+Pressure Chamber moves through cyan/ember
+folded gas cavities with traveling pressure fronts. The native cycle lasts
+114 seconds; all three also enter Main Blend through the existing director.
+
+This pass introduces bounded volume integration with exponential extinction,
+solid-depth occlusion beneath vapor, density-gradient edge lighting, and a
+gyroid-like density field. Existing integrated musical time controls travel;
+bass, flux, sparkle and impact have independently tested visual responses.
+See the current handoff for verification and approximation/performance limits.
+
+Plasma is the remaining future Elemental family: magnetic loops that stretch
+and reconnect, branching arcs between moving charged nodes, and auroral
+curtains that fold into deep space. Keep those as starting concepts until
+Fog has been reviewed and the next implementation is requested. Both conditions
+are now met; Plasma is the next authorized implementation.
+
 ## Earth expansion (2026-09-27, commit authorized)
 
 Earth now has three connected forms: Dune Sea (low flight over wind-shaped
@@ -20,9 +41,8 @@ Dunes and Strata now have distinct animated skies. Main Blend uses the
 existing musical director, cycling materials and spatial folds, with shorter
 regional overlaps between Earth forms. See the latest handoff checkpoint.
 
-Fog/Gas remains a future world of colored banks and layered visibility.
+The Fog expansion above supersedes this checkpoint's earlier Fog backlog.
 Plasma remains a future world of magnetic loops, branching arcs and curtains.
-Do not expand either until the user reviews Earth and chooses the next work.
 
 ## Air / Wind expansion (2026-09-27)
 
@@ -30,7 +50,7 @@ The latest DREAMWAVE_HANDOFF.md supersedes historical Fire/Main limitations belo
 Air adds Windstreams, Stormfront, Vortex and Sky Citadel in Main and Studio, with
 a shared sky/palette/landmark and evolving native cycle. User accepted the Air
 checkpoint and authorized its commit. The Earth expansion above supersedes
-the earlier Earth backlog; Fog/Gas and Plasma remain future concepts.
+the earlier Earth backlog; see the newest sections for Fog and Plasma status.
 
 Updated 2026-09-26. Base checkpoint: `aa44d54`, accepted Geometric material
 gathering. Read AGENTS.md and the current DREAMWAVE_HANDOFF.md entry first.

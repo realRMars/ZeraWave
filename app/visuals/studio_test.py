@@ -12,7 +12,7 @@ from replay_test import replay
 from renderer import Renderer
 import glfw
 import numpy as np
-from preview_layers import BITS, layers_at, validate_layers, parse_layers, materials_at, material_trio_profile, WORLDS, daddy_long_legs_at, earth_details_at
+from preview_layers import BITS, layers_at, validate_layers, parse_layers, materials_at, material_trio_profile, WORLDS, daddy_long_legs_at, earth_details_at, fog_details_at
 
 
 def main():
@@ -49,7 +49,7 @@ def main():
         except ValueError:pass
         else:raise AssertionError(invalid)
     trio=validate_layers({world:material_trio_profile(world) for world in WORLDS})
-    for state in range(28):
+    for state in range(32):
         assert layers_at(trio,state,23.)[0]==2
         a=np.array(materials_at(trio,state,35.999))
         b=np.array(materials_at(trio,state,36.001))
@@ -63,7 +63,14 @@ def main():
     assert materials_at({'water':reversed_profile},7,0.)==(0.,0.,1.)
     assert layers_at(trio,9,20.)[1]&BITS['water_rain']
     assert layers_at(trio,9,28.)[1]&BITS['water_rain']
-    assert selection_states(['elements'])==['dunes','strata','cavern','windstreams','stormfront','vortex','citadel','sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock']
+    assert selection_states(['elements'])==['nebula','marsh','pressure','dunes','strata','cavern','windstreams','stormfront','vortex','citadel','sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock']
+    assert selection_states(['elements','fog'])==['fog']
+    assert selection_states(['elements','fog','marsh'])==['marsh']
+    assert fog_details_at({},29,0.)==(1.,1.,1.)
+    fog_layers=validate_layers({'fog':dict(mode='cycle',seconds=4.,items=[dict(id='fog_volume',enabled=True),dict(id='fog_lights',enabled=True)])})
+    assert fog_details_at(fog_layers,29,0.)==(1.,0.,0.)
+    assert fog_details_at(fog_layers,29,4.)==(0.,1.,0.)
+    assert validate_session(dict(version=3,**dict(DEFAULTS,selection=['elements','fog','marsh'],layers=fog_layers)))['layers']==fog_layers
     assert selection_states(['elements','earth'])==['earth']
     assert selection_states(['elements','earth','strata'])==['strata']
     assert earth_details_at({},24,0.)==(1.,1.,1.,1.)
@@ -92,7 +99,7 @@ def main():
     assert selection_states([])==['blend']
     # A second future branch must not truncate Water's descendants to one hold.
     with patch.dict(WORLD_TREE['elements']['children'], {'test-other':dict(label='Test',state='organic')}):
-        assert selection_states(['elements'])==['dunes','strata','cavern','windstreams','stormfront','vortex','citadel','sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock','organic']
+        assert selection_states(['elements'])==['nebula','marsh','pressure','dunes','strata','cavern','windstreams','stormfront','vortex','citadel','sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock','organic']
     assert selection_states(['future'], {'future':dict(children={
         'a':dict(children={'b':dict(children={'c':dict(state='rain')})}),
         'd':dict(state='sea')})})==['rain','sea']
@@ -319,6 +326,10 @@ def main():
         assert renderer.program['u_earth_details'].value==(0.,0.,1.,0.)
         renderer.layer_profiles={};renderer.render(elapsed_time=93.)
         assert renderer.program['u_earth_details'].value==(1.,1.,1.,1.)
+        renderer.layer_profiles=fog_layers;renderer.debug_state=29;renderer.render(elapsed_time=96.)
+        assert renderer.program['u_fog_details'].value==(1.,0.,0.)
+        renderer.layer_profiles={};renderer.render(elapsed_time=97.)
+        assert renderer.program['u_fog_details'].value==(1.,1.,1.)
         assert renderer.program['u_daddy_long_legs'].value==0.
     finally:renderer.close()
     print('PASS: recursive forms, per-world layer table/solo/order, legacy/v3 sessions, validation, all launch modes, minimum layout, UI lifecycle, real replay state/effect metadata and pacing, continuous GPU clocks.')

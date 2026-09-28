@@ -1,5 +1,19 @@
 # DreamWave Development Studio
 
+## Fog / Gas (2026-09-27)
+
+Choose Elements > Fog / Gas. Leave the form blank for the 114-second native
+cycle, or select Nebula Banks, Ghostlight Marsh, or Pressure Chamber. All three
+also participate in Main Blend. Restart Studio to refresh the new catalog.
+
+Fog details offers Vapor banks, Internal light & ghostlights, and Pressure
+fronts & fine filaments through the existing add/remove, solo and cycle table.
+Marsh ground and rock silhouettes remain structural and opaque even with vapor
+disabled. Only vapor uses translucency. Existing materials and spatial effects
+modulate the vapor's pigment without replacing its depth structure.
+Saved explicit effect lists must add the new Fog details; authored defaults
+include all three. Existing saved sessions remain valid.
+
 ## Earth (2026-09-27)
 
 Choose Elements > Earth. Leave the form blank for the 108-second native cycle,
