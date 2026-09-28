@@ -6,16 +6,35 @@ import time
 from unittest.mock import patch
 import tkinter as tk
 
+from technique_library import entries, search, TECHNIQUES, SHADER, find_code
 from studio import (Studio, DEFAULTS, LIVE_STATES, WORLD_TREE, command, validate_session,
                     ROOT, tracks, selection_states, path_for_state)
 from replay_test import replay
 from renderer import Renderer
 import glfw
 import numpy as np
-from preview_layers import BITS, layers_at, validate_layers, parse_layers, materials_at, material_trio_profile, WORLDS, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
+from preview_layers import EFFECTS, BITS, layers_at, validate_layers, parse_layers, materials_at, material_trio_profile, WORLDS, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
 
 
 def main():
+    found = find_code('water_current')
+    assert any(r['symbol'] == 'water_current' and r['language'] == 'GLSL' for r in found)
+    assert any(r['symbol'] == 'water_surface' for r in found)  # finds use, not only definition
+    assert any(r['symbol'] == 'Renderer.choose_world' for r in find_code('choose_world'))
+    for row in found:
+        assert row['symbol'] in (ROOT / row['path']).read_text(encoding='utf-8').splitlines()[row['line'] - 1]
+    catalog = entries(WORLD_TREE)
+    assert len({row['id'] for row in catalog}) == len(catalog)
+    assert {row['id'][7:] for row in catalog if row['id'].startswith('effect:')} == set(EFFECTS)
+    for row in catalog:
+        if 'selection' in row: selection_states(row['selection'])
+        for location in row['sources']: assert (ROOT / location.split(':')[0]).is_file(), location
+    shader = (ROOT / SHADER).read_text(encoding='utf-8')
+    for _, _, symbol in TECHNIQUES: assert symbol + '(' in shader
+    assert search(catalog, 'STAR continuous', 'Techniques')
+    assert not search(catalog, 'no-such-entry-xyz')
+    assert all(row['kind'] == 'Experiments' for row in search(catalog, '', 'Experiments'))
+
     assert daddy_long_legs_at({},21,0.)==0.
     assert BITS['air_citadel']==1<<30 and BITS['daddy_long_legs']==0
     assert sum(BITS.values())==2147483647
@@ -133,6 +152,36 @@ def main():
         app=Studio(root)
         try:
             root.deiconify();root.update()
+            style = __import__('tkinter.ttk', fromlist=['Style']).Style(root)
+            for widget in ('Treeview', 'TEntry', 'TSpinbox', 'TCombobox'):
+                assert style.lookup(widget, 'fieldbackground') == '#233047'
+            assert style.lookup('Treeview', 'background') == '#233047'
+            assert style.lookup('Treeview', 'foreground') == '#e3eaf4'
+            assert style.lookup('Treeview', 'foreground', ('selected',)) == '#ffffff'
+            before = app.values()
+            app.library_query.set('waterfall')
+            root.update()
+            assert app.library_list.get_children()
+            app.library_list.selection_set('world:elements/water/waterfall')
+            app.show_library_entry()
+            app.choose_library_world()
+            assert app.selection == ['elements', 'water', 'waterfall']
+            assert app.values()['layers'] == before['layers'] and app.process is None
+            app.tabs.select(app.library_tab)
+            app.library_query.set('no-such-entry-xyz')
+            root.update()
+            assert not app.library_list.get_children()
+            assert str(app.library_choose['state']) == 'disabled'
+            app.library_query.set('daddy')
+            app.library_kind.set('Experiments')
+            root.update()
+            assert app.library_list.get_children() == ('effect:daddy_long_legs',)
+            assert str(app.library_choose['state']) == 'disabled'
+            app.library_sources.set(True); app.show_library_entry()
+            assert 'preview_layers.py' in app.library_detail.get('1.0', 'end')
+            root.geometry('680x700'); root.update()
+            assert app.library_choose.winfo_rooty() + app.library_choose.winfo_height() < root.winfo_rooty() + root.winfo_height()
+            app.tabs.select(app.preview); root.update()
             assert len(tracks()) == 3
             assert app.stop_button.winfo_y()+app.stop_button.winfo_height() <= app.preview.winfo_height()
             app.session_path=folder/'session.json'
@@ -343,7 +392,7 @@ def main():
         assert renderer.program['u_plasma_details'].value==(1.,1.,1.)
         assert renderer.program['u_daddy_long_legs'].value==0.
     finally:renderer.close()
-    print('PASS: recursive forms, per-world layer table/solo/order, legacy/v3 sessions, validation, all launch modes, minimum layout, UI lifecycle, real replay state/effect metadata and pacing, continuous GPU clocks.')
+    print('PASS: Library search/catalog/source anchors, safe selection, minimum layout, recursive forms, per-world layer table/solo/order, legacy/v3 sessions, validation, all launch modes, minimum layout, UI lifecycle, real replay state/effect metadata and pacing, continuous GPU clocks.')
 
 
 if __name__=='__main__':main()

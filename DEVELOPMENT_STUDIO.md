@@ -1,5 +1,33 @@
 # ZeraWave Development Studio
 
+## Current workflow and navigation (2026-09-27)
+
+Launch `run_development_studio.bat`. Start in **Library** when you want to find
+a world, effect or existing technique. Search and filter by category; choose a
+world for preview without changing saved layers or starting playback. Effects
+remain managed in **Effects & layers**. Implementation locations are optional.
+For development ownership and reuse, see [the technique map](TECHNIQUE_LIBRARY.md).
+
+1. **Build & preview:** choose a world/form and input. Blank descendants cycle
+   their branch; blank World selects Main blend.
+2. **Effects & layers:** add, solo, order or cycle optional layers for that world.
+   Authored restores its authored presentation; Main has a separate profile.
+3. **Review:** inspect the run folder, quiet and strong passages, then Main blend.
+4. **Library:** discover existing capabilities before adding new ones.
+
+Current Main uses the renderer's energy/lift/release director with session
+entropy and recurrence preferences. It is not the old fixed or shuffled timed
+itinerary and does not detect actual choruses. Water, Fire, Air, Earth, Fog/Gas
+and Plasma are integrated. Existing v1/v2/v3 sessions remain supported.
+
+The dated material below preserves development history. In particular, old
+45/55/85-second Planet opportunities and six-minute shuffled chapters no longer
+describe Main. Consult this section, the technique map and current renderer
+before using older timing statements.
+
+## Historical development notes
+
+
 ## Plasma (2026-09-27)
 
 Restart Studio and choose Elements > Plasma. Leave the form blank for the

@@ -2,6 +2,34 @@
 
 Updated: 2026-09-27
 
+## Studio contrast and developer lookup (uncommitted)
+
+User clarified that the index must help agents find existing code, independently
+of the UI. technique_library.py now offers find_code() and a text/JSON CLI,
+scanning current Python AST and GLSL definitions/bodies with current line numbers.
+See TECHNIQUE_LIBRARY.md for commands. Negative matches are not proof of absence.
+Studio table/input/dropdown colors are explicit so unselected text stays readable.
+No skin system added; no renderer/audio changes.
+
+## Studio discovery and reuse (uncommitted, 2026-09-27)
+
+User requested projectM review and a clearer, reusable development environment
+before Echo Weave. Start with TECHNIQUE_LIBRARY.md for ownership and reuse;
+Studio now has a searchable Library tab generated from WORLD_TREE and EFFECTS,
+plus curated technique anchors in app/visuals/technique_library.py. These are
+read-only discovery records, not a new renderer or runtime registry.
+
+Selecting a Library world preserves layer profiles and does not start playback.
+Implementation locations are optional. DEVELOPMENT_STUDIO.md now opens with
+current navigation/director behavior and marks the older timing notes historical.
+MILKDROP_COMPARISON.md includes the local projectM source review and the proposed
+Echo Weave experiment; Echo Weave is not implemented. No third-party code/assets
+were copied and no new dependency was installed.
+
+Validation: app/visuals/studio_test.py passed with Library coverage in addition
+to existing sessions, navigation, replay and GPU checks. Runtime renderer/shader
+and audio are unchanged. User visual review and commit remain pending.
+
 ## Targeted GPU performance checkpoint
 
 Base: 3b83248. User authorized committing the verified performance pass.

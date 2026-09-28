@@ -8,6 +8,7 @@ import time
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
+from technique_library import entries as library_entries, search as search_library
 from live_visual_test import LIVE_STATES
 from preview_layers import (EFFECTS, MODES, default_profile, validate_layers, world_for_state, material_trio_profile, WORLDS)
 
@@ -196,6 +197,22 @@ class Studio:
         style = ttk.Style(root)
         style.theme_use('clam')
         style.configure('.', background='#141a28', foreground='#e3eaf4', font=('Segoe UI', 10))
+        # clam keeps white field defaults unless each input/table is styled.
+        style.configure('Treeview', background='#233047', fieldbackground='#233047',
+                        foreground='#e3eaf4', rowheight=24)
+        style.map('Treeview', background=[('selected', '#365775')],
+                  foreground=[('selected', '#ffffff')])
+        style.configure('Treeview.Heading', background='#283951', foreground='#e3eaf4')
+        style.map('Treeview.Heading', background=[('active', '#365775')])
+        for widget in ('TEntry', 'TSpinbox'):
+            style.configure(widget, fieldbackground='#233047', foreground='#e3eaf4',
+                            insertcolor='#ffffff', selectbackground='#365775', selectforeground='#ffffff')
+            style.map(widget, fieldbackground=[('disabled', '#1b2434'), ('readonly', '#233047')],
+                      foreground=[('disabled', '#a6b4c8')])
+        root.option_add('*TCombobox*Listbox.background', '#233047')
+        root.option_add('*TCombobox*Listbox.foreground', '#e3eaf4')
+        root.option_add('*TCombobox*Listbox.selectBackground', '#365775')
+        root.option_add('*TCombobox*Listbox.selectForeground', '#ffffff')
         style.configure('TNotebook.Tab', padding=(16, 8))
         style.map('TNotebook.Tab', background=[('selected', '#283951')])
         style.configure('TCombobox', fieldbackground='#233047', background='#283951')
@@ -270,9 +287,92 @@ class Studio:
         ttk.Label(root,textvariable=self.status,wraplength=740).pack(fill='x',padx=20,pady=(0,16))
         self.build_layers()
         self.refresh_layers()
+        self.build_library()
         self.menus()
         root.protocol('WM_DELETE_WINDOW',self.close)
         root.after(200,self.poll)
+
+    def build_library(self):
+        self.library_tab = ttk.Frame(self.tabs, padding=20)
+        self.tabs.add(self.library_tab, text='Library')
+        ttk.Label(self.library_tab, text='Find what ZeraWave already knows',
+                  font=('Segoe UI', 15)).pack(anchor='w')
+        ttk.Label(self.library_tab, text='Browse worlds, optional layers and existing techniques before building something new.',
+                  wraplength=600).pack(anchor='w', pady=(6, 12))
+        filters = ttk.Frame(self.library_tab)
+        filters.pack(fill='x')
+        self.library_query = tk.StringVar()
+        self.library_kind = tk.StringVar(value='All')
+        ttk.Label(filters, text='Search').pack(side='left', padx=(0, 8))
+        ttk.Entry(filters, textvariable=self.library_query).pack(side='left', fill='x', expand=True)
+        self.library_rows = library_entries(WORLD_TREE)
+        kinds = ['All', *dict.fromkeys(row['kind'] for row in self.library_rows)]
+        ttk.Combobox(filters, textvariable=self.library_kind, values=kinds,
+                     state='readonly', width=20).pack(side='left', padx=(8, 0))
+        self.library_count = tk.StringVar()
+        ttk.Label(self.library_tab, textvariable=self.library_count).pack(anchor='w', pady=8)
+        list_frame = ttk.Frame(self.library_tab)
+        list_frame.pack(fill='both', expand=True)
+        self.library_list = ttk.Treeview(list_frame, columns=('kind',), show='tree headings', height=9, selectmode='browse')
+        self.library_list.heading('#0', text='Name')
+        self.library_list.heading('kind', text='Category')
+        self.library_list.column('#0', width=380, minwidth=160)
+        self.library_list.column('kind', width=140, minwidth=110, stretch=False)
+        scroll = ttk.Scrollbar(list_frame, orient='vertical', command=self.library_list.yview)
+        self.library_list.configure(yscrollcommand=scroll.set)
+        scroll.pack(side='right', fill='y')
+        self.library_list.pack(side='left', fill='both', expand=True)
+        detail_frame = ttk.Frame(self.library_tab)
+        detail_frame.pack(fill='x', pady=12)
+        self.library_detail = tk.Text(detail_frame, height=7, wrap='word', background='#233047',
+                                      foreground='#e3eaf4', relief='flat', padx=10, pady=10)
+        detail_scroll = ttk.Scrollbar(detail_frame, orient='vertical', command=self.library_detail.yview)
+        self.library_detail.configure(yscrollcommand=detail_scroll.set)
+        detail_scroll.pack(side='right', fill='y')
+        self.library_detail.pack(side='left', fill='x', expand=True)
+        self.library_detail.configure(state='disabled')
+        actions = ttk.Frame(self.library_tab)
+        actions.pack(fill='x')
+        self.library_choose = ttk.Button(actions, text='Choose for preview', command=self.choose_library_world, state='disabled')
+        self.library_choose.pack(side='left')
+        ttk.Button(actions, text='Effects & layers', command=lambda: self.tabs.select(self.layers_tab)).pack(side='left', padx=8)
+        self.library_sources = tk.BooleanVar(value=False)
+        ttk.Checkbutton(self.library_tab, text='Show implementation locations', variable=self.library_sources,
+                        command=self.show_library_entry).pack(anchor='w', pady=(8, 0))
+        self.library_list.bind('<<TreeviewSelect>>', self.show_library_entry)
+        self.library_query.trace_add('write', self.refresh_library)
+        self.library_kind.trace_add('write', self.refresh_library)
+        self.refresh_library()
+
+    def refresh_library(self, *_):
+        rows = search_library(self.library_rows, self.library_query.get(), self.library_kind.get())
+        self.library_list.delete(*self.library_list.get_children())
+        for row in rows:
+            self.library_list.insert('', 'end', iid=row['id'], text=row['title'], values=(row['kind'],))
+        self.library_count.set(f'{len(rows)} entries' if rows else 'No matches. Try a broader search or choose All.')
+        if rows:
+            self.library_list.selection_set(rows[0]['id'])
+        self.show_library_entry()
+
+    def show_library_entry(self, event=None):
+        selected = self.library_list.selection()
+        row = next((r for r in self.library_rows if selected and r['id'] == selected[0]), None)
+        text = (row['title'] + '\n\n' + row['summary']) if row else 'Search by name, world or technique.'
+        if row and self.library_sources.get():
+            text += '\n\nImplementation: ' + '; '.join(row['sources'])
+        self.library_detail.configure(state='normal')
+        self.library_detail.delete('1.0', 'end')
+        self.library_detail.insert('1.0', text)
+        self.library_detail.configure(state='disabled')
+        self.library_choose.configure(state='normal' if row and 'selection' in row else 'disabled')
+
+    def choose_library_world(self):
+        selected = self.library_list.selection()
+        row = next((r for r in self.library_rows if selected and r['id'] == selected[0]), None)
+        if row and 'selection' in row:
+            self.select(row['selection'])
+            self.tabs.select(self.preview)
+            self.status.set('World selected. Your layer settings are preserved. Start preview when ready.')
 
     def values(self):
         values = {k:v.get() for k,v in self.vars.items()}
@@ -448,6 +548,7 @@ class Studio:
         view=tk.Menu(bar,tearoff=False)
         view.add_command(label='Build & preview',command=lambda:self.tabs.select(self.preview))
         view.add_command(label='Effects & layers',command=lambda:self.tabs.select(self.layers_tab))
+        view.add_command(label='Library',command=lambda:self.tabs.select(self.library_tab))
         view.add_command(label='Review',command=lambda:self.tabs.select(self.results))
         view.add_command(label='Latest results folder',command=self.open_results)
         bar.add_cascade(label='View',menu=view)
