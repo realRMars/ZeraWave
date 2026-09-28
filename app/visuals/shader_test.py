@@ -141,21 +141,24 @@ def sweep(output):
         renderer.close()
 
 
-def choreography_test(baseline_path, output):
+def choreography_test(baseline_path, output, optimization=False):
     """Preserve held worlds and verify bidirectional Main handoff continuity."""
     from renderer import world_uniforms
     output.mkdir(parents=True,exist_ok=True)
     r=Renderer(width=480,height=270,seed=42);old=mesh=None
     try:
         glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        target=r.ctx.screen
         source=(Path(__file__).parent/'shaders/dream.frag').read_text()
         baseline=baseline_path.read_text()
-        assert baseline[baseline.index('float effect('):baseline.index('void main()')].strip()==source[source.index('float effect('):source.index('// Main-only physical handoffs.')].strip(), 'Accepted world helpers changed'
+        if not optimization:
+            assert baseline[baseline.index('float effect('):baseline.index('void main()')].strip()==source[source.index('float effect('):source.index('// Main-only physical handoffs.')].strip(), 'Accepted world helpers changed'
         old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline)
         mesh=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
-        def frame(state,t=16.,energy=.65,hit=0.,weights=None,previous=False,details=(1.,1.,1.),mask=2147483647,mode=0,material=(1.,0.,0.),signals=None):
+        def frame(state,t=16.,energy=.65,hit=0.,weights=None,previous=False,details=(1.,1.,1.),mask=2147483647,mode=0,material=(1.,0.,0.),signals=None,timing=False):
             pr,vao=(old,mesh) if previous else (r.program,r.vao)
-            values=dict(u_time=t*.75,u_star_time=t,u_drift_time=t,u_resolution=(480.,270.),u_scale=energy,u_flux=energy,
+            target.use();width,height=target.size
+            values=dict(u_time=t*.75,u_star_time=t,u_drift_time=t,u_resolution=(float(width),float(height)),u_scale=energy,u_flux=energy,
                 u_sparkle=energy,u_impact=hit,u_intensity=1.,u_distortion=1.,u_debug_state=float(state),u_event_blasts=0,
                 u_layer_mode=mode,u_layer_mask=mask,u_material_mix=material,u_air_flash_id=2.,u_air_afterglow=hit,
                 u_daddy_long_legs=0.,u_earth_details=(1.,1.,1.,1.),u_fog_details=(1.,1.,1.),u_plasma_details=details,**world_uniforms(weights or {},enabled=weights is not None))
@@ -164,8 +167,11 @@ def choreography_test(baseline_path, output):
                 if k in pr:pr[k].value=v
             pr['u_shockwaves'].value=[(-1000.,0.,0.,0.)]*8
             pr['u_air_trails'].value=[(0.,0.)]*3
+            if timing:
+                with r.ctx.query(time=True) as query:vao.render(mode=moderngl.TRIANGLE_STRIP)
+                return query.elapsed/1e6
             vao.render(mode=moderngl.TRIANGLE_STRIP)
-            return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)[::-1].copy()
+            return np.frombuffer(target.read(components=3),np.uint8).reshape(height,width,3)[::-1].copy()
         checks=0
         for state in range(36):
             for mode in (0,2):
@@ -194,6 +200,52 @@ def choreography_test(baseline_path, output):
                     continuity.append(delta);tiles.append(pixels)
                 save_png(output/f'pair-{a}-{b}.png',np.concatenate(tiles,axis=1))
         report=dict(held_checks=checks,pair_frames=len(continuity),max_continuity_delta=max(continuity))
+        if optimization:
+            errors=[]
+            def compare(state,t,energy,weights=None,signals=None):
+                current=frame(state,t=t,energy=energy,hit=energy*.7,mode=2,weights=weights,signals=signals)
+                previous=frame(state,t=t,energy=energy,hit=energy*.7,mode=2,weights=weights,signals=signals,previous=True)
+                error=np.abs(current.astype(float)-previous)
+                assert error.mean()<.05 and (error>2).mean()<.0025,('optimization changed image',state,t,energy,weights,error.mean(),(error>2).mean())
+                errors.append(float(error.mean()))
+                return previous,current
+            for state in (22,24,26,29,32):
+                for t in (0.,3.,8.,16.,32.,64.):
+                    for energy in (.05,.9):
+                        before,after=compare(state,t,energy)
+                        if t in (8.,32.) and energy==.9:
+                            save_png(output/f'preserve-{state}-{t:g}.png',np.concatenate((before,after),axis=1))
+            for a,b in ((22,32),(32,22),(24,29),(29,24),(26,28),(28,26)):
+                for t in (12.,50.):
+                    tiles=[]
+                    for phase in (0.,.2,.5,.8,1.):
+                        signals=dict(u_handoff=(handoff_kind(a,b),phase,world_family(a),world_family(b)),u_world_warp=math.sin(math.pi*phase))
+                        before,after=compare(0,t,.85,{a:1.-phase,b:phase},signals)
+                        tiles.append(np.concatenate((before,after),axis=1))
+                    save_png(output/f'preserve-pair-{a}-{b}-{t:g}.png',np.concatenate(tiles,axis=0))
+            for size in ((1280,720),(360,640)):
+                target=r.ctx.simple_framebuffer(size)
+                try:
+                    for state in (22,24):
+                        for t in (12.,32.,128.,240.):compare(state,t,.85)
+                    if size==(1280,720):
+                        timings={}
+                        for a,b in ((32,22),(24,29),(26,28),(5,5),(20,20)):
+                            samples={True:[],False:[]}
+                            for round_id in range(3):
+                                for previous in ((True,False) if round_id%2==0 else (False,True)):
+                                    for i in range(12):
+                                        ms=frame(0,t=16.+i/60.,energy=.8,hit=.3,mode=2,
+                                            material=(.2,.6,.2),previous=previous,timing=True,
+                                            weights={a:1.} if a==b else {a:.5,b:.5},
+                                            signals=dict(u_handoff=(handoff_kind(a,b),.5,world_family(a),world_family(b))))
+                                        if i>=4:samples[previous].append(ms)
+                            timings[f'{a}-{b}']={name:round(float(np.median(samples[previous])),3)
+                                for previous,name in ((True,'before_ms'),(False,'after_ms'))}
+                        report['gpu_720p']=timings
+                finally:
+                    target.release();target=r.ctx.screen
+            report.update(optimization_comparisons=len(errors),max_mean_image_error=max(errors))
         (output/'checks.json').write_text(json.dumps(report,indent=2));print(report,flush=True)
     finally:
         if mesh is not None:mesh.release()
@@ -2828,6 +2880,7 @@ if __name__ == "__main__":
     parser.add_argument("--ownership-test", nargs=2, type=Path)
     parser.add_argument("--director-test", action="store_true")
     parser.add_argument("--choreography-test", nargs=2, type=Path)
+    parser.add_argument("--optimization-test", nargs=2, type=Path)
     parser.add_argument("--musical-color-test", nargs=2, type=Path)
     parser.add_argument("--water-meld-test", nargs=2, type=Path)
     parser.add_argument("--fire-expression-test", type=Path)
@@ -2838,6 +2891,9 @@ if __name__ == "__main__":
     parser.add_argument("--earth-test", nargs=2, type=Path)
     parser.add_argument("--air-test", nargs=2, type=Path)
     args = parser.parse_args()
+    if args.optimization_test:
+        choreography_test(*args.optimization_test,optimization=True)
+        raise SystemExit(0)
     if args.choreography_test:
         choreography_test(*args.choreography_test)
         raise SystemExit(0)

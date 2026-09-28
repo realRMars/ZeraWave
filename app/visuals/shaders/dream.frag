@@ -2271,7 +2271,17 @@ vec3 air_citadel(vec2 p,vec3 sky,float amount) {
     vec3 rd=normalize(fw+right*q.x*1.13+up*(q.y-.09)*1.13);
     float surfaceDepth=100.;
     // Castle and attached island participate in the same depth trace.
-    if(abs(q.x)<.82 && q.y>-.52 && q.y<.68) {
+    // Conservative ray/box rejection only: retained rays keep the exact trace.
+    // Bounds include the island displacement, tower merlons and central cone.
+    vec3 safeRay=vec3(rd.x<0. ? -max(abs(rd.x),1e-8) : max(abs(rd.x),1e-8),
+        rd.y<0. ? -max(abs(rd.y),1e-8) : max(abs(rd.y),1e-8),
+        rd.z<0. ? -max(abs(rd.z),1e-8) : max(abs(rd.z),1e-8));
+    vec3 slabA=(vec3(-1.1,-.6,-1.1)-ro)/safeRay;
+    vec3 slabB=(vec3(1.1,1.4,1.1)-ro)/safeRay;
+    vec3 entry=min(slabA,slabB),leave=max(slabA,slabB);
+    float nearBox=max(entry.x,max(entry.y,entry.z));
+    float farBox=min(leave.x,min(leave.y,leave.z));
+    if(abs(q.x)<.82 && q.y>-.52 && q.y<.68 && farBox>=max(1.2,nearBox) && nearBox<4.9) {
         float t=1.2;vec2 hit=vec2(1.,0.);vec3 pos=ro;
         for(int j=0;j<144;j++) {
             pos=ro+rd*t;hit=air_castle_map(pos);
@@ -2367,6 +2377,11 @@ vec3 air_citadel(vec2 p,vec3 sky,float amount) {
         vec3 tint=mix(air_palette(id*.21+serial*.13),vec3(1.,.61,.20),mod(id,2.)*.7);
         sky+=mix(tint,vec3(1.),.55)*exp(-length(p-origin)*180.)
             *exp(-age*40.)*step(.28,phase)*celebration*amount*step(6.,surfaceDepth);
+        // No trails before ignition or behind the castle. The ballistic bound
+        // includes secondary branches plus a generous .10 glow margin; outside
+        // it even the slowest exponential tail is below display precision.
+        float burstRadius=.62*age+.18*age*age+.10;
+        if(age>0. && surfaceDepth>=6. && length(p-origin)<burstRadius)
         for(int k=0;k<24;k++) {
             float a=float(k)*2.399963+id,rad=.18+.13*fract(sin(float(k)*7.+id)*437.);
             vec2 velocity=vec2(cos(a),sin(a))*rad;
@@ -2801,6 +2816,17 @@ vec2 earth_map(vec3 p,int form) {
             vec3 middle=earth_worm_point(.5,serial);
             float bound=length(max(abs(p-middle)-vec3(6.,5.,8.),0.));
             if(bound>1.)return vec2(min(result.x,bound),0.);
+            // The entire body projects onto one straight horizontal segment.
+            // Its capsule is a lower distance bound regardless of dune height.
+            float seed=hash(vec2(serial,71.));
+            float lane=(hash(vec2(serial,19.))-.5)*11.;
+            float slope=seed>.5 ? 8. : -8.;
+            vec2 start=vec2(lane+(head-.5)*slope,serial*32.+12.+seed*14.+head*11.);
+            vec2 end=start-vec2(slope,11.)*.46;
+            vec2 projected=end-start;
+            float along=clamp(dot(p.xz-start,projected)/dot(projected,projected),0.,1.);
+            float lowerBound=(length(p.xz-mix(start,end,along))-.80)*.65;
+            if(lowerBound>result.x+.002)return result;
             for(int i=0;i<10;i++) {
                 float a=head-float(i)*.046,b=a-.046;
                 vec3 pa=earth_worm_point(a,serial),pb=earth_worm_point(b,serial),axis=pb-pa;

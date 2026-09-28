@@ -2,6 +2,50 @@
 
 Updated: 2026-09-27
 
+## Targeted GPU performance checkpoint
+
+Base: 3b83248. User authorized committing the verified performance pass.
+User resumed the suggested performance work before material
+expansion. Only dream.frag, shader_test.py and this handoff change. Audio,
+world selection, scene detail, ray step counts, and material gathering remain
+unchanged.
+
+Three conservative rejection tests remove invisible geometry work:
+- Citadel rays outside an enclosing 3D box skip the castle distance trace;
+  rays that can hit it retain the original start, steps and normal evaluation.
+- Firework trails skip pre-ignition, castle-occluded and out-of-burst pixels.
+  The ballistic radius includes secondary branches and a generous glow margin.
+- Dune worm distance tests first use a horizontal capsule lower bound. Detailed
+  body segments are evaluated only where they can improve the terrain distance.
+
+The existing shader test now has --optimization-test BASELINE OUTPUT. It keeps
+72 authored/custom held comparisons and 98 bidirectional handoff samples, then
+compares 136 additional images across quiet/strong signals, worm/castle motion,
+both transition directions, later camera orbits, 720p and portrait viewports.
+All 136 additional comparisons were pixel-identical to the accepted baseline.
+The test also records alternating before/after 720p GPU timings; it does not
+assert hardware-dependent timing thresholds.
+
+Final test medians (baseline -> optimized milliseconds):
+- Magnetic/Citadel: 20.235 -> 15.870 (about 22% less GPU time).
+- Dunes/Marsh: 18.231 -> 12.253 (about 33% less GPU time).
+- Cavern/Nebula: 10.784 -> 10.793.
+- Planet Canvas: 4.780 -> 4.786; Stormfront: 9.302 -> 9.340.
+These are sampled GPU timings, not guaranteed end-to-end 60 fps at every camera,
+resolution or musical moment. Earlier directional measurements also improved
+isolated Citadel and Dunes. No quality settings or resolution were reduced.
+
+Real-audio pipeline checks: WarbotJazz Main seed 2 and Balloon Dunes each
+completed 60 seconds / 1407 analyzed frames. Capture sheets were visually
+inspected for castle/firework continuity and worm emergence. These were decoded
+audio replays with no audible playback, not live listening tests.
+
+Evidence: ignored work/performance-pass/before.frag, checks/checks.json and
+paired captures. Use the shader from 3b83248 as the reproducible baseline.
+The source-identity guard in the older choreography-only mode intentionally
+expects pre-choreography helpers; use optimization mode for this image-preserving
+helper change.
+
 ## Product name: ZeraWave
 
 The user chose ZeraWave as the new product name. App/Studio titles, launchers,
