@@ -1,4 +1,24 @@
-# Elemental vocabulary: Water foundation
+# Elemental vocabulary: accepted families and development history
+
+## Current checkpoint (2026-09-28)
+
+All six Elemental families have accepted foundations and Main Blend integration.
+The latest accepted repair pass adds:
+
+- Crystal Cavern: stable formation placement and neighboring-cell tracing so
+  crystals and floor formations are not sliced at cell boundaries. Rendering is
+  heavier; measured about 23.75 ms/frame at 720p on the development machine.
+- Aftershock: fresh onsets can replace the oldest of eight sites, with .70-second
+  minimum spacing, avoiding the old pool-expiry pause. Aurora scrolls sideways
+  while retaining impact bends. Older plumes can retire early during heavy music.
+- Sea: independently selectable shooting stars shared between sky and reflections.
+  Sea's sky remains separate from the shared material canvas.
+
+See ZERAWAVE_HANDOFF.md for exact checks and the next-work order. Existing global
+normalization and accepted world identities remain intact. The next proposed
+focus is palette/surface variety, not automatically adding more Elemental states.
+Older sections below record earlier implementation stages; this checkpoint and
+the current handoff take precedence over stale future-work or approval language.
 
 ## Plasma foundation (2026-09-27, accepted)
 

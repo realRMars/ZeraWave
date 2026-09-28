@@ -22,6 +22,13 @@ untested PCs. Python is included in the ZIP. No administrator access is needed.
 The product player runs Main Blend with four materials; Studio remains the
 project's development environment. No test music is distributed.
 
+## Retained portable checkpoint
+
+`work/releases/ZeraWave-preview-final.zip` is the user's frozen checkpoint of
+app source at `d4992d0`. The accepted 2026-09-28 Cavern/Aftershock/Sea repairs are
+in the project checkout, not that ZIP. Keep it intact; a future build must use a
+new output name. See ZERAWAVE_HANDOFF.md for the current working-app status.
+
 ## Build
 
 Use the project's .venv Python to run `build_portable.py`. An optional `--output`

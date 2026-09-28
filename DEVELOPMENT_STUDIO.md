@@ -1,5 +1,23 @@
 # ZeraWave Development Studio
 
+## Latest accepted pass (2026-09-28)
+
+Cavern formation clipping, ongoing Aftershock strikes and sideways aurora motion
+are repaired in the working app. Sea now has shooting stars with wave reflections.
+Choose **Effects & layers > Sky effects > Shooting stars** for Water, Cosmic or
+Main Blend. Water's Authored mode includes them; Cosmic's Authored mode preserves
+its previous sky. Existing explicit saved lists are not migrated: add and enable
+this row to use it there. Main's current default list includes it.
+
+The effect uses the same directional light for Sea's sky and reflection; it does
+not turn the sky into the material canvas. Read the current
+[handoff](ZERAWAVE_HANDOFF.md) for verification and performance limits, and the
+[technique map](TECHNIQUE_LIBRARY.md) before building related effects.
+
+Next recommended development is independent palettes, then one surface treatment;
+these controls are not implemented yet. The portable checkpoint is older than
+this working app and stays unchanged.
+
 ## Echo Weave and Main's material quartet
 
 Echo Weave now lives in **Material**, alongside Living Artifacts, Liquid Alloy

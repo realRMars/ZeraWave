@@ -8,7 +8,7 @@ import moderngl
 import math
 
 from parameters import VisualParameters
-from preview_layers import echo_selected, echo_weave_at, layers_at, materials_at, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
+from preview_layers import shooting_stars_at, echo_selected, echo_weave_at, layers_at, materials_at, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
 
 VERTEX_SHADER = """
 #version 330
@@ -306,8 +306,7 @@ class Renderer:
         new_hit = impact>=.20 and self.blast_armed and seconds-self.last_blast_hit>=.22
         if new_hit:
             self.blast_hits+=1;self.last_blast_hit=seconds;self.blast_armed=False
-        ready = self.blast_hits>=3 or impact>=.40
-        if new_hit and ready and seconds-self.last_blast>=1.5 and len(self.blast_events)<8:
+        if new_hit and seconds-self.last_blast>=.70:
             rng=random.Random(41+self.blast_serial*47)
             # Pick the most separated of bounded candidates in projected ground
             # space as well as world space, so far/near events do not pile up.
@@ -319,6 +318,9 @@ class Renderer:
                     +((6./depth-6./max(4.,e[3]-seconds*.30))/.12)**2)
                     for e in self.blast_events),default=1.)
             x,z=max(candidates,key=separation)
+            # Recycle the oldest (most faded) site instead of waiting for all
+            # eight 20-second lifetimes to expire. Capacity stays bounded.
+            self.blast_events = self.blast_events[-7:]
             self.blast_events.append((seconds,float(self.blast_serial),x,z))
             self.blast_serial+=1;self.last_blast=seconds;self.blast_hits=0
 
@@ -538,6 +540,8 @@ class Renderer:
         self.program['u_layer_mode'].value = mode
         self.program['u_layer_mask'].value = mask
         self.program['u_daddy_long_legs'].value = daddy_long_legs_at(
+            self.layer_profiles, self.state_at(current_time), current_time)
+        self.program['u_shooting_stars'].value = shooting_stars_at(
             self.layer_profiles, self.state_at(current_time), current_time)
         self.program['u_fog_details'].value = fog_details_at(
             self.layer_profiles, self.state_at(current_time), current_time)

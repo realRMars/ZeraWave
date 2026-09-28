@@ -103,3 +103,27 @@ research and untracked scripts intact until their ownership and value are clear.
   excludes the project's work/music/research folders, and smoke-tests the runtime.
 - app/audio/beat_tracker_test.py, capture_selection_test.py, app/player_test.py
   cover timing confidence, device identity and preference/error recovery.
+
+## World repair / sky extension (accepted 2026-09-28)
+
+- `cavern_formation` owns stable cell-local formations. `earth_map` evaluates
+  nearby footprints and bounds steps toward omitted cells, including for normals.
+- `shooting_star_radiance(direction)` returns directional light, not an overlay.
+  `water_environment` uses it for sky and reflected rays, before island occlusion;
+  `cosmic_star_layer` also supports it. Sky effects > Shooting stars is independently
+  selectable. Water authored mode enables it; Cosmic authored mode stays unchanged.
+  Explicit older saved lists retain their selection and need the new row added.
+- `Renderer.update_blasts` recycles the oldest event at eight sites on a fresh
+  qualifying onset, with a .70-second spacing guard. Constant high impact does not
+  retrigger. It no longer waits for the pool's 20-second lifetimes to expire.
+
+Next extension direction (not implemented): independent palette families, then
+surface-light treatments (pearlescence, caustics, ink absorption), and flow-driven
+feedback. Keep material, spatial, sky/light and palette responsibilities distinct.
+For each reusable effect document coordinate space, occlusion/reflection support,
+quiet/peak audio roles, compatible worlds and measured cost. No new framework or
+third-party source is required for this incremental approach.
+
+Next-work priority and acceptance status live in ZERAWAVE_HANDOFF.md. Reusable
+style presets are a later proposal using existing session/profile machinery,
+not a new preset format. The portable checkpoint does not include this sky pass.

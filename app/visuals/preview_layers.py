@@ -54,12 +54,14 @@ EFFECTS = {
 }
 EFFECTS['echo_weave'] = ('Echo Weave', 'Material', WORLDS)
 # All 31 positive signed-mask bits are occupied; later effects use explicit uniforms.
+EFFECTS['shooting_stars'] = ('Shooting stars', 'Sky effects', ('blend', 'water', 'cosmic'))
+SKY_EFFECTS = ('shooting_stars',)
 EXPERIMENTS = ('daddy_long_legs',)
 EXPLICIT_MATERIALS = ('echo_weave',)
 EARTH_DETAILS = ('earth_sediment', 'earth_veins', 'earth_dust', 'earth_worm')
 FOG_DETAILS = ('fog_volume', 'fog_lights', 'fog_fronts')
 PLASMA_DETAILS = ('plasma_field', 'plasma_arcs', 'plasma_sparks')
-BITS = {key: (0 if key in EXPERIMENTS + EXPLICIT_MATERIALS + EARTH_DETAILS + FOG_DETAILS + PLASMA_DETAILS else 1 << i) for i, key in enumerate(EFFECTS)}
+BITS = {key: (0 if key in EXPERIMENTS + EXPLICIT_MATERIALS + EARTH_DETAILS + FOG_DETAILS + PLASMA_DETAILS + SKY_EFFECTS else 1 << i) for i, key in enumerate(EFFECTS)}
 MODES = {'authored': 'Authored', 'together': 'Selected together', 'cycle': 'Cycle list', 'meld': 'Meld materials'}
 MATERIALS = ('artifacts', 'alloy', 'lattice', 'echo_weave')
 
@@ -213,3 +215,14 @@ def echo_weave_at(profiles, state, seconds):
 def echo_selected(profiles, state):
     profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
     return profile['mode'] != 'authored' and any(item['id'] == 'echo_weave' and item['enabled'] for item in profile['items'])
+
+
+def shooting_stars_at(profiles, state, seconds):
+    world = world_for_state(state)
+    if world not in EFFECTS['shooting_stars'][2]: return 0.
+    profile = profiles.get(world, default_profile(world))
+    if profile['mode'] == 'authored': return float(world == 'water')
+    ids = [item['id'] for item in profile['items'] if item['enabled']]
+    if profile['mode'] == 'cycle' and ids:
+        ids = [ids[int(max(0., seconds) // profile['seconds']) % len(ids)]]
+    return float('shooting_stars' in ids)

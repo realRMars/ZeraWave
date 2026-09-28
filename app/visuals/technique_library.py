@@ -5,6 +5,7 @@ SHADER = 'app/visuals/shaders/dream.frag'
 # title, search vocabulary / purpose, source symbol. These are building blocks,
 # not independently toggleable effects or promises of generic reusable APIs.
 TECHNIQUES = (
+    ('Shared shooting stars', 'Direction-space meteor trails shared by Sea sky and wave reflections, with optional Cosmic use. Controlled through Sky effects.', 'shooting_star_radiance'),
     ('Echo Weave history', 'Persistent dye fields become strands. Renderer.update_echo owns history buffers; the update shader transports the field.', 'echo_material'),
     ('Musical color accents', 'Selective saturation and brightness accents preserve dark space while music brings pigment forward.', 'musical_material'),
     ('Planet material gathering', 'Project the shared canvas onto the planet surface while preserving its sphere geometry.', 'isolated_cosmic_scene'),

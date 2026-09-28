@@ -1,6 +1,69 @@
 # ZeraWave working handoff
 
-Updated: 2026-09-27
+Updated: 2026-09-28
+
+## Accepted world repairs / shooting stars (2026-09-28)
+
+User keeps the portable ZIP as a historical checkpoint; do not overwrite it.
+User accepted this pass and explicitly authorized its documentation update and commit.
+This section supersedes older statements about these scenes and effect availability.
+
+- Cavern: cell-stable placement plus neighboring formation footprints fixes the
+  discontinuous distance field that could slice crystals/floor formations.
+  Four-cell lookup uses a conservative bound toward omitted cells for safe travel.
+- Aftershock: fresh qualifying impacts may launch every .70 seconds; eight sites
+  remain bounded, recycling the oldest instead of waiting for lifetime expiry.
+  Strong continuous impact still requires rearming. Aurora scrolls sideways while
+  keeping its local impact bend. Recycling can retire an older plume early.
+- Shooting stars: new Sky effects row and searchable code-library technique.
+  Shared directional radiance appears in Sea sky and wave reflections, respecting
+  island occlusion. Available for Water/Cosmic/Main profiles; Water authored mode
+  enables it. Existing explicit saved lists need the row added. Cosmic authored
+  appearance is unchanged. Sea's sky still is not the shared material canvas;
+  this pass adds reflected sky activity rather than reinstating an unverified
+  older canvas transition. No global audio normalization changed.
+
+Validation: focused GPU test preserves 31 unaffected isolated states with meteors
+switched off, seam-distance jump < .00012, 80 consecutive synthetic onset strikes
+without pool stall, and visible/reflected meteor differences. Studio tests passed again
+after the final catalog-description update.
+Decoded Warbot Jazz replay: 84 seconds / 1969 analysis frames across Cavern,
+Aftershock and Sea; 30 distinct strikes during the 28-second Aftershock visit.
+Final four-cell optimization also ran through 56 seconds / 1313 frames of Cavern
+and Main Blend. Captures inspected, not continuous audible/live-loopback viewing.
+Evidence: work/world-repairs. Final 720p Cavern measured about 23.75 ms per
+GPU-complete frame on this machine; more expensive than old clipped geometry.
+Do not claim a 60fps guarantee. Portable checkpoint remains at d4992d0.
+
+Next design discussion: palette families independent of materials; surface-light
+response (pearlescence/caustics/ink); then flow-driven persistent feedback using
+Echo's existing resources as a starting point. These are directions, not built FX.
+
+## Next work: style variety before more worlds
+
+Recommended order, not yet implemented or authorized as a new build:
+
+1. Independent palette families: retain current authored colors as the default;
+   prototype one contrasting palette in isolation, then check materials across
+   Sea, Planet Canvas, Cavern and Main. Preserve shadow space and highlight detail.
+2. Surface treatments: start with one pearlescent or ink-like treatment using
+   existing material coordinates and lighting. Keep it separately selectable;
+   do not recolor every world globally or change geometry to simulate a material.
+3. Flow-driven feedback: extend the existing Echo history path only after the
+   first two steps prove useful. Reaction/diffusion is a proposal, not a feature.
+4. Reusable style presets: package palette/material/spatial choices through the
+   existing session/profile machinery once those choices actually exist.
+
+Before adding an effect, use TECHNIQUE_LIBRARY.md and the Python code lookup.
+Record coordinates, compatible worlds, occlusion/reflections, audio roles and
+cost. Keep materials, spatial transformations, sky/light and palette choices
+conceptually distinct without inventing another renderer or audio pipeline.
+
+Remaining checks/limits: Cavern performance deserves attention before increasing
+scene complexity; eight Aftershock slots may retire visible older plumes under
+sustained hits. Sea's old sky-canvas behavior remains an optional future design
+question. A new portable build and another-PC testing are separate tasks; the
+accepted portable ZIP is intentionally frozen. No new world family is pending.
 
 ## Completed material, timing and portable preview pass (2026-09-27)
 

@@ -1,6 +1,7 @@
 #version 330
 
 uniform float u_time;
+uniform float u_shooting_stars;
 uniform vec3 u_plasma_mix;
 uniform float u_plasma_weight;
 uniform vec3 u_plasma_details;
@@ -490,6 +491,38 @@ vec3 cosmic_vivid_material(vec3 material, float drive)
     return vivid / max(1.0, max(vivid.r, max(vivid.g, vivid.b)));
 }
 
+// Direction-space radiance: the sea samples the same events in its reflection.
+// Independent staggered births leave quiet sky between brief passages.
+vec3 shooting_star_radiance(vec3 direction)
+{
+    if(u_shooting_stars < .001) return vec3(0.);
+    vec2 q=vec2(atan(direction.x,direction.z),direction.y/max(length(direction.xz),.001));
+    vec3 light=vec3(0.);
+    float aa=max(1.2/u_resolution.y,.0008);
+    for(int i=0;i<3;i++) {
+        float lane=float(i), clock=u_star_time+lane*4.73;
+        float period=12.7+lane*1.91, event=floor(clock/period);
+        float age=mod(clock,period), seed=hash(vec2(event,lane+71.));
+        float duration=1.35+seed*.8;
+        if(age>duration)continue;
+        vec2 start=vec2((hash(vec2(event+17.,lane))-.5)*1.4,.10+seed*.24);
+        vec2 velocity=vec2(mix(-.48,.48,step(.5,seed)),-.09-seed*.10);
+        vec2 head=start+velocity*age, heading=normalize(velocity);
+        vec2 delta=q-head;
+        float behind=-dot(delta,heading), across=abs(dot(delta,vec2(-heading.y,heading.x)));
+        float tail=.13+.20*seed;
+        float streak=exp(-across*across/(aa*aa))*exp(-max(behind,0.)/tail*3.)
+            *smoothstep(-aa,aa,behind)*(1.-smoothstep(tail*.8,tail,behind));
+        float core=exp(-dot(delta,delta)/(aa*aa*3.));
+        float halo=exp(-dot(delta,delta)/.0003)*.10;
+        float life=smoothstep(0.,.12,age)*(1.-smoothstep(duration*.65,duration,age));
+        vec3 tint=mix(vec3(.22,.65,1.),vec3(1.,.36,.12),seed);
+        light+=(tint*streak+mix(tint,vec3(1.),.55)*core+halo*tint)*life
+            *(.65+.35*u_sparkle+.35*u_impact);
+    }
+    return light*u_shooting_stars*smoothstep(.01,.06,q.y);
+}
+
 // Shared star sheets: boost 1 preserves Planet Canvas; Air can lengthen wakes.
 vec3 cosmic_star_layer(vec2 p, float trail_boost)
 {
@@ -552,7 +585,7 @@ vec3 cosmic_star_layer(vec2 p, float trail_boost)
                 * alive * twinkle * trail_fade);
         }
     }
-    return star_layer;
+    return star_layer + shooting_star_radiance(vec3(p,1.));
 }
 
 // Accepted depth composition shared by the isolated diagnostic and live takeover.
@@ -1200,6 +1233,7 @@ vec3 water_environment(vec3 direction)
         elevation * 28.0));
     rock += lavender_pearl_palette(0.29) * facets * 0.15
         * exp(-max(ridge - elevation, 0.0) * 22.0);
+    sky += shooting_star_radiance(direction);
     sky = mix(sky, rock, island);
     return sky;
 }
@@ -1910,7 +1944,7 @@ vec3 blast_aurora(vec2 p,float clock,float camera,float camx) {
     }
     vec3 light=vec3(0.);
     for(int i=0;i<3;i++) {
-        float layer=float(i),x=p.x+layer*.7;
+        float layer=float(i),x=p.x+layer*.7-clock*(.018+layer*.007);
         float ridge=.265+layer*.065+.035*sin(x*4.+clock*.065)
             +.017*sin(x*10.-clock*.09)+bend;
         float y=p.y-ridge;
@@ -2823,6 +2857,45 @@ vec3 earth_worm_point(float u,float serial) {
     float x=lane+(u-.5)*(seed>.5 ? 8. : -8.);
     return vec3(x,earth_dune(vec2(x,z))-1.1+sin(u*3.141593)*3.4,z);
 }
+vec2 cavern_formation(vec3 p,vec2 cell) {
+    vec2 local=p.xz-(cell+.5)*2.8;
+    // Placement belongs to a stable cell, not the query point or music clock.
+    float axis=1.1*sin((cell.y+.5)*2.8*.075);
+    vec2 result=vec2(100.,0.);
+    float seed=hash(cell+31.);
+    vec2 offset=(vec2(hash(cell+2.),hash(cell+9.))-.5)*.65;
+    float centerX=(cell.x+.5)*2.8;
+    // Limestone grows down from the ceiling as well as up from the floor.
+    float roof=.6+sqrt(max(.1,19.36-pow((centerX-axis)*.80,2.)))+.18;
+    vec2 stal=local-offset;
+    float down=roof-p.y,hanging=.45+pow(hash(cell+47.),1.4)*2.6;
+    stal+=vec2(.12*sin(seed*19.),.10*cos(seed*31.))*down;
+    float stalRadius=(.22+.55*hash(cell+14.))*pow(clamp(1.-down/hanging,0.,1.),1.5);
+    float stalactite=max(length(stal)-stalRadius,max(-down-2.,down-hanging))*.50;
+    if(seed>.16 && stalactite<result.x)result=vec2(stalactite,2.5);
+    if(abs(centerX-axis)>1.1) {
+        for(int i=0;i<3;i++) {
+            float id=float(i),a=seed*6.283+id*2.1;
+            vec2 q=local-vec2(cos(a),sin(a))*.17*id-offset;
+            q=mat2(cos(a),sin(a),-sin(a),cos(a))*q;
+            float individual=hash(cell+id*17.+63.);
+            float h=.55+pow(individual,.7)*3.1, y=p.y+2.5;
+            q+=vec2(sin(a*3.),cos(a*2.))*.05*y;
+            q+=vec2(sin(u_time*1.4+seed*9.),cos(u_time*1.1+seed*11.))*.025*u_flux*y;
+            float rad=(.16+.38*hash(cell+id+82.))*min(1.,max(0.,(h-y)/(.55+seed*.3)));
+            float hex=max(abs(q.x)*.866025+abs(q.y)*.5,abs(q.y));
+            // Quartz needles, blocky fluorite and limestone have different profiles.
+            if(seed>.66)hex=max(abs(q.x),abs(q.y));
+            if(seed<.27) {
+                rad=(.22+.43*individual)*pow(clamp(1.-y/h,0.,1.),1.4);
+                hex=length(q)+.012*sin(y*18.+a);
+            }
+            float crystal=max(hex-rad,max(-y,y-h))*.52;
+            if(individual>.18 && crystal<result.x)result=vec2(crystal,seed<.27 ? 2.5 : 1.+seed);
+        }
+    }
+    return result;
+}
 vec2 earth_map(vec3 p,int form) {
     if(form==0) {
         vec2 result=vec2((p.y-earth_dune(p.xz))*.52,0.);
@@ -2878,38 +2951,22 @@ vec2 earth_map(vec3 p,int form) {
     float shell=(4.4-length(vec2((p.x-axis)*.80,p.y-.6))
         +.18*sin(p.z*.7+p.y*1.6)*sin(p.x*1.7))*.52;
     vec2 result=vec2(min(shell,p.y+2.5),0.);
-    vec2 cell=floor(p.xz/2.8),local=mod(p.xz,2.8)-1.4;
-    float seed=hash(cell+31.);
-    vec2 offset=(vec2(hash(cell+2.),hash(cell+9.))-.5)*.65;
-    float centerX=(cell.x+.5)*2.8;
-    // Limestone grows down from the ceiling as well as up from the floor.
-    float roof=.6+sqrt(max(.1,19.36-pow((centerX-axis)*.80,2.)))+.18;
-    vec2 stal=local-offset;
-    float down=roof-p.y,hanging=.45+pow(hash(cell+47.),1.4)*2.6;
-    stal+=vec2(.12*sin(seed*19.),.10*cos(seed*31.))*down;
-    float stalRadius=(.22+.55*hash(cell+14.))*pow(clamp(1.-down/hanging,0.,1.),1.5);
-    float stalactite=max(length(stal)-stalRadius,max(-down-2.,down-hanging))*.50;
-    if(seed>.16 && stalactite<result.x)result=vec2(stalactite,2.5);
-    if(abs(centerX-axis)>1.1) {
-        for(int i=0;i<3;i++) {
-            float id=float(i),a=seed*6.283+id*2.1;
-            vec2 q=local-vec2(cos(a),sin(a))*.17*id-offset;
-            q=mat2(cos(a),sin(a),-sin(a),cos(a))*q;
-            float individual=hash(cell+id*17.+63.);
-            float h=.55+pow(individual,.7)*3.1, y=p.y+2.5;
-            q+=vec2(sin(a*3.),cos(a*2.))*.05*y;
-            q+=vec2(sin(u_time*1.4+seed*9.),cos(u_time*1.1+seed*11.))*.025*u_flux*y;
-            float rad=(.16+.38*hash(cell+id+82.))*min(1.,max(0.,(h-y)/(.55+seed*.3)));
-            float hex=max(abs(q.x)*.866025+abs(q.y)*.5,abs(q.y));
-            // Quartz needles, blocky fluorite and limestone have different profiles.
-            if(seed>.66)hex=max(abs(q.x),abs(q.y));
-            if(seed<.27) {
-                rad=(.22+.43*individual)*pow(clamp(1.-y/h,0.,1.),1.4);
-                hex=length(q)+.012*sin(y*18.+a);
-            }
-            float crystal=max(hex-rad,max(-y,y-h))*.52;
-            if(individual>.18 && crystal<result.x)result=vec2(crystal,seed<.27 ? 2.5 : 1.+seed);
-        }
+    vec2 cell=floor(p.xz/2.8);
+    // Neighboring formations can protrude across a cell edge. Evaluate them
+    // consistently for both tracing and normals; otherwise surfaces get sliced.
+    vec2 local=p.xz-(cell+.5)*2.8;
+    vec2 side=step(vec2(0.),local)*2.-1.;
+    // Only four cells can overlap this point. Bound travel toward the omitted
+    // cells so the marcher cannot leap over their protruding formations.
+    float omittedBound=(2.8+min(abs(local.x),abs(local.y))-1.85)*.35;
+    result.x=min(result.x,omittedBound);
+    for(int z=0;z<2;z++) for(int x=0;x<2;x++) {
+        vec2 neighbor=cell+vec2(x,z)*side;
+        vec2 bounds=abs(p.xz-(neighbor+.5)*2.8)-vec2(1.85);
+        float lowerBound=max(max(bounds.x,bounds.y),0.)*.35;
+        if(lowerBound>result.x)continue;
+        vec2 candidate=cavern_formation(p,neighbor);
+        if(candidate.x<result.x) result=candidate;
     }
     return result;
 }

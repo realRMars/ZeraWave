@@ -111,6 +111,8 @@ def capture(output, seconds, profile="standard", debug_state=0, layers=None):
     values['u_fog_details']=fog_details_at(layers or {},debug_state,seconds)
     from preview_layers import plasma_details_at
     values['u_plasma_details']=plasma_details_at(layers or {},debug_state,seconds)
+    from preview_layers import shooting_stars_at
+    values['u_shooting_stars']=shooting_stars_at(layers or {},debug_state,seconds)
     values.update(blend_uniforms(seconds, debug_state == 0 and layer_mode != 0))
     if profile == "quiet":
         values.update(u_scale=.05, u_flux=.02, u_sparkle=.05, u_impact=0.)
@@ -601,6 +603,93 @@ void main() {
     finally:
         if mesh is not None:mesh.release()
         if old is not None:old.release()
+        r.close()
+
+
+def world_repairs_test(baseline_path, output):
+    """Focused preservation, sustained strike scheduling and GPU motion samples."""
+    import time
+    from renderer import world_uniforms
+    from preview_layers import shooting_stars_at, BITS
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270,seed=42); old=mesh=None
+    r.debug_state=18
+    # Use the public state's attribute (state_at reads debug_state).
+    r.state_at=lambda seconds:18
+    for n in range(80):
+        t=n*.8
+        r.parameters.impact=0.;r.update_blasts(t)
+        r.parameters.impact=.6;r.update_blasts(t+.01)
+        assert len(r.blast_events)<=8
+    assert r.blast_serial==80, ('strike pool stalled',r.blast_serial)
+    serial=r.blast_serial
+    for n in range(100):r.update_blasts(64.+n*.01)
+    assert r.blast_serial==serial, 'held impact retriggered'
+    assert shooting_stars_at({},10,1.)==1.
+    assert shooting_stars_at({'water':dict(mode='together',seconds=12.,items=[])},10,1.)==0.
+    assert BITS['shooting_stars']==0 and max(BITS.values())==1<<30
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text())
+        mesh=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        def frame(state,t=32.,previous=False,meteors=0.):
+            pr,vao=(old,mesh) if previous else (r.program,r.vao)
+            values=dict(u_time=t*.75,u_star_time=t,u_drift_time=t,u_resolution=(480.,270.),
+                u_scale=.7,u_flux=.7,u_sparkle=.7,u_impact=.5,u_intensity=1.,u_distortion=1.,
+                u_debug_state=float(state),u_event_blasts=0,u_layer_mode=0,u_layer_mask=2147483647,
+                u_material_mix=(1.,0.,0.),u_earth_details=(1.,1.,1.,1.),u_fog_details=(1.,1.,1.),
+                u_plasma_details=(1.,1.,1.),u_shooting_stars=meteors,**world_uniforms({},enabled=False))
+            for key,value in values.items():
+                if key in pr:pr[key].value=value
+            vao.render(mode=moderngl.TRIANGLE_STRIP)
+            return np.frombuffer(r.ctx.screen.read(components=3),np.uint8).reshape(270,480,3)[::-1].copy()
+        for state in range(36):
+            if state in (0,16,18,26,27):continue
+            a=frame(state);b=frame(state,previous=True)
+            assert np.abs(a.astype(float)-b).max()<=1,('preservation',state)
+        # Sample distance continuity across repeated-cell seams on the GPU.
+        source=(Path(__file__).parent/'shaders/dream.frag').read_text()
+        probe=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=source[:source.index('void main()')]+"""
+void main() {
+    float n=floor(gl_FragCoord.x);
+    vec3 p=vec3((mod(n,9.)-4.)*2.8,-2.4+gl_FragCoord.y/270.*6.,floor(n/9.)*.53);
+    float dx=abs(earth_map(p+vec3(.0001,0.,0.),2).x-earth_map(p-vec3(.0001,0.,0.),2).x);
+    p=vec3((mod(n,9.)-4.)*.53,p.y,floor(n/9.)*2.8);
+    float dz=abs(earth_map(p+vec3(0.,0.,.0001),2).x-earth_map(p-vec3(0.,0.,.0001),2).x);
+    fragColor=vec4(dx,dz,0.,1.);
+}
+""")
+        probe_mesh=r.ctx.simple_vertex_array(probe,r.vertices,'in_position')
+        texture=r.ctx.texture((480,270),4,dtype='f4');target=r.ctx.framebuffer([texture])
+        try:
+            target.use();probe_mesh.render(mode=moderngl.TRIANGLE_STRIP)
+            seam_error=float(np.frombuffer(texture.read(),np.float32).reshape(270,480,4)[:,:,:2].max())
+            assert seam_error<.01,('cavern distance seam',seam_error)
+        finally:
+            r.ctx.screen.use();target.release();texture.release();probe_mesh.release();probe.release()
+        timings={}
+        for previous in (True,False):
+            frame(26,previous=previous)
+            start=time.perf_counter()
+            frames=[frame(26,t=t,previous=previous) for t in (2.,8.,16.,24.,32.,40.)]
+            timings['baseline' if previous else 'repaired']=(time.perf_counter()-start)/6
+            save_png(output/('cavern-before.png' if previous else 'cavern-after.png'),
+                np.concatenate([np.concatenate(frames[:3],axis=1),np.concatenate(frames[3:],axis=1)],axis=0))
+        frames=[];differences=[];reflections=[]
+        for t in (.3,.7,1.1,1.5,1.9):
+            a=frame(7,t=t,meteors=1.);b=frame(7,t=t)
+            differences.append(float(np.abs(a.astype(float)-b).sum()))
+            reflections.append(float(np.abs(a[80:].astype(float)-b[80:]).sum()))
+            frames.append(a)
+        assert max(differences)>100, ('invisible meteor',differences)
+        assert max(reflections)>60, ('missing water reflection',reflections)
+        save_png(output/'sea-stars.png',np.concatenate(frames,axis=1))
+        frames=[frame(18,t=t) for t in (12.,16.,20.)]
+        save_png(output/'aftershock.png',np.concatenate(frames,axis=1))
+        print(dict(preserved_states=31,strikes=serial,cavern_seam_error=seam_error,cavern_seconds_per_frame=timings,meteor_difference=differences,reflection_difference=reflections))
+    finally:
+        if mesh:mesh.release()
+        if old:old.release()
         r.close()
 
 
@@ -2915,6 +3004,7 @@ def spatial_test(output):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--world-repairs-test", nargs=2,type=Path)
     parser.add_argument("--spatial-test", type=Path)
     parser.add_argument("--corridor-clearance-test", nargs=2,type=Path)
     parser.add_argument("--color-test", nargs=2, type=Path)
@@ -2959,6 +3049,9 @@ if __name__ == "__main__":
     parser.add_argument("--earth-test", nargs=2, type=Path)
     parser.add_argument("--air-test", nargs=2, type=Path)
     args = parser.parse_args()
+    if args.world_repairs_test:
+        world_repairs_test(*args.world_repairs_test)
+        raise SystemExit(0)
     if args.echo_test:
         echo_test(args.echo_test)
         raise SystemExit(0)
