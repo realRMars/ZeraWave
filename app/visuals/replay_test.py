@@ -150,8 +150,8 @@ def main():
     parser.add_argument("--palette", choices=("authored", "soft-dream"), default="authored",
                         help="Experimental pigment choice; only held Planet Canvas uses soft-dream.")
     parser.add_argument("--comparison-label", choices=("A", "B"), help="Studio matched replay label; locks window size.")
-    parser.add_argument('--colors', type=parse_colors, default={}, help='Declared held-scene color overrides as JSON.')
-    parser.add_argument('--studio-color-input', action='store_true', help='Read bounded Studio color snapshots from stdin (held Roots only).')
+    parser.add_argument('--colors', type=parse_colors, default={}, help='Declared source color overrides as JSON.')
+    parser.add_argument('--studio-color-input', action='store_true', help='Read bounded Studio color snapshots from stdin.')
     args = parser.parse_args()
     seconds, rows = replay(args.wav, args.speed, args.max_seconds, args.metrics, args.state,
                            args.capture_dir, args.capture_interval, args.states, args.layers, args.seed, args.palette, args.comparison_label, args.colors, args.studio_color_input)

@@ -85,3 +85,18 @@ Before checkpointing, the Overseer reran the complete Studio suite successfully
 with the project environment and UTF-8 output. Log:
 work/overseer-checkpoint-studio.log. This includes Roots live routing/persistence
 and existing Studio compatibility checks; it is not a continuous listening test.
+
+## Next-model takeover: full editable-color rollout
+
+The user requests continuation across all applicable existing visuals and future
+creations. ROADMAP.md's active milestone is now the complete model-independent
+execution plan, including inventory, sequential batches, cycles/Main preview,
+compatibility and completion criteria. On receiving the takeover prompt, execute
+that milestone rather than stopping at another proposal or the first extra world.
+
+Baseline checkpoint: dddc618. Preserve authored defaults and existing tools.
+No new commit, dependency installation, production palette change or portable build
+is authorized by the rollout plan. Record progress in
+docs/agent-notes/color-inspector-rollout.md when execution begins. Routine batch
+completion does not require renewed permission; artistic acceptance remains the
+user's. Narrow shared-document status updates are delegated in the plan.

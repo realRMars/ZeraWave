@@ -69,8 +69,6 @@ class ColorInbox:
 def configure_colors(renderer, colors=None, live=False):
     renderer.set_colors(validate_colors(colors or {}))
     if live:
-        if renderer.debug_state != 12 or renderer.debug_sequence:
-            raise ValueError('Live colors currently require held Roots.')
         renderer.color_inbox=ColorInbox(sys.stdin.fileno())
 
 

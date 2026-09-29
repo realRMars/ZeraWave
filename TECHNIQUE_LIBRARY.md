@@ -74,19 +74,19 @@ GPU captures, `replay_test.py` for decoded-track replay, and
 
 ## Declared live color controls — extension pattern
 
-Roots is the first review gate, not an infrastructure special case. Do not expand
-support simply because the plumbing exists; each additional scene/material/effect
-needs a bounded declaration, shader hook, compatibility check and user review.
+Roots established the first review gate. The active rollout now declares source
+colors for applicable existing worlds, materials and details. Every target still
+needs a bounded declaration, shader hook, compatibility check and visual review.
 
 - `app/visuals/color_controls.py` owns immutable `ColorTarget` / `ColorSlot`
   declarations, validation, preset/session data, authored defaults and uniform
   values. These describe color support only; reuse `EFFECTS`, `MATERIALS` and
   existing state IDs rather than adding another world/effect catalog.
-- Current target IDs are `roots.blue`, `roots.pearl`, `roots.ridge` and
-  `roots.blossoms`. Role IDs are stable storage contracts, independent of labels.
-  `color` is a fixed tint; `staged_gradient` represents the shader's actual five
-  fixed colors and four overlapping smoothstep ranges. It is not an arbitrary
-  variable-length gradient. No add/remove affordance is appropriate here.
+- Target and role IDs are stable storage contracts, independent of labels.
+  `color` is a fixed tint; `roles` is a bounded set of named source pigments;
+  `staged_gradient` represents Roots/Membrane's five fixed colors and four
+  overlapping smoothstep ranges. It is not an arbitrary variable-length
+  gradient. No add/remove affordance is appropriate for these roles.
 - Declarations contain scene compatibility, artistic labels, control type,
   uniform prefix, named slots, exact authored RGB defaults, transition defaults
   and a scope note. The generated inspector (`color_inspector.py`) uses these;
@@ -99,17 +99,16 @@ needs a bounded declaration, shader hook, compatibility check and user review.
   errors and reversed transitions are rejected transactionally. UI swatches
   round authored float RGB to hex for display; an untouched field does not write
   this rounding back into the authored shader path.
-- Keep original shader expressions for absent targets. Current overrides replace
-  field-gradient pigment or add the tint difference to existing ridge/blossom
-  contributions, preserving masks, lighting/brightness equations, audio response
-  and composition. No geometry, opacity or material identity should depend on a
-  missing color slot. Explicit colors can change perceived contrast; that is an
-  artistic choice, not a reason to modify the shading pipeline.
+- Keep original shader expressions for absent targets. Overrides replace
+  field-gradient pigment, tint named source pigments, or add a tint difference
+  to existing ridge/blossom contributions. Preserve masks, lighting, audio
+  response, geometry and composition. Explicit colors can change perceived
+  contrast; this does not justify changing the shading pipeline.
 - `Renderer.set_colors` validates before replacing state. Color uniforms upload
-  only when settings/scope change, on the renderer thread. Held Roots requires
-  debug state 12 and no development sequence; the shader also gates to held Roots
-  with no Main director. Future support must deliberately extend these backend
-  scope gates as well as declarations; adding a UI label alone is insufficient.
+  only when settings/scope change, on the renderer thread. `targets_for` routes
+  held forms, authored family cycles, sequential preview holds and Main by
+  stable source ID. Shader hooks retain source masks; Roots/Membrane shade their
+  separate forms through the authored form blend, including directed Main.
 - `studio_color_link.py` uses existing child stdin/stdout pipes: newline JSON,
   monotonically numbered complete snapshots, a 16 KiB bound, one pending update
   and one acknowledgement record. Tk coalesces at a bounded 75 ms cadence (continuous dragging still sends); background threads handle
@@ -133,12 +132,11 @@ resources. Keep captured/synthetic/decoded/live audiovisual evidence distinct.
 Existing entry points are `studio_test.py --roots-colors-test` and
 `shader_test.py --roots-color-test <pre-edit-shader> <new-output-directory>`.
 
-Likely later candidates: Membrane shares these two gradients and ridge tint, but
-needs its own reviewed target identity/scope. Planet already has a surface/ring
-palette experiment; independently editable planet, ring and moon colors need
-careful separation of shared material pigment from per-object tint/lighting.
-Stateful materials such as Echo may require distinguishing display tint from
-colors stored in feedback history. None of these expansions is implemented here.
+The rollout inventory, completed batches, evidence and remaining exceptions are
+tracked in `docs/agent-notes/color-inspector-rollout.md`. Planet's explicit
+object tints follow Soft Dream when both are selected. Echo's declared tints
+apply at display stage and leave feedback history untouched. Spatial FX without
+an independent pigment inherit their material colors.
 
 Proposed standing policy for the Overseer (not an AGENTS.md change): future visual
 features should expose meaningful editable colors through this mechanism where

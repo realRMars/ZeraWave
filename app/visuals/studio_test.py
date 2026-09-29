@@ -133,7 +133,7 @@ def studio_comparison_test():
                         replay_identity, completed_comparison_run)
     from preview_layers import MATERIALS, default_profile
     from shader_test import save_png
-    assert [effect_section(key) for key in MATERIALS] == ['Materials'] * 4
+    assert [effect_section(key) for key in MATERIALS] == ['Materials'] * 7
     assert effect_section('sparkles') == effect_section('tunnel') == effect_section('shooting_stars') == 'Shared FX'
     assert effect_section('daddy_long_legs') == effect_section('rings') == effect_section('water_rain') == 'World details'
     profile = dict(mode='cycle', seconds=4., items=[dict(id=key, enabled=enabled) for key, enabled in
@@ -147,9 +147,9 @@ def studio_comparison_test():
     effective = preview_profiles(values)
     assert values['layers'] == old['layers']
     for second in (0.,4.,8.,12.,88.):
-        assert material_weights(effective,5,second) == (0.,0.,0.,1.)
+        assert material_weights(effective,5,second) == (0.,0.,0.,1.,0.,0.,0.)
         assert layers_at(effective,5,second)[1] == BITS['rings'] | BITS['tunnel']
-    assert default_profile('blend')['mode'] == 'meld' and len(MATERIALS) == 4
+    assert default_profile('blend')['mode'] == 'meld' and len(MATERIALS) == 7
     assert preview_profiles(dict(DEFAULTS)) == {} and layers_at({},5,0.) == (0,0)
     for invalid in (None, [], {'cosmic':'rings'}, {'unknown':'alloy'}):
         try: validate_session(dict(version=3, **dict(values,material_isolation=invalid)))
@@ -188,6 +188,16 @@ def studio_comparison_test():
             for child in app.layers_tab.winfo_children():
                 assert child.winfo_ismapped(), child
                 assert child.winfo_y() + child.winfo_height() <= app.layers_tab.winfo_height(), (child, child.winfo_y(), child.winfo_height())
+        app.select([]);app.sections.select(app.section_frames['Palettes']);root.update()
+        for child in app.layers_tab.winfo_children():
+            assert child.winfo_ismapped() and child.winfo_y()+child.winfo_height()<=app.layers_tab.winfo_height()
+        app.open_color_inspector();editor=app.color_editor
+        editor.target_choice.set('Moons and dust wakes');editor.refresh();root.update()
+        assert editor.viewport.yview()[1]<1.
+        editor.viewport.yview_moveto(1.);root.update()
+        assert editor.viewport.yview()[1]==1.
+        editor.close()
+        app.select(values['selection']);app.refresh_palette()
         app.session_path = output/'session.json'; app.save(); saved = app.values()
         app.new()
         with patch('studio.filedialog.askopenfilename',return_value=str(output/'session.json')): app.load()
@@ -247,8 +257,9 @@ def roots_colors_studio_test():
     from contextlib import ExitStack
     from color_controls import (TARGETS, validate_colors, resolved_slots, color_preset, validate_preset)
     from studio_color_link import ColorInbox, MAX_MESSAGE
-    assert len({target.id for target in TARGETS}) == len(TARGETS) == 4
-    assert [len(target.slots) for target in TARGETS] == [5,5,1,1]
+    assert len({target.id for target in TARGETS}) == len(TARGETS) and len(TARGETS)>=14
+    assert len({target.label for target in TARGETS})==len(TARGETS)
+    assert [len(target.slots) for target in TARGETS[:7]] == [5,5,1,1,5,5,1]
     authored=deepcopy(TARGETS)
     sample={'roots.blossoms':{'tint':{'color':'#12abEF'}},
             'roots.blue':{'electric':{'color':'#CC3322','start':.32,'end':.62}}}
@@ -273,6 +284,10 @@ def roots_colors_studio_test():
         except ValueError:pass
         else:raise AssertionError(invalid)
     assert TARGETS==authored
+    full={target.id:{slot.id:{'color':'#FF1010'} for slot in target.slots} for target in TARGETS}
+    assert validate_colors(full)==full
+    assert len((json.dumps(dict(kind='colors',revision=1,targets=full),separators=(',',':'))+'\n').encode())<=MAX_MESSAGE
+    assert len(json.dumps(color_preset('Full rollout','blend',full),indent=2).encode())<=32768
     # Real bounded OS pipe: partial framing, latest-wins, malformed/oversize and stale revisions.
     read_fd,write_fd=os.pipe();inbox=ColorInbox(read_fd)
     def wait_for(predicate, timeout=5):
@@ -317,9 +332,14 @@ def roots_colors_studio_test():
         for version in (1,2,3):
             legacy=validate_session(dict(version=version,state='roots',selection=['organic','roots']))
             assert 'color_overrides' not in legacy
-        for selection in ([],['organic'],['organic','membrane'],['cosmic','canvas']):
-            app.select(selection);assert '--colors' not in command(app.values(),output)
+        for selection in ([],['cosmic','canvas'],['organic'],['organic','membrane'],['elements']):
+            app.select(selection);assert '--colors' in command(app.values(),output)
             assert app.color_overrides==clean
+            sent=json.loads(command(app.values(),output)[command(app.values(),output).index('--colors')+1])
+            assert ('roots.blossoms' in sent)==(selection in ([],['organic'],['elements']))
+        app.select(['elements']);assert app.color_scene()=='blend'
+        sequence=command(dict(app.values(),color_overrides=full),output)
+        assert '--states' in sequence and len(' '.join(sequence))<32767
         app.select(['organic','roots']);assert '--colors' in command(app.values(),output)
         app.layer_profiles={'organic':dict(mode='together',seconds=12.,items=[dict(id=key,enabled=True) for key in ('echo_weave','blossoms')])}
         app.vars['source'].set('Synthetic preview');app.start()
@@ -357,6 +377,23 @@ def roots_colors_studio_test():
         pump_until(lambda:app.process is None)
         assert not link.reader.is_alive() and not link.writer.is_alive()
         assert (replay_folder/'metrics.csv').is_file()
+        app.select([]);app.vars['source'].set('Synthetic preview')
+        app.set_color_setup({'air.sky':{'sky':{'color':'#BB4422'}}})
+        app.open_color_inspector();assert app.color_editor.scene=='blend'
+        for target in app.color_editor.targets:
+            app.color_editor.target_choice.set(target.label);app.color_editor.refresh()
+            assert len(app.color_editor.rows)==len(target.slots)
+        with patch('color_inspector.filedialog.askopenfilename',return_value=str(output/'look.json')):
+            app.color_editor.load_preset()
+        assert 'air.sky' in app.color_overrides and 'roots.blossoms' in app.color_overrides
+        app.start();main_pid=app.process.pid;main_link=app.color_link
+        assert app.active_color_scene=='blend'
+        pump_until(lambda:main_link.get_status().get('applied')==1)
+        app.set_color_setup({'air.sky':{'sky':{'color':'#BB4422'}}})
+        pump_until(lambda:main_link.get_status().get('applied')==2)
+        assert app.process.pid==main_pid and app.process.poll() is None
+        app.stop();assert not main_link.writer.is_alive() and not main_link.reader.is_alive()
+        app.select(['organic','roots'])
         values=app.values()
         values.update(source='Live system audio',color_overrides=clean)
     finally:app.close()
@@ -407,7 +444,7 @@ def main():
         weights=np.array(material_weights(quartet,0,t))
         assert abs(weights.sum()-1.)<1e-10 and weights.min()>=0.
         assert np.abs(weights-np.array(material_weights(quartet,0,t+.0001))).max()<.001
-    assert material_weights(quartet,0,108.)==(0.,0.,0.,1.)
+    assert material_weights(quartet,0,108.)==(0.,0.,0.,1.,0.,0.,0.)
     assert echo_weave_at({'blend':material_trio_profile('blend')},0,108.)==0.
     assert echo_weave_at({},0,66.)==1.
     director=Renderer(seed=2)

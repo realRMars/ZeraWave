@@ -33,7 +33,7 @@ Each preview creates a unique `work/studio/<timestamp>-<suffix>/` folder. It
 always contains `preview.json` and `run.log`; track replays also write
 `metrics.csv`, and enabled captures add frames at 15-song-second intervals and
 `captures.json`. Only one Studio child runs at a time. Most settings apply
-to the next run; declared held-Roots color controls are the live-edit exception. Close the visual window for a normal finish and complete
+to the next run; declared color controls can update the running preview. Close the visual window for a normal finish and complete
 metrics. **Stop preview** terminates only Studio's child; partial logs/captures
 remain and final metrics may be incomplete.
 
@@ -50,8 +50,8 @@ rendering passes or playback engines:
   comes from the existing catalog; shared does not mean every world or form.
 - **World details**: rings, moons, blossoms, rain and world-specific features.
   The catalog filters by world; individual forms may use only some details.
-- **Palettes**: the Planet palette selector and matched A/B replay; held Roots
-  exposes the modeless live color inspector here.
+- **Palettes**: the Planet palette selector and matched A/B replay, plus the
+  modeless live color inspector for declared world, material and detail colors.
 
 Choose a section, then its catalog category/effect and **Add**. The **saved
 combined cycle order** remains visible across sections; its row flags are the
@@ -76,44 +76,54 @@ explicit desired list first. **Solo whole list** retains its old meaning: it
 disables every other row, including FX/details, and clears material isolation.
 Switching List playback to Authored also clears isolation for that world.
 
-### Live Roots color editing — exact review clicks
+### Live color editing — exact review clicks
 
-1. Launch `run_development_studio.bat`. In **Build & preview**, choose **World:
-   Organic > Form: Roots**. A blank Organic Form cycles forms and does not support
-   these overrides. Leave **List playback: Authored** for the simplest Roots view.
+1. Launch `run_development_studio.bat`. In **Build & preview**, choose a held
+   form such as **World: Organic > Form: Roots**. Leave **List playback:
+   Authored** for the simplest view. A blank form with an authored family cycle
+   also supports colors. Clear the top **World** selector for **Main Blend**;
+   other blank branches may sequence their forms in 28-second holds.
 2. Choose **Input: Synthetic preview**, **Test track**, or **Live system audio**,
    then **Start preview**. For track editing choose **Replay speed: Real time**
    and a sufficiently long duration. Track replay is silent; live input listens
    to system audio. Synthetic preview has continuous diagnostic movement.
-3. Open **Effects & layers > Palettes > Open live color inspector…**. This is a
-   modeless Studio window so it can sit beside the existing visual. Choose a
-   target and a named color role. Click/drag the hue/saturation wheel, adjust
+3. Open **Effects & layers > Palettes > Open live color inspector…**. Choose a
+   target and named role. Click/drag the hue/saturation wheel, adjust
    **Brightness / value**, or enter **#RRGGBB** and press Enter. Swatches show
-   pigment before shading, tonemapping and musical response, not final pixels.
-4. For a field gradient, edit its fixed role colors and **Blend starts / Full
-   color at** values. These positions are along shading value (0–1), not branch
-   length. The existing gradient uses four overlapping smoothstep transitions.
-   Starts and ends must each remain in order, with at least 0.001 between a
-   transition's own start/end. There is no add/remove for these five fixed roles.
-5. Watch the inspector status: **pending**, **sent**, then **Applied live** after
-   the renderer acknowledges a frame. Rapid changes coalesce over 75 ms. Invalid
-   hex or gradient values retain the last valid setup; correct the field or reset
-   its target. Live color edits do not restart time, camera, analysis or Echo.
-6. **Reset target to Authored** restores the selected target's authored colors/positions.
-   **Reset scene to Authored** restores all Roots color targets. **Revert to preview start**
-   restores the scene colors present when this current Roots preview started;
-   it is enabled only while that preview is running. These actions also apply live.
-7. Click **Save named color preset…**, name the look, and choose a JSON file
-   (suggested folder: `work/color-presets/`). **Load color preset…** restores its
-   target assignments and applies them to the running held Roots preview. Loading
-   or editing never rewrites the preset file; saving is an explicit file action.
-   A color preset records which colors belong to which scene parts, unlike a
-   palette that merely contains colors.
-8. **File > Save session** in Studio saves the whole current setup, including
-   color overrides, materials, layers and the existing Planet palette choice.
-   Current edits are in memory until a preset/session is saved. Starting a new
-   preview takes a new revert snapshot. Stop preview or close the visual normally
-   to end editing; the current colors remain available for the next Roots run.
+   the chosen source color or tint before shading, tonemapping and musical response.
+   Scroll the inspector for larger targets such as the eight moon roles; reset
+   and preset actions remain below the color wheel.
+4. For a Roots or Membrane field gradient, edit the fixed role colors and
+   **Blend starts / Full color at** values. Positions follow shading value
+   (0–1), not branch length. The four smoothstep transitions may overlap but
+   must stay ordered, with at least 0.001 between each start/end.
+5. Read the note under the target selector. A held preview lists compatible
+   targets; in Main or a sequence, an assignment becomes active when its owning
+   source appears and is parked while another source is shown. Shared material
+   and FX colors follow compatible scenes; form colors stay with their named
+   form. An optional detail can remain invisible until its layer is enabled.
+   The opt-in Daddy Long Legs color does not turn the experiment on.
+6. Watch **pending**, **sent**, then **Applied live** after the renderer
+   acknowledges a frame. Rapid changes coalesce over 75 ms. Invalid input
+   retains the last valid setup. A color edit does not restart time, camera,
+   audio analysis, blast history or Echo.
+7. **Reset target to Authored** clears one target; **Reset scene to Authored**
+   clears all targets in the current inspector scope. **Revert to preview start**
+   restores that scope's colors from the current preview launch when the
+   inspector is attached to that running preview. These actions apply live.
+8. **Save named color preset…** writes target assignments to a JSON file
+   (suggested folder: `work/color-presets/`). **Load color preset…** applies a
+   copy without rewriting the source file. Main can import a held-form preset
+   while keeping other target assignments; a Main preset can hold every
+   declared target. **File > Save session**
+   stores the full Studio setup, including colors, materials, layers and the
+   separate Planet palette choice. Unsaved edits stay in this Studio session.
+9. To review an edited held form in Main, save the session, clear the top
+   **World** selector, start a new **Main Blend** preview with the same session,
+   then open the inspector. The saved assignments follow their sources as the
+   director changes worlds. Leave all roles untouched or reset the scope to
+   Authored to recover the current Main default. This review does not deploy
+   colors to the standalone player.
 
 Supported targets are deliberately faithful to the shader:
 
@@ -128,17 +138,18 @@ Blossoms breathe through a slow authored lifecycle; they can be absent when a
 preview opens. Changing their color does not force a bloom or enable a disabled
 layer. To see them with a custom material list, add/enable **World details >
 World details > Root blossoms**. Materials such as Living artifacts, Liquid
-Alloy, Prismatic Lattice and Echo Weave keep their independent authored colors;
-custom lists add their material effects over the Roots composition. The inspector
-edits the named Roots components, not arbitrary material pigment.
+Alloy, Prismatic Lattice and Echo Weave have their own declared display colors;
+custom lists add their material effects over the Roots composition. Editing a
+material tint does not reset Echo feedback. The inspector edits the named source,
+not a final-screen filter.
 
-Overrides are parked outside held Roots, including Organic cycling, Membrane,
-Planet Canvas and Main. Switching Studio selection does not retarget an already
-running child. Non-color controls still apply on the next preview. The inspector
-can prepare colors before launch, but then clearly says **next Roots preview**.
-Layer-playback **Authored** and color **Reset scene to Authored** are separate: use both for
-an entirely authored Roots setup. The existing Planet palette and matched A/B
-workflow remain unchanged and separate from live editing.
+Switching Studio selection does not retarget an already running visual child.
+The inspector can edit and save targets for another selection; those assignments
+are parked until that source appears in the running Main/sequence or a later
+preview. Non-color controls still apply on the next preview. Layer-playback
+**Authored** and color **Reset scene to Authored** are separate. The Planet
+**Soft Dream** palette is an independent opt-in; explicit surface, ring and moon
+colors are interpreted after it when both are selected.
 
 ### Planet Canvas palette prototype — exact review clicks
 

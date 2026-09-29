@@ -19,7 +19,7 @@ from color_inspector import ColorInspector
 
 from technique_library import entries as library_entries, search as search_library
 from live_visual_test import LIVE_STATES
-from preview_layers import (EFFECTS, MATERIALS, MODES, default_profile, validate_layers, world_for_state, material_trio_profile, material_quartet_profile, WORLDS)
+from preview_layers import (EFFECTS, MATERIALS, MODES, default_profile, validate_layers, world_for_state, material_trio_profile, material_quartet_profile, WORLDS, NEW_MATERIALS, SPATIAL_TREATMENTS, ENVELOPERS)
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEEDS = {'Real time': 1., '2×': 2., '6×': 6., '12×': 12., 'Fastest': 0.}
@@ -187,6 +187,7 @@ def validate_session(data):
 def effect_section(key):
     """Presentation only; retain catalog IDs, compatibility and combined order."""
     if key in MATERIALS: return 'Materials'
+    if EFFECTS[key][1] == 'Envelopers': return 'Envelopers'
     if EFFECTS[key][1] in ('Material', 'Spatial', 'Sky effects'): return 'Shared FX'
     return 'World details'
 
@@ -245,8 +246,9 @@ def command(values, output):
     # Park the saved experiment choice outside this single held form.
     if states == ['canvas']: state_args += ['--palette', palette]
     colors = validate_colors(values.get('color_overrides', {}))
-    if len(states) == 1 and targets_for(states[0]):
-        state_args += ['--colors', json.dumps(scene_colors(colors, states[0]), separators=(',', ':'))]
+    color_scope = states[0] if len(states)==1 else 'blend'
+    if targets_for(color_scope):
+        state_args += ['--colors', json.dumps(scene_colors(colors, color_scope), separators=(',', ':'))]
     if len(states) > 1: state_args += ['--states', *states]
     profiles = preview_profiles(values)
     if profiles: state_args += ['--layers', json.dumps(profiles, separators=(',', ':'))]
@@ -306,7 +308,7 @@ class Studio:
         self.color_send_after = None
         self.last_color_revision = None
         self.last_color_ack = None
-        self.color_status = tk.StringVar(value='Hold Organic / Roots to edit scene colors. Other settings apply on the next preview.')
+        self.color_status = tk.StringVar(value='Select a world, family cycle or Main to edit declared colors. Other settings apply on the next preview.')
         self.comparison_queue = []
         self.comparison_folder = None
         self.comparison_active = False
@@ -387,7 +389,7 @@ class Studio:
                         variable=self.vars['captures']).grid(row=7,column=1,columnspan=2,sticky='w',pady=8)
         ttk.Label(self.preview,textvariable=self.selection_hint,wraplength=610).grid(row=8,column=0,columnspan=3,sticky='w',pady=(4,8))
         ttk.Label(self.preview,text='Track replay is silent. Live input listens to your system audio.\n'
-                  'Speed, duration and captures apply to test tracks. Roots colors can edit live; other changes apply next run.',
+                  'Speed, duration and captures apply to test tracks. Declared colors can edit live; other changes apply next run.',
                   wraplength=610).grid(row=9,column=0,columnspan=3,sticky='w',pady=10)
         self.start_button = ttk.Button(self.preview,text='Start preview',command=self.start)
         self.start_button.grid(row=10,column=1,sticky='ew',pady=12,padx=(0,8))
@@ -541,7 +543,7 @@ class Studio:
             hint=selection_title(self.selection)+' / All — '+mode+'. Blank = cycle this branch.'
         else:
             hint=selection_title(self.selection)+' — isolated. Clear a level to cycle its parent.'
-        if states == ['roots']:
+        if self.color_scene():
             hint += '\nLive colors: Effects & layers > Palettes > Open live color inspector.'
         else:
             hint += ('\nPalette prototype: Planet Canvas only; independent of material.' if states == ['canvas'] else
@@ -553,12 +555,20 @@ class Studio:
         self.palette_choice.set(PLANET_PALETTES[self.vars['planet_palette'].get()] if active else 'Authored')
         self.palette_box.configure(state='readonly' if active else 'disabled')
         self.palette_note.set(('Hold ' + PLANET_PALETTES[self.vars['planet_palette'].get()] + ' on next preview. Palette Authored is separate from list Authored.')
-            if active else 'Planet palette parked. Hold Cosmic / Planet canvas for palettes, or Organic / Roots for live color editing.')
+            if active else 'Planet palette parked. Hold Planet Canvas for its palette; declared source colors remain available in the live inspector.')
         self.compare_button.configure(state='normal' if active and self.process is None else 'disabled')
         if self.color_scene():
-            self.planet_controls.pack_forget();self.color_launcher.pack(fill='x')
-            if self.active_color_scene is None: self.color_status.set('Colors apply to the next Roots preview; start it to edit live.')
-            elif self.active_color_scene != self.color_scene(): self.color_status.set('Saved for next Roots preview; current child is another scene.')
+            if active:
+                self.planet_controls.pack(fill='x')
+                self.color_title.pack_forget();self.color_description.pack_forget()
+            else:
+                self.planet_controls.pack_forget()
+                self.color_title.pack(anchor='w',before=self.color_button)
+                self.color_description.pack(anchor='w',before=self.color_button)
+            self.color_launcher.pack(fill='x')
+            if self.active_color_scene is None: self.color_status.set('Colors apply to the next selected preview; start it to edit live.')
+            elif self.active_color_scene != self.color_scene():
+                self.color_status.set('The running preview uses its original scope. Compatible edits apply live; other targets stay parked.')
         else:
             self.color_launcher.pack_forget();self.planet_controls.pack(fill='x')
         if self.color_editor: self.color_editor.refresh()
@@ -579,7 +589,7 @@ class Studio:
         self.sections = ttk.Notebook(panel)
         self.sections.pack(fill='x')
         self.section_frames = {}
-        for name in ('Materials', 'Shared FX', 'World details', 'Palettes'):
+        for name in ('Materials', 'Shared FX', 'World details', 'Envelopers', 'Palettes'):
             frame = ttk.Frame(self.sections, padding=8)
             self.sections.add(frame, text=name)
             self.section_frames[name] = frame
@@ -599,6 +609,9 @@ class Studio:
         ttk.Label(self.section_frames['World details'], wraplength=550, text=
             'Features of the selected world: rings, moons, blossoms, rain and other details.\n'
             'Availability is world-level; individual forms may use only some features.').pack(anchor='w')
+        ttk.Label(self.section_frames['Envelopers'], wraplength=550, text=
+            'Transforms the completed image, including world details. One at a time when several are selected.\n'
+            'Use Presets → Nine treatments for source-filled reviews; Solo whole list removes the other details.').pack(anchor='w')
         self.planet_controls = ttk.Frame(self.section_frames['Palettes'])
         self.planet_controls.pack(fill='x')
         palettes = self.planet_controls
@@ -613,9 +626,12 @@ class Studio:
         self.compare_button = ttk.Button(palettes, text='Run matched A/B — first 30s of test track', command=self.start_comparison)
         self.compare_button.pack(anchor='w')
         self.color_launcher = ttk.Frame(self.section_frames['Palettes'])
-        ttk.Label(self.color_launcher, text='Held Roots — live scene color editing', font=('Segoe UI', 12)).pack(anchor='w')
-        ttk.Label(self.color_launcher, text='Roots field gradients, ridge highlights and blossoms. Materials keep their own colors.', wraplength=560).pack(anchor='w')
-        ttk.Button(self.color_launcher, text='Open live color inspector…', command=self.open_color_inspector).pack(anchor='w',pady=4)
+        self.color_title=ttk.Label(self.color_launcher, text='Live scene color editing', font=('Segoe UI', 12))
+        self.color_title.pack(anchor='w')
+        self.color_description=ttk.Label(self.color_launcher, text='Only compatible targets are shown; other saved assignments stay parked. Material pigments remain independent.', wraplength=560)
+        self.color_description.pack(anchor='w')
+        self.color_button=ttk.Button(self.color_launcher, text='Open live color inspector…', command=self.open_color_inspector)
+        self.color_button.pack(anchor='w',pady=4)
         ttk.Label(self.color_launcher, textvariable=self.color_status, wraplength=560).pack(anchor='w')
         self.sections.bind('<<NotebookTabChanged>>' , lambda event:self.refresh_layers())
         self.refresh_palette()
@@ -653,6 +669,12 @@ class Studio:
         actions = ttk.Frame(panel); actions.pack(fill='x', pady=10)
         for label, action in [('On / off', 'toggle'), ('Solo whole list', 'solo'), ('Remove', 'remove'), ('Up', 'up'), ('Down', 'down')]:
             ttk.Button(actions, text=label, command=lambda a=action:self.edit_layer(a)).pack(side='left', padx=(0, 5))
+        strength=ttk.Frame(panel);strength.pack(fill='x')
+        ttk.Label(strength,text='Selected new spatial / Enveloper amount (0–1)').pack(side='left')
+        self.treatment_amount=tk.StringVar(value='1')
+        ttk.Spinbox(strength,textvariable=self.treatment_amount,from_=0,to=1,increment=.1,width=5).pack(side='left',padx=6)
+        ttk.Button(strength,text='Apply amount',command=self.change_treatment_amount).pack(side='left')
+        self.layer_table.bind('<<TreeviewSelect>>',self.show_treatment_amount)
         self.layer_note = tk.StringVar()
         ttk.Label(panel, textvariable=self.layer_note, wraplength=600).pack(anchor='w')
         ttk.Button(panel, text='Back to preview', command=lambda:self.tabs.select(self.preview)).pack(anchor='w', pady=(4, 0))
@@ -691,7 +713,7 @@ class Studio:
         if focus and self.layer_table.exists(focus):
             self.layer_table.selection_set(focus); self.layer_table.see(focus)
         note = ('Isolation active: saved material flags/playback are parked; enabled FX/details stay on. ' if isolated else
-                'Authored uses the original visuals; this list is parked. ' if profile['mode'] == 'authored' else
+                ('Main Authored uses seven materials and paced spatial/Enveloper passages. ' if world=='blend' else 'Authored uses the original visuals; this list is parked. ') if profile['mode'] == 'authored' else
                 'Only enabled effects run. An empty list shows the base form. ')
         note += 'Up / Down sets cycle order. Meld fades during the last 35% of each hold.'
         self.layer_note.set(note)
@@ -746,6 +768,42 @@ class Studio:
         if profile['mode'] == 'authored': profile['mode'] = 'together'
         self.refresh_layers(key)
 
+    def show_treatment_amount(self,event=None):
+        selected=self.layer_table.selection()
+        if selected:
+            profile=self.layer_profiles.get(self.layer_world(),default_profile(self.layer_world()))
+            item=next((item for item in profile['items'] if item['id']==selected[0]),{})
+            self.treatment_amount.set(str(item.get('amount',1.)))
+
+    def change_treatment_amount(self):
+        selected=self.layer_table.selection()
+        if not selected or selected[0] not in SPATIAL_TREATMENTS+ENVELOPERS:
+            self.status.set('Select a new spatial effect or Enveloper row to change its amount.');return
+        from copy import deepcopy
+        world=self.layer_world();profile=deepcopy(self.layer_profiles.get(world,default_profile(world)))
+        try:
+            item=next(item for item in profile['items'] if item['id']==selected[0])
+            item['amount']=float(self.treatment_amount.get())
+            clean=validate_layers({world:profile})
+        except ValueError as exc:self.status.set(str(exc));return
+        self.layer_profiles.update(clean);self.refresh_layers(selected[0])
+        self.status.set('Treatment amount saved for the next preview. Zero bypasses it.')
+
+    def review_treatment(self,key):
+        # Explicit user-invoked review preset; other worlds and colors stay parked.
+        self.select(['cosmic','canvas'])
+        keys=(key,) if key in MATERIALS else ('cellular_mosaic',key)
+        self.layer_profiles['cosmic']=dict(mode='together',seconds=22.,items=[dict(id=k,enabled=True) for k in keys+('stars','rings','moons')])
+        self.material_isolation.pop('cosmic',None)
+        self.refresh_layers(key);self.tabs.select(self.preview)
+        self.status.set('Review '+EFFECTS[key][0]+': Planet Canvas with rings, moons and stars. Choose any normal preview input.')
+
+    def review_main(self):
+        self.select([]);self.material_isolation.pop('blend',None)
+        self.layer_profiles['blend']=dict(mode='authored',seconds=22.,items=[])
+        self.refresh_layers();self.tabs.select(self.preview)
+        self.status.set('Main Authored: seven materials; spatial and Enveloper passages with untreated gaps.')
+
     def menus(self):
         bar=tk.Menu(self.root)
         file=tk.Menu(bar,tearoff=False)
@@ -770,6 +828,12 @@ class Studio:
         presets=tk.Menu(bar,tearoff=False)
         presets.add_command(label='Main blend',command=lambda:self.select([]))
         presets.add_command(label='Material trio — all worlds',command=self.material_trio)
+        treatments=tk.Menu(presets,tearoff=False)
+        for key in NEW_MATERIALS+SPATIAL_TREATMENTS+ENVELOPERS:
+            treatments.add_command(label=EFFECTS[key][0],command=lambda k=key:self.review_treatment(k))
+        treatments.add_separator()
+        treatments.add_command(label='Main — authored seven-material show',command=self.review_main)
+        presets.add_cascade(label='Nine treatments',menu=treatments)
         def add_presets(menu,children,path):
             for key,node in children.items():
                 selection=path+[key]
@@ -847,7 +911,8 @@ class Studio:
 
     def color_scene(self):
         states=selection_states(self.selection)
-        return states[0] if len(states)==1 and targets_for(states[0]) else None
+        scope=states[0] if len(states)==1 else 'blend'
+        return scope if targets_for(scope) else None
 
     def color_preset_folder(self):
         return ROOT/'work/color-presets'
@@ -856,7 +921,9 @@ class Studio:
         scene=self.color_scene()
         if not scene: return
         if self.color_editor:
-            self.color_editor.window.lift();return
+            if self.color_editor.scene==scene:
+                self.color_editor.window.lift();return
+            self.color_editor.close()
         self.color_editor=ColorInspector(self,scene)
 
     def set_color_setup(self, values):
@@ -864,7 +931,7 @@ class Studio:
         self.schedule_colors()
 
     def schedule_colors(self):
-        if self.color_link and self.active_color_scene==self.color_scene() and self.process and self.process.poll() is None:
+        if self.color_link and self.process and self.process.poll() is None:
             self.color_status.set('Color change pending — coalescing rapid edits.')
             # A bounded cadence, not endless trailing debounce: dragging keeps updating.
             if self.color_send_after is None:
@@ -872,11 +939,11 @@ class Studio:
         else:
             if self.color_send_after is not None:self.root.after_cancel(self.color_send_after)
             self.color_send_after=None
-            self.color_status.set('Current setup updated; applies on next Roots preview. Save a preset/session to keep it.')
+            self.color_status.set('Current setup updated; applies on the next compatible preview. Save a preset/session to keep it.')
 
     def send_colors(self):
         self.color_send_after=None
-        if self.color_link and self.active_color_scene==self.color_scene() and self.process and self.process.poll() is None:
+        if self.color_link and self.process and self.process.poll() is None:
             self.last_color_revision=self.color_link.submit(scene_colors(self.color_overrides,self.active_color_scene))
             self.color_status.set('Color update sent; waiting for the running preview to apply it.' if self.last_color_revision is not None
                 else 'Live color channel closed; current setup is retained for the next preview.')
@@ -889,7 +956,8 @@ class Studio:
         if label:
             args += ['--seed', '7301', '--comparison-label', label]
             self.comparison_label = label
-        live_scene = selection_states(values['selection'])[0] if len(selection_states(values['selection'])) == 1 else None
+        selected_states=selection_states(values['selection'])
+        live_scene=selected_states[0] if len(selected_states)==1 else 'blend'
         live_scene = live_scene if targets_for(live_scene) and not label else None
         if live_scene: args += ['--studio-color-input']
         output.mkdir(parents=True)
@@ -908,18 +976,18 @@ class Studio:
         if live_scene:
             self.color_link=ColorLink(self.process,self.log)
             self.last_color_revision=self.color_link.submit(scene_colors(self.preview_start_colors,live_scene))
-            self.color_status.set('Starting Roots preview; waiting for color acknowledgement.')
+            self.color_status.set('Starting color preview; waiting for acknowledgement.')
         self.output = self.comparison_folder if label else output
         self.start_button.configure(state='disabled')
         self.stop_button.configure(state='normal')
         self.refresh_palette()
         palette = PLANET_PALETTES[values['planet_palette']] if selection_states(values['selection']) == ['canvas'] else 'Authored (prototype inactive)'
         self.active_preview.set(('Active matched ' + label if label else 'Active preview') + ' — ' + palette)
-        if live_scene: self.active_preview.set('Active held Roots — scene colors editable live; layers/input apply next preview.')
+        if live_scene: self.active_preview.set('Active color preview — compatible colors editable live; layers/input apply next preview.')
         self.status.set(('Matched ' + label + ' — ' if label else 'Running — ') + palette +
             ('; decoded replay from zero, fresh history. Do not resize/close early. Controls affect next preview.' if label else
              '; controls affect next preview. Live runs are not matched comparisons.'))
-        if live_scene: self.status.set('Running held Roots. Open Palettes > live color inspector; colors apply live, other settings apply next preview.')
+        if live_scene: self.status.set('Running color preview. Open Palettes > live color inspector; colors apply live, other settings apply next preview.')
 
     def start(self):
         if self.process is not None: return
@@ -988,7 +1056,7 @@ class Studio:
                 self.last_color_ack=status
                 if 'error' in status:self.color_status.set('Last valid colors retained: '+status['error'])
                 elif status.get('applied')==self.last_color_revision and self.color_send_after is None:
-                    self.color_status.set('Applied live to held Roots. Animation and history continue; other controls apply next preview.')
+                    self.color_status.set('Applied live to the running preview. Animation and history continue; other controls apply next preview.')
         if self.process is not None and self.process.poll() is not None:
             code = self.process.returncode
             self.finish()

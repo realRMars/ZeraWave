@@ -1,7 +1,7 @@
 """Shared development effect catalog and validation; not an audio parameter system.
 
 Bit positions are the existing shader's optional isolation switches. Append IDs;
-do not reorder them. Absent held-world profiles preserve authored visuals; Main blend defaults to the trio.
+do not reorder them. Absent held-world profiles preserve authored visuals; Main blend defaults to the paced seven-material show.
 """
 import json
 import math
@@ -55,23 +55,40 @@ EFFECTS = {
 EFFECTS['echo_weave'] = ('Echo Weave', 'Material', WORLDS)
 # All 31 positive signed-mask bits are occupied; later effects use explicit uniforms.
 EFFECTS['shooting_stars'] = ('Shooting stars', 'Sky effects', ('blend', 'water', 'cosmic'))
+NEW_MATERIALS = ('ink_archipelago', 'interference_silk', 'cellular_mosaic')
+for key, label in zip(NEW_MATERIALS, ('Ink Archipelago', 'Interference Silk', 'Cellular Mosaic')):
+    EFFECTS[key] = (label, 'Material', WORLDS)
+SPATIAL_TREATMENTS = ('elastic_lenses', 'braided_flow', 'nested_windows')
+ENVELOPERS = ('prism_assembly', 'digital_bloom', 'chromatic_memory')
+for key,label in zip(SPATIAL_TREATMENTS, ('Elastic Lenses','Braided Flow','Nested Windows')):
+    EFFECTS[key] = (label,'Spatial',WORLDS)
+for key,label in zip(ENVELOPERS, ('Prism Assembly','Digital Bloom','Chromatic Memory')):
+    EFFECTS[key] = (label,'Envelopers',WORLDS)
 SKY_EFFECTS = ('shooting_stars',)
 EXPERIMENTS = ('daddy_long_legs',)
-EXPLICIT_MATERIALS = ('echo_weave',)
+EXPLICIT_MATERIALS = ('echo_weave',) + NEW_MATERIALS
 EARTH_DETAILS = ('earth_sediment', 'earth_veins', 'earth_dust', 'earth_worm')
 FOG_DETAILS = ('fog_volume', 'fog_lights', 'fog_fronts')
 PLASMA_DETAILS = ('plasma_field', 'plasma_arcs', 'plasma_sparks')
-BITS = {key: (0 if key in EXPERIMENTS + EXPLICIT_MATERIALS + EARTH_DETAILS + FOG_DETAILS + PLASMA_DETAILS + SKY_EFFECTS else 1 << i) for i, key in enumerate(EFFECTS)}
+BITS = {key: (0 if key in EXPERIMENTS + EXPLICIT_MATERIALS + EARTH_DETAILS + FOG_DETAILS + PLASMA_DETAILS + SKY_EFFECTS + SPATIAL_TREATMENTS + ENVELOPERS else 1 << i) for i, key in enumerate(EFFECTS)}
 MODES = {'authored': 'Authored', 'together': 'Selected together', 'cycle': 'Cycle list', 'meld': 'Meld materials'}
-MATERIALS = ('artifacts', 'alloy', 'lattice', 'echo_weave')
+MATERIALS = ('artifacts', 'alloy', 'lattice', 'echo_weave') + NEW_MATERIALS
 
 
 def default_profile(world=None):
     if world == 'blend':
         profile = material_quartet_profile(world)
         profile['seconds'] = 22.
+        profile['items'].extend(dict(id=key,enabled=True) for key in NEW_MATERIALS+SPATIAL_TREATMENTS+ENVELOPERS)
         return profile
     return dict(mode='authored', seconds=12., items=[])
+
+
+def profile_at(profiles,state):
+    world=world_for_state(state)
+    profile=profiles.get(world,default_profile(world))
+    if world=='blend' and profile['mode']=='authored':return default_profile(world)
+    return profile
 
 
 def validate_layers(data):
@@ -96,7 +113,13 @@ def validate_layers(data):
             if key in seen or type(item.get('enabled')) is not bool:
                 raise ValueError('Duplicate effect or invalid enabled setting.')
             seen.add(key)
-            clean.append(dict(id=key, enabled=item['enabled']))
+            row=dict(id=key, enabled=item['enabled'])
+            if 'amount' in item:
+                amount=item['amount']
+                if key not in SPATIAL_TREATMENTS+ENVELOPERS or type(amount) not in (int,float) or not math.isfinite(amount) or not 0<=amount<=1:
+                    raise ValueError('Treatment amount must be 0-1 on a new spatial effect or Enveloper.')
+                row['amount']=float(amount)
+            clean.append(row)
         result[world] = dict(mode=profile['mode'], seconds=float(seconds), items=clean)
     return result
 
@@ -120,7 +143,7 @@ def world_for_state(state):
 
 
 def layers_at(profiles, state, seconds):
-    profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
+    profile = profile_at(profiles,state)
     if profile['mode'] == 'authored': return 0, 0
     ids = [item['id'] for item in profile['items'] if item['enabled']]
     if profile['mode'] == 'cycle' and ids:
@@ -129,11 +152,11 @@ def layers_at(profiles, state, seconds):
 
 
 def material_weights(profiles, state, seconds):
-    """Four absolute material weights; IDs and old three-material lists remain valid."""
-    profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
-    if profile['mode'] == 'authored': return (1., 0., 0., 0.)
+    """Absolute material weights in stable append-only order; old lists stay valid."""
+    profile = profile_at(profiles,state)
+    if profile['mode'] == 'authored': return (1.,) + (0.,) * (len(MATERIALS)-1)
     ids = [item['id'] for item in profile['items'] if item['enabled'] and item['id'] in MATERIALS]
-    weights = [0.] * 4
+    weights = [0.] * len(MATERIALS)
     if not ids: return tuple(weights)
     if profile['mode'] == 'meld':
         phase = max(0., seconds) / profile['seconds']
@@ -160,7 +183,7 @@ def materials_at(profiles, state, seconds):
 
 def daddy_long_legs_at(profiles, state, seconds):
     """Explicit opt-in only, including when a user cycles experimental rows."""
-    profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
+    profile = profile_at(profiles,state)
     if profile['mode'] == 'authored': return 0.
     ids = [item['id'] for item in profile['items'] if item['enabled']]
     if profile['mode'] == 'cycle' and ids:
@@ -170,7 +193,7 @@ def daddy_long_legs_at(profiles, state, seconds):
 
 def earth_details_at(profiles, state, seconds):
     """Additional detail switches without renumbering the full legacy mask."""
-    profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
+    profile = profile_at(profiles,state)
     if profile['mode'] == 'authored': return (1., 1., 1., 1.)
     ids = [item['id'] for item in profile['items'] if item['enabled']]
     if profile['mode'] == 'cycle' and ids:
@@ -179,7 +202,7 @@ def earth_details_at(profiles, state, seconds):
 
 
 def fog_details_at(profiles, state, seconds):
-    profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
+    profile = profile_at(profiles,state)
     if profile['mode'] == 'authored': return (1., 1., 1.)
     ids = [item['id'] for item in profile['items'] if item['enabled']]
     if profile['mode'] == 'cycle' and ids:
@@ -188,7 +211,7 @@ def fog_details_at(profiles, state, seconds):
 
 
 def plasma_details_at(profiles, state, seconds):
-    profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
+    profile = profile_at(profiles,state)
     if profile['mode'] == 'authored': return (1., 1., 1.)
     ids = [item['id'] for item in profile['items'] if item['enabled']]
     if profile['mode'] == 'cycle' and ids:
@@ -199,7 +222,7 @@ def plasma_details_at(profiles, state, seconds):
 def material_trio_profile(world):
     """Authored details plus the three materials, suitable for main-live testing."""
     return dict(mode='meld', seconds=36., items=[dict(id=key, enabled=True)
-        for key, info in EFFECTS.items() if world in info[2] and key not in EXPERIMENTS + EXPLICIT_MATERIALS])
+        for key, info in EFFECTS.items() if world in info[2] and key not in EXPERIMENTS + EXPLICIT_MATERIALS + SPATIAL_TREATMENTS + ENVELOPERS])
 
 
 def material_quartet_profile(world):
@@ -213,16 +236,45 @@ def echo_weave_at(profiles, state, seconds):
 
 
 def echo_selected(profiles, state):
-    profile = profiles.get(world_for_state(state), default_profile(world_for_state(state)))
+    profile = profile_at(profiles,state)
     return profile['mode'] != 'authored' and any(item['id'] == 'echo_weave' and item['enabled'] for item in profile['items'])
 
 
 def shooting_stars_at(profiles, state, seconds):
     world = world_for_state(state)
     if world not in EFFECTS['shooting_stars'][2]: return 0.
-    profile = profiles.get(world, default_profile(world))
+    profile = profile_at(profiles,state)
     if profile['mode'] == 'authored': return float(world == 'water')
     ids = [item['id'] for item in profile['items'] if item['enabled']]
     if profile['mode'] == 'cycle' and ids:
         ids = [ids[int(max(0., seconds) // profile['seconds']) % len(ids)]]
     return float('shooting_stars' in ids)
+
+
+def treatment_weights(profiles,state,seconds,keys):
+    """Explicit list selection. Added effects never leak into legacy/custom lists."""
+    profile=profile_at(profiles,state)
+    if profile['mode']=='authored': return (0.,)*len(keys)
+    enabled=[item['id'] for item in profile['items'] if item['enabled']]
+    if profile['mode']=='cycle' and enabled:
+        enabled=[enabled[int(max(0.,seconds)//profile['seconds'])%len(enabled)]]
+    selected=[key for key in enabled if key in keys]
+    automatic=state==0 and ('blend' not in profiles or profiles['blend']['mode']=='authored')
+    if automatic:
+        # Each 72s passage: spatial 8..28s, untreated gap, Enveloper 38..62s.
+        # 6s ramps preserve breathing room and never stack new heavy treatments.
+        phase=max(0.,seconds)/72.;age=(phase%1.)*72.
+        start,end=(38.,62.) if keys==ENVELOPERS else (8.,28.)
+        amount=max(0.,min(1.,(age-start)/6.,(end-age)/6.))
+        amount=amount*amount*(3.-2.*amount)*(.60 if keys==ENVELOPERS else .65)
+        return tuple(amount if index==int(phase)%len(keys) else 0. for index in range(len(keys)))
+    amounts={item['id']:item.get('amount',1.) for item in profile['items']}
+    # One final-image treatment at a time; list order supplies deliberate pacing.
+    if keys==ENVELOPERS and len(selected)>1:
+        phase=max(0.,seconds)/max(12.,profile['seconds'])
+        current=selected[int(phase)%len(selected)]
+        age=phase%1.
+        strength=min(1.,age/.18,(1.-age)/.22)
+        strength=max(0.,strength);strength=strength*strength*(3.-2.*strength)
+        return tuple(strength*amounts.get(key,1.) if key==current else 0. for key in keys)
+    return tuple(float(key in selected)*amounts.get(key,1.) for key in keys)

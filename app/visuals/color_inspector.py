@@ -7,7 +7,7 @@ import re
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 from color_controls import (targets_for, resolved_slots, rgb_hex, hex_rgb,
-                            validate_colors, color_preset, validate_preset, scene_colors)
+                            validate_colors, color_preset, validate_preset, scene_colors, PALETTE_FAMILIES, family_setup)
 
 
 class ColorInspector:
@@ -27,13 +27,38 @@ class ColorInspector:
         self.refreshing=False
         style=ttk.Style(self.window)
         style.map('Color.TRadiobutton', background=[('active','#233047')], foreground=[('active','#ffffff')])
-        body=ttk.Frame(self.window,padding=16);body.pack(fill='both',expand=True)
+        shell=ttk.Frame(self.window);shell.pack(fill='both',expand=True)
+        self.viewport=tk.Canvas(shell,borderwidth=0,highlightthickness=0,background='#141a28')
+        scrollbar=ttk.Scrollbar(shell,orient='vertical',command=self.viewport.yview)
+        self.viewport.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right',fill='y');self.viewport.pack(side='left',fill='both',expand=True)
+        body=ttk.Frame(self.viewport,padding=16)
+        body_window=self.viewport.create_window((0,0),anchor='nw',window=body)
+        body.bind('<Configure>',lambda event:self.viewport.configure(scrollregion=self.viewport.bbox('all')))
+        self.viewport.bind('<Configure>',lambda event:self.viewport.itemconfigure(body_window,width=event.width))
         ttk.Label(body,text='Live scene colors',font=('Segoe UI',16)).pack(anchor='w')
         self.target_box=ttk.Combobox(body,textvariable=self.target_choice,
             values=[target.label for target in self.targets],state='readonly')
         self.target_box.pack(fill='x',pady=8)
         self.target_box.bind('<<ComboboxSelected>>',lambda event:self.refresh())
         ttk.Label(body,textvariable=self.note,wraplength=630).pack(anchor='w')
+        palettes=ttk.LabelFrame(body,text='Palette timing — selected target only',padding=8)
+        palettes.pack(fill='x',pady=8)
+        self.family_choice=tk.StringVar(value='Authored')
+        self.family_box=ttk.Combobox(palettes,textvariable=self.family_choice,state='readonly',width=24)
+        self.family_box.grid(row=0,column=0,sticky='w')
+        ttk.Button(palettes,text='Hold family',command=self.hold_family).grid(row=0,column=1)
+        ttk.Button(palettes,text='Store current setup',command=self.store_setup).grid(row=0,column=2)
+        self.cycle_mode=tk.StringVar(value='hold');self.cycle_hold=tk.StringVar(value='12');self.cycle_fade=tk.StringVar(value='4')
+        ttk.Combobox(palettes,textvariable=self.cycle_mode,values=('hold','cycle'),state='readonly',width=8).grid(row=1,column=0,sticky='w')
+        timing=ttk.Frame(palettes);timing.grid(row=1,column=1,columnspan=2,sticky='w',pady=6)
+        ttk.Label(timing,text='Hold seconds').pack(side='left')
+        ttk.Spinbox(timing,textvariable=self.cycle_hold,from_=1,to=300,width=5).pack(side='left')
+        ttk.Label(timing,text='Transition').pack(side='left')
+        ttk.Spinbox(timing,textvariable=self.cycle_fade,from_=0,to=60,width=5).pack(side='left')
+        ttk.Button(timing,text='Apply timing',command=self.apply_cycle).pack(side='left')
+        self.cycle_note=tk.StringVar()
+        ttk.Label(palettes,textvariable=self.cycle_note,wraplength=610).grid(row=2,column=0,columnspan=3,sticky='w')
         self.fields=ttk.Frame(body);self.fields.pack(fill='x',pady=10)
         self.rows={}
         wheel_frame=ttk.Frame(body);wheel_frame.pack(fill='x')
@@ -63,7 +88,7 @@ class ColorInspector:
         self.value_scale.pack(fill='x',pady=4)
         self.value_label=tk.StringVar()
         ttk.Label(tools,textvariable=self.value_label).pack(anchor='w')
-        ttk.Label(tools,text='Pigment before shading and audio response.\nSwatches are not final screen brightness.\nNo material recoloring or separate root-tip slot.',wraplength=360).pack(anchor='w',pady=8)
+        ttk.Label(tools,text='Chosen source color or tint before shading and audio response.\nSwatches are not final screen brightness.\nShared material colors follow compatible scenes; world colors stay with their named form.',wraplength=360).pack(anchor='w',pady=8)
         actions=ttk.Frame(body);actions.pack(fill='x',pady=(12,4))
         self.buttons=[]
         for label,callback in (('Reset target to Authored',self.reset_target),('Reset scene to Authored',self.reset_scene),('Revert to preview start',self.revert)):
@@ -81,13 +106,40 @@ class ColorInspector:
     def supported(self):
         return self.app.color_scene() == self.scene
 
+    def can_revert(self):
+        return self.app.active_color_scene in (self.scene,'blend')
+
     def refresh(self):
         if not self.window.winfo_exists(): return
         self.refreshing=True
         target=self.target()
         supported=self.supported()
         self.target_box.configure(state='readonly' if supported else 'disabled')
-        self.note.set(target.note if supported else 'Editing disabled. Hold Organic / Roots in Build & preview. Saved overrides are parked outside this scene.')
+        if not supported:
+            status='Editing disabled for this selection. Choose a compatible form or family cycle; saved overrides remain parked.'
+        elif self.app.active_color_scene is None:
+            status='Parked until a preview starts.'
+        elif self.app.active_color_scene=='blend':
+            status='Running Main or a sequence: active when this source appears; parked during other sources.'
+        elif self.app.active_color_scene!=self.scene:
+            status=('Active in the running preview when its detail is enabled.'
+                    if target in targets_for(self.app.active_color_scene) else
+                    'Parked for the next compatible preview.')
+        elif self.scene in ('organic','water','fire_cycle','air','earth','fog','plasma'):
+            status='Family cycle: active when this source appears; parked during other forms.'
+        else:
+            status='Active in this preview when its detail is enabled.'
+        scope=('Shared material or FX' if target.scene=='shared' else
+               'Shared within this family' if target.scene.endswith('_shared') else
+               'Owned by '+target.scene.replace('_',' '))
+        self.note.set(status+' '+scope+'. '+target.note if supported else status)
+        families=('Authored',)+tuple(PALETTE_FAMILIES.get(target.id,{}))
+        self.family_box.configure(values=families)
+        if self.family_choice.get() not in families:self.family_choice.set('Authored')
+        cycle=self.app.color_overrides.get(target.id,{}).get('_cycle',{})
+        self.cycle_mode.set(cycle.get('mode','hold'));self.cycle_hold.set(str(cycle.get('hold',12)))
+        self.cycle_fade.set(str(cycle.get('fade',4)))
+        self.cycle_note.set(f"{target.label}: {cycle.get('mode','hold')}; {len(cycle.get('setups',[]))}/4 stored setups. Store at least two to cycle. Timing follows song time. Manual edits pause this target; reset clears its cycle.")
         for child in self.fields.winfo_children(): child.destroy()
         self.rows={}
         labels=('Select color role','Swatch','Hex color','Blend starts','Full color at')
@@ -114,7 +166,7 @@ class ColorInspector:
             self.rows[slot.id]=(color,start_var,end_var,swatch)
         if self.role.get() not in self.rows: self.role.set(target.slots[min(2,len(target.slots)-1)].id)
         for button in self.buttons: button.configure(state='normal' if supported else 'disabled')
-        self.buttons[2].configure(state='normal' if supported and self.app.active_color_scene==self.scene else 'disabled')
+        self.buttons[2].configure(state='normal' if supported and self.can_revert() else 'disabled')
         self.value_scale.configure(state='normal' if supported else 'disabled')
         self.refreshing=False
         self.select_role()
@@ -140,10 +192,13 @@ class ColorInspector:
     def commit(self,key,fields):
         if self.refreshing or not self.supported(): return False
         data=deepcopy(self.app.color_overrides)
-        data.setdefault(self.target().id,{}).setdefault(key,{}).update(fields)
+        selected=data.setdefault(self.target().id,{})
+        if '_cycle' in selected:selected['_cycle']['mode']='hold'
+        selected.setdefault(key,{}).update(fields)
         try: self.app.set_color_setup(validate_colors(data))
         except ValueError as exc:
             self.app.color_status.set('Invalid edit; last valid colors retained. '+str(exc));return False
+        self.cycle_mode.set('hold');self.cycle_note.set(self.target().label+': hold — manual edit has priority. Stored setups remain available.')
         self.rows[key][3].configure(background=rgb_hex(resolved_slots(self.target(),data)[next(i for i,s in enumerate(self.target().slots) if s.id==key)][0]))
         return True
 
@@ -181,6 +236,35 @@ class ColorInspector:
             self.rows[self.role.get()][0].set(color)
             self.draw_marker()
 
+    def hold_family(self):
+        if not self.supported():return
+        data=deepcopy(self.app.color_overrides);key=self.target().id
+        cycle=data.get(key,{}).get('_cycle')
+        data[key]=family_setup(key,self.family_choice.get())
+        if cycle:
+            cycle['mode']='hold';data[key]['_cycle']=cycle
+        self.app.set_color_setup(data);self.refresh()
+
+    def store_setup(self):
+        if not self.supported():return
+        data=deepcopy(self.app.color_overrides);entry=data.setdefault(self.target().id,{})
+        cycle=entry.setdefault('_cycle',dict(mode='hold',hold=12.,fade=4.,setups=[]))
+        if len(cycle['setups'])>=4:
+            self.app.color_status.set('Four setups already stored. Reset target to clear them.');return
+        cycle['setups'].append(deepcopy({key:value for key,value in entry.items() if key!='_cycle'}))
+        cycle['mode']='hold'
+        try:self.app.set_color_setup(data);self.refresh()
+        except ValueError as exc:self.app.color_status.set(str(exc))
+
+    def apply_cycle(self):
+        if not self.supported():return
+        data=deepcopy(self.app.color_overrides);entry=data.setdefault(self.target().id,{})
+        cycle=entry.setdefault('_cycle',dict(setups=[]))
+        try:
+            cycle.update(mode=self.cycle_mode.get(),hold=float(self.cycle_hold.get()),fade=float(self.cycle_fade.get()))
+            self.app.set_color_setup(data);self.refresh()
+        except ValueError as exc:self.app.color_status.set('Timing not applied: '+str(exc))
+
     def reset_target(self):
         data=deepcopy(self.app.color_overrides);data.pop(self.target().id,None)
         self.app.set_color_setup(data);self.refresh()
@@ -190,7 +274,7 @@ class ColorInspector:
         self.app.set_color_setup(data);self.refresh()
 
     def revert(self):
-        if self.app.active_color_scene==self.scene:
+        if self.can_revert():
             data={key:value for key,value in self.app.color_overrides.items() if key not in {target.id for target in self.targets}}
             data.update(scene_colors(self.app.preview_start_colors,self.scene))
             self.app.set_color_setup(data);self.refresh()
@@ -215,10 +299,13 @@ class ColorInspector:
         try:
             from pathlib import Path
             source=Path(path)
-            if source.stat().st_size>32768:raise ValueError('Color preset is too large.')
+            if source.stat().st_size>131072:raise ValueError('Color preset is too large.')
             preset=validate_preset(json.loads(source.read_text(encoding='utf-8')))
-            if preset['scene']!=self.scene:raise ValueError('This preset belongs to another scene.')
-            data={key:value for key,value in self.app.color_overrides.items() if key not in {target.id for target in self.targets}}
+            if preset['scene']!=self.scene and self.scene!='blend':
+                raise ValueError('This preset belongs to another scene.')
+            replaced=({target.id for target in self.targets} if preset['scene']==self.scene
+                      else set(preset['targets']))
+            data={key:value for key,value in self.app.color_overrides.items() if key not in replaced}
             data.update(preset['targets']);self.app.set_color_setup(data);self.refresh()
         except (OSError,ValueError) as exc:messagebox.showerror('Cannot load preset',str(exc),parent=self.window)
 

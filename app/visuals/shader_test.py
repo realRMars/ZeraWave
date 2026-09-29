@@ -61,7 +61,8 @@ def roots_color_test(baseline_path, output):
             'roots.ridge':{'tint':{'color':'#FFAA00'}},
             'roots.blossoms':{'tint':{'color':'#22FF66'}},
         }
-        # Exact authored preservation; even supplying colors must not affect other states.
+        # Exact authored preservation; collect all mismatches before failing.
+        authored_differences=[]
         for state in range(36):
             r.debug_state=state;r.set_colors({});r.render(10.+state*.1)
             authored=pixels();copy_uniforms(old);old_vao.render(mode=moderngl.TRIANGLE_STRIP)
@@ -69,13 +70,16 @@ def roots_color_test(baseline_path, output):
             if not np.array_equal(authored,old_pixels):
                 delta=np.abs(authored.astype(int)-old_pixels.astype(int))
                 print('Authored comparison difference',state,'max',delta.max(),'channels',np.count_nonzero(delta),'mean',delta.mean(),flush=True)
+                authored_differences.append((state,int(delta.max()),int(np.count_nonzero(delta))))
                 save_png(output/f'authored-difference-{state}.png',np.concatenate((old_pixels,authored),axis=1)[::-1])
-            assert np.array_equal(authored,old_pixels),('Authored changed',state)
-            if state!=12:
+            if state not in (1,12):
                 r.set_colors(edits);r.render(10.+state*.1)
                 assert np.array_equal(authored,pixels()),('Scope leak',state)
-        # Sequence visits to Roots are not held Roots and must retain authored defaults.
+        assert not authored_differences,('Authored changed',authored_differences)
+        # A sequence routes the stable target when its form is present, then parks it.
         r.debug_state=12;r.debug_sequence=(12,11);r.set_colors(edits);r.render(0.)
+        assert r.program['u_roots_blue_on'].value==1
+        r.render(28.)
         assert r.program['u_roots_blue_on'].value==0
         r.debug_sequence=();r.set_colors({});r.parameters.flux=.4;r.parameters.sparkle=.5;r.parameters.movement=.45
         for second in range(20,261,10):
@@ -99,6 +103,29 @@ def roots_color_test(baseline_path, output):
             save_png(output/(key+'.png'),changed[::-1])
             report['targets'][key]=dict(changed_pixels=int(np.count_nonzero(delta)),mean_rgb_delta=float(np.abs(changed.astype(float)-baseline).mean()))
         r.set_colors({});r.render(float(second));assert np.array_equal(baseline,pixels()),'Reset must restore authored pixels'
+        membrane_edits={
+            'membrane.blue':{'electric':{'color':'#FF4400','start':.28,'end':.58}},
+            'membrane.pearl':{'lavender':{'color':'#66FF33','start':.28,'end':.58}},
+            'membrane.ridge':{'tint':{'color':'#FFAA00'}},
+        }
+        r.debug_state=11;r.set_colors({});r.render(25.);membrane_authored=pixels()
+        r.set_colors(edits);r.render(25.)
+        assert np.array_equal(membrane_authored,pixels()),'Roots pigment leaked into held Membrane'
+        report['membrane_targets']={}
+        for key,edit in membrane_edits.items():
+            r.set_colors({key:edit});r.render(25.);changed=pixels()
+            count=int(np.count_nonzero(np.max(np.abs(changed.astype(int)-membrane_authored.astype(int)),axis=2)))
+            assert count>20,(key,'Membrane target did not change visible pixels')
+            report['membrane_targets'][key]=count
+        r.set_colors({});r.render(25.)
+        assert np.array_equal(membrane_authored,pixels()),'Membrane reset did not restore authored pixels'
+        r.debug_state=1;r.set_colors({});r.render(70.);cycle_authored=pixels()
+        r.set_colors({'membrane.blue':membrane_edits['membrane.blue']});r.render(70.);membrane_cycle=pixels()
+        r.set_colors({'roots.blue':edits['roots.blue']});r.render(70.);roots_cycle=pixels()
+        assert not np.array_equal(membrane_cycle,roots_cycle),'Organic cycle lost form-specific pigment identity'
+        r.set_colors({});r.render(70.)
+        assert np.array_equal(cycle_authored,pixels()),'Organic cycle reset did not restore authored pixels'
+        r.debug_state=12
         # Blossom color cannot enable a disabled detail; material profiles retain identity.
         from preview_layers import MATERIALS
         for material in MATERIALS:
@@ -140,6 +167,206 @@ def roots_color_test(baseline_path, output):
         if probe:probe.release()
         if target:target.release()
         r.close()
+
+
+def color_rollout_gpu_test(output):
+    """Verify declared object pigments change their owning regions without leaking."""
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270,seed=7301)
+    report={}
+    def pixels():
+        return np.frombuffer(r.ctx.screen.read(components=3,alignment=1),np.uint8).reshape(270,480,3).copy()
+    cases=(
+        ('corridor.inlay',2,'tint'),('corridor.glyphs',2,'tint'),
+        ('planet.surface',5,'tint'),('planet.rings',5,'tint'),
+        ('planet.moons',5,'cyan'),('sky.stars',5,'blue'),
+        ('sky.shooting',5,'blue'),
+    )
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        for key,state,role in cases:
+            r.debug_state=state
+            r.layer_profiles=({'cosmic':dict(mode='together',seconds=12.,items=[
+                dict(id='shooting_stars',enabled=True),dict(id='stars',enabled=True)])} if key=='sky.shooting' else {})
+            best=0
+            for seconds in (1.,5.,12.,20.,30.,45.,60.,90.,120.):
+                r.set_colors({});r.render(seconds);authored=pixels()
+                edit={key:{role:{'color':'#FF1010'}}}
+                r.set_colors(edit);r.render(seconds);changed=pixels()
+                count=int(np.count_nonzero(np.any(authored!=changed,axis=2)))
+                if count>best:best=count
+                r.set_colors({});r.render(seconds)
+                assert np.array_equal(authored,pixels()),(key,'Reset changed authored pixels')
+            assert best>0,(key,'No intended-region change sampled')
+            # A held Roots frame cannot consume Corridor/Cosmic/sky assignments.
+            r.debug_state=12;r.set_colors({});r.render(130.);other=pixels()
+            r.set_colors(edit);r.render(130.)
+            assert np.array_equal(other,pixels()),(key,'Leaked into Roots')
+            report[key]=best
+        (output/'color-rollout-batch2.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print('PASS: Batch 2 object pigments, exact reset and unrelated Roots scope.',json.dumps(report))
+    finally:r.close()
+
+
+def shared_color_gpu_test(output):
+    """Shared material and FX colors change visible source pixels without resetting history."""
+    from color_controls import TARGETS
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270,seed=7301)
+    report={}
+    def pixels():
+        return np.frombuffer(r.ctx.screen.read(components=3,alignment=1),np.uint8).reshape(270,480,3).copy()
+    keys=('material.artifacts','material.alloy','material.lattice','material.echo',
+          'fx.sparkles','fx.flecks','fx.beams')
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        r.parameters.scale=.7;r.parameters.flux=.65;r.parameters.sparkle=.8
+        r.parameters.movement=.6;r.parameters.impact=.25
+        for key in keys:
+            material={'material.alloy':'alloy','material.lattice':'lattice','material.echo':'echo_weave'}.get(key)
+            r.layer_profiles=({'geometric':dict(mode='together',seconds=12.,items=[
+                dict(id=material,enabled=True)])} if material else {})
+            r.debug_state=2
+            target=next(t for t in TARGETS if t.id==key)
+            edit={key:{slot.id:{'color':'#FF1010'} for slot in target.slots}}
+            best=0
+            for seconds in (1.,5.,12.,20.,30.,45.,60.,90.,120.):
+                r.set_colors({})
+                if key=='material.echo':
+                    for frame in range(30):r.render(seconds+frame/60.)
+                    seconds+=.5
+                r.render(seconds);authored=pixels()
+                echo_clock=r.echo_clock
+                r.set_colors(edit);r.render(seconds);changed=pixels()
+                count=int(np.count_nonzero(np.any(authored!=changed,axis=2)))
+                best=max(best,count)
+                assert r.echo_clock==echo_clock,(key,'Editing reset or advanced Echo history')
+                r.set_colors({});r.render(seconds)
+                assert np.array_equal(authored,pixels()),(key,'Reset changed authored pixels')
+            assert best>0,(key,'No visible source change sampled')
+            report[key]=best
+        (output/'shared-colors.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print('PASS: Shared material and FX pigment edits, exact reset and Echo clock continuity.',json.dumps(report))
+    finally:r.close()
+
+
+def elemental_color_gpu_test(family, output):
+    """Check elemental source pigments, reset and an unrelated held scene."""
+    from color_controls import TARGETS
+    cases={
+        'water':(('water.sky',7),('water.sea',7),('water.rain',9),
+                 ('water.dyes',8),('water.currents',13),('water.falls',10)),
+        'fire':(('fire.sheets',14),('fire.details',14),('molten.flow',15),
+                ('firescape.land',17),('aftershock.land',18),('aftershock.events',18)),
+        'air':(('air.sky',19),('air.clouds',19),('air.lightning',20),
+               ('air.balloons',19),('air.citadel',22),('sky.stars',22)),
+        'earth':(('earth.sky',24),('earth.minerals',24),('dunes.land',24),
+                 ('strata.land',25),('cavern.land',26),('sky.stars',25)),
+        'fog':(('fog.vapor',28),('fog.internal',28),('marsh.solids',29),
+               ('marsh.ghostlights',29)),
+        'plasma':(('plasma.sky',32),('magnetic.field',32),('arcs.charge',33),
+                  ('auroral.curtains',34)),
+    }
+    if family not in cases:raise ValueError('Unknown elemental color family')
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=480,height=270,seed=7301)
+    report={}
+    def pixels():
+        return np.frombuffer(r.ctx.screen.read(components=3,alignment=1),np.uint8).reshape(270,480,3).copy()
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        r.parameters.scale=.65;r.parameters.flux=.6;r.parameters.sparkle=.75
+        r.parameters.movement=.55;r.parameters.impact=.3
+        for key,state in cases[family]:
+            r.layer_profiles={};r.debug_state=state
+            target=next(t for t in TARGETS if t.id==key)
+            edit={key:{slot.id:{'color':'#FF1010'} for slot in target.slots}}
+            best=0
+            for seconds in (1.,5.,12.,20.,30.,45.,60.,90.,120.):
+                r.set_colors({});r.render(seconds);authored=pixels()
+                r.set_colors(edit);r.render(seconds);changed=pixels()
+                best=max(best,int(np.count_nonzero(np.any(authored!=changed,axis=2))))
+                r.set_colors({});r.render(seconds)
+                assert np.array_equal(authored,pixels()),(key,'Reset changed authored pixels')
+            assert best>0,(key,'No visible source change sampled')
+            r.debug_state=12;r.set_colors({});r.render(130.);other=pixels()
+            r.set_colors(edit);r.render(130.)
+            assert np.array_equal(other,pixels()),(key,'Leaked into Roots')
+            report[key]=best
+        (output/(family+'-colors.json')).write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print('PASS: '+family+' source colors, exact reset and unrelated Roots scope.',json.dumps(report))
+    finally:r.close()
+
+
+def color_completion_gpu_test(output):
+    """Probe cycles, Main handoff, diagnostic Transition and shelved Air detail."""
+    from color_controls import TARGETS
+    shader=(Path(__file__).parent/'shaders/dream.frag').read_text(encoding='utf-8')
+    dynamic={'material.artifacts','fx.flecks','fx.beams','fog.vapor'}
+    for target in TARGETS:
+        source=shader if not target.id.startswith('enveloper.') else (Path(__file__).parent/'shaders/envelopers.frag').read_text(encoding='utf-8')
+        assert source.count(target.uniform)>=2,(target.id,'missing shader hook')
+        if target.id in dynamic:
+            assert source.count(target.uniform+'[')>=2,(target.id,'missing dynamic role index')
+        elif target.kind=='roles':
+            assert all(f'{target.uniform}[{index}]' in source for index in range(len(target.slots))), (target.id,'missing role index')
+    output.mkdir(parents=True,exist_ok=True)
+    r=Renderer(width=320,height=180,seed=7301)
+    report={'declared_targets':len(TARGETS),'named_roles':sum(len(t.slots) for t in TARGETS)}
+    def pixels():
+        return np.frombuffer(r.ctx.screen.read(components=3,alignment=1),np.uint8).reshape(180,320,3).copy()
+    def edit(key):
+        target=next(t for t in TARGETS if t.id==key)
+        return {key:{slot.id:{'color':'#FF1010'} for slot in target.slots}}
+    def check(key,seconds):
+        r.set_colors({});r.render(seconds);authored=pixels()
+        r.set_colors(edit(key));r.render(seconds);changed=pixels()
+        changed_pixels=int(np.count_nonzero(np.any(authored!=changed,axis=2)))
+        r.set_colors({});r.render(seconds)
+        assert np.array_equal(authored,pixels()),(key,'authored reset')
+        return changed_pixels
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        r.parameters.scale=.65;r.parameters.flux=.6;r.parameters.sparkle=.75
+        r.parameters.movement=.55;r.parameters.impact=.3
+        for key,state in (('membrane.blue',1),('water.sky',6),('fire.sheets',16),
+                          ('air.sky',23),('earth.sky',27),('fog.vapor',31),
+                          ('plasma.sky',35),('planet.surface',4)):
+            r.debug_state=state;r.layer_profiles={}
+            best=max(check(key,t) for t in (1.,12.,31.,55.,82.))
+            assert best>0,(key,'no visible cycle or diagnostic color')
+            report[key]=best
+        r.debug_state=21
+        profile=dict(mode='together',seconds=12.,items=[
+            dict(id='air_clouds',enabled=True),dict(id='daddy_long_legs',enabled=False)])
+        r.layer_profiles={'air':profile}
+        r.set_colors({});r.render(5.);authored=pixels()
+        r.set_colors(edit('air.daddy'));r.render(5.)
+        assert np.array_equal(authored,pixels()),'Shelved Daddy Long Legs appeared without opt-in'
+        profile['items'][1]['enabled']=True
+        r.set_colors({});r.render(5.);authored=pixels()
+        r.set_colors(edit('air.daddy'));r.render(5.)
+        daddy=int(np.count_nonzero(np.any(authored!=pixels(),axis=2)))
+        assert daddy>0,'Opt-in Daddy Long Legs color had no visible effect'
+        r.set_colors({});r.render(5.);assert np.array_equal(authored,pixels())
+        report['air.daddy.opt_in']=daddy
+        r.layer_profiles={};r.debug_state=0
+        r.director_current=22;r.director_target=32;r.director_transition=0.
+        r.director_duration=8.;r.director_time=0.
+        r.director_since=0.;r.director_min_hold=1000.;r.director_max_hold=1000.
+        r.render(0.);r.render(4.)
+        assert r.program['u_directed'].value==1
+        for key in ('air.sky','plasma.sky','sky.stars'):
+            count=check(key,4.)
+            assert count>0,(key,'missing from Main handoff')
+            report['main.'+key]=count
+        r.director_current=12;r.director_target=None;r.director_since=r.director_time
+        count=check('roots.blue',4.)
+        assert count>0,'Roots color missing from Main'
+        report['main.roots.blue']=count
+        (output/'completion-colors.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print('PASS: authored cycles, Main handoff, diagnostic Transition and opt-in Air detail.',json.dumps(report))
+    finally:r.close()
 
 
 def planet_palette_test(baseline_path, output):
@@ -3224,6 +3451,10 @@ if __name__ == "__main__":
     parser.add_argument("--spatial-test", type=Path)
     parser.add_argument("--corridor-clearance-test", nargs=2,type=Path)
     parser.add_argument("--color-test", nargs=2, type=Path)
+    parser.add_argument('--color-rollout-gpu-test',type=Path)
+    parser.add_argument('--shared-color-gpu-test',type=Path)
+    parser.add_argument('--elemental-color-gpu-test',nargs=2,metavar=('FAMILY','OUTPUT'))
+    parser.add_argument('--color-completion-gpu-test',type=Path)
     parser.add_argument("--response-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--motion-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--blend-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
@@ -3267,9 +3498,21 @@ if __name__ == "__main__":
     parser.add_argument("--air-test", nargs=2, type=Path)
     parser.add_argument("--palette", choices=("authored", "soft-dream"), default="authored",
                         help="Experimental pigment choice; only held Planet Canvas uses soft-dream.")
-    parser.add_argument('--colors', type=parse_colors, default={}, help='Declared held-scene color overrides as JSON.')
-    parser.add_argument('--studio-color-input', action='store_true', help='Read bounded Studio color snapshots from stdin (held Roots only).')
+    parser.add_argument('--colors', type=parse_colors, default={}, help='Declared source color overrides as JSON.')
+    parser.add_argument('--studio-color-input', action='store_true', help='Read bounded Studio color snapshots from stdin.')
     args = parser.parse_args()
+    if args.color_rollout_gpu_test:
+        color_rollout_gpu_test(args.color_rollout_gpu_test)
+        raise SystemExit(0)
+    if args.shared_color_gpu_test:
+        shared_color_gpu_test(args.shared_color_gpu_test)
+        raise SystemExit(0)
+    if args.elemental_color_gpu_test:
+        elemental_color_gpu_test(args.elemental_color_gpu_test[0],Path(args.elemental_color_gpu_test[1]))
+        raise SystemExit(0)
+    if args.color_completion_gpu_test:
+        color_completion_gpu_test(args.color_completion_gpu_test)
+        raise SystemExit(0)
     if args.roots_color_test:
         roots_color_test(*args.roots_color_test)
         raise SystemExit(0)

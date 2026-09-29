@@ -8,8 +8,9 @@ import moderngl
 import math
 
 from parameters import VisualParameters
-from color_controls import validate_colors, color_uniforms
-from preview_layers import shooting_stars_at, echo_selected, echo_weave_at, layers_at, materials_at, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
+from envelopers import EnveloperStage
+from color_controls import validate_colors, color_uniforms, targets_for, STATE_COLOR_SCENE
+from preview_layers import treatment_weights, SPATIAL_TREATMENTS, ENVELOPERS, material_weights, shooting_stars_at, echo_selected, echo_weave_at, layers_at, materials_at, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
 
 VERTEX_SHADER = """
 #version 330
@@ -133,6 +134,8 @@ class Renderer:
         self.program = None
         self.vertices = None
         self.vao = None
+        self.enveloper_stage = None
+        self.enveloper_failed = False
         self.echo_resources = None
         self.echo_last_time = None
         self.echo_clock = 0.
@@ -564,6 +567,8 @@ class Renderer:
             self.layer_profiles, self.state_at(current_time), current_time)
         self.program['u_earth_details'].value = earth_details_at(
             self.layer_profiles, self.state_at(current_time), current_time)
+        self.program['u_spatial_treatments'].value = treatment_weights(self.layer_profiles, self.state_at(current_time), current_time, SPATIAL_TREATMENTS)
+        self.program['u_new_materials'].value = material_weights(self.layer_profiles, self.state_at(current_time), current_time)[4:]
         self.program['u_material_mix'].value = materials_at(
             self.layer_profiles, self.state_at(current_time), current_time)
         self.update_blend(current_time, delta_time, self.state_at(current_time) == 0 and mode != 0)
@@ -579,13 +584,32 @@ class Renderer:
                          echo_selected(self.layer_profiles, self.state_at(current_time)))
         update = self.color_inbox.take() if self.color_inbox else None
         if update is not None: self.set_colors(update[1])
-        active = self.debug_state == 12 and not self.debug_sequence
-        if self._color_dirty or active != self._color_active:
-            for name, value in color_uniforms(self.color_overrides, active).items():
-                self.program[name].value = value
+        state = self.state_at(current_time)
+        active = tuple(target.id for target in targets_for(STATE_COLOR_SCENE[state]))
+        if self._color_dirty or active != self._color_active or any(v.get('_cycle',{}).get('mode')=='cycle' for v in self.color_overrides.values()):
+            for name, value in color_uniforms(self.color_overrides, active, current_time).items():
+                if name in self.program: self.program[name].value = value
             self._color_dirty = False
             self._color_active = active
-        self.vao.render(mode=moderngl.TRIANGLE_STRIP)
+        weights=treatment_weights(self.layer_profiles,state,current_time,ENVELOPERS)
+        if max(weights)>0. and width>0 and height>0 and not self.enveloper_failed:
+            try:
+                if self.enveloper_stage is None:
+                    self.enveloper_stage=EnveloperStage(self.ctx,self.vertices,VERTEX_SHADER)
+                self.enveloper_stage.draw(self.program,self.vao,(width,height),current_time,state,weights,
+                    self.parameters,color_uniforms(self.color_overrides,active,current_time))
+            except Exception as exc:
+                if self.enveloper_stage:self.enveloper_stage.release();self.enveloper_stage=None
+                self.enveloper_failed=True
+                print('Enveloper fallback to untreated scene: '+str(exc),flush=True)
+                self.ctx.screen.use();self.ctx.viewport=(0,0,width,height)
+                self.program['u_resolution'].value=(float(width),float(height))
+                self.vao.render(mode=moderngl.TRIANGLE_STRIP)
+        else:
+            if self.enveloper_stage:self.enveloper_stage.release();self.enveloper_stage=None
+            if max(weights)<=0.:self.enveloper_failed=False
+            self.ctx.screen.use();self.ctx.viewport=(0,0,width,height)
+            self.vao.render(mode=moderngl.TRIANGLE_STRIP)
         if update is not None:
             self.color_inbox.applied(update[0], current_time, self.echo_clock)
 
@@ -605,6 +629,7 @@ class Renderer:
         return time.perf_counter() - self.start_time
 
     def close(self):
+        if self.enveloper_stage:self.enveloper_stage.release();self.enveloper_stage=None
         if self.color_inbox: self.color_inbox.close()
         self.release_echo()
         if self.vao is not None:
