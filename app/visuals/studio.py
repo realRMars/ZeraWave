@@ -19,14 +19,14 @@ from color_inspector import ColorInspector
 
 from technique_library import entries as library_entries, search as search_library
 from live_visual_test import LIVE_STATES
-from preview_layers import (EFFECTS, MATERIALS, MODES, default_profile, validate_layers, world_for_state, material_trio_profile, material_quartet_profile, WORLDS, NEW_MATERIALS, SPATIAL_TREATMENTS, ENVELOPERS)
+from preview_layers import (ORBITAL_LAYERS, EFFECTS, MATERIALS, MODES, default_profile, validate_layers, world_for_state, material_trio_profile, material_quartet_profile, WORLDS, NEW_MATERIALS, SPATIAL_TREATMENTS, ENVELOPERS, STELLAR_LAYERS)
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEEDS = {'Real time': 1., '2×': 2., '6×': 6., '12×': 12., 'Fastest': 0.}
 SOURCES = ('Test track', 'Synthetic preview', 'Live system audio')
 PLANET_PALETTES = {'authored': 'Authored', 'soft-dream': 'Soft Dream'}
 DEFAULTS = dict(state='water', source='Test track', track='', speed='12×',
-                duration='Full track', captures=True, planet_palette='authored')
+                duration='Full track', captures=True, planet_palette='authored', galaxy_seed='7301', galaxy_visit='0', galaxy_entry='Full journey')
 
 
 # Stable keys are session IDs; labels can evolve independently. Add descendants
@@ -39,8 +39,9 @@ WORLD_TREE = {
     'geometric': dict(label='Geometric', cycle='geometric', children={
         'corridor': dict(label='Neon corridor', state='geometric'),
     }),
-    'cosmic': dict(label='Cosmic', children={
+    'cosmic': dict(label='Cosmic', cycle='canvas', children={
         'canvas': dict(label='Planet canvas', state='canvas'),
+        'galaxy': dict(label='Galaxy', state='galaxy'),
     }),
     'transition': dict(label='Transition', state='transition'),
     'elements': dict(label='Elements', children={
@@ -175,6 +176,13 @@ def validate_session(data):
     values['state'] = states[0]
     if not isinstance(values['planet_palette'], str) or values['planet_palette'] not in PLANET_PALETTES:
         raise ValueError('Unknown Planet Canvas palette.')
+    raw=str(values['galaxy_seed'])
+    if not raw.isdecimal() or not 0<=int(raw)<=4294967295:raise ValueError('Invalid Galaxy seed.')
+    values['galaxy_seed']=raw
+    visit=str(values['galaxy_visit'])
+    if not visit.isdecimal() or not 0<=int(visit)<2**31:raise ValueError('Invalid Galaxy visit.')
+    values['galaxy_visit']=visit
+    if values['galaxy_entry'] not in ('Full journey','Short return'):raise ValueError('Invalid Galaxy entry.')
     if values['source'] not in SOURCES:
         raise ValueError('Unknown input source.')
     if values['speed'] not in SPEEDS or values['duration'] not in ('Full track', '30 seconds', '60 seconds'):
@@ -243,6 +251,13 @@ def command(values, output):
     if not isinstance(palette, str) or palette not in PLANET_PALETTES:
         raise ValueError('Unknown Planet Canvas palette.')
     state_args = ['--state', states[0]]
+    if states == ['galaxy']:
+        raw=str(values.get('galaxy_seed','7301'))
+        if not raw.isdecimal() or not 0<=int(raw)<=4294967295:raise ValueError('Galaxy seed must be an integer from 0 to 4294967295.')
+        visit=str(values.get('galaxy_visit','0'))
+        if not visit.isdecimal() or not 0<=int(visit)<2**31:raise ValueError('Invalid Galaxy visit.')
+        state_args += ['--seed',raw,'--galaxy-visit',visit]
+        if values.get('galaxy_entry')=='Short return':state_args+=['--galaxy-short']
     # Park the saved experiment choice outside this single held form.
     if states == ['canvas']: state_args += ['--palette', palette]
     colors = validate_colors(values.get('color_overrides', {}))
@@ -551,6 +566,8 @@ class Studio:
         self.selection_hint.set(hint)
 
     def refresh_palette(self):
+        if selection_states(self.selection)==['galaxy']:self.galaxy_controls.pack(fill='x')
+        else:self.galaxy_controls.pack_forget()
         active = selection_states(self.selection) == ['canvas']
         self.palette_choice.set(PLANET_PALETTES[self.vars['planet_palette'].get()] if active else 'Authored')
         self.palette_box.configure(state='readonly' if active else 'disabled')
@@ -612,6 +629,15 @@ class Studio:
         ttk.Label(self.section_frames['Envelopers'], wraplength=550, text=
             'Transforms the completed image, including world details. One at a time when several are selected.\n'
             'Use Presets → Nine treatments for source-filled reviews; Solo whole list removes the other details.').pack(anchor='w')
+        self.galaxy_controls=ttk.Frame(self.section_frames['Palettes'])
+        ttk.Label(self.galaxy_controls,text='Galaxy destination seed (next preview)').pack(anchor='w')
+        ttk.Entry(self.galaxy_controls,textvariable=self.vars['galaxy_seed'],width=18).pack(anchor='w')
+        ttk.Label(self.galaxy_controls,text='Starting visit (saved/replayable); each later arrival advances').pack(anchor='w')
+        ttk.Entry(self.galaxy_controls,textvariable=self.vars['galaxy_visit'],width=18).pack(anchor='w')
+        ttk.Combobox(self.galaxy_controls,textvariable=self.vars['galaxy_entry'],values=('Full journey','Short return'),state='readonly',width=18).pack(anchor='w')
+        self.galaxy_progress=tk.StringVar(value='Start muted/silent for visual review; source controls drive this world.')
+        ttk.Label(self.galaxy_controls,textvariable=self.galaxy_progress,wraplength=540).pack(anchor='w')
+        ttk.Label(self.galaxy_controls,text='Repeatable worlds. Galaxy → star approach → solar orbit → destination warp. Centered rotating opening. Each arrival can change planet count, star pairing, orbital layout and materials.',wraplength=560).pack(anchor='w')
         self.planet_controls = ttk.Frame(self.section_frames['Palettes'])
         self.planet_controls.pack(fill='x')
         palettes = self.planet_controls
@@ -713,7 +739,7 @@ class Studio:
         if focus and self.layer_table.exists(focus):
             self.layer_table.selection_set(focus); self.layer_table.see(focus)
         note = ('Isolation active: saved material flags/playback are parked; enabled FX/details stay on. ' if isolated else
-                ('Main Authored uses seven materials and paced spatial/Enveloper passages. ' if world=='blend' else 'Authored uses the original visuals; this list is parked. ') if profile['mode'] == 'authored' else
+                ('Main Authored uses seven materials and paced spatial passages; Envelopers are off. ' if world=='blend' else 'Galaxy Authored includes Ion Comets and Parallax Shoal; this list is parked. ' if world=='galaxy' else 'Authored uses the original visuals; this list is parked. ') if profile['mode'] == 'authored' else
                 'Only enabled effects run. An empty list shows the base form. ')
         note += 'Up / Down sets cycle order. Meld fades during the last 35% of each hold.'
         self.layer_note.set(note)
@@ -777,8 +803,8 @@ class Studio:
 
     def change_treatment_amount(self):
         selected=self.layer_table.selection()
-        if not selected or selected[0] not in SPATIAL_TREATMENTS+ENVELOPERS:
-            self.status.set('Select a new spatial effect or Enveloper row to change its amount.');return
+        if not selected or selected[0] not in SPATIAL_TREATMENTS+ENVELOPERS+STELLAR_LAYERS+ORBITAL_LAYERS:
+            self.status.set('Select a spatial effect, Stellar layer or Enveloper row to change its amount.');return
         from copy import deepcopy
         world=self.layer_world();profile=deepcopy(self.layer_profiles.get(world,default_profile(world)))
         try:
@@ -792,17 +818,24 @@ class Studio:
     def review_treatment(self,key):
         # Explicit user-invoked review preset; other worlds and colors stay parked.
         self.select(['cosmic','canvas'])
-        keys=(key,) if key in MATERIALS else ('cellular_mosaic',key)
+        keys=(key,) if key in MATERIALS else (('artifacts',key) if key in STELLAR_LAYERS else ('cellular_mosaic',key))
         self.layer_profiles['cosmic']=dict(mode='together',seconds=22.,items=[dict(id=k,enabled=True) for k in keys+('stars','rings','moons')])
         self.material_isolation.pop('cosmic',None)
         self.refresh_layers(key);self.tabs.select(self.preview)
         self.status.set('Review '+EFFECTS[key][0]+': Planet Canvas with rings, moons and stars. Choose any normal preview input.')
 
+    def review_galaxy(self, seed=None):
+        if seed is not None:self.vars['galaxy_seed'].set(str(seed))
+        self.select(['cosmic','galaxy'])
+        self.layer_profiles['galaxy']=dict(mode='authored',seconds=22.,items=[])
+        self.refresh_layers();self.tabs.select(self.preview)
+        self.status.set('Galaxy Odyssey: Galaxy with seeded nested-scale journey. Saved color edits remain; reset targets for contrasting local pigments.')
+
     def review_main(self):
         self.select([]);self.material_isolation.pop('blend',None)
         self.layer_profiles['blend']=dict(mode='authored',seconds=22.,items=[])
         self.refresh_layers();self.tabs.select(self.preview)
-        self.status.set('Main Authored: seven materials; spatial and Enveloper passages with untreated gaps.')
+        self.status.set('Main Authored: seven materials and spatial passages. Envelopers are available for separate review.')
 
     def menus(self):
         bar=tk.Menu(self.root)
@@ -834,6 +867,13 @@ class Studio:
         treatments.add_separator()
         treatments.add_command(label='Main — authored seven-material show',command=self.review_main)
         presets.add_cascade(label='Nine treatments',menu=treatments)
+        stellar=tk.Menu(presets,tearoff=False)
+        stellar.add_command(label='Galaxy scene',command=self.review_galaxy)
+        for name,seed in (('Stellar Cradle',7301),('Crowded Clockwork',42),('Twin Orbits',1337),('Pulsar Observatory',244)):
+            stellar.add_command(label=name+' / seed '+str(seed),command=lambda s=seed:self.review_galaxy(s))
+        for key in STELLAR_LAYERS:
+            stellar.add_command(label=EFFECTS[key][0]+' on Planet Canvas',command=lambda k=key:self.review_treatment(k))
+        presets.add_cascade(label='Galaxy Odyssey',menu=stellar)
         def add_presets(menu,children,path):
             for key,node in children.items():
                 selection=path+[key]
@@ -1052,6 +1092,12 @@ class Studio:
     def poll(self):
         if self.color_link:
             status=self.color_link.get_status()
+            startup=status.get('startup', {})
+            if startup.get('phase') in ('context', 'compiling', 'resources') and 'applied' not in status:
+                self.status.set('Starting preview: preparing shaders. The loading window shows elapsed time; Cancel or Stop ends this preview.')
+            elif startup.get('phase')=='ready' and (self.last_color_ack or {}).get('startup', {}).get('phase')!='ready':
+                self.status.set('Preview ready. Colors remain live; other controls apply on the next preview.')
+            if 'galaxy_visit' in status:self.galaxy_progress.set(f"Visit {status['galaxy_visit']} · phase {status.get('galaxy_phase',0.):.1f}s · stellar speed {status.get('star_rate',0.):.1f}×")
             if status and status!=self.last_color_ack:
                 self.last_color_ack=status
                 if 'error' in status:self.color_status.set('Last valid colors retained: '+status['error'])
@@ -1079,7 +1125,7 @@ class Studio:
                 paired = self.comparison_active
                 self.comparison_result('matched complete' if code == 0 else 'failed')
                 self.status.set(('Matched A/B complete: A Authored, B Soft Dream. Same input/timing verified; session unchanged.' if paired else
-                    'Preview completed. Review the saved results.') if code == 0 else f'Preview failed (code {code}). Read run.log.')
+                    'Preview completed. Review the saved results.') if code == 0 else 'Preview cancelled during startup.' if code == 125 else f'Preview failed (code {code}). Read run.log.')
         self.root.after(200, self.poll)
 
     def open_results(self):

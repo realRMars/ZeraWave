@@ -29,7 +29,7 @@ from signal_processor import SignalProcessor, VisualSignalConditioner
 
 
 def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
-           capture_dir=None, capture_interval=15.0, states=None, layers=None, seed=None, palette="authored", comparison_label=None, colors=None, color_input=False):
+           capture_dir=None, capture_interval=15.0, states=None, layers=None, seed=None, palette="authored", comparison_label=None, colors=None, color_input=False, galaxy_visit=0, galaxy_short=False):
     if palette not in ("authored", "soft-dream"):
         raise ValueError("Unknown preview palette")
     if not math.isfinite(speed) or speed < 0:
@@ -57,6 +57,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
         mapper = VisualParameterMapper()
         detectors = {name: OnsetDetector(threshold=0.2) for name in ("bass", "mids", "highs")}
         renderer = Renderer(title=(f"ZeraWave Matched {comparison_label} - {palette}" if comparison_label else "ZeraWave WAV Replay"), seed=seed)
+        renderer.set_galaxy_start(galaxy_visit,galaxy_short)
         renderer.preview_palette = palette
         renderer.debug_state = debug_state
         renderer.debug_sequence = tuple(LIVE_STATES[name] for name in (states or ()))
@@ -152,9 +153,11 @@ def main():
     parser.add_argument("--comparison-label", choices=("A", "B"), help="Studio matched replay label; locks window size.")
     parser.add_argument('--colors', type=parse_colors, default={}, help='Declared source color overrides as JSON.')
     parser.add_argument('--studio-color-input', action='store_true', help='Read bounded Studio color snapshots from stdin.')
+    parser.add_argument('--galaxy-visit',type=int,default=0)
+    parser.add_argument('--galaxy-short',action='store_true')
     args = parser.parse_args()
     seconds, rows = replay(args.wav, args.speed, args.max_seconds, args.metrics, args.state,
-                           args.capture_dir, args.capture_interval, args.states, args.layers, args.seed, args.palette, args.comparison_label, args.colors, args.studio_color_input)
+                           args.capture_dir, args.capture_interval, args.states, args.layers, args.seed, args.palette, args.comparison_label, args.colors, args.studio_color_input, args.galaxy_visit,args.galaxy_short)
     print(f"Replay complete: {seconds:.1f}s song time, {len(rows)} analyzed frames")
 
 

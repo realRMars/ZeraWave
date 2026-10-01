@@ -127,7 +127,9 @@ class ColorLink:
                 if text.startswith(ACK_PREFIX):
                     try: status=json.loads(text[len(ACK_PREFIX):])
                     except ValueError: continue
-                    with self.condition: self.status=status
+                    with self.condition:
+                        if "applied" in status:self.status.pop("error",None)
+                        self.status.update(status)
         finally:
             self.log.close()
             stream.close()

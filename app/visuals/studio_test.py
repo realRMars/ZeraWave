@@ -125,6 +125,102 @@ def planet_palette_studio_test():
         print('PASS: Studio palette UI, old/new sessions, four materials/meld, scope gating; all three Studio argv routes reached real GPU palette/material uniforms. Live audio used controlled samples.')
 
 
+def galaxy_scene_studio_test():
+    """Standalone Cosmic leaf, old sessions, colors and all Studio launch paths."""
+    import runpy
+    import sys
+    from contextlib import ExitStack
+    from color_controls import targets_for, validate_colors, family_setup, galaxy_authored_colors
+    from preview_layers import STELLAR_LAYERS, stellar_layers_at
+    from studio import SOURCES
+    from renderer import LIVE_FORMS
+    assert 36 not in LIVE_FORMS
+    assert selection_states(['cosmic']) == ['canvas']
+    assert selection_states(['cosmic','galaxy']) == ['galaxy']
+    assert path_for_state('galaxy') == ['cosmic','galaxy']
+    assert {t.id for t in targets_for('galaxy')} == {'galaxy.structure','galaxy.system','stellar.sails','sky.stars'}
+    assert not any(t.id == 'galaxy.structure' for t in targets_for('blend'))
+    assert {key for key,info in EFFECTS.items() if 'galaxy' in info[2]} == set(STELLAR_LAYERS)|{'gravity_well'}
+    assert stellar_layers_at({},36,0.) == (1.,1.)
+    assert stellar_layers_at({},0,0.) == (0.,0.)
+    manual={'galaxy.structure':family_setup('galaxy.structure','Orchid Eclipse'),
+            'stellar.sails':family_setup('stellar.sails','Copper Comet')}
+    assert galaxy_authored_colors(manual,36)['galaxy.structure']==manual['galaxy.structure']
+    assert 'galaxy.system' in galaxy_authored_colors(manual,36)
+    assert galaxy_authored_colors(manual,36)['stellar.sails']==manual['stellar.sails']
+    for version in (1,2,3):
+        old = validate_session(dict(version=version, state='cosmic',
+                                    selection=['cosmic']))
+        assert old['selection'] == (['cosmic','canvas'] if version == 1 else ['cosmic'])
+        assert old['state'] == 'canvas'
+    with tempfile.TemporaryDirectory(dir=ROOT/'work') as temporary:
+        folder=Path(temporary)
+        root=tk.Tk();root.withdraw();app=Studio(root)
+        try:
+            root.deiconify();root.update()
+            app.select(['cosmic','galaxy'])
+            assert app.values()['state']=='galaxy'
+            assert str(app.palette_box['state'])=='disabled'
+            assert app.layer_world()=='galaxy'
+            app.color_overrides=validate_colors(manual)
+            for seed in (7301,42,1337):
+                app.review_galaxy(seed)
+                assert app.values()['galaxy_seed']==str(seed)
+                assert app.color_overrides==validate_colors(manual)
+            app.review_galaxy()
+            assert app.values()['galaxy_seed']=='1337'
+            app.layer_profiles={'galaxy':dict(mode='together',seconds=18.,items=[
+                dict(id='stellar_sails',enabled=True,amount=.65),
+                dict(id='parallax_shoal',enabled=True,amount=.85)])}
+            expected_layers=app.layer_profiles
+            app.session_path=folder/'galaxy-session.json';app.save();app.new()
+            with patch('studio.filedialog.askopenfilename',return_value=str(folder/'galaxy-session.json')):app.load()
+            assert app.selection==['cosmic','galaxy']
+            assert app.values()['color_overrides']==app.color_overrides
+            assert app.layer_profiles==expected_layers
+            assert 'stellar_sails' in app.layer_table.get_children()
+            assert str(app.palette_box['state'])=='disabled'
+            app.vars['track'].set(str(tracks()[0]));app.vars['captures'].set(False)
+            values=app.values()
+        finally:app.close()
+        class ControlledCapture:
+            def __init__(self,**kwargs):pass
+            def find_device(self):return 'Controlled zero samples (no listening review)'
+            def start(self):pass
+            def read(self,**kwargs):return np.zeros((2048,2),dtype=np.float32)
+            def stop(self):pass
+        for source in SOURCES:
+            seen=[]
+            class ObservedRenderer(Renderer):
+                def __init__(self,*args,**kwargs):
+                    kwargs.update(width=320,height=180,seed=2)
+                    super().__init__(*args,**kwargs)
+                def create(self):
+                    glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE)
+                    super().create()
+                def should_close(self):return len(seen)>=1
+                def render(self,elapsed_time=None):
+                    super().render(elapsed_time=elapsed_time)
+                    assert self.program['u_debug_state'].value==36.
+                    assert self.program['u_galaxy_colors_on'].value==1
+                    assert np.allclose(self.program['u_stellar_layers'].value,(.65,.85))
+                    assert self.program['u_stellar_sails_on'].value==1
+                    seen.append(True)
+            args=command(dict(values,source=source),folder)
+            assert args[args.index('--state')+1]=='galaxy'
+            assert '--palette' not in args
+            assert args[args.index('--seed')+1]==values['galaxy_seed']
+            script_index=next(i for i,arg in enumerate(args) if arg.endswith('.py'))
+            with ExitStack() as stack:
+                stack.enter_context(patch('renderer.Renderer',ObservedRenderer))
+                stack.enter_context(patch.object(sys,'argv',args[script_index:]))
+                if source=='Live system audio':
+                    stack.enter_context(patch('capture.AudioCapture',ControlledCapture))
+                runpy.run_path(args[script_index],run_name='__main__')
+            assert seen,source
+    print('PASS: standalone Galaxy Studio leaf/session/colors and synthetic, decoded, controlled-live GPU routes.')
+
+
 def studio_comparison_test():
     """Real Studio children + decoded audio, and fixed GPU history/pixel checks."""
     import wave
@@ -559,7 +655,8 @@ def main():
     assert layers_at(water_layers,13,0)==(1,BITS['water_rain'])
     assert layers_at(water_layers,13,4)==(1,BITS['water_ripples'])
     assert selection_states(['cosmic'])==['canvas']
-    assert list(WORLD_TREE['cosmic']['children']) == ['canvas']
+    assert list(WORLD_TREE['cosmic']['children']) == ['canvas','galaxy']
+    assert selection_states(['cosmic','galaxy']) == ['galaxy']
     assert not any(row.get('selection') == ['cosmic','geometry'] for row in catalog)
     from renderer import LIVE_FORMS
     assert 3 not in LIVE_FORMS and 5 in LIVE_FORMS
@@ -632,7 +729,7 @@ def main():
             with patch('studio.filedialog.askopenfilename',return_value=str(folder/'old-geometry.json')):
                 app.load()
             assert app.selection == ['cosmic','canvas']
-            assert tuple(app.selector_rows[1][1]['values']) == ('','Planet canvas')
+            assert tuple(app.selector_rows[1][1]['values']) == ('','Planet canvas','Galaxy')
             assert app.stop_button.winfo_y()+app.stop_button.winfo_height() <= app.preview.winfo_height()
             app.session_path=folder/'session.json'
             app.select(['elements','water','rain']);app.vars['speed'].set('6×')
@@ -861,6 +958,8 @@ if __name__=='__main__':
         studio_comparison_test()
     elif '--planet-palette-test' in sys.argv:
         planet_palette_studio_test()
+    elif '--galaxy-scene-test' in sys.argv:
+        galaxy_scene_studio_test()
     else:
         main()
         # Keep Tk interpreters in separate processes so destroyed-window timers

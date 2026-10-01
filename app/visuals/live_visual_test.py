@@ -22,7 +22,7 @@ from signal_processor import SignalProcessor, VisualSignalConditioner
 
 LIVE_STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3,
                "transition": 4, "canvas": 5, "water": 6, "sea": 7,
-               "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35}
+               "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35, "galaxy": 36}
 
 
 def make_bar(value, width=30):
@@ -136,7 +136,7 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors):
     return frame
 
 
-def main(state="blend", states=None, layers=None, device=None, quiet=False, palette="authored", colors=None, color_input=False):
+def main(state="blend", states=None, layers=None, device=None, quiet=False, palette="authored", colors=None, color_input=False, seed=None, galaxy_visit=0, galaxy_short=False):
     capture = AudioCapture(device_name=device)
     analyzer = AudioAnalyzer()
     processor = SignalProcessor(smoothing=0.5)
@@ -145,7 +145,8 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
     # every small fluctuation, per the "more threshold to breathe" ask.
     conditioner = VisualSignalConditioner(quiet_threshold=0.06)
     mapper = VisualParameterMapper()
-    renderer = Renderer(title=f"ZeraWave - live {state}")
+    renderer = Renderer(title=f"ZeraWave - live {state}",seed=seed)
+    renderer.set_galaxy_start(galaxy_visit,galaxy_short)
     renderer.preview_palette = palette
     renderer.debug_state = LIVE_STATES[state]
     renderer.debug_sequence = tuple(LIVE_STATES[name] for name in (states or ()))
@@ -254,5 +255,8 @@ if __name__ == "__main__":
                         help="Experimental pigment choice; only held Planet Canvas uses soft-dream.")
     parser.add_argument('--colors', type=parse_colors, default={}, help='Declared source color overrides as JSON.')
     parser.add_argument('--studio-color-input', action='store_true', help='Read bounded Studio color snapshots from stdin.')
+    parser.add_argument('--seed',type=int,default=None,help='Repeatable Galaxy destinations.')
+    parser.add_argument('--galaxy-visit',type=int,default=0)
+    parser.add_argument('--galaxy-short',action='store_true')
     args = parser.parse_args()
-    main(args.state, args.states, args.layers, args.device, args.quiet, args.palette, args.colors, args.studio_color_input)
+    main(args.state, args.states, args.layers, args.device, args.quiet, args.palette, args.colors, args.studio_color_input, args.seed,args.galaxy_visit,args.galaxy_short)

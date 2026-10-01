@@ -5,6 +5,16 @@ SHADER = 'app/visuals/shaders/dream.frag'
 # title, search vocabulary / purpose, source symbol. These are building blocks,
 # not independently toggleable effects or promises of generic reusable APIs.
 TECHNIQUES = (
+    ('Galaxy Odyssey depth', 'Seeded nested scales, centered survey, adaptive actual-subject camera routes, zero-to-eight planets, unequal binary stars and coherent destination reveal. Deliberate visit ordinals and13-slot recent-palette avoidance, seeded local pigments and distinct orbital shells; full or short Studio entries. Bounded descriptors, no texture history', 'isolated_galaxy_scene'),
+    ('Stellar Gravity Well', 'Shaded stellar bowl with source-driven bending resonance rings and localized body depressions and coherent embedded companion/planet routes; Galaxy layer with editable amount. Authored optical embedding, not a gravity solver; inherits local solar materials.', 'journey_gravity'),
+    ('Resonance Fronts', 'Bounded traveling onset rings deform the authored field and excite local matter. Continuous integrated phase, visible energy loss; existing Galaxy gravity amount/source pigments, no new physics solver.', 'journey_field_wave'),
+    ('Accretion Lens', 'Spherical dark void, curved bright photon rim and thick blended emitting spiral strata. Stylized color bending and positive audio-driven spin, not relativistic simulation.', 'journey_galaxy'),
+    ('Procedural solar materials', 'Seven seeded surface languages: fractured, ocean, gas, ringed gas, ice, dunes and luminous mineral. Per-body texture/pigment mixtures, seamless spherical flow driven by accumulated positive motion, traveling onset echoes; editable source roles.', 'journey_surface'),
+    ('Local stellar resonance', 'Existing bass/flux/highs pressure, bounded onset events, smooth convective photospheres, rare seeded oblique pulsar proxies, magnetic stellar ejections, surface excitation and polar orbital wakes. Independent of the camera; no new audio analysis.', 'journey_echo'),
+    ('Restrained stellar hierarchy', 'Galaxy directional far/fine and sparse-anchor fields; independently seeded size, spectrum, luminance and subtle asynchronous twinkle. Shared editable cool/warm roles.', 'journey_sky'),
+    ('Dimensional destination warp', '72 thin fast perspective tails, sparse depth-separated peripheral cloud banks, dark destination channel and colored passage without a duplicate Main warp and coherent seeded destination reveal; also used by forced short Main handoffs.', 'journey_warp'),
+    ('Ion Comets', 'Celestial nuclei, ion tails and curved dust wakes. Stable stellar_sails session ID; opt-in through Shared FX in Planet Canvas, Fog and Plasma.', 'stellar_sails'),
+    ('Parallax Shoal', 'Three depth-separated stellar fields with musical shimmer. Galaxy authored; opt-in in Planet Canvas, Fog and Plasma. Shared star pigments.', 'parallax_shoal'),
     ('Shared shooting stars', 'Direction-space meteor trails shared by Sea sky and wave reflections, with optional Cosmic use. Controlled through Sky effects.', 'shooting_star_radiance'),
     ('Echo Weave history', 'Persistent dye fields become strands. Renderer.update_echo owns history buffers; the update shader transports the field.', 'echo_material'),
     ('Musical color accents', 'Selective saturation and brightness accents preserve dark space while music brings pigment forward.', 'musical_material'),
@@ -48,6 +58,9 @@ def entries(world_tree):
     for title, summary, symbol in TECHNIQUES:
         rows.append(dict(id='technique:' + symbol, title=title, kind='Techniques', summary=summary +
             ' This is an implementation building block, not a standalone layer switch.', sources=[SHADER + ':' + symbol]))
+    rows.append(dict(id='technique:seeded-system-recipes', title='Seeded system recipes', kind='Techniques',
+        summary='Pure bounded descriptors and adaptive camera routes: zero, one, two, four or eight bodies, orbital traits, materials and single/binary stars. Galaxy currently consumes these recipes; reusable Python foundation, not an astronomical solver or a standalone layer.',
+        sources=['app/visuals/procedural_cosmos.py:destination','app/visuals/procedural_cosmos.py:system_pose']))
     rows += [dict(id='workflow:review', title='Test and review a change', kind='Workflow',
         summary='Isolate a form, choose a track, inspect quiet and sustained strong passages, then review Main blend. Track replay is silent. Captures alone do not verify motion.',
         sources=['DEVELOPMENT_STUDIO.md', 'app/visuals/replay_test.py', 'app/visuals/shader_test.py']),

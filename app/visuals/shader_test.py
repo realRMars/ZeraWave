@@ -15,7 +15,7 @@ from renderer import Renderer, VERTEX_SHADER, blend_uniforms, blend_chapter, BLE
 from studio_color_link import configure_colors
 from color_controls import parse_colors
 
-STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35}
+STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35, "galaxy": 36}
 
 
 def save_png(path, pixels):
@@ -369,6 +369,162 @@ def color_completion_gpu_test(output):
     finally:r.close()
 
 
+def galaxy_scene_test(baseline_path, output):
+    """Held Galaxy pixels, preservation, response, resize and paired GPU cost."""
+    from renderer import LIVE_FORMS
+    from preview_layers import world_for_state
+    output.mkdir(parents=True, exist_ok=True)
+    assert 36 not in LIVE_FORMS and world_for_state(36) == 'galaxy'
+    r=Renderer(width=640,height=360,seed=7301)
+    old=old_vao=None
+    report={'baseline':str(baseline_path),'resolution':[640,360]}
+    def pixels(width=640,height=360):
+        return np.frombuffer(r.ctx.screen.read(viewport=(0,0,width,height),components=3,alignment=1),np.uint8).reshape(height,width,3)[::-1].copy()
+    try:
+        glfw.init();glfw.window_hint(glfw.VISIBLE,glfw.FALSE);r.create()
+        report['gpu']=r.ctx.info['GL_RENDERER']
+        old=r.ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=baseline_path.read_text(encoding='utf-8'))
+        old_vao=r.ctx.simple_vertex_array(old,r.vertices,'in_position')
+        for state in (0,4,5,12):
+            r.debug_state=state;r.layer_profiles={};r.render(20.+state*.1)
+            actual=pixels()
+            for name in old:
+                if name in r.program and hasattr(old[name],'value'):
+                    old[name].value=r.program[name].value[:old[name].array_length] if old[name].array_length>1 else r.program[name].value
+            old_vao.render(mode=moderngl.TRIANGLE_STRIP)
+            assert np.array_equal(actual,pixels()),('old scene changed',state)
+        report['baseline_pixel_identical_states']=[0,4,5,12]
+        r.release_echo()
+        r.debug_state=36;r.layer_profiles={};r.set_colors({})
+        samples=[]
+        for name,level,seconds in (('quiet',.05,30.),('strong',.86,34.),('release',.05,38.)):
+            r.parameters.scale=r.parameters.flux=r.parameters.sparkle=level
+            r.parameters.movement=level;r.parameters.impact=0.
+            r.render(seconds);frame=pixels()
+            save_png(output/(name+'.png'),frame)
+            samples.append(dict(phase=name,seconds=seconds,mean_rgb=float(frame.mean()),
+                mean_channels=[float(value) for value in frame.mean(axis=(0,1))],
+                lit_fraction=float((frame.max(axis=2)>20).mean()),
+                star_time=r.star_time,galaxy_release=r.galaxy_release))
+        assert samples[1]['mean_rgb']>samples[0]['mean_rgb']
+        assert samples[2]['mean_rgb']<samples[1]['mean_rgb']
+        assert samples[0]['star_time']<samples[1]['star_time']<samples[2]['star_time']
+        assert samples[0]['galaxy_release']==0.
+        assert samples[1]['galaxy_release']<.05
+        assert samples[2]['galaxy_release']>.45,'strong-to-quiet release missing'
+        report['synthetic_samples']=samples
+        r.parameters.scale=r.parameters.flux=r.parameters.sparkle=.05
+        r.parameters.movement=.05
+        motion=[];first=previous=None
+        for index in range(9):
+            r.render(39.+index*.5);frame=pixels()
+            if first is None:first=frame
+            if previous is not None:
+                motion.append(float(np.abs(frame.astype(float)-previous).mean()))
+            previous=frame
+        report['quiet_motion']={'max_half_second_mean_byte_change':max(motion),
+            'four_second_mean_byte_change':float(np.abs(first.astype(float)-previous).mean())}
+        assert 0.<report['quiet_motion']['four_second_mean_byte_change']
+        assert report['quiet_motion']['max_half_second_mean_byte_change']<6.
+        # Same time/input: a different composition, not Planet Canvas pigment.
+        r.debug_state=5;r.render(43.);canvas=pixels()
+        r.debug_state=36;r.render(43.);galaxy=pixels()
+        report['canvas_vs_galaxy_mean_byte_difference']=float(np.abs(canvas.astype(float)-galaxy).mean())
+        assert report['canvas_vs_galaxy_mean_byte_difference']>4.
+        save_png(output/'planet-vs-galaxy.png',np.concatenate((canvas,galaxy),axis=1))
+        # A generated inspector target must change the Galaxy and reset exactly.
+        r.set_colors({});r.render(43.);authored=pixels()
+        report['edited_color_pixels']={}
+        for role,color in (('core','#D02040'),('arms','#F04070'),
+                           ('lanes','#F02050'),('stars','#F06030'),('nursery','#66ff00'),('outer','#aa0099')):
+            r.set_colors({'galaxy.structure':{role:{'color':color}}});r.render(43.);edited=pixels()
+            changed=int(np.count_nonzero(np.any(authored!=edited,axis=2)))
+            report['edited_color_pixels'][role]=changed
+            assert changed>100,(role,changed)
+            r.set_colors({});r.render(43.)
+            assert np.array_equal(authored,pixels()),(role,'reset')
+        # Every new local material source remains independently editable with
+        # unchanged camera/time and exact reset through the production renderer.
+        r.galaxy_time=108.;r.render(43.);system=pixels()
+        from color_controls import TARGETS
+        target=next(t for t in TARGETS if t.id=='galaxy.system')
+        r.galaxy_time=144.;r.render(43.);giant=pixels()
+        for slot in target.slots:
+            r.set_colors({});r.galaxy_time=108. if slot.id in ('sun','rock','ocean','air','land') else 144.;r.render(43.)
+            before=pixels();clock=r.galaxy_time;star_clock=r.star_time
+            r.set_colors({'galaxy.system':{slot.id:{'color':'#FF11CC'}}});r.render(43.)
+            count=int(np.count_nonzero(np.any(before!=pixels(),axis=2)))
+            assert count>5,(slot.id,count)
+            assert r.galaxy_time==clock and r.star_time==star_clock
+            r.set_colors({});r.render(43.);assert np.array_equal(before,pixels()),(slot.id,'reset')
+            report['edited_color_pixels']['system.'+slot.id]=count
+        r.galaxy_time=20.
+        r.debug_state=5;r.render(43.);canvas=pixels()
+        r.set_colors({'galaxy.structure':{'arms':{'color':'#F04070'}}});r.render(43.)
+        assert np.array_equal(canvas,pixels()),'Galaxy color leaked into Planet Canvas'
+        r.set_colors({});r.debug_state=36
+        # Resize actual GLFW framebuffer, then verify the route keeps a lit disk.
+        glfw.set_window_size(r.window,960,540);glfw.poll_events();r.render(44.)
+        width,height=glfw.get_framebuffer_size(r.window)
+        assert (width,height)==(960,540),(width,height)
+        assert r.program['u_resolution'].value==(960.,540.)
+        resized=pixels(width,height)
+        assert resized.mean()>1. and np.isfinite(resized).all()
+        save_png(output/'resized.png',resized)
+        report['resized_resolution']=[width,height]
+        glfw.set_window_size(r.window,1280,720);glfw.poll_events();r.render(44.5)
+        assert glfw.get_framebuffer_size(r.window)==(1280,720)
+        # Closely paired GPU-only draws at the production default size;
+        # no audio analysis, swap, capture or CPU
+        # upload cost. Alternate order to reduce clock/thermal drift bias.
+        timings={'canvas':[],'galaxy':[]}
+        for pair in range(10):
+            order=('canvas','galaxy') if pair%2==0 else ('galaxy','canvas')
+            for scene in order:
+                r.debug_state=5 if scene=='canvas' else 36
+                r.render(45.+pair*.25)
+                with r.ctx.query(time=True) as query:
+                    r.vao.render(mode=moderngl.TRIANGLE_STRIP)
+                if pair>=2:timings[scene].append(query.elapsed/1e6)
+        report['paired_gpu_ms_1280x720']={name:{'median':float(np.median(values)),
+            'p95':float(np.percentile(values,95))} for name,values in timings.items()}
+        report['resource_note']='No Galaxy framebuffer or texture; same renderer program/VAO. Timings cover one shader draw only.'
+        assert r.echo_resources is None and r.enveloper_stage is None
+        # A longer held quiet view must retain motion and evolve its tint,
+        # then remain continuous at frame cadence without audio input.
+        r.debug_state=36
+        r.parameters.scale=r.parameters.flux=r.parameters.sparkle=.08
+        r.parameters.movement=.08;r.parameters.impact=0.
+        long_view=[]
+        for seconds in (46.,76.,106.,136.,166.):
+            r.render(seconds);frame=pixels(1280,720)
+            save_png(output/f'extended-{int(seconds)}.png',frame)
+            long_view.append(dict(seconds=seconds,star_time=r.star_time,
+                release=r.galaxy_release,mean_channels=[float(v) for v in frame.mean(axis=(0,1))]))
+        assert all(a['star_time']<b['star_time'] for a,b in zip(long_view,long_view[1:]))
+        assert long_view[-1]['release']<.02,'release failed to fade'
+        report['extended_quiet_view']=long_view
+        changes=[];previous=None
+        for index in range(101):
+            r.render(167.+index*.05);frame=pixels(1280,720)
+            if previous is not None:
+                changes.append(float(np.abs(frame.astype(np.int16)-previous.astype(np.int16)).mean()))
+            previous=frame
+        report['continuous_five_second_view']={'max_frame_mean_byte_change':max(changes),
+            'mean_frame_mean_byte_change':float(np.mean(changes))}
+        # A purposeful solar transfer moves faster than the former quiet orbit.
+        # Bound image displacement and isolated spikes; pure route tests cover
+        # camera joins. The failed old 2-byte ceiling measured 4.026, median 2.77.
+        median=float(np.median(changes))
+        assert 0.<median<5. and max(changes)<8. and max(changes)<median*3.,'Galaxy transfer snapped, flickered or stopped'
+        (output/'checks.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+        print('PASS: Galaxy preservation, distinct composition, synthetic response, color reset/scope, resize and paired GPU draws.',json.dumps(report),flush=True)
+    finally:
+        if old_vao is not None:old_vao.release()
+        if old is not None:old.release()
+        r.close()
+
+
 def planet_palette_test(baseline_path, output):
     """Matched GPU draws share every uniform and Echo history; no audio playback."""
     from preview_layers import MATERIALS
@@ -551,8 +707,16 @@ def capture(output, seconds, profile="standard", debug_state=0, layers=None, pal
     values['u_fog_details']=fog_details_at(layers or {},debug_state,seconds)
     from preview_layers import plasma_details_at
     values['u_plasma_details']=plasma_details_at(layers or {},debug_state,seconds)
-    from preview_layers import shooting_stars_at
+    from preview_layers import shooting_stars_at, stellar_layers_at
+    from color_controls import galaxy_authored_colors, color_uniforms, targets_for, STATE_COLOR_SCENE
     values['u_shooting_stars']=shooting_stars_at(layers or {},debug_state,seconds)
+    values['u_stellar_layers']=stellar_layers_at(layers or {},debug_state,seconds)
+    from procedural_cosmos import uniforms as journey_uniforms
+    values.update(journey_uniforms(7301,seconds,seconds))
+    if debug_state==36:
+        active=tuple(t.id for t in targets_for(STATE_COLOR_SCENE[debug_state]))
+        values.update({name:value for name,value in color_uniforms(galaxy_authored_colors({},debug_state),active,seconds).items()
+                       if name in ('u_galaxy_colors_on','u_galaxy_colors','u_stellar_sails_on','u_stellar_sails','u_sky_stars_on','u_sky_stars','u_journey_colors_on','u_journey_colors')})
     values.update(blend_uniforms(seconds, debug_state == 0 and layer_mode != 0))
     if profile == "quiet":
         values.update(u_scale=.05, u_flux=.02, u_sparkle=.05, u_impact=0.)
@@ -2794,16 +2958,18 @@ def fire_test(baseline_path, output, molten_expansion=False, firescape_expansion
         renderer.close()
 
 
-def main(debug_state=0, states=None, layers=None, palette="authored", colors=None, color_input=False):
+def main(debug_state=0, states=None, layers=None, palette="authored", colors=None, color_input=False, seed=None, galaxy_visit=0, galaxy_short=False):
     renderer = Renderer(
         width=1280,
         height=720,
         title="ZeraWave - " + next(name for name, value in STATES.items() if value == debug_state),
+        seed=seed,
     )
     print(f"State preview active: {debug_state}", flush=True)
 
     try:
         renderer.create()
+        renderer.set_galaxy_start(galaxy_visit,galaxy_short)
         renderer.preview_palette = palette
         renderer.debug_state = debug_state
         renderer.debug_sequence = tuple(STATES[name] for name in (states or ()))
@@ -3464,6 +3630,7 @@ if __name__ == "__main__":
     parser.add_argument("--molten-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--fire-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--planet-palette-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
+    parser.add_argument("--galaxy-scene-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--echo-test", type=Path)
     parser.add_argument("--sweep", type=Path)
     parser.add_argument("--layer-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
@@ -3500,6 +3667,9 @@ if __name__ == "__main__":
                         help="Experimental pigment choice; only held Planet Canvas uses soft-dream.")
     parser.add_argument('--colors', type=parse_colors, default={}, help='Declared source color overrides as JSON.')
     parser.add_argument('--studio-color-input', action='store_true', help='Read bounded Studio color snapshots from stdin.')
+    parser.add_argument('--seed',type=int,default=None,help='Repeatable Galaxy destinations.')
+    parser.add_argument('--galaxy-visit',type=int,default=0)
+    parser.add_argument('--galaxy-short',action='store_true')
     args = parser.parse_args()
     if args.color_rollout_gpu_test:
         color_rollout_gpu_test(args.color_rollout_gpu_test)
@@ -3518,6 +3688,9 @@ if __name__ == "__main__":
         raise SystemExit(0)
     if args.planet_palette_test:
         planet_palette_test(*args.planet_palette_test)
+        raise SystemExit(0)
+    if args.galaxy_scene_test:
+        galaxy_scene_test(*args.galaxy_scene_test)
         raise SystemExit(0)
     if args.world_repairs_test:
         world_repairs_test(*args.world_repairs_test)
@@ -3612,4 +3785,4 @@ if __name__ == "__main__":
     elif args.sweep:
         sweep(args.sweep)
     else:
-        main(STATES[args.state], args.states, args.layers, args.palette, args.colors, args.studio_color_input)
+        main(STATES[args.state], args.states, args.layers, args.palette, args.colors, args.studio_color_input, args.seed,args.galaxy_visit,args.galaxy_short)

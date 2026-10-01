@@ -76,6 +76,29 @@ TARGETS = (
         (ColorSlot('violet','Violet band',(.31,.19,.40)), ColorSlot('gold','Gold band',(.93,.67,.39)),
          ColorSlot('tint','Ring object tint',(1.,1.,1.))),
         'Two authored bands before canvas blend; object tint after Soft Dream and before shadow and moon occlusion.'),
+    ColorTarget('stellar.sails', 'Ion Comets', 'shared', 'roles', 'u_stellar_sails',
+        (ColorSlot('shell','Ion tail',(.22,.65,.82)),
+         ColorSlot('edge','Comet nucleus',(1.,.42,.22)),
+         ColorSlot('wake','Dust wake',(.56,.32,.95))),
+        'Celestial ion comets in Galaxy, Planet Canvas, Fog and Plasma. Source pigments preserve nucleus, tails, orbit and depth.'),
+    ColorTarget('galaxy.structure', 'Galaxy structure', 'galaxy', 'roles', 'u_galaxy_colors',
+        (ColorSlot('core','Stellar core',(.98,.76,.50)),
+         ColorSlot('arms','Spiral arms',(.36,.53,.92)),
+         ColorSlot('lanes','Dust lanes',(.16,.10,.22)),
+         ColorSlot('stars','Star concentrations',(.75,.87,1.)),
+           ColorSlot('nursery','Rose star-forming regions',(1.,.24,.43)),
+           ColorSlot('outer','Verdigris cloud regions',(.12,.85,.65))),
+        'Galaxy Odyssey: core, luminous strata, absorbing dust, rose nurseries and verdigris regions. Local cloud drift and seeded destinations evolve the pigment distribution. Use palette timing for explicit hold/cycle.'),
+    ColorTarget('galaxy.system', 'Procedural solar materials', 'galaxy', 'roles', 'u_journey_colors',
+        (ColorSlot('sun','Primary sun',(1.,.68,.32)),
+         ColorSlot('rock','Rock and moons',(.57,.28,.19)),
+         ColorSlot('ocean','Planet oceans',(.08,.40,.70)),
+         ColorSlot('gas','Giant cloud bands',(.65,.43,.74)),
+         ColorSlot('rings','Ice and ring dust',(.83,.70,.39)),
+         ColorSlot('air','Atmospheres and companion',(.36,.81,.91)),
+         ColorSlot('land','Living continents',(.23,.62,.28)),
+         ColorSlot('storm','Storms and warp accents',(.96,.28,.54))),
+        'Seeded local materials, rotating terrain, cloud bands, ring shadows and atmospheres. Sources remain editable across travel.'),
     ColorTarget('planet.moons', 'Moons and dust wakes', 'canvas', 'roles', 'u_planet_moons',
         (ColorSlot('cyan','First moon cyan',(.08,.85,.95)), ColorSlot('rose','First moon rose',(.95,.08,.55)),
          ColorSlot('vein','First moon vein',(.85,1.,.62)), ColorSlot('red','Second moon red',(.95,.08,.015)),
@@ -270,7 +293,7 @@ STATE_COLOR_SCENE = ('blend','organic','geometric','cosmic','transition','canvas
     'fire','molten','fire_cycle','firescape','aftershock',
     'windstreams','stormfront','vortex','citadel','air',
     'dunes','strata','cavern','earth','nebula','marsh','pressure','fog',
-    'magnetic','arcs','auroral','plasma')
+    'magnetic','arcs','auroral','plasma','galaxy')
 
 _CYCLE_FORMS = {
     'organic': ('membrane','roots'), 'cosmic': ('canvas',), 'transition': ('canvas',),
@@ -288,7 +311,11 @@ _EARTH_FORMS = frozenset(_CYCLE_FORMS['earth'])
 _FOG_FORMS = frozenset(_CYCLE_FORMS['fog'])
 _PLASMA_FORMS = frozenset(_CYCLE_FORMS['plasma'])
 _SHARED_COMPAT = {
-    'sky.stars': {'canvas','windstreams','stormfront','vortex','citadel',
+    'galaxy.system': {'Living Atlas': ('#FFAE52','#914730','#1466B3','#A66EBD','#D4B363','#5CCFE8','#3B9E47','#F5478A'),
+                   'Ember Archipelago': ('#FFCE83','#AD5068','#237A8E','#BD8357','#DED5A9','#899FEA','#769A54','#EE6850'),
+                   'Opal Frontier': ('#E8A5DD','#6D738A','#2273BC','#499991','#C9BFF0','#8EE1CB','#A3AC55','#F18C4D')},
+ 'stellar.sails': {'galaxy','canvas','nebula','marsh','pressure','magnetic','arcs','auroral'},
+    'sky.stars': {'galaxy','nebula','marsh','pressure','magnetic','arcs','auroral','canvas','windstreams','stormfront','vortex','citadel',
                   'dunes','strata','cavern'},
     'sky.shooting': {'canvas','sea','dyes','rain','waterfall','currents'},
     'fx.sparkles': {'membrane','roots','geometric','canvas'},
@@ -298,7 +325,8 @@ _SHARED_COMPAT = {
 
 
 def targets_for(scene):
-    if scene == 'blend': return TARGETS
+    if scene == 'blend': return tuple(target for target in TARGETS if target.scene != 'galaxy')
+    if scene == 'galaxy': return tuple(target for target in TARGETS if target.scene == 'galaxy' or target.id in ('stellar.sails','sky.stars'))
     forms = _CYCLE_FORMS.get(scene, (scene,))
     extra = (('water_shared',) if any(form in _WATER_FORMS for form in forms) else ()) + (
         ('fire_shared',) if any(form in _FIRE_FORMS for form in forms) else ()) + (
@@ -436,6 +464,18 @@ def validate_preset(data):
 
 # Families match the target's declared roles; gradient structures never cross targets.
 PALETTE_FAMILIES = {
+ 'galaxy.structure': {'Copper Comet': ('#FBC281','#377CCB','#21162F','#B2EAFE','#FF3D6E','#1FD9A6'),
+                      'Orchid Eclipse': ('#E8A1CE','#9550DB','#171D34','#75E8D7','#F5AA5D','#328BCC'),
+                      'Verdigris Dawn': ('#FFE0A0','#279F91','#1D2236','#D4F6D2','#F07FAF','#6585EE')},
+ 'galaxy.system': {'Living Atlas': ('#FFAE52','#914730','#1466B3','#A66EBD','#D4B363','#5CCFE8','#3B9E47','#F5478A'),
+                   'Ember Archipelago': ('#FFCE83','#AD5068','#237A8E','#BD8357','#DED5A9','#899FEA','#769A54','#EE6850'),
+                   'Opal Frontier': ('#E8A5DD','#6D738A','#2273BC','#499991','#C9BFF0','#8EE1CB','#A3AC55','#F18C4D')},
+ 'stellar.sails': {'Copper Comet': ('#377CCB','#FBC281','#B2EAFE'),
+                   'Orchid Eclipse': ('#9550DB','#E8A1CE','#75E8D7'),
+                   'Verdigris Dawn': ('#279F91','#FFE0A0','#D4F6D2')},
+ 'sky.stars': {'Copper Comet': ('#B2EAFE','#FBC281'),
+               'Orchid Eclipse': ('#75E8D7','#E8A1CE'),
+               'Verdigris Dawn': ('#D4F6D2','#FFE0A0')},
  'material.ink': {'Saffron parchment': ('#11131F','#BA6935','#447D85','#E8D7A1'), 'Deep lagoon': ('#040F19','#146765','#9D637F','#9DCCBA')},
  'material.silk': {'Opal dusk': ('#140E26','#6E4DAD','#7BAE97','#E9C6B0'), 'Copper tide': ('#161223','#B85D48','#2F8CA4','#D8B86C')},
  'material.mosaic': {'Cobalt garden': ('#080E1D','#257D8B','#8B4F9D','#B4CC8D'), 'Terracotta glass': ('#160F13','#B96239','#507889','#DEAF65')},
@@ -443,6 +483,29 @@ PALETTE_FAMILIES = {
  'enveloper.digital': {'Phosphor dusk': ('#759789','#D1CE92'), 'Blue copper': ('#758EB1','#DAB38F')},
  'enveloper.memory': {'After-rain': ('#D4B6CB','#A2D6BE','#ABC5ED'), 'Warm archive': ('#E5B297','#C3CD9B','#B1B1D8')},
 }
+
+
+def galaxy_authored_colors(data, state, seed=7301, index=0):
+    """Transient authored journey; never writes session data or overrides edits.
+
+    Related families map artistic roles explicitly, not by slot count. Any
+    role overrides stay fixed; unedited roles stay authored. An explicit target
+    cycle/hold parks the target.
+    """
+    if state!=36:return data
+    result=dict(data)
+    # Spatially distinct pigments evolve with local clouds/materials; explicit
+    # inspector cycles remain available without a synchronized whole-screen wash.
+    from procedural_cosmos import authored_pigments
+    palettes=authored_pigments(seed,index)
+    for (target,colors) in zip(('galaxy.structure','galaxy.system'),palettes):
+        declaration=next(t for t in TARGETS if t.id==target)
+        authored={slot.id:dict(color=color) for slot,color in zip(declaration.slots,colors)}
+        manual=data.get(target)
+        if manual is None:result[target]=authored
+        elif '_cycle' not in manual:result[target]={**authored,**manual}
+        # Explicit target cycle/hold controls retain their existing semantics.
+    return result
 
 
 def family_setup(target,name):

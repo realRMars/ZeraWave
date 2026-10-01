@@ -19,6 +19,11 @@ uniform vec2 u_air_trails[3];
 uniform float u_daddy_long_legs;
 uniform float u_firescape_travel;
 uniform float u_star_time;
+uniform float u_galaxy_release;
+uniform vec2 u_stellar_layers;
+uniform vec4 u_stellar_events[8]; // birth, orbit angle, pigment mix, strength
+uniform int u_stellar_sails_on;
+uniform vec3 u_stellar_sails[3];
 uniform float u_drift_time;
 uniform vec2 u_resolution;
 uniform float u_intensity;
@@ -40,6 +45,18 @@ uniform int u_corridor_inlay_on, u_corridor_glyphs_on;
 uniform vec3 u_corridor_inlay, u_corridor_glyphs;
 uniform int u_planet_surface_on, u_planet_rings_on, u_planet_moons_on;
 uniform vec3 u_planet_surface, u_planet_rings[3], u_planet_moons[8];
+uniform int u_galaxy_colors_on;
+uniform vec3 u_galaxy_colors[6];
+uniform vec3 u_next_galaxy_colors[6];
+uniform int u_journey_colors_on;
+uniform vec3 u_journey_colors[8];
+uniform vec3 u_journey_eye,u_journey_target,u_journey_heading,u_journey_next_eye;
+uniform float u_journey_bank,u_galaxy_weight,u_gravity_well;
+uniform vec4 u_journey,u_journey_galaxy,u_journey_anchor,u_journey_next;
+uniform vec4 u_journey_planets[8], u_journey_traits[8];
+uniform vec4 u_journey_stars;
+uniform int u_journey_count;
+uniform vec3 u_journey_centers[8],u_journey_companion_center;
 uniform int u_sky_stars_on, u_sky_shooting_on;
 uniform vec3 u_sky_stars[2], u_sky_shooting[2];
 uniform int u_material_artifacts_on, u_material_alloy_on, u_material_lattice_on, u_material_echo_on;
@@ -718,6 +735,766 @@ vec3 cosmic_star_layer(vec2 p, float trail_boost)
     }
     return star_layer + shooting_star_radiance(vec3(p,1.));
 }
+
+// Galaxy Odyssey: analytic camera, seven absorbing/emitting dust strata and
+// orbiting light-sails. Fixed loops and no persistent GPU allocations.
+mat3 stellar_camera(out vec3 eye) {
+    if(u_debug_state>35.5 || u_galaxy_weight>0.) {
+        eye=u_journey_eye;vec3 f=normalize(u_journey_target-eye);
+        vec3 r=normalize(cross(f,vec3(0,1,0))),v=cross(r,f);
+        return mat3(r*cos(u_journey_bank)+v*sin(u_journey_bank),v*cos(u_journey_bank)-r*sin(u_journey_bank),f);
+    }
+    float t=u_star_time;
+    float az=.22*sin(t*.018)+t*.014;
+    float distance=2.95+.80*sin(t*.029+.6);
+    float elevation=.28+.56*(.5+.5*sin(t*.021));
+    eye=distance*vec3(cos(az)*cos(elevation),sin(elevation),sin(az)*cos(elevation));
+    vec3 forward=normalize(-eye);
+    vec3 right=normalize(cross(forward,vec3(0,1,0)));
+    vec3 up=cross(right,forward);
+    float bank=.14*sin(t*.017);
+    return mat3(right*cos(bank)+up*sin(bank),up*cos(bank)-right*sin(bank),forward);
+}
+
+// Reusable spatial layer: depth-separated lights travel past the viewer;
+// their cell centers stay inside each tile, so no boundary popping is visible.
+vec3 parallax_shoal(vec2 p) {
+    vec3 cold=u_sky_stars_on==1 ? u_sky_stars[0] : vec3(.31,.65,1.);
+    vec3 warm=u_sky_stars_on==1 ? u_sky_stars[1] : vec3(1.,.65,.36);
+    vec3 light=vec3(0);
+    for(int layer=0;layer<3;layer++) {
+        float z=float(layer)+1.;
+        vec2 uv=p*(64./z)+vec2(u_star_time*(.065+.03*z),sin(u_star_time*.012)*2.)/z;
+        vec2 cell=floor(uv);
+        vec2 center=.2+.6*vec2(hash(cell+z*17.),hash(cell+z*31.));
+        vec2 delta=fract(uv)-center;
+        float seed=hash(cell+z*43.);
+        float size=85./z;
+        float point=exp(-dot(delta,delta)*size);
+        float halo=exp(-dot(delta,delta)*size*.18)*.075;
+        float twinkle=.65+.35*sin(u_star_time*(.3+seed)+seed*62.);
+        light+=mix(cold,warm,seed)*(point+halo)*step(.978,seed)
+            *(.22+.12*z+.35*u_sparkle)*twinkle;
+    }
+    return light;
+}
+
+// Reusable sky inhabitants, not a final-image Enveloper. Six orbiting sails
+// have independently fluttering vanes and curved wakes. Galaxy places them
+// behind/in front of its dust strata; other compatible worlds use the same view.
+vec3 stellar_sails(vec2 p, bool front) {
+    vec3 eye;mat3 camera=stellar_camera(eye);
+    vec3 shell=u_stellar_sails_on==1 ? u_stellar_sails[0] : vec3(.22,.65,.82);
+    vec3 edge=u_stellar_sails_on==1 ? u_stellar_sails[1] : vec3(1.,.42,.22);
+    vec3 wake=u_stellar_sails_on==1 ? u_stellar_sails[2] : vec3(.56,.32,.95);
+    vec3 result=vec3(0);
+    for(int i=0;i<6;i++) {
+        float fi=float(i), t=u_star_time;
+        float orbit=t*(.07+fi*.009)+fi*2.399;
+        float r=1.18+.14*fi;
+        float height=.36*sin(orbit*.71+fi*1.2);
+        if((height>=0.)!=front)continue;
+        vec3 position=vec3(cos(orbit)*r,height,sin(orbit)*r);
+        float focal=(u_debug_state>35.5 || u_galaxy_weight>0.) ? .95 : 1.35;
+        vec3 view=transpose(camera)*(position-eye);
+        if(view.z<.35)continue;
+        vec2 center=view.xy/(view.z*focal);
+        vec2 q=(p-center)*view.z*focal;
+        float turn=orbit+fi*.8;
+        q=mat2(cos(turn),-sin(turn),sin(turn),cos(turn))*q;
+        float aa=max(.002,view.z*focal/u_resolution.y);
+        float head=exp(-dot(q,q)/max(aa*aa,.00015));
+        float tail=exp(-abs(q.y+.11*q.x*q.x)*95.)*exp(-abs(q.x)*8.)*step(q.x,0.);
+        result+=edge*head*(.8+.5*u_sparkle)+mix(shell,wake,.35+.2*sin(fi))*tail*(.18+.28*u_flux);
+        // A short curved wake records the orbit, with subpixel-safe widths.
+        for(int j=1;j<=5;j++) {
+            float lag=float(j)*.045;
+            float a=orbit-lag;
+            vec3 tail=vec3(cos(a)*r,.36*sin(a*.71+fi*1.2),sin(a)*r);
+            vec3 tv=transpose(camera)*(tail-eye);
+            vec2 delta=(p-tv.xy/(max(.35,tv.z)*focal));
+            result+=wake*exp(-dot(delta,delta)*18000.)*(.075+.12*u_sparkle)*(1.-float(j)/6.);
+        }
+    }
+    return result;
+}
+
+vec3 stellar_layers(vec2 p) {
+    vec3 light=vec3(0);
+    if(u_stellar_layers.x>0.)light+=(stellar_sails(p,false)+stellar_sails(p,true))*u_stellar_layers.x;
+    if(u_stellar_layers.y>0. && u_debug_state<35.5 && u_galaxy_weight<=0.)light+=parallax_shoal(p)*u_stellar_layers.y;
+    return light;
+}
+
+// Nested scales share the selected star's world anchor. Local coordinates are
+// used only for solar detail. Descriptors and continuous routes are CPU-owned.
+mat3 journey_view(vec3 eye,vec3 target,float bank) {
+    vec3 forward=normalize(target-eye);
+    vec3 right=normalize(cross(forward,vec3(0,1,0)));
+    vec3 up=cross(right,forward);
+    return mat3(right*cos(bank)+up*sin(bank),up*cos(bank)-right*sin(bank),forward);
+}
+
+vec3 journey_sky(vec3 ray,float seed) {
+    vec3 cold=u_sky_stars_on==1 ? u_sky_stars[0] : vec3(.31,.65,1.);
+    vec3 warm=u_sky_stars_on==1 ? u_sky_stars[1] : vec3(1.,.65,.36);
+    vec2 sky=vec2(atan(ray.z,ray.x),asin(clamp(ray.y,-1.,1.)));
+    vec3 light=vec3(0);
+    for(int i=0;i<3;i++) {
+        float layer=float(i);float frequency=i==0 ? 26. : i==1 ? 76. : 175.;
+        vec2 uv=sky*frequency+vec2(seed*.017+layer*37.,layer*19.);
+        vec2 cell=floor(uv);
+        float presence=hash(cell+seed*.13+layer*91.);
+        if(presence<(i==0 ? .991 : i==1 ? .977 : .964))continue;
+        vec2 q=fract(uv)-(.12+.76*vec2(hash(cell+layer*13.+7.),hash(cell+layer*37.+19.)));
+        float size=hash(cell+layer*23.+113.);
+        float radius=.018+.052*pow(size,5.);
+        float aa=max(radius,.48*length(fwidth(uv)));
+        float point=exp(-dot(q,q)*3./(aa*aa))*radius*radius/(aa*aa);
+        float spectrum=hash(cell+layer*43.+seed*.37+201.);
+        float luminosity=hash(cell+layer*59.+317.);
+        vec3 pigment=mix(cold,warm,spectrum);
+        pigment=mix(pigment,vec3(.78,.83,.90),.25+.35*hash(cell+431.));
+        float brightness=i==0 ? .16+1.10*pow(luminosity,5.) : i==1 ? .16+.70*pow(luminosity,4.) : .48;
+        float phase=hash(cell+layer*79.+503.);
+        float twinkle=1.+(i==2 ? .012 : .045)*sin(u_star_time*(.09+.23*phase)+phase*89.);
+        light+=pigment*point*brightness*twinkle;
+    }
+    return light*u_stellar_layers.y;
+}
+
+float journey_fbm(vec2 q) {
+    return .57*noise(q)+.28*noise(q*2.03+17.)+.15*noise(q*4.11-9.);
+}
+vec3 journey_galaxy(vec3 eye,vec3 ray,vec4 spec,bool future) {
+    vec3 core=u_galaxy_colors_on==1 ? (future ? u_next_galaxy_colors[0] : u_galaxy_colors[0]) : vec3(.98,.76,.50);
+    vec3 arms=u_galaxy_colors_on==1 ? (future ? u_next_galaxy_colors[1] : u_galaxy_colors[1]) : vec3(.36,.53,.92);
+    vec3 dust=u_galaxy_colors_on==1 ? (future ? u_next_galaxy_colors[2] : u_galaxy_colors[2]) : vec3(.16,.10,.22);
+    vec3 stars=u_galaxy_colors_on==1 ? (future ? u_next_galaxy_colors[3] : u_galaxy_colors[3]) : vec3(.75,.87,1.);
+    vec3 warm=u_galaxy_colors_on==1 ? (future ? u_next_galaxy_colors[4] : u_galaxy_colors[4]) : vec3(1.,.24,.43);
+    vec3 cool=u_galaxy_colors_on==1 ? (future ? u_next_galaxy_colors[5] : u_galaxy_colors[5]) : vec3(.12,.85,.65);
+    float family=clamp((spec.w-.72)/.17,0.,2.);
+    core=mix(core,family<1.5 ? warm : cool,family>.5 ? .45 : .0);
+    arms=mix(arms,family<1.5 ? cool : warm,family>.5 ? .90 : .0);
+    if(family>.5 && family<1.5) { warm=mix(warm,core,.85);cool=mix(cool,dust,.72); }
+    if(family>1.5) { warm=mix(warm,stars,.82);cool=mix(cool,core,.80); }
+    float drive=clamp(.4*u_scale+.35*u_flux+.25*u_sparkle,0.,1.);
+    vec3 light=dust*.019+journey_sky(ray,spec.z);
+    vec3 core_offset=cross(eye,ray);
+    light+=core*exp(-dot(core_offset,core_offset)*24.)*(.09+.08*drive);
+    for(int i=0;i<7;i++) {
+        if(abs(ray.y)<.0001)continue;
+        float height=(float(i)-3.)*.065;
+        float distance=(height-eye.y)/ray.y;
+        if(distance<0. || distance>50.)continue;
+        vec2 q=(eye+ray*distance).xz;
+        float rotation=u_star_time*.070;
+        q=mat2(cos(rotation),-sin(rotation),sin(rotation),cos(rotation))*q;
+        q.y*=spec.w;
+        float radius=length(q);
+        if(radius>1.55)continue;
+        float theta=atan(q.y,q.x);
+        float cloud=journey_fbm(q*5.5+height*8.+spec.z*.019+vec2(u_star_time*.003,-u_star_time*.002));
+        float fine=noise(q*24.+vec2(-u_star_time*.007,u_star_time*.004)+height*11.+spec.z*.031);
+        float phase=spec.x*theta+spec.y*log(radius+.16)+cloud*1.25-height*4.;
+        float spiral=pow(.5+.5*cos(phase),3.);
+        float disk=1.-smoothstep(1.05,1.50,radius);
+        float body=smoothstep(.08,.24,radius);
+        float bulge=exp(-radius*radius*18.);
+        float density=disk*(.035+1.08*spiral)*(.20+.95*cloud)*exp(-height*height*26.);
+        float pores=journey_fbm(q*8.+height*7.+spec.z*.013);
+        density*=1.-.78*smoothstep(.45,.65,pores)*body;
+        float lane=pow(.5+.5*cos(phase+.8),12.)*disk*body;
+        float threads=exp(-abs(noise(q*15.+height*13.+spec.z*.021)-.52)*65.);
+        float region=noise(q*2.6+spec.z*.07);
+        vec3 pigment=mix(arms,warm,smoothstep(.47,.72,region)*.82);
+        pigment=mix(pigment,cool,smoothstep(.54,.76,noise(q*3.8-spec.z*.05))*.8);
+        pigment=mix(pigment,stars,pow(fine,5.)*.65);
+        pigment=mix(pigment,core,bulge*.78);
+        vec3 emission=pigment*density*(.42+.95*drive+.25*u_galaxy_release);
+        emission+=core*bulge*(.09+.16*drive);
+        emission+=mix(core,stars,.7)*threads*spiral*disk*body*(.015+.035*drive);
+        vec2 uv=q*37.+vec2(journey_fbm(q*8.),journey_fbm(q*8.+27.))*3.
+            +vec2(height*413.,height*271.);vec2 cell=floor(uv);
+        vec2 delta=fract(uv)-(.2+.6*vec2(hash(cell+7.),hash(cell+19.)));
+        float knot=exp(-dot(delta,delta)*90.)*step(.98-.085*spiral*smoothstep(.38,.6,cloud),hash(cell+41.));
+        emission+=mix(stars,core,hash(cell+spec.z+137.))*knot*disk*(.18+.42*spiral)*(.35+.55*u_sparkle);
+        for(int e=0;e<8;e++) {
+            vec4 event=u_stellar_events[e];float age=u_drift_time-event.x;
+            if(age<0. || age>10. || event.w<=0.)continue;
+            vec2 site=vec2(cos(event.y),sin(event.y))*(.5+.2*event.z);
+            float birth=exp(-dot(q-site,q-site)*mix(180.,18.,age/10.));
+            emission+=mix(warm,cool,event.z)*birth*sin(age*3.14159/10.)*event.w*.11;
+        }
+        light=light*(1.-clamp(density*.22+lane*.55,0.,.62))+dust*lane*.012+emission;
+    }
+    // Stylized spherical void with an illuminated bent disk and photon rim.
+    float closest=max(0.,dot(-eye,ray));
+    float impact=length(eye+ray*closest);
+    if(closest>0.) {
+        float photon=exp(-abs(impact-.075)*190.);
+        vec3 right=normalize(cross(normalize(-eye),vec3(0,1,0)));
+        vec3 up=cross(right,normalize(-eye));
+        vec3 near=eye+ray*closest;
+        float arc_angle=atan(dot(near,up),dot(near,right));
+        vec3 bent=mix(core,cool,.32+.30*sin(arc_angle));
+        float curvature=exp(-abs(impact-.095)*65.);
+        light+=bent*photon*(1.4+1.2*drive)+mix(warm,stars,.35)*curvature*.25;
+        if(abs(ray.y)>.0001) {
+            float center_t=-eye.y/ray.y;
+            if(center_t>0.) {
+                vec2 center=(eye+ray*center_t).xz;float r=length(center),angle=atan(center.y,center.x);
+                float disk=exp(-abs(r-(.11+.012*drive))*95.);
+                float flow=pow(.5+.5*cos(angle*5.+log(r+.04)*10.+u_star_time*.42),9.);
+                light+=mix(core,warm,.35)*(disk*(1.15+drive)+flow*exp(-r*5.)*.50)
+                    *smoothstep(.065,.08,r);
+            }
+        }
+        // Source darkness remains a sphere, not a hole cut out of one plane.
+        light*=smoothstep(.056,.061,impact);
+    }
+    return light;
+}
+
+// Finite near-arm volume samples replace flattened galactic sheets during entry.
+float journey_pressure();
+vec3 journey_arm_depth(vec3 eye,vec3 ray,vec4 spec) {
+    vec3 arms=u_galaxy_colors_on==1 ? u_galaxy_colors[1] : vec3(.36,.53,.92);
+    vec3 dust=u_galaxy_colors_on==1 ? u_galaxy_colors[2] : vec3(.16,.10,.22);
+    vec3 warm=u_galaxy_colors_on==1 ? u_galaxy_colors[4] : vec3(1.,.24,.43);
+    vec3 cool=u_galaxy_colors_on==1 ? u_galaxy_colors[5] : vec3(.12,.85,.65);
+    vec3 core=u_galaxy_colors_on==1 ? u_galaxy_colors[0] : vec3(.98,.76,.50);
+    vec3 light=journey_sky(ray,spec.z);
+    vec2 sky=vec2(atan(ray.z,ray.x),asin(clamp(ray.y,-1.,1.)));
+    float latitude=sky.y+.12+.18*sin(sky.x+spec.z*.01);
+    float band=exp(-latitude*latitude*18.);
+    vec2 periodic=vec2(cos(sky.x),sin(sky.x))*(2.+sky.y);
+    float cluster=journey_fbm(periodic*6.+sky.y*vec2(1.,7.)+spec.z*.03);
+    float dust_lane=exp(-abs(latitude+.045*(cluster-.5))*22.);
+    vec3 host=mix(arms,cool,smoothstep(.45,.70,cluster));
+    host=mix(host,warm,smoothstep(.58,.76,noise(periodic*4.-spec.z*.02))*.7);
+    float grain=band>.01 ? noise(periodic*27.+spec.z*.04) : .5;
+    light=light*(1.-dust_lane*.50)+host*band*(.07+.50*cluster*cluster)*(.45+.30*grain)*(1.-dust_lane*.65);
+    for(int i=3;i>=0;i--) {
+        float distance=.06+float(i)*.20;
+        vec3 q=eye+ray*distance;
+        vec2 domain=q.xz*7.+q.y*vec2(3.7,-2.3)+spec.z*.017;
+        float mass=.50*journey_fbm(domain+vec2(u_star_time*.002,0.))
+            +.28*noise(q.xy*13.+spec.z*.019)+.22*noise(q.yz*11.-spec.z*.017);
+        float clouds=smoothstep(.34,.68,mass);
+        float cavities=smoothstep(.51,.72,noise(domain*1.6-q.y*8.+13.));
+        float envelope=exp(-q.y*q.y*7.)*(1.-smoothstep(1.05,1.65,length(q.xz)));
+        float density=clouds*envelope*(.35+.65*mass);
+        vec3 pigment=mix(arms,cool,smoothstep(.48,.72,mass));
+        pigment=mix(pigment,warm,smoothstep(.48,.67,noise(domain*.7+23.)));
+        light=light*(1.-density*cavities*.42)+dust*density*.008
+            +pigment*density*(.045+.075*u_scale)*(1.-cavities*.65);
+    }
+    // Three finite nursery landmarks carry real world-space parallax and
+    // foreground extinction. Cheap bounds avoid evaluating texture elsewhere.
+    if(u_journey.x>1.5 && u_journey.x<3.5) {
+        float visit=u_journey.x<2.5 ? smoothstep(.05,.45,u_journey.y) : 1.-smoothstep(.02,.17,u_journey.y);
+        for(int j=0;j<3;j++) {
+            float id=float(j);
+            vec3 center=u_journey_anchor.xyz+vec3(-.075+id*.085,.02+id*.012,.035-id*.06);
+            vec3 delta=center-eye;float t=dot(delta,ray);
+            if(t<=0.)continue;
+            vec3 q=(eye+ray*t-center)/vec3(.055,.048,.065);
+            float bound=dot(q,q);if(bound>2.2)continue;
+            float folds=journey_fbm(q.xz*3.+q.y*2.+id*9.);
+            float boundary=bound+.75*(folds-.5)+.28*sin(q.x*5.+folds*8.);
+            float body=(1.-smoothstep(.35,1.8,boundary))*visit;
+            float edge=exp(-abs(boundary-.85)*6.)*(.35+.65*folds);
+            vec3 pigment=j==1 ? warm : mix(arms,cool,id*.3);
+            light=light*(1.-body*(.35+.4*folds))
+                +dust*body*.018+pigment*body*(.045+.12*folds+.075*edge)*(.65+.50*u_scale);
+        }
+    }
+    vec3 direction=normalize(-eye);
+    if(dot(direction,ray)>0.) {
+        vec3 right=normalize(cross(direction,vec3(0,1,0))),up=cross(right,direction);
+        float apparent=clamp(.09/length(eye),.045,.14);
+        vec2 q=vec2(dot(ray,right),dot(ray,up)/max(.32,abs(direction.y)))/apparent;
+        float radius=length(q),theta=atan(q.y,q.x);
+        float cloud=journey_fbm(q*1.8+spec.z*.014);
+        float spiral=pow(.5+.5*cos(spec.x*theta+spec.y*log(radius+.4)-u_star_time*.045+cloud*.7),3.);
+        float bulge=exp(-radius*radius*.035)*(1.-smoothstep(3.5,6.,radius));
+        float lanes=pow(.5+.5*cos(spec.x*theta+spec.y*log(radius+.4)+.6),10.);
+        vec3 pigment=mix(arms,cool,cloud);
+        light=light*(1.-bulge*lanes*.55)+pigment*bulge*spiral*(.08+.25*cloud)
+            +core*exp(-radius*radius*.35)*.08;
+        // Keep the enclosing arms vast; core aperture has its own distant angular scale.
+        // It must not become a companion-sized halo beside the local primary.
+        float remote_apparent=clamp(.0035/length(eye),.003,.008);
+        float sphere_radius=length(vec2(dot(ray,right),dot(ray,up))/remote_apparent);
+        float aperture=smoothstep(.43,.51,sphere_radius),ring=exp(-abs(sphere_radius-.64)*22.);
+        float stream=pow(.5+.5*cos(theta*5.+log(radius+.15)*11.+u_star_time*.7),18.);
+        light=light*aperture+mix(core,cool,.25+.20*sin(theta))*ring*(1.1+.8*journey_pressure())
+            +mix(core,warm,.35)*stream*exp(-sphere_radius*.7)*smoothstep(.58,.9,sphere_radius)*.20;
+    }
+    return light;
+}
+
+// Ray/sphere nearest intersection using perpendicular distance avoids the
+// cancellation of subtracting two enormous squared values on the scale bridge.
+float journey_sphere(vec3 eye,vec3 ray,vec3 center,float radius) {
+    vec3 delta=center-eye;
+    float along=dot(delta,ray);
+    float perpendicular=length(cross(delta,ray));
+    if(perpendicular>=radius || along<0.)return 1e9;
+    float root=sqrt(max(0.,radius*radius-perpendicular*perpendicular));
+    float distance=along-root;
+    return distance>0. ? distance : along+root;
+}
+vec3 journey_planet_center(vec4 spec,int body_id) {
+    return u_journey_centers[body_id];
+}
+vec3 journey_companion() {
+    return u_journey_companion_center;
+}
+
+vec3 journey_pigment(int role) {
+    if(u_journey_colors_on==1)return u_journey_colors[role];
+    if(role==0)return vec3(1.,.68,.32);
+    if(role==1)return vec3(.57,.28,.19);
+    if(role==2)return vec3(.08,.40,.70);
+    if(role==3)return vec3(.65,.43,.74);
+    if(role==4)return vec3(.83,.70,.39);
+    if(role==6)return vec3(.23,.62,.28);
+    if(role==7)return vec3(.96,.28,.54);
+    return vec3(.36,.81,.91);
+}
+
+// Source roles stay editable; each generated body authors a distinct mixture.
+vec3 journey_body_pigment(int role,int body_id) {
+    float style=u_journey_traits[body_id].z;
+    int recipe=int(style*5.);
+    vec3 base=journey_pigment(role);
+    vec3 accent=recipe==0 ? journey_pigment(0) : recipe==1 ? journey_pigment(6)
+        : recipe==2 ? journey_pigment(1) : recipe==3 ? journey_pigment(5) : journey_pigment(4);
+    // Contrast is authored per world: swap the dominant/subordinate relationship,
+    // retain source-role edits, and vary saturation/value rather than hue alone.
+    float weight=.18+.58*fract(style*5.);
+    vec3 pigment=mix(base,accent,weight);
+    float value=.60+.40*fract(style*17.+float(role)*.31);
+    return pigment*value;
+
+}
+float journey_pressure() {
+    return smoothstep(.10,.60,max(clamp(u_scale,0.,1.),clamp(u_flux,0.,1.)*.85));
+}
+float journey_echo(vec3 normal,float body_id) {
+    float result=0.;
+    for(int e=0;e<8;e++) {
+        vec4 event=u_stellar_events[e];float age=u_drift_time-event.x;
+        if(age<0. || age>4.8 || event.w<=0.)continue;
+        vec3 axis=normalize(vec3(cos(event.y+body_id),.45,sin(event.y+body_id)));
+        float distance=acos(clamp(dot(normal,axis),-1.,1.));
+        result+=exp(-abs(distance-age*.72)*18.)*exp(-age*.55)*event.w;
+    }
+    return min(1.5,result);
+}
+vec3 journey_surface(vec3 normal,vec4 spec,float body_id) {
+    int id=int(body_id);vec4 trait=u_journey_traits[id];vec3 n=normal;
+    float clock=u_star_time*.035;
+    float spin=u_star_time*(.027+trait.w*.012)*(1.+body_id*.07);
+    n.xz=mat2(cos(spin),-sin(spin),sin(spin),cos(spin))*n.xz;
+    vec2 uv=vec2(n.x+n.y*.43,n.z+n.y*.71)*2.2;
+    float pressure=journey_pressure();float weather=clamp(.65*u_flux+.35*u_sparkle,0.,1.);
+    vec2 curl=vec2(journey_fbm(uv*3.+spec.z),journey_fbm(uv*3.-clock*.09+13.))-.5;
+    uv+=vec2(sin(uv.y*5.+clock),cos(uv.x*4.-clock*.7))*.12;
+    uv+=curl*.14*sin(clock*.37); // persistent flow; beats change emission, not reset coordinates
+    float echo=journey_echo(normal,body_id);
+    uv+=normalize(vec2(curl.y,-curl.x)+vec2(.01))*echo*.16;
+    vec3 rock=journey_body_pigment(1,id),ocean=journey_body_pigment(2,id);
+    vec3 gas=journey_body_pigment(3,id),air=journey_body_pigment(5,id);
+    if(spec.w<.5) {
+        float terrain=journey_fbm(uv*(3.+trait.w)+curl*.8+spec.z);
+        float fissure=exp(-abs(journey_fbm(uv*(5.+trait.w*2.)+curl*2.+spec.z)-.49)*85.);
+        float lava=fissure*(.08+1.0*pressure+.65*u_impact+.25*u_galaxy_release);
+        return rock*(.16+.35*terrain)+mix(journey_pigment(0),journey_pigment(7),terrain)*lava+air*echo*.55;
+    }
+    if(spec.w<1.5) {
+        float continents=journey_fbm(uv*(1.2+trait.w*.35)+curl*.40+spec.z);
+        float land=smoothstep(.47,.54,continents);
+        float current=journey_fbm(uv*(7.+trait.w*3.)+curl*1.15-vec2(clock*.27,0.));
+        vec3 surface=mix(ocean*(.42+.42*current),mix(journey_body_pigment(6,id),rock,.16)*(.36+.45*continents),land);
+        float polar=smoothstep(.80,.96,abs(n.y));
+        float tide=pow(.5+.5*sin(uv.x*19.+uv.y*11.+current*9.-clock*.8),8.);
+        surface+=mix(ocean,air,.35)*tide*(1.-land)*pressure*.55;
+        return mix(surface,journey_body_pigment(4,id),polar*.68)+air*echo*(1.-land)*1.1;
+    }
+    if(spec.w>3.5 && spec.w<4.5) {
+        float frost=journey_fbm(uv*(5.+trait.w*3.)+curl+spec.z);
+        float fractures=exp(-abs(frost-.48)*70.);
+        return mix(air,journey_body_pigment(4,id),frost)*(.32+.68*frost)
+            +ocean*fractures*(.15+.55*pressure)+air*echo*1.0;
+    }
+    if(spec.w>4.5 && spec.w<5.5) {
+        float folds=journey_fbm(uv*trait.w*3.+spec.z);
+        float dunes=.5+.5*sin(uv.y*(18.+trait.w*5.)+folds*8.+curl.x*1.3);
+        return mix(rock,journey_body_pigment(4,id),dunes*.8)*(.30+.60*folds)
+            +journey_body_pigment(7,id)*echo*.45;
+    }
+    if(spec.w>5.5) {
+        float recipe=floor(trait.z*3.);
+        vec2 domain=uv*(2.4+trait.w)+curl*1.1+spec.z;
+        float field=journey_fbm(domain);
+        float pattern=recipe<.5 ? field : recipe<1.5 ? journey_fbm(domain+vec2(field*4.,-field*3.))
+            : .5+.5*sin(uv.x*4.+uv.y*6.+field*12.+clock*.18);
+        float veins=exp(-abs(pattern-(.40+.13*trait.z))*45.);
+        vec3 substrate=recipe<.5 ? rock : recipe<1.5 ? gas : ocean;
+        vec3 seam=recipe<.5 ? journey_body_pigment(4,id) : recipe<1.5 ? air : journey_body_pigment(0,id);
+        return mix(substrate*.24,substrate*.65,smoothstep(.3,.7,field))
+            +seam*veins*(.16+.80*pressure)+journey_body_pigment(7,id)*echo*.65;
+    }
+
+    vec2 flow=uv+curl*.4;
+    vec2 storm=flow-vec2(.3,-.22);storm.x=sin(flow.x-.3);
+    float vortex=exp(-dot(storm,storm)*(8.+trait.w*4.));
+    float spiral=atan(storm.y,storm.x)+length(storm)*(12.+trait.w*6.)-clock*.65;
+    flow+=vortex*vec2(sin(spiral),cos(spiral))*.22;
+    float grain=journey_fbm(flow*(3.+trait.w));
+    float recipe=floor(trait.z*3.);
+    float bands=recipe<.5 ? smoothstep(.28,.72,grain)
+        : recipe<1.5 ? .5+.5*sin(flow.y*(4.+trait.w*2.)+grain*7.)
+        : smoothstep(.3,.7,journey_fbm(flow*2.+vec2(grain*3.,-grain*2.)));
+    float turbulence=journey_fbm(flow*(7.+trait.w*3.)+vec2(clock*.10,0.));
+    vec3 primary=recipe<.5 ? mix(gas,rock,.65) : recipe<1.5 ? gas : mix(gas,ocean,.75);
+    vec3 secondary=recipe<.5 ? air : recipe<1.5 ? journey_body_pigment(4,id) : journey_body_pigment(6,id);
+    vec3 pigment=mix(primary,secondary,smoothstep(.23,.77,bands)*.8);
+    float eye=exp(-dot(storm,storm)*65.);
+    vec3 storm_tint=mix(journey_body_pigment(7,id),journey_body_pigment(4,id),eye*.55);
+    return mix(pigment,storm_tint,vortex*(.38+.50*turbulence))*(.57+.43*turbulence)+air*echo*.85;
+}
+
+// Traveling resonance fronts: continuous phase and localized onset impulses.
+vec2 journey_field_wave(float r) {
+    float pressure=journey_pressure();
+    float decay=exp(-r*.24),phase=r*5.-u_star_time*.22;
+    vec2 wave=vec2(sin(phase),5.*cos(phase)-.24*sin(phase))*.09*pressure*decay;
+    for(int i=0;i<8;i++) {
+        vec4 event=u_stellar_events[i];float age=u_drift_time-event.x;
+        if(event.w<=0. || age<0. || age>3.2)continue;
+        float d=r-(.4+age*2.7),envelope=exp(-abs(d)*1.1-age*.85)*event.w;
+        wave+=vec2(sin(d*7.),7.*cos(d*7.)-1.1*sign(d)*sin(d*7.))*.12*envelope;
+    }
+    float limited=tanh(wave.x/.28);
+    return vec2(.28*limited,wave.y*(1.-limited*limited));
+}
+vec3 journey_field_shape(vec2 point) {
+    float r2=dot(point,point),r=sqrt(r2);
+    float height=-.18+1.5*(1.-1./(1.+r2*.9));
+    vec2 gradient=2.7*point/pow(1.+r2*.9,2.);
+    for(int i=0;i<8;i++) {
+        if(i>=u_journey_count)break;
+        vec2 delta=point-u_journey_centers[i].xz;float dip=.11*exp(-dot(delta,delta)*7.);
+        height-=dip;gradient+=delta*dip*14.;
+    }
+    vec2 wave=journey_field_wave(r);height+=wave.x;gradient+=point/max(r,.01)*wave.y;
+    return vec3(height,gradient);
+}
+// Reusable translucent curved field; solar pigments provide its local identity.
+vec4 journey_gravity(vec3 eye,vec3 ray) {
+    if(u_gravity_well<=0. || abs(ray.y)<.001 || length(eye)>100.)return vec4(0);
+    if(ray.y>-.025)return vec4(0);
+    float lo=max(.001,(1.65-eye.y)/ray.y),hi=(-1.40-eye.y)/ray.y;
+    if(hi<=lo)return vec4(0);
+    float t=clamp((.6-eye.y)/ray.y,lo,hi);
+    for(int k=0;k<8;k++) {
+        vec3 point=eye+ray*t;float r2=dot(point.xz,point.xz);
+        vec3 shape=journey_field_shape(point.xz);float height=shape.x;vec2 gradient=shape.yz;
+        float residual=point.y-height;
+        if(abs(residual)<.0005)break;
+        if(residual>0.)lo=t;else hi=t;
+        float derivative=ray.y-dot(gradient,ray.xz);
+        float next=abs(derivative)>.015 ? t-residual/derivative : (lo+hi)*.5;
+        t=next>lo && next<hi ? next : (lo+hi)*.5;
+    }
+    if(t<=0. || t>50.)return vec4(0);
+    vec3 point=eye+ray*t;float r2=dot(point.xz,point.xz),radius=sqrt(r2);
+    vec2 slope=journey_field_shape(point.xz).yz;float local_depth=0.;
+    for(int i=0;i<8;i++) {
+        if(i>=u_journey_count)break;
+        vec3 center=journey_planet_center(u_journey_planets[i],i);vec2 delta=point.xz-center.xz;
+        float dip=exp(-dot(delta,delta)*7.);local_depth+=dip;
+    }
+    vec3 normal=normalize(vec3(-slope.x,1.,-slope.y));
+    vec3 key=normalize(vec3(-.7,.35,.35));
+    float diffuse=.15+.85*max(0.,dot(normal,key));
+    float sheen=pow(max(0.,dot(reflect(-key,normal),-ray)),24.);
+    float texture=journey_fbm(point.xz*1.2+vec2(u_star_time*.009,0.));
+    float extent=1.-smoothstep(4.,7.,radius);
+    vec3 pigment=mix(journey_pigment(5),journey_pigment(3),texture*.65);
+    vec2 grid_coordinate=point.xz*.62;
+    vec2 spacing=abs(fract(grid_coordinate+.5)-.5);
+    vec2 line=1.-smoothstep(vec2(.0015),vec2(.0015)+max(vec2(.001),fwidth(grid_coordinate)*.7),spacing);
+    float grid=max(line.x,line.y);
+    float glancing=pow(1.-max(0.,dot(normal,-ray)),3.);
+    // Broad normal-dependent light reveals the bowl; no contour/grid overlay.
+    float soft_reflection=pow(max(0.,dot(reflect(-key,normal),-ray)),7.);
+    float depth_shadow=(1.-.40*exp(-r2*.85))*(1.-.35*min(1.,local_depth));
+    vec3 material=pigment*(.07+.42*diffuse)*(.82+.18*texture)*depth_shadow
+        +mix(journey_pigment(0),journey_pigment(5),.65)*soft_reflection*.22
+        +pigment*glancing*.14;
+    float resonance=0.;
+    for(int e=0;e<8;e++) {
+        vec4 event=u_stellar_events[e];float age=u_drift_time-event.x;
+        if(event.w<=0. || age<0. || age>3.2)continue;
+        float front=radius-(.4+age*2.7);
+        resonance+=exp(-front*front*55.-age*.65)*event.w;
+    }
+    material+=mix(journey_pigment(0),journey_pigment(7),texture)*min(resonance,1.5)*1.15;
+    // Thin local orbital trails terminate behind the actual moving body.
+    for(int i=0;i<8;i++) {
+        if(i>=u_journey_count)break;
+        vec3 center=journey_planet_center(u_journey_planets[i],i);
+        float angle=atan(point.z,point.x)-atan(center.z,center.x);angle=atan(sin(angle),cos(angle));
+        float radial=radius-length(center.xz);
+        float trail=exp(-radial*radial*90.)*exp(-max(-angle,0.)*5.)*(1.-smoothstep(-.04,.12,angle));
+        material+=journey_body_pigment(5,i)*trail*.12;
+    }
+    float visible=smoothstep(.01,.12,abs(ray.y))*extent;
+    return vec4(material,visible*u_gravity_well*.57);
+}
+
+vec3 journey_system(vec3 eye,vec3 ray,vec3 background) {
+    vec3 local=(eye-u_journey_anchor.xyz)/u_journey_anchor.w;
+    float closest=1e9;
+    vec3 light=background;
+    vec3 sun=journey_pigment(0);
+    float sun_radius=u_journey_stars.x*(1.+.065*journey_pressure()+.045*u_impact);
+    float along=dot(-local,ray);
+    float offset=length(cross(-local,ray));
+    // The selected sun stays visible as the same bright point during approach.
+    float pixel=max(.01,along*1.5/u_resolution.y);
+    float glow=exp(-offset*offset/max(.24,pixel*pixel*2.));
+    if(along>0.)light+=sun*glow*(.25+.23*u_scale);
+    // The same primary sun is unmistakable before camera acceleration. Its
+    // angular nursery glow closes into the actual solar sphere, never a reticle.
+    if(along>0. && u_journey.x>.5 && u_journey.x<2.5) {
+        float acquired=u_journey.x<1.5 ? smoothstep(.02,.35,u_journey.y) : 1.;
+        float angular=offset/max(along,.01);
+        float nucleus=1.-smoothstep(.008,.012,angular);
+        float corona=exp(-angular*angular*1200.);
+        light+=sun*(nucleus*.9+corona*.58)*acquired;
+    }
+    vec4 field=journey_gravity(local,ray);light=mix(light,field.rgb,field.a);
+    for(int star=0;star<2;star++) {
+        if(star==1 && u_journey_stars.y<=0.)continue;
+        vec3 center=star==0 ? vec3(0) : journey_companion();
+        float radius=star==0 ? sun_radius : u_journey_stars.y*(1.+.05*journey_pressure());
+        vec3 tint=star==0 ? sun : mix(sun,journey_pigment(5),.80);
+        float star_along=dot(center-local,ray);
+        vec3 perpendicular=local+ray*star_along-center;
+        float radial=length(perpendicular)/radius;
+        if(star_along>0. && radial>1. && radial<4.) {
+            light+=tint*exp(-pow(radial-1.,2.)*6.)*(.04+.08*journey_pressure());
+            vec3 view_right=normalize(cross(ray,vec3(0,1,0))),view_up=cross(view_right,ray);
+            float theta=atan(dot(perpendicular,view_up),dot(perpendicular,view_right));
+            vec2 circular=vec2(cos(theta),sin(theta));
+            float sector=smoothstep(.57,.76,journey_fbm(circular*3.+float(star)*13.));
+            float arch=1.04+.23*pow(.5+.5*sin(theta*7.+u_star_time*.12+float(star)),2.);
+            float corona=exp(-abs(radial-arch)*32.)*sector;
+            light+=mix(tint,journey_pigment(7),float(star)*.25)*corona*(.40+.70*journey_pressure());
+            float plume=0.;
+            for(int e=0;e<8;e++) {
+                vec4 event=u_stellar_events[e];float age=u_drift_time-event.x;
+                if(age<0. || age>3. || event.w<=0.)continue;
+                float angle=atan(perpendicular.z,perpendicular.x);
+                float direction=exp(-abs(sin(angle-event.y-float(star)))*9.);
+                float arch=1.07+.18*sin(angle*3.-u_star_time*.08+float(star));
+                plume+=exp(-abs(radial-arch)*24.)*direction*exp(-age*.6)*event.w;
+            }
+            light+=mix(tint,journey_pigment(7),.25)*plume*(.65+1.7*u_impact);
+        }
+        if(u_journey.w>.95 && star==0 && star_along>0.) {
+            vec3 axis=normalize(vec3(cos(u_star_time*.48)*.72,.70,sin(u_star_time*.48)*.72));
+            vec3 origin=local-center;float projection=dot(ray,axis);
+            float ray_t=(dot(origin,axis)*projection-dot(origin,ray))/max(.03,1.-projection*projection);
+            vec3 point=origin+ray*max(0.,ray_t);float axial=dot(point,axis);
+            float across=length(point-axis*axial);
+            float beam=exp(-across*across/pow(.035+abs(axial)*.10,2.))
+                *smoothstep(radius*.7,radius*1.3,abs(axial))*exp(-axial*axial*.22);
+            vec3 beam_color=mix(journey_pigment(5),journey_pigment(0),.18);
+            light+=beam_color*beam*(.6+.25*journey_pressure());
+        }
+        float distance=journey_sphere(local,ray,center,radius);
+        if(distance>=closest)continue;
+        vec3 normal=normalize(local+ray*distance-center);
+        vec3 weights=pow(abs(normal),vec3(4.));weights/=max(.001,weights.x+weights.y+weights.z);
+        float activity=journey_echo(normal,float(star)+13.);
+        vec3 convection=normal+vec3(sin(normal.y*9.+u_star_time*.10),sin(normal.z*8.-u_star_time*.08),sin(normal.x*11.+u_star_time*.07))*(.07+.06*activity);
+        float cell_scale=star==0 ? 3.8 : 5.2;
+        float cells=journey_fbm(convection.yz*cell_scale+u_star_time*.025)*weights.x+journey_fbm(convection.xz*cell_scale-u_star_time*.022)*weights.y+journey_fbm(convection.xy*cell_scale+u_star_time*.018)*weights.z;
+        float spots=journey_fbm(convection.xz*5.+convection.y*3.);
+        float spot=smoothstep(.65,.78,spots)*(1.-smoothstep(.12,.65,abs(normal.y)));
+        float limb=.38+.62*pow(max(0.,dot(normal,-ray)),.45);
+        float granules=smoothstep(.27,.73,cells);
+        float hot=smoothstep(.57,.75,cells);
+        vec3 cooler=mix(tint,journey_pigment(1),.38);
+        vec3 warmer=mix(tint,vec3(1),star==0 ? .20 : .48);
+        vec3 photosphere=mix(cooler*.35,warmer*(.52+.68*granules),granules)*limb;
+        photosphere=mix(photosphere,cooler*.12*limb,spot*.72);
+        photosphere+=mix(tint,vec3(1),.65)*hot*.20*limb;
+        photosphere+=mix(tint,journey_pigment(7),.45)*activity*.85;
+        photosphere+=tint*journey_pressure()*(.18+.32*granules);
+        if(u_journey.w>.95 && star==0) {
+            vec3 axis=normalize(vec3(cos(u_star_time*.48)*.72,.70,sin(u_star_time*.48)*.72));
+            float pole=pow(abs(dot(normal,axis)),14.);
+            photosphere=mix(tint,journey_pigment(5),.72)*(.20+.55*granules)*limb
+                +mix(journey_pigment(5),vec3(1),.65)*pole*(1.3+.3*activity);
+        }
+        light=photosphere/(vec3(1.)+photosphere*.32);closest=distance;
+    }
+    for(int i=0;i<8;i++) {
+        if(i>=u_journey_count)break;
+        vec4 spec=u_journey_planets[i];vec3 center=journey_planet_center(spec,i);
+        float distance=journey_sphere(local,ray,center,spec.y*(1.+.10*journey_pressure()+.065*u_impact));
+        if(distance<closest) {
+            vec3 normal=normalize(local+ray*distance-center);
+            float diffuse=max(0.,dot(normal,normalize(-center)));
+            float rim=pow(1.-max(0.,dot(normal,-ray)),3.);
+            float fill=u_journey_stars.y>0. ? max(0.,dot(normal,normalize(journey_companion()-center)))*.22 : 0.;
+            float illumination=spec.w<.5 ? .65+.35*diffuse+fill : .34+.82*diffuse+fill;
+            light=journey_surface(normal,spec,float(i))*illumination
+                +journey_pigment(5)*rim*(.10+.13*u_sparkle)*(.35+.65*diffuse);
+            if(spec.w>.5 && spec.w<1.5) {
+                vec3 spin_normal=normal;float spin=u_star_time*(.027+u_journey_traits[i].w*.012)*(1.+float(i)*.07);
+                spin_normal.xz=mat2(cos(spin),-sin(spin),sin(spin),cos(spin))*spin_normal.xz;
+                vec2 terrain=vec2(spin_normal.x+spin_normal.y*.43,spin_normal.z+spin_normal.y*.71)*2.2;
+                vec2 curl=vec2(journey_fbm(terrain*3.+spec.z),journey_fbm(terrain*3.-u_star_time*.005+13.))-.5;
+                float land=smoothstep(.47,.54,journey_fbm(terrain*(1.2+u_journey_traits[i].w*.35)+curl*.4+spec.z));
+                vec3 water_normal=normalize(normal+vec3(sin(terrain.x*29.+u_star_time*.1),cos(terrain.y*23.),sin(terrain.y*17.-u_star_time*.1))*(.015+.10*journey_pressure()));
+                float glint=pow(max(0.,dot(reflect(-normalize(-center),water_normal),-ray)),35.);
+                light+=mix(journey_pigment(0),vec3(1),.65)*glint*(1.-land)*.9;
+                float cloud_distance=journey_sphere(local,ray,center,spec.y*1.027);
+                vec3 cloud_normal=normalize(local+ray*cloud_distance-center);
+                vec2 weather=vec2(cloud_normal.x+cloud_normal.y*.43,cloud_normal.z+cloud_normal.y*.71)*2.2;
+                weather.x+=u_star_time*.026;
+                weather+=curl*.32;
+                float hurricane=atan(weather.y-.2,sin(weather.x+.4));
+                weather+=vec2(sin(hurricane+u_star_time*.02),cos(hurricane+u_star_time*.02))*.12;
+                float vapor=journey_fbm(weather*5.5+curl*.6);
+                float fibers=noise(weather*28.+vapor*4.);
+                float cloud=smoothstep(.48,.77,vapor)*smoothstep(.18,.70,fibers);
+                float thickness=.42+.35*noise(weather*13.-u_star_time*.013);
+                vec3 cloud_color=mix(journey_pigment(5),vec3(1),.70)*(.12+.85*max(0.,dot(cloud_normal,normalize(-center))))*(.72+.28*fibers);
+                light=mix(light,cloud_color,cloud*thickness);
+                light+=journey_pigment(5)*pow(1.-max(0.,dot(cloud_normal,-ray)),5.)*.065;
+            }
+            closest=distance;
+        }
+        // A local inclined ring shares sphere depth: nearer solid bodies hide
+        // the far band; nearer dust lies over the front hemisphere.
+        if(spec.w>2.5 && spec.w<3.5) {
+            vec3 axis=normalize(vec3(.25*sin(spec.z),1.,.28*cos(spec.z)));
+            float denom=dot(ray,axis);
+            if(abs(denom)>.001) {
+                float ring_t=dot(center-local,axis)/denom;
+                vec3 point=local+ray*ring_t-center;
+                float radius=length(point)/spec.y;
+                if(ring_t>0. && ring_t<closest && radius>1.3 && radius<2.45) {
+                    float bands=.48+.32*journey_fbm(vec2(radius*18.,spec.z))+.20*sin(radius*21.);
+                    float edge=smoothstep(1.3,1.36,radius)*(1.-smoothstep(2.36,2.45,radius));
+                    float gap=smoothstep(.012,.045,abs(radius-1.94));
+                    float shadow=length(cross(center-(local+ray*ring_t),normalize(-center)));
+                    float shade=.25+.75*smoothstep(spec.y*.82,spec.y*1.25,shadow);
+                    light=mix(light,journey_body_pigment(4,i)*(.45+.50*bands)*shade,edge*gap*(.38+.48*bands));
+                    closest=ring_t;
+                }
+            }
+        }
+        if(spec.w>1.5 && spec.w<3.5 && u_journey_traits[i].z>.3) {
+            float orbit=u_star_time*.18+float(i)*2.;
+            vec3 moon=center+vec3(cos(orbit),.2*sin(orbit),sin(orbit))*spec.y*3.;
+            float distance=journey_sphere(local,ray,moon,spec.y*.24);
+            if(distance<closest) {
+                vec3 normal=normalize(local+ray*distance-moon);
+                light=journey_pigment(1)*(.06+.75*max(0.,dot(normal,normalize(-moon))));
+                closest=distance;
+            }
+        }
+    }
+    return light;
+}
+
+vec4 journey_warp(vec2 p,float strength) {
+    if(strength<=0.)return vec4(0);
+    float radius=length(p), angle=atan(p.y,p.x);
+    float speed=.9+strength*3.8+.8*journey_pressure();
+    float travel=u_star_time*.75;
+    vec3 light=vec3(0);float extinction=0.;
+    // Three sparse peripheral cloud banks at different depths, no contour network.
+    for(int i=0;i<3;i++) {
+        float id=float(i),z=1.-fract(travel*.19+id*.31);
+        float r=radius*(.8+z*2.4+id*.25);
+        float turn=angle+log(radius+.12)*.42+id*2.1+travel*.025;
+        vec2 circular=vec2(cos(turn),sin(turn));
+        float sector=pow(.5+.5*cos(turn),9.);
+        float cloud=journey_fbm(circular*2.2+vec2(r*3.-travel*speed,id*17.));
+        float wall=smoothstep(.24,.45,r)*(1.-smoothstep(.9,1.6,r))*sector;
+        float body=wall*smoothstep(.30,.72,cloud);
+        vec3 pigment=i==0 ? journey_pigment(5) : i==1 ? journey_pigment(0) : journey_pigment(7);
+        float passage_fade=smoothstep(0.,.12,z)*(1.-smoothstep(.85,1.,z));
+        float luminous_ridge=smoothstep(.43,.59,cloud)*(1.-smoothstep(.70,.84,cloud));
+        float depth_light=.7+1.1*(1.-z);
+        light+=pigment*wall*passage_fade*(body*(.16+.40*cloud)+luminous_ridge*.24)
+            *depth_light/(1.+id*.30);
+        extinction+=body*passage_fade*(.12+.12*(1.-z));
+    }
+    // Long perspective tails, unequal distances, forward acceleration.
+    for(int i=0;i<72;i++) {
+        float id=float(i),seed=hash(vec2(id+7.,u_journey.z+13.));
+        float z=.08+fract(seed-travel*(.65+seed*.45+journey_pressure()*.95))*4.8;
+        vec2 xy=(vec2(hash(vec2(id,17.)),hash(vec2(id,43.)))-.5)*2.8;
+        vec2 head=xy/z,tail=xy/(z+.65+strength*2.7+journey_pressure());
+        vec2 segment=head-tail;float u=clamp(dot(p-tail,segment)/max(dot(segment,segment),.0001),0.,1.);
+        vec2 delta=p-(tail+segment*u);
+        float width=.00065+.0012/(z+.35);
+        float trail=exp(-dot(delta,delta)/(width*width))*(.15+.85*u);
+        light+=mix(journey_pigment(5),journey_pigment(0),seed)*trail*(.12+.20/(z*z))*(1.+1.2*u_impact);
+    }
+    float channel=smoothstep(.055,.18,radius);
+    return vec4(light*strength*channel,clamp(extinction,0.,.40)*strength*channel);
+}
+
+vec3 isolated_galaxy_scene(vec2 p) {
+    mat3 camera=journey_view(u_journey_eye,u_journey_target,u_journey_bank);
+    vec3 ray=normalize(camera*vec3(p*.95,1.));
+    float phase=u_journey.x,progress=u_journey.y;
+    float entry=phase>1.5 && phase<2.5 ? smoothstep(.10,.48,progress) : (phase>2.5 ? 1. : 0.);
+    vec3 light=vec3(0);
+    if(phase<4.5 || progress<.43) {
+        if(entry>=.999)light=journey_arm_depth(u_journey_eye,ray,u_journey_galaxy);
+        else {
+            light=journey_galaxy(u_journey_eye,ray,u_journey_galaxy,false);
+            if(entry>0.)light=mix(light,journey_arm_depth(u_journey_eye,ray,u_journey_galaxy),entry);
+        }
+        if(phase<2.5)light+=stellar_layers(p)*vec3(.6);
+        light=journey_system(u_journey_eye,ray,light);
+    }
+    // The next destination is an actual generated galaxy, visible as a distant
+    // object during the system tour and used unchanged at the next arrival.
+    vec3 heading=transpose(camera)*u_journey_heading;
+    float warp=phase>4.5 ? smoothstep(.05,.3,progress)*(1.-smoothstep(.80,1.,progress)) : 0.;
+    float size=phase>4.5 ? exp(mix(log(.13),0.,smoothstep(0.,1.,progress))) : .13;
+    if(heading.z>0. && phase>3.5) {
+        vec2 center=heading.xy/(heading.z*.95);
+        vec2 local=(p-center)/size;
+        mat3 entry=journey_view(u_journey_next_eye,vec3(0),0.);
+        vec3 target_ray=normalize(entry*vec3(local*.95,1.));
+        vec3 next=journey_galaxy(u_journey_next_eye,target_ray,u_journey_next,true);
+        float window=1.-smoothstep(1.3,1.8,length(local));
+        float arrival=phase>4.5 ? smoothstep(.62,1.,progress) : 0.;
+        light*=1.-(phase>4.5 ? smoothstep(.12,.42,progress) : 0.);
+        light+=next*mix(window,1.,arrival);
+    }
+    vec4 passage=journey_warp(p,warp);
+    light=light*(1.-passage.a)+passage.rgb;
+    return light;
+}
+
 
 // Accepted depth composition shared by the isolated diagnostic and live takeover.
 vec3 isolated_cosmic_scene(vec2 p, vec3 canvas, float canvas_mix, float assembly)
@@ -3819,6 +4596,7 @@ float handoff_share(float family,float front) {
     return 1.;
 }
 
+// Modal experiment table. Metre amplitudes; optical gain never changes physics.
 void main()
 {
     bool directed = u_directed == 1;
@@ -3842,9 +4620,15 @@ void main()
         p*=1.+warp*(.6-length(p)*.3);
     }
 
+    if (u_debug_state > 35.5 && u_debug_state < 36.5)
+    {
+        fragColor = vec4(isolated_galaxy_scene(p), 1.0);
+        return;
+    }
+
     if (debug_state > 2.5 && debug_state < 3.5)
     {
-        fragColor = vec4(isolated_cosmic_scene(p, vec3(0.0), 0.0, 1.0), 1.0);
+        fragColor = vec4(isolated_cosmic_scene(p, vec3(0.0), 0.0, 1.0)+stellar_layers(p), 1.0);
         return;
     }
 
@@ -5051,6 +5835,16 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         float coverage=score/max(score+pow(1.-plasma_amount,3.),1e-12);
         if(physical_handoff) coverage=handoff_share(8.,front);
         color=mix(color,plasma,coverage);
+    }
+    color += stellar_layers(screen_p);
+    if(directed && u_galaxy_weight>0.) {
+        float share=clamp(u_galaxy_weight,0.,1.);
+        vec2 travel=screen_p*(1.+(1.-share)*(.35+.2*u_flux));
+        vec3 destination=isolated_galaxy_scene(travel);
+        float cover=smoothstep(.12,.55,share);
+        color=mix(color*(1.-cover*.70),destination,smoothstep(.10,.85,share));
+        vec4 passage=u_journey.x>4.5 ? vec4(0) : journey_warp(screen_p,max(0.,sin(share*3.14159265))*.22);
+        color=color*(1.-passage.a)+passage.rgb;
     }
     fragColor = vec4(color, 1.0);
 }

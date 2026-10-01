@@ -129,9 +129,11 @@ def studio_checks(output):
         assert material_weights({},0,t)==material_weights(authored,0,t)
         assert layers_at({},0,t)==layers_at(authored,0,t)
         a=treatment_weights({},0,t,ENVELOPERS);b=treatment_weights({},0,t,SPATIAL_TREATMENTS)
-        assert sum(x>0 for x in a)<=1 and not (max(a)>0 and max(b)>0)
+        assert a==(0.,0.,0.) and sum(x>0 for x in b)<=1
         assert a==treatment_weights(authored,0,t,ENVELOPERS)
         assert not any(treatment_weights({'blend':material_quartet_profile('blend')},0,t,ENVELOPERS))
+    explicit={'blend':dict(mode='together',seconds=12.,items=[dict(id='digital_bloom',enabled=True)])}
+    assert treatment_weights(explicit,0,50.,ENVELOPERS)==(0.,1.,0.)
     root=tk.Tk();root.withdraw();app=Studio(root)
     try:
         for key in NEW_MATERIALS+SPATIAL_TREATMENTS+ENVELOPERS:
@@ -348,7 +350,7 @@ def replay_checks(output):
         seconds,rows=replay_test.replay(track,speed=0,max_seconds=216.,state='blend',seed=2,
             metrics_path=output/'metrics.csv',capture_dir=output/'captures',capture_interval=12.)
     wall=time.perf_counter()-before
-    assert seen_materials==set(range(7)) and seen_envelopers==set(range(3)) and seen_spatial==set(range(3))
+    assert seen_materials==set(range(7)) and not seen_envelopers and seen_spatial==set(range(3))
     data=np.array(frames)
     report=dict(track=str(track),song_seconds=seconds,frames=len(rows),resolution=[1280,720],wall_seconds=wall,
         processed_frames_per_wall_second=len(rows)/wall,gpu_median_ms=float(np.median(data[:,1])),gpu_p95_ms=float(np.percentile(data[:,1],95)),

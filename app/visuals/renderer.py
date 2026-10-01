@@ -5,12 +5,14 @@ from functools import lru_cache
 
 import glfw
 import moderngl
+import json
 import math
 
+from procedural_cosmos import uniforms as journey_uniforms, PERIOD
 from parameters import VisualParameters
 from envelopers import EnveloperStage
-from color_controls import validate_colors, color_uniforms, targets_for, STATE_COLOR_SCENE
-from preview_layers import treatment_weights, SPATIAL_TREATMENTS, ENVELOPERS, material_weights, shooting_stars_at, echo_selected, echo_weave_at, layers_at, materials_at, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
+from color_controls import validate_colors, color_uniforms, targets_for, STATE_COLOR_SCENE, galaxy_authored_colors
+from preview_layers import gravity_well_at, stellar_layers_at, treatment_weights, SPATIAL_TREATMENTS, ENVELOPERS, material_weights, shooting_stars_at, echo_selected, echo_weave_at, layers_at, materials_at, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
 
 VERTEX_SHADER = """
 #version 330
@@ -31,6 +33,7 @@ AIR_FORMS = (19, 20, 21, 22)
 EARTH_FORMS = (24, 25, 26)
 FOG_FORMS = (28, 29, 30)
 PLASMA_FORMS = (32, 33, 34)
+# State 36 is a held Galaxy review scene; it is deliberately absent from Main.
 LIVE_FORMS = BLEND_FORMS + AIR_FORMS + EARTH_FORMS + FOG_FORMS + PLASMA_FORMS
 
 @lru_cache(maxsize=8)
@@ -115,7 +118,7 @@ def world_uniforms(weights, progress=0., enabled=True, handoff=None):
                 u_air_weight=air, u_air_mix=air_mix,
                 u_earth_weight=earth, u_earth_mix=earth_mix,
                 u_fog_weight=fog, u_fog_mix=fog_mix,
-                u_plasma_weight=plasma, u_plasma_mix=plasma_mix)
+                u_plasma_weight=plasma, u_plasma_mix=plasma_mix, u_galaxy_weight=weights.get(36,0.))
 
 
 class Renderer:
@@ -152,8 +155,24 @@ class Renderer:
         self.firescape_rate = self.FLOW_FLOOR
         self.firescape_travel = 0.0
         self.flow_rate = self.FLOW_FLOOR
+        self.cosmos_seed = 7301 if seed is None else int(seed)
+        self.galaxy_time = 0.0
+        self.galaxy_start_visit=0
+        self.galaxy_next_visit=0
+        self.galaxy_recent=[]
+        self.galaxy_seen_once=False
+        self.galaxy_was_present=False
+        self.galaxy_short_visit=False
+        self.galaxy_palette_identity=None
+        self.galaxy_last_status=-1000.
         self.star_time = 0.0
         self.star_rate = 1.0
+        self.stellar_events = []
+        self.stellar_event_id = 0
+        self.stellar_armed = True
+        self.stellar_last_event = -1000.
+        self.galaxy_peak = 0.0
+        self.galaxy_release = 0.0
         self.parameters = VisualParameters()
         self.debug_state = 0
         self.debug_sequence = ()
@@ -372,34 +391,66 @@ class Renderer:
             glfw.terminate()
             raise RuntimeError("Failed to create GLFW window")
 
-        glfw.make_context_current(self.window)
+        visible = bool(glfw.get_window_attrib(self.window, glfw.VISIBLE))
+        notice = None
+        began = time.perf_counter()
+        self.startup_metrics = {}
+        if visible:
+            from shader_startup import StartupNotice
+            # Native shader compilation may hold the GIL/event thread. The
+            # owned notice has its own event loop; no frozen blank GL window.
+            notice = StartupNotice(self.title)
+            glfw.hide_window(self.window)
+            notice.phase('context')
+        try:
+            glfw.make_context_current(self.window)
 
-        self.ctx = moderngl.create_context()
+            self.ctx = moderngl.create_context()
 
-        shader_path = Path(__file__).parent / "shaders" / "dream.frag"
-        fragment_shader = shader_path.read_text(encoding="utf-8")
+            shader_path = Path(__file__).parent / "shaders" / "dream.frag"
+            fragment_shader = shader_path.read_text(encoding="utf-8")
 
-        self.program = self.ctx.program(
-            vertex_shader=VERTEX_SHADER,
-            fragment_shader=fragment_shader,
-        )
-
-        self.vertices = self.ctx.buffer(
-            data=(
-                b"\x00\x00\x80\xbf\x00\x00\x80\xbf"
-                b"\x00\x00\x80\x3f\x00\x00\x80\xbf"
-                b"\x00\x00\x80\xbf\x00\x00\x80\x3f"
-                b"\x00\x00\x80\x3f\x00\x00\x80\x3f"
+            if notice:
+                notice.phase('compiling')
+            compile_start = time.perf_counter()
+            self.program = self.ctx.program(
+                vertex_shader=VERTEX_SHADER,
+                fragment_shader=fragment_shader,
             )
-        )
 
-        self.vao = self.ctx.simple_vertex_array(
-            self.program,
-            self.vertices,
-            "in_position",
-        )
+            self.startup_metrics['program_seconds'] = time.perf_counter() - compile_start
+            if notice:
+                notice.phase('resources')
+            self.vertices = self.ctx.buffer(
+                data=(
+                    b"\x00\x00\x80\xbf\x00\x00\x80\xbf"
+                    b"\x00\x00\x80\x3f\x00\x00\x80\xbf"
+                    b"\x00\x00\x80\xbf\x00\x00\x80\x3f"
+                    b"\x00\x00\x80\x3f\x00\x00\x80\x3f"
+                )
+            )
 
+            self.vao = self.ctx.simple_vertex_array(
+                self.program,
+                self.vertices,
+                "in_position",
+            )
+
+            self.startup_metrics['create_seconds'] = time.perf_counter() - began
+            if notice:
+                notice.phase('ready')
+        except BaseException:
+            if notice:
+                notice.phase('failed')
+            raise
+        finally:
+            if notice:
+                notice.close()
+        if visible:
+            glfw.show_window(self.window)
+        # Animation begins after loading, independent of compile/notice time.
         self.start_time = time.perf_counter()
+
 
     def release_echo(self):
         if self.echo_resources is not None:
@@ -452,11 +503,44 @@ class Renderer:
             target.use()
             self.ctx.viewport = viewport
 
+    def update_galaxy_visit(self,present,delta,held=False,rewound=False):
+        """One engine-owned route clock, independent of Main's world decision.
+        Asset seeds/visit ordinal author content; they never choose the next world."""
+        from procedural_cosmos import PERIOD,entry_phase,visit_signature
+        if rewound:
+            self.galaxy_time=self.galaxy_start_visit*PERIOD+(entry_phase(self.cosmos_seed,self.galaxy_start_visit) if self.galaxy_short_visit else 0.)
+            self.galaxy_next_visit=self.galaxy_start_visit;self.galaxy_was_present=False;self.galaxy_seen_once=False;self.galaxy_recent=[]
+        if present and not self.galaxy_was_present:
+            if self.galaxy_seen_once or not held:
+                for _ in range(13):
+                    if visit_signature(self.cosmos_seed,self.galaxy_next_visit)[1] not in self.galaxy_recent:break
+                    self.galaxy_next_visit+=1
+                age=0. if held and not self.galaxy_short_visit else entry_phase(self.cosmos_seed,self.galaxy_next_visit)
+                self.galaxy_time=self.galaxy_next_visit*PERIOD+age
+            self.galaxy_seen_once=True;self._color_dirty=True
+        if present:
+            self.galaxy_time+=max(0.,delta)
+            self.galaxy_next_visit=max(self.galaxy_next_visit,int(self.galaxy_time//PERIOD)+1)
+        self.galaxy_was_present=bool(present)
+        identity=(self.cosmos_seed,int(self.galaxy_time//PERIOD))
+        if identity!=self.galaxy_palette_identity:
+            if present:self.galaxy_recent=(self.galaxy_recent+[visit_signature(*identity)[1]])[-12:]
+            self.galaxy_palette_identity=identity;self._color_dirty=True
+
+    def set_galaxy_start(self, visit=0, short=False):
+        if type(visit) is not int or not 0<=visit<2**31:raise ValueError('Invalid Galaxy visit')
+        from procedural_cosmos import PERIOD,entry_phase
+        self.galaxy_time=visit*PERIOD+(entry_phase(self.cosmos_seed,visit) if short else 0.)
+        self.galaxy_start_visit=visit
+        self.galaxy_next_visit=visit;self.galaxy_short_visit=bool(short)
+        self.galaxy_recent=[];self.galaxy_seen_once=False;self.galaxy_was_present=False;self.galaxy_palette_identity=None;self._color_dirty=True
+
     def set_colors(self, values):
         # Validate transactionally: invalid snapshots never replace the last valid setup.
         clean = validate_colors(values)
         self.color_overrides = clean
         self._color_dirty = True
+
 
     def render(self, elapsed_time=None):
         if self.window is None:
@@ -471,6 +555,7 @@ class Renderer:
             time.perf_counter() - self.start_time
             if elapsed_time is None else elapsed_time
         )
+        rewound = self.last_render_time is not None and current_time < self.last_render_time
         if self.last_render_time is None:
             delta_time = 0.0
         else:
@@ -515,12 +600,68 @@ class Renderer:
             0.70 * max(0.0, min(1.0, self.parameters.flux))
             + 0.30 * max(0.0, min(1.0, self.parameters.sparkle))
         )
+        if self.state_at(current_time) == 36 or self.blend_values.get('u_galaxy_weight',0.)>0.:
+            # Galaxy uses normalized visual movement/bass for positive orbital
+            # flow; raw flux alone rarely reaches the shared chorus threshold.
+            star_drive = .50*movement + .30*max(0., min(1., self.parameters.scale)) + .20*star_drive
+            star_drive = max(0., min(1., star_drive))
         chorus = max(0.0, min(1.0, (star_drive - 0.72) / 0.24))
         chorus = chorus * chorus * (3.0 - 2.0 * chorus)
-        target_star_rate = 1.0 + 0.75 * chorus
-        star_ease = 1.0 if delta_time <= 0.0 else 1.0 - math.exp(-delta_time / 0.8)
+        target_star_rate = (.18 + 42.0 * star_drive * star_drive) if (self.state_at(current_time) == 36 or self.blend_values.get('u_galaxy_weight',0.)>0.) else 1.0 + 0.75 * chorus
+        star_smoothing=(.24 if target_star_rate>self.star_rate else .85) if (self.state_at(current_time)==36 or self.blend_values.get('u_galaxy_weight',0.)>0.) else .8
+        star_ease = 1.0 if delta_time <= 0.0 else 1.0 - math.exp(-delta_time / star_smoothing)
         self.star_rate += (target_star_rate - self.star_rate) * star_ease
         self.star_time += delta_time * self.star_rate
+
+        # Galaxy alone remembers a recent musical high, so a retreat has a
+        # short, eased afterglow instead of snapping back to initial quiet.
+        if rewound:
+            self.galaxy_peak = 0.
+            self.galaxy_release = 0.
+        if self.state_at(current_time) == 36 or self.blend_values.get('u_galaxy_weight',0.)>0.:
+            level = max(0., min(1., .40*self.parameters.scale
+                + .35*self.parameters.flux + .25*self.parameters.sparkle))
+            if self.last_render_time is not None and delta_time > 0.:
+                self.galaxy_peak = max(level, self.galaxy_peak * math.exp(-delta_time / 12.))
+                gap = max(0., min(1., (self.galaxy_peak-level-.10)/.45))
+                peak = max(0., min(1., (self.galaxy_peak-.35)/.30))
+                target = gap*gap*(3.-2.*gap) * peak*peak*(3.-2.*peak)
+                easing = .8 if target > self.galaxy_release else 5.
+                self.galaxy_release += (target-self.galaxy_release) * (
+                    1. - math.exp(-delta_time/easing))
+            else:
+                self.galaxy_peak = max(self.galaxy_peak, level)
+        else:
+            self.galaxy_peak = 0.
+            self.galaxy_release = 0.
+        self.program["u_galaxy_release"].value = self.galaxy_release
+        state=self.state_at(current_time)
+        if rewound or (state!=36 and self.blend_values.get('u_galaxy_weight',0.)<=0.):
+            self.stellar_events=[]
+            self.stellar_last_event=-1000.
+            self.stellar_armed=True
+            if rewound:self.stellar_event_id=0
+        else:
+            self.stellar_events=[event for event in self.stellar_events if current_time-event[0]<10.]
+            if self.parameters.impact<.08:self.stellar_armed=True
+            transient=self.parameters.impact>.20 and self.stellar_armed
+            # Sustained nonpercussive music can germinate a nursery too; this
+            # uses existing scale/flux, without claiming phrase recognition.
+            sustained=level>.52 and current_time-self.stellar_last_event>9.
+            if (transient or sustained) and current_time-self.stellar_last_event>.32:
+                self.stellar_event_id+=1
+                self.stellar_events.append((current_time,self.stellar_event_id*2.399963,
+                    (self.stellar_event_id%3)/2.,min(1.,.35+level*.40+self.parameters.impact*.65)))
+                self.stellar_events=self.stellar_events[-8:]
+                self.stellar_last_event=current_time
+                if transient:self.stellar_armed=False
+        self.program['u_stellar_events'].value=self.stellar_events+[(-1000.,0.,0.,0.)]*(8-len(self.stellar_events))
+        present=state==36 or self.blend_values.get('u_galaxy_weight',0.)>0.
+        self.update_galaxy_visit(present,delta_time,state==36,rewound)
+        for name,value in journey_uniforms(self.cosmos_seed,self.galaxy_time,self.star_time).items():
+            self.program[name].value=value
+        self.program['u_gravity_well'].value=gravity_well_at(self.layer_profiles,state,current_time)
+        self.program['u_stellar_layers'].value=stellar_layers_at(self.layer_profiles,state,current_time)
 
         self.program["u_time"].value = visual_time
         self.program["u_firescape_travel"].value = self.firescape_travel
@@ -586,9 +727,15 @@ class Renderer:
         if update is not None: self.set_colors(update[1])
         state = self.state_at(current_time)
         active = tuple(target.id for target in targets_for(STATE_COLOR_SCENE[state]))
-        if self._color_dirty or active != self._color_active or any(v.get('_cycle',{}).get('mode')=='cycle' for v in self.color_overrides.values()):
-            for name, value in color_uniforms(self.color_overrides, active, current_time).items():
+        if present and state!=36:active=tuple(dict.fromkeys(active+tuple(t.id for t in targets_for('galaxy'))))
+        effective_colors=galaxy_authored_colors(self.color_overrides,36 if present else state,self.cosmos_seed,int(self.galaxy_time//PERIOD))
+        if self._color_dirty or active != self._color_active or any(v.get('_cycle',{}).get('mode')=='cycle' for v in effective_colors.values()):
+            for name, value in color_uniforms(effective_colors, active, current_time).items():
                 if name in self.program: self.program[name].value = value
+            if present:
+                next_colors=galaxy_authored_colors(self.color_overrides,36,self.cosmos_seed,int(self.galaxy_time//PERIOD)+1)
+                next_values=color_uniforms(next_colors,active,current_time)
+                if 'u_galaxy_colors' in next_values:self.program['u_next_galaxy_colors'].value=next_values['u_galaxy_colors']
             self._color_dirty = False
             self._color_active = active
         weights=treatment_weights(self.layer_profiles,state,current_time,ENVELOPERS)
@@ -610,6 +757,10 @@ class Renderer:
             if max(weights)<=0.:self.enveloper_failed=False
             self.ctx.screen.use();self.ctx.viewport=(0,0,width,height)
             self.vao.render(mode=moderngl.TRIANGLE_STRIP)
+        if self.color_inbox and present and current_time-self.galaxy_last_status>=1.:
+            from studio_color_link import ACK_PREFIX
+            print(ACK_PREFIX+json.dumps(dict(galaxy_visit=int(self.galaxy_time//PERIOD),galaxy_phase=self.galaxy_time%PERIOD,galaxy_next_visit=self.galaxy_next_visit,star_rate=self.star_rate)),flush=True)
+            self.galaxy_last_status=current_time
         if update is not None:
             self.color_inbox.applied(update[0], current_time, self.echo_clock)
 
