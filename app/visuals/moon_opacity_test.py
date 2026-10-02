@@ -35,7 +35,7 @@ def material(normal, index, time):
 def main():
     renderer = Renderer(width=640, height=360)
     source = (Path(__file__).parent / "shaders/dream.frag").read_text(encoding="utf-8")
-    marker = "for (int i = 0; i < 3; i++)"
+    marker = "for (int i = 0; i < 3 && effect(2048) > 0.0; i++)"
     assert source.count(marker) == 1
     angle, opening = .28, .40
     u = np.array([math.cos(angle), math.sin(angle), 0.])
@@ -49,7 +49,7 @@ def main():
         glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
         renderer.create()
         baseline = renderer.ctx.program(vertex_shader=VERTEX_SHADER,
-            fragment_shader=source.replace(marker, "for (int i = 0; i < 0; i++)"))
+            fragment_shader=source.replace(marker, "for (int i = 0; i < 0 && effect(2048) > 0.0; i++)"))
         vao = renderer.ctx.simple_vertex_array(baseline, renderer.vertices, "in_position")
         for seconds in np.linspace(0, 30, 61):
             frames = []

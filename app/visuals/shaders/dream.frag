@@ -75,14 +75,43 @@ uniform int u_air_sky_on, u_air_clouds_on, u_air_lightning_on;
 uniform int u_air_balloons_on, u_air_citadel_on, u_air_daddy_on;
 uniform vec3 u_air_sky[3], u_air_clouds[3], u_air_lightning[3];
 uniform vec3 u_air_balloons[2], u_air_citadel[4], u_air_daddy;
+uniform int u_citadel_colors_on;
+uniform vec3 u_citadel_colors[6];
+uniform vec4 u_tower_motion,u_tower_events[4];
+uniform float u_tower_amount,u_tower_visit;
 uniform int u_earth_sky_on, u_earth_minerals_on, u_dunes_land_on;
 uniform int u_strata_land_on, u_cavern_land_on;
 uniform vec3 u_earth_sky[3], u_earth_minerals[2], u_dunes_land[2];
 uniform vec3 u_strata_land[2], u_cavern_land[3];
+uniform sampler2D u_cavern_cache;
+uniform ivec2 u_cavern_origin;
+uniform int u_cavern_cached, u_mineral_colors_on;
+uniform vec3 u_mineral_colors[4];
+uniform vec4 u_mineral_motion, u_mineral_fronts[4];
+uniform float u_mineral_amount;
+
 uniform int u_fog_vapor_on, u_fog_internal_on, u_marsh_solids_on, u_marsh_ghostlights_on;
 uniform vec3 u_fog_vapor[3], u_fog_internal[2], u_marsh_solids[3], u_marsh_ghostlights[2];
 uniform int u_plasma_sky_on, u_magnetic_field_on, u_arcs_charge_on, u_auroral_curtains_on;
 uniform vec3 u_plasma_sky[2], u_magnetic_field[3], u_arcs_charge[3], u_auroral_curtains[2];
+uniform sampler2D u_magnetic_paths,u_original_paths;
+uniform int u_original_path_on;
+uniform vec4 u_magnetic_bounds[12],u_magnetic_groups[96];
+uniform mat3 u_magnetic_axes;
+uniform vec4 u_magnetic_motion,u_magnetic_events[4];
+uniform float u_magnetic_amount,u_magnetic_visit;
+uniform int u_magnetic_bloom_on;
+uniform vec3 u_magnetic_bloom[6];
+uniform sampler2D u_arc_scene,u_aurora_scene;
+uniform int u_plasma_experimental;
+uniform vec4 u_molten_motion,u_molten_events[4];
+uniform float u_molten_phase,u_molten_amount,u_molten_growth;
+uniform int u_molten_palette_on;
+uniform vec3 u_molten_palette[6],u_molten_authored[6];
+uniform int u_marsh_cached,u_marsh_palette_on;
+uniform float u_marsh_origin;
+uniform vec4 u_marsh_lamps[14],u_marsh_meta[14],u_marsh_wakes[14],u_marsh_motion;
+uniform vec3 u_marsh_palette[7],u_marsh_authored[7];
 uniform int u_planet_palette; // Opt-in held Planet Canvas experiment only.
 // Optional development isolation. Zero keeps every authored expression intact.
 uniform int u_layer_mode;
@@ -108,7 +137,104 @@ uniform float u_root_mix;
 uniform float u_world_warp;
 uniform vec4 u_handoff; // style, progress, departing family, arriving family
 uniform int u_event_blasts;
+uniform float u_blast_retire[8];
 uniform vec4 u_blast_events[8]; // birth, stable id, world x, world z
+uniform vec4 u_main_transition,u_main_layout;
+uniform int u_cavern_surface_on,u_citadel_surface_on;
+uniform float u_citadel_focal;
+uniform sampler2D u_cavern_surface,u_cavern_normal,u_citadel_surface,u_citadel_normal;
+vec4 main_world_mix;
+vec4 main_water_mix;
+vec4 main_fire_mix;
+vec4 main_air_mix;
+vec3 main_earth_mix;
+vec3 main_fog_mix;
+vec3 main_plasma_mix;
+float main_air_weight;
+float main_earth_weight;
+float main_fog_weight;
+float main_plasma_weight;
+float main_galaxy_weight;
+float main_current_mix;
+float main_root_mix;
+float main_region(vec2 p){
+    float phase=u_main_transition.y,style=u_main_transition.x;
+    vec2 axis=vec2(cos(u_main_layout.x),sin(u_main_layout.x));
+    float aspect=u_resolution.x/max(u_resolution.y,1.);
+    float extent=abs(axis.x)*aspect*.5+abs(axis.y)*.5;
+    vec2 q=vec2(dot(p,axis),dot(p,vec2(-axis.y,axis.x)));float field;
+    if(style<1.5)field=.5+q.x/max(extent,.001)*.39+.065*sin(q.y*7.+u_main_layout.w*6.28)+.025*sin(q.y*13.-u_main_layout.w*3.);
+    else if(style<2.5){vec2 cell=floor(p*5.);float seed=fract(sin(dot(cell,vec2(37.1,91.7))+u_main_layout.w*19.)*4375.3);field=.5+q.x/max(extent,.001)*.36+(seed-.5)*.18;}
+    else {vec2 center=u_main_layout.yz;float radius=length((p-center)*vec2(.82,1.));float far=length((vec2(aspect*.5,.5)+abs(center))*vec2(.82,1.));field=.08+.80*radius/max(far,.001);}
+    return smoothstep(clamp(field,.07,.93)-.028,clamp(field,.07,.93)+.028,phase);
+}
+void main_add_state(int state,float weight){
+    if(state==2)main_world_mix.x+=weight;
+    if(state==5)main_world_mix.y+=weight;
+    if(state>=7 && state<=10){main_world_mix.z+=weight;main_water_mix[state-7]+=weight;}
+    if(state==13){main_world_mix.z+=weight;main_current_mix+=weight;}
+    if(state==14 || state==15 || state==17 || state==18){main_world_mix.w+=weight;main_fire_mix[state<16?state-14:state-15]+=weight;}
+    if(state>=19 && state<=22){main_air_weight+=weight;main_air_mix[state-19]+=weight;}
+    if(state>=24 && state<=26){main_earth_weight+=weight;main_earth_mix[state-24]+=weight;}
+    if(state>=28 && state<=30){main_fog_weight+=weight;main_fog_mix[state-28]+=weight;}
+    if(state>=32 && state<=34){main_plasma_weight+=weight;main_plasma_mix[state-32]+=weight;}
+    if(state==12)main_root_mix+=weight;
+    if(state==36)main_galaxy_weight+=weight;
+}
+void main_base_weights(){
+    main_world_mix=u_world_mix;
+    main_water_mix=u_water_mix;
+    main_fire_mix=u_fire_mix;
+    main_air_mix=u_air_mix;
+    main_earth_mix=u_earth_mix;
+    main_fog_mix=u_fog_mix;
+    main_plasma_mix=u_plasma_mix;
+    main_air_weight=u_air_weight;
+    main_earth_weight=u_earth_weight;
+    main_fog_weight=u_fog_weight;
+    main_plasma_weight=u_plasma_weight;
+    main_galaxy_weight=u_galaxy_weight;
+    main_current_mix=u_current_mix;
+    main_root_mix=u_root_mix;
+
+}
+void main_pair_weights(float front){
+    main_world_mix=vec4(0.);main_water_mix=vec4(0.);main_fire_mix=vec4(0.);main_air_mix=vec4(0.);
+    main_earth_mix=vec3(0.);main_fog_mix=vec3(0.);main_plasma_mix=vec3(0.);
+    main_air_weight=0.;main_earth_weight=0.;main_fog_weight=0.;main_plasma_weight=0.;main_current_mix=0.;main_root_mix=0.;
+    main_galaxy_weight=0.;
+    main_add_state(int(u_main_transition.z+.5),1.-front);main_add_state(int(u_main_transition.w+.5),front);
+    main_water_mix/=max(main_world_mix.z,1e-12);main_current_mix/=max(main_world_mix.z,1e-12);main_fire_mix/=max(main_world_mix.w,1e-12);
+    main_air_mix/=max(main_air_weight,1e-12);main_earth_mix/=max(main_earth_weight,1e-12);main_fog_mix/=max(main_fog_weight,1e-12);main_plasma_mix/=max(main_plasma_weight,1e-12);
+}
+void main_weights(vec2 p){
+    main_base_weights();
+    if(u_directed==1 && u_debug_state==0. && u_main_transition.x>=.5)main_pair_weights(main_region(p));
+}
+vec2 main_carry(vec2 p){
+    if(u_directed!=1 || u_debug_state!=0. || u_main_transition.x<.5)return p;
+    float phase=u_main_transition.y,envelope=pow(sin(phase*3.14159265),2.);
+    float front=main_region(p);float nearby=.25+.75*(4.*front*(1.-front));
+    vec2 axis=vec2(cos(u_main_layout.x),sin(u_main_layout.x));
+    if(u_main_transition.x<1.5)return p+axis*.045*envelope*nearby+vec2(-axis.y,axis.x)*.018*sin(dot(p,axis)*7.+phase*4.)*envelope;
+    if(u_main_transition.x<2.5){vec2 cell=floor(p*5.);float seed=fract(sin(dot(cell,vec2(37.1,91.7))+u_main_layout.w*19.)*4375.3);return p+axis*(seed-.5)*.10*envelope;}
+    vec2 d=p-u_main_layout.yz;return p-d/max(length(d),.08)*.045*envelope*nearby;
+}
+#define u_world_mix main_world_mix
+#define u_water_mix main_water_mix
+#define u_fire_mix main_fire_mix
+#define u_air_mix main_air_mix
+#define u_earth_mix main_earth_mix
+#define u_fog_mix main_fog_mix
+#define u_plasma_mix main_plasma_mix
+#define u_air_weight main_air_weight
+#define u_earth_weight main_earth_weight
+#define u_fog_weight main_fog_weight
+#define u_plasma_weight main_plasma_weight
+#define u_galaxy_weight main_galaxy_weight
+#define u_current_mix main_current_mix
+#define u_root_mix main_root_mix
+
 float effect(int bit) {
     float enabled = u_layer_mode == 0 || (u_layer_mask & bit) != 0 ? 1.0 : 0.0;
     if (u_directed == 1) {
@@ -2558,21 +2684,22 @@ vec2 molten_ground(vec2 p) {
 // Return cross-stream distance and the parent center. Branches begin on the
 // parent river and their hot fronts grow downstream; there are no random cuts.
 vec2 molten_channel(vec2 ground) {
-    float center=.65*sin(ground.y*.34)+.28*sin(ground.y*.77);
-    float distance=abs(ground.x-center);
+    float growth=clamp(u_molten_growth,0.,1.);
+    float center=.65*sin(ground.y*.34)+.28*sin(ground.y*.77)
+        +.12*growth*sin(ground.y*.46-u_molten_phase*.18);
+    float distance=abs(ground.x-center)/(.34+.66*growth);
     for(int i=0;i<4;i++) {
-        float id=float(i);
-        float split=5.-id*3.8;
+        float id=float(i),split=ceil((ground.y+id*3.5)/14.)*14.-id*3.5;
         float downstream=max(0.,split-ground.y);
-        float side=mod(id,2.)<.5 ? -1. : 1.;
-        float spread=side*(1.-exp(-downstream*.32))*(2.4+id*.55);
-        float branch=center+spread+.22*sin(downstream*.85+id)*smoothstep(0.,2.,downstream);
-        float life=.5+.5*sin(u_time*.055+u_drift_time*.02+id*1.9);
-        float front=1.5+life*12.;
-        float growth=smoothstep(0.,.8,downstream)*(1.-smoothstep(front,front+2.,downstream));
-        float width=.68*growth;
-        float branch_distance=abs(ground.x-branch)+(1.10-width);
-        distance=min(distance,branch_distance);
+        float stage=smoothstep(.10+id*.14,.64+id*.12,growth);
+        float side=mod(id,2.)<.5?-1.:1.;
+        float spread=side*(1.-exp(-downstream*.32))*(2.4+id*.55)*(1.-smoothstep(10.,14.,downstream));
+        float branch=center+spread+.24*sin(downstream*.85+id-u_molten_phase*.12)*smoothstep(0.,2.,downstream);
+        float front=.4+stage*16.;
+        float formed=smoothstep(0.,.8,downstream)*(1.-smoothstep(front,front+1.8,downstream))*(1.-smoothstep(12.,14.,downstream))*stage;
+        float width=(.24+.48*stage)*formed;
+        float branchDistance=abs(ground.x-branch)/max(.015,width)+2.*(1.-formed);
+        distance=min(distance,branchDistance);
     }
     return vec2(distance,center);
 }
@@ -2589,7 +2716,7 @@ vec3 molten_backdrop(vec2 p) {
     float bearing=.34+u_time*.045+atan(p.x*1.6,.913);
     float ridge=.315+.038*sin(bearing*5.)+.032*sin(bearing*11.+2.)
         +.015*sin(bearing*23.);
-    vec3 sky=mix(vec3(.032,.045,.068),vec3(.065,.067,.082),
+    vec3 sky=mix((u_molten_palette_on==1?u_molten_palette[4]:u_molten_authored[4]),(u_molten_palette_on==1?u_molten_palette[4]:u_molten_authored[4])*vec3(2.03,1.49,1.21),
         1.-smoothstep(.26,.50,p.y));
     if(u_molten_flow_on==1)sky*=u_molten_flow[2];
     vec3 scene=mix(sky,vec3(.031,.038,.050),1.-smoothstep(ridge-.003,ridge+.003,p.y));
@@ -2604,59 +2731,86 @@ vec3 molten_backdrop(vec2 p) {
     return mix(scene,vec3(.009,.019,.018),1.-smoothstep(trees-.001,trees+.001,p.y));
 }
 
+vec3 molten_pigment(int role){return u_molten_palette_on==1?u_molten_palette[role]:u_molten_authored[role];}
+// hot transported front, anchored vent core, cooled deposit, local rolling pressure.
+vec4 molten_memory(vec2 ground){
+    vec4 memory=vec4(0.);
+    for(int i=0;i<4;i++){
+        vec4 e=u_molten_events[i];float age=u_drift_time-e.x;
+        if(age<0. || age>=18. || e.w<=0.)continue;
+        float y=e.z-age*.55;float x=.65*sin(y*.34)+.28*sin(y*.77);
+        vec2 d=ground-vec2(x,y);float front=exp(-dot(d*vec2(1.3,1.8),d*vec2(1.3,1.8)));
+        vec2 a=ground-e.yz;float vent=exp(-dot(a,a)*14.);
+        float cool=smoothstep(.8,2.8,age)*exp(-age*.095);
+        float deposit=exp(-dot(a*vec2(1.8,.75),a*vec2(1.8,.75))/(1.+age*.09));
+        memory+=e.w*vec4(front*exp(-age*.52),vent*exp(-age*2.1),deposit*cool,front*exp(-age*.32)*sin(age*5.));
+    }
+    return memory*u_molten_amount;
+}
+
 vec3 isolated_molten_scene(vec2 p,vec3 canvas) {
     float bass=clamp(u_scale,0.,1.),flux=clamp(u_flux,0.,1.);
     float spark=clamp(u_sparkle,0.,1.),impact=clamp(u_impact,0.,1.);
     vec2 ground=molten_ground(p), q=molten_domain(p);
-    float pressure=smoothstep(.12,.9,.55*bass+.45*flux);
-    float pulse=smoothstep(.1,.55,impact);
-    float width=(.58+.10*sin(ground.y*.42))*(1.+pressure*.85+pulse*.18);
+    float pressure=smoothstep(.04,.82,u_molten_motion.x);
+    vec4 memory=molten_memory(ground);
+    q.y+=u_molten_phase*.20;
+    q.x+=sin(q.y*1.7+u_molten_phase*.4)*u_molten_motion.y*.055;
+    float pulse=memory.x;
+    float width=(.58+.10*sin(ground.y*.42))*(1.+pressure*.85+pulse*.12);
     float bank=molten_channel(ground).x/width;
     float river=1.-smoothstep(.78,1.22,bank);
     // Molten folds travel with the river; banks stay fixed in ground space.
     float fold=fbm(q*vec2(3.8,2.1));
     float threads=.5+.5*sin(q.x*30.+fold*12.+q.y*1.8
-        +flux*.7*sin(q.y*2.3));
-    float islands=smoothstep(.38+pressure*.12,.56+pressure*.12,fold)*effect(131072);
+        +u_molten_motion.y*.7*sin(q.y*2.3));
+    float crust=.018*(1.-u_molten_motion.w)+memory.z*.055;
+    float islands=smoothstep(.38+pressure*.12-crust,.56+pressure*.12-crust,fold)*effect(131072);
     float liquid=river*(1.-islands*.96);
     float rock=fbm(ground*3.2);
     float height=(1.-river)*(.25+rock*.3)+islands*river*.13;
     vec3 normal=normalize(vec3(-dFdx(height)*u_resolution.y*.55,
         -dFdy(height)*u_resolution.y*.55,1.));
     float shade=.25+.75*max(0.,dot(normal,normalize(vec3(-.4,.6,1.))));
-    vec3 light=color_tint(vec3(.015,.017,.026),u_molten_flow_on,u_molten_flow[1])*shade*(.5+rock);
+    vec3 light=color_tint(molten_pigment(3),u_molten_flow_on,u_molten_flow[1])*shade*(.5+rock);
     float glow=exp(-pow((bank-1.)*2.3,2.));
     light+=vec3(.085,.011,.006)*glow*(.45+rock);
     vec3 pigment=canvas/(1.+max(canvas.r,max(canvas.g,canvas.b)));
-    vec3 heat=mix(vec3(.45,.025,.004),vec3(1.05,.32,.025),threads*.65+fold*.25);
+    vec3 heat=molten_pigment(0)*mix(vec3(.48,.11,.16),vec3(1.10,1.34,1.),threads*.65+fold*.25);
     heat=mix(heat,pigment*1.1,.22);
     if(u_molten_flow_on==1)heat*=u_molten_flow[0];
-    light+=heat*liquid*(.30+pressure*.95+pulse*.45);
-    float seams=pow(threads,10.)*liquid*(.13+spark*.23)
-        +exp(-pow((fold-.48)*38.,2.))*river*(.12+pressure*.35+pulse*.55);
-    light+=color_tint(vec3(1.,.43,.055),u_fire_details_on,u_fire_details[2])*seams*effect(524288);
-    // Two anchored vents brighten on impacts, leaving the transport steady.
-    float vent=exp(-dot(ground-vec2(.2,-.9),ground-vec2(.2,-.9))*18.)
-        +exp(-dot(ground-vec2(.35,1.2),ground-vec2(.35,1.2))*23.);
-    light+=mix(vec3(.80,.15,.01),vec3(1.2,.8,.3),smoothstep(.35,.5,impact))
-        *vent*river*smoothstep(.12,.48,impact)*(1.+flux*.3);
-    // Sparse embers drift above the channel with a separate apparent height.
-    for(int i=0;i<16;i++) {
-        float seed=hash(vec2(float(i),9.3));
-        float age=fract(u_drift_time*.045+seed*9.);
-        vec2 pos=vec2((seed-.5)*.52,.45-age*.9);
-        pos.x+=.12*sin(pos.y*8.+seed*4.);
-        vec2 d=p-pos;
-        float ember=exp(-dot(d*vec2(330.,220.),d*vec2(330.,220.)));
-        float life=smoothstep(0.,.15,age)*(1.-smoothstep(.7,1.,age));
-        light+=color_tint(vec3(.9,.25,.035),u_fire_details_on,u_fire_details[1])*ember*life*(.2+spark*.8)*effect(262144);
-    }
+    light+=heat*liquid*(.30+pressure*.95+pulse*.58)*(1.-memory.z*.23);
+    light+=molten_pigment(2)*islands*river*shade*(.65+rock)*(1.+memory.z*1.4);
+    float seams=pow(threads,10.)*liquid*(.13+u_molten_motion.z*.23)
+        +exp(-pow((fold-.48)*38.,2.))*river*(.12+pressure*.35+pulse*.45);
+    light+=color_tint(molten_pigment(1),u_fire_details_on,u_fire_details[2])*seams*effect(524288);
+    // Onsets select one persistent site; its heat travels with the river, then crust remains.
+    light+=molten_pigment(5)*memory.y*river*1.5;
+    light+=molten_pigment(1)*memory.x*liquid*(.18+.22*threads);
+    float cooling_seam=exp(-pow((fold-.48)*33.,2.))*river*memory.z;
+    light+=molten_pigment(0)*cooling_seam*.18;
     vec3 terrain=1.-exp(-light*1.8);
     float distance=length(ground);
     float haze=smoothstep(15.,65.,distance)*.82;
     terrain=mix(terrain,vec3(.016,.026,.027),haze);
     float horizon=smoothstep(.185,.255,p.y);
-    return mix(terrain,molten_backdrop(p),horizon);
+    vec3 result=mix(terrain,molten_backdrop(p),horizon);
+    // Sparse rising embers across the whole view, above haze/horizon composition.
+    float aspect=u_resolution.x/max(1.,u_resolution.y);
+    for(int i=0;i<32;i++) {
+        float seed=hash(vec2(float(i),9.3)),lane=hash(vec2(float(i),27.1));
+        float age=fract(u_drift_time*(.075+.025*seed)+seed*9.);
+        vec2 pos=vec2((lane-.5)*aspect*.98,-.49+age*1.02);
+        pos.x+=.045*sin(age*5.+seed*19.)+.015*u_molten_motion.y*sin(age*9.+seed*4.);
+        pos.y+=u_impact*.012*(.4+.6*seed);
+        vec2 d=p-pos;float ember=exp(-dot(d*vec2(300.,200.),d*vec2(300.,200.)));
+        vec2 tail=d+vec2(0.,.003+.003*pressure);
+        float trail=exp(-dot(tail*vec2(260.,140.),tail*vec2(260.,140.)))*.25;
+        float life=smoothstep(0.,.12,age)*(1.-smoothstep(.72,1.,age));
+        float pulse=.20+spark*.60+pressure*.20+u_impact*(.15+.30*seed);
+        result+=color_tint(molten_pigment(1),u_fire_details_on,u_fire_details[1])*(ember+trail)*life*pulse*effect(262144);
+    }
+    return result;
 }
 
 // Its own color vocabulary. The existing integrated movement clock controls
@@ -2827,6 +2981,11 @@ vec3 isolated_firescape_scene(vec2 p,vec3 canvas) {
 
 // Aftershock: projected ground and layered, shaded ash volumes. Event timestamps
 // preserve musical shockwaves independently of the decaying impact envelope.
+float blast_retirement(float id,float clock){
+    if(u_event_blasts==0)return 1.;
+    for(int i=0;i<8;i++)if(u_blast_events[i].y==id && u_blast_retire[i]>=0.)return 1.-smoothstep(u_blast_retire[i],u_blast_retire[i]+.65,clock);
+    return 1.;
+}
 float blast_latest(float clock) {
     if(u_event_blasts==0) return floor((clock-5.)/36.);
     float latest=-1.;
@@ -2928,9 +3087,9 @@ vec3 isolated_aftershock_scene(vec2 p,vec3 canvas) {
             float age=clock-blast_birth(id);
             if(id>=0.) {
                 float r=length(ground-blast_site(id));
-                float craterLife=u_event_blasts==1 ? 1.-smoothstep(15.,20.,age) : 1.;
+                float craterLife=(u_event_blasts==1 ? 1.-smoothstep(15.,20.,age) : 1.)*blast_retirement(id,clock);
                 scene*=1.-.6*exp(-r*r*.7)*smoothstep(0.,2.,age)*craterLife*effect(131072);
-                scene+=blast_ring(ground,id,age,1.2)*haze;
+                scene+=blast_ring(ground,id,age,1.2)*haze*blast_retirement(id,clock);
             }
         }
         for(int j=0;j<8;j++) {
@@ -2939,6 +3098,14 @@ vec3 isolated_aftershock_scene(vec2 p,vec3 canvas) {
         }
     }
     scene+=blast_aurora(p,clock,camera,camx);
+    // Flash the ground before the depth-sorted foreground plumes are composited.
+    float flashId=blast_latest(clock),flashAge=clock-blast_birth(flashId);
+    if(flashId>=0. && flashAge>=0. && flashAge<2. && rayy<0.){
+        float front=1.-smoothstep(flashAge*180.,flashAge*180.+2.,length(ground-blast_site(flashId)));
+        vec3 groundTone=1.-exp(-scene*1.5);
+        groundTone=mix(groundTone,blast_material_negative(canvas),front*exp(-flashAge*1.8)*(1.-smoothstep(1.5,2.,flashAge))*.9*effect(2097152));
+        scene=-log(max(vec3(.00001),1.-clamp(groundTone,0.,.99999)))/1.5;
+    }
     vec3 cloudOrder=blast_cloud_order(clock);
     float cloudIds[8];float depths[8];
     for(int i=0;i<8;i++) {
@@ -2960,34 +3127,37 @@ vec3 isolated_aftershock_scene(vec2 p,vec3 canvas) {
         float lifeEnd=u_event_blasts==1 ? 20. : 86.;
         if(id>=0. && age>0. && age<lifeEnd && dz>1.) {
             float life=smoothstep(0.,.5,age)*(1.-smoothstep(u_event_blasts==1 ? 15. : 64.,lifeEnd,age))
-                *smoothstep(1.,4.,dz);
+                *smoothstep(1.,4.,dz)*blast_retirement(id,clock);
             vec2 local=vec2(p.x*dz*1.6+camx-site.x,(p.y*1.6-.32)*dz+6.);
             float growth=u_event_blasts==1 ? .22 : .075;
-            float height=5.5*(1.-exp(-age*growth))+age*(u_event_blasts==1 ? .50 : .09);
-            float width=.35+2.6*(1.-exp(-age*growth))+age*(u_event_blasts==1 ? .065 : .028);
-            float stemW=(.23+.48*(1.-exp(-age*.1)))*(1.+.24*sin(local.y*4.+clock*.18));
+            float character=hash(vec2(id,91.7));
+            float height=(5.5*(1.-exp(-age*growth))+age*(u_event_blasts==1 ? .50 : .09))*(1.+.06*character);
+            float width=(.35+2.6*(1.-exp(-age*growth))+age*(u_event_blasts==1 ? .065 : .028))*(1.15+.18*character);
+            float stemW=(.23+.48*(1.-exp(-age*.1)))*(1.+.24*sin(local.y*4.+clock*.18))*(1.10+.15*character);
             float bend=sin(local.y*.65+clock*.12)*.15*local.y/8.;
             float stem=exp(-pow(abs((local.x-bend)/stemW),4.))
                 *smoothstep(0.,.3,local.y)*(1.-smoothstep(height-.2,height+.5,local.y));
             float unravel=1.-smoothstep(lifeEnd*.35,lifeEnd*.85,age);
             float density=stem*.85*unravel;
-            float rolls=noise(local*vec2(4.,2.)-vec2(0.,clock*.25));
+            float rolls=noise(local*vec2(3.+character*2.,2.)-vec2(character*8.,clock*.25));
             vec3 cloud=mix(vec3(.085,.088,.087),vec3(.38,.32,.23),rolls)
                 +vec3(.22,.075,.008)*exp(-age*.06);
             if(u_aftershock_land_on==1)cloud*=u_aftershock_land[1];
             float skirt=exp(-pow(abs(local.x/(.8+width*.75)),4.)-pow((local.y-.25)/.42,2.));
             density=max(density,skirt*.65*unravel);
             for(int k=0;k<9;k++) {
-                float a=float(k)*2.39996;
-                vec2 center=vec2(cos(a)*width*.66,height+sin(a)*width*.18);
-                vec2 q=(local-center)/vec2(width*.48,width*.36);
+                float a=float(k)*2.39996+character*.65;
+                float lobe=hash(vec2(id,float(k)+37.));
+                vec2 center=vec2(cos(a)*width*(.52+.20*lobe),height+sin(a)*width*(.13+.10*lobe));
+                vec2 q=(local-center)/vec2(width*(.39+.16*lobe),width*(.28+.14*lobe));
                 float n=noise(local*2.+vec2(clock*.10,id));
-                float rr=dot(q,q)+(n-.5)*.22;
+                float rr=dot(q,q)+(n-.5)*(.22+.14*character);
                 float puff=(1.-smoothstep(.70,1.05,rr))
                     *mix(.45+.55*noise(local*1.8-vec2(0.,clock*.3)),1.,unravel);
                 float light=clamp(.50+.25*(-q.x+q.y)+.3*sqrt(max(0.,1.-rr)),0.,1.);
                 vec3 shade=mix(vec3(.085,.09,.092),vec3(.55,.46,.31),light);
                 shade+=vec3(.50,.13,.015)*exp(-age*.13)*(1.-light);
+                shade*=.78+.36*noise(local*(2.2+character*1.8)+vec2(id*7.,-clock*.15));
                 cloud=mix(cloud,shade,puff);density=max(density,puff);
             }
             float cloudHaze=exp(-dz*.012);
@@ -2998,12 +3168,6 @@ vec3 isolated_aftershock_scene(vec2 p,vec3 canvas) {
         }
     }
     scene=1.-exp(-scene*1.5);
-    // One short outward inversion per detonation, separate from musical rings.
-    float id=blast_latest(clock),age=clock-blast_birth(id);
-    if(id>=0. && age>=0. && age<2. && rayy<0.) {
-        float front=1.-smoothstep(age*180.,age*180.+2.,length(ground-blast_site(id)));
-        scene=mix(scene,blast_material_negative(canvas),front*exp(-age*1.8)*(1.-smoothstep(1.5,2.,age))*.9*effect(2097152));
-    }
     return clamp(scene,0.,1.);
 }
 
@@ -3094,6 +3258,8 @@ vec3 liquid_alloy(vec2 q,float bass,float flux,float sparkle,float impact) {
     float radius=dot(disk,disk);
     float aa=max(length(fwidth(space))*8.,.015);
     float body=(1.-smoothstep(1.-aa,1.+aa,radius))*smoothstep(.3,.5,seed);
+    float resolved=1.-smoothstep(.10,.35,length(fwidth(space)));
+    if(body<=0. || resolved<=0.)return vec3(0.);
     vec3 normal=normalize(vec3(disk.x,disk.y,sqrt(max(.01,1.-radius))));
     float reflection=.5+.5*sin(normal.y*8.+normal.x*2.5+u_time*.09);
     vec3 copper=u_material_alloy_on==1 ? u_material_alloy[0] : vec3(.75,.28,.10);
@@ -3110,7 +3276,6 @@ vec3 liquid_alloy(vec2 q,float bass,float flux,float sparkle,float impact) {
     vec3 chrome=(u_material_alloy_on==1 ? u_material_alloy[4] : vec3(.08,.10,.14))+tint*(.2+reflection*.55)
         +(u_material_alloy_on==1 ? u_material_alloy[5] : vec3(.65,.82,.9))*(glint+rim*.2);
     chrome*=.8+.2*max(0.,normal.y)+impact*.12;
-    float resolved=1.-smoothstep(.10,.35,length(fwidth(space)));
     return chrome*body*resolved;
 }
 float material_segment(vec2 p,vec2 a,vec2 b) {
@@ -3123,6 +3288,10 @@ vec3 prismatic_lattice(vec2 q,float bass,float flux,float sparkle,float impact) 
     vec2 space=stream*3.0+vec2(-u_time*.055,u_time*.06);
     vec2 cell=floor(space),local=fract(space)-.5;
     float seed=hash(cell+vec2(12.,37.));
+    float presence=smoothstep(.30,.48,seed);
+    float resolved=1.-smoothstep(.10,.35,length(fwidth(space)));
+    float aa=max(length(fwidth(space))*.6,.003);
+    if(presence<=0. || resolved<=0.)return vec3(0.);
     float stage=3.+3.95*(.5-.5*cos(u_time*.065+seed*6.28));
     float sides=floor(stage),growth=smoothstep(0.,1.,fract(stage));
     float turn=u_time*(.20+seed*.16)+seed*6.283;
@@ -3152,12 +3321,9 @@ vec3 prismatic_lattice(vec2 q,float bass,float flux,float sparkle,float impact) 
         float side=smoothstep(-.004,.004,d.x*v.y-d.y*v.x);
         inside*=side;insideBack*=1.-side;
     }
-    float aa=max(length(fwidth(space))*.6,.003);
     float wire=1.-smoothstep(.006,.006+aa,edge);
     float glow=exp(-edge*65.)*(.08+sparkle*.12);
     vec3 tint=.2+.8*(.5+.5*cos(vec3(0.,2.094,4.188)+seed*6.28+local.y*2.));
-    float presence=smoothstep(.30,.48,seed);
-    float resolved=1.-smoothstep(.10,.35,length(fwidth(space)));
     if(u_material_lattice_on==1)
         return tint*(u_material_lattice[0]*wire*(.45+sparkle*.22+impact*.10)
             +u_material_lattice[1]*glow+u_material_lattice[2]*max(inside,insideBack)*.075)*presence*resolved;
@@ -3250,6 +3416,35 @@ vec4 air_coverage(vec2 p,vec4 forms) {
 float air_box(vec3 p,vec3 b) {
     vec3 q=abs(p)-b;return length(max(q,0.))+min(max(q.x,max(q.y,q.z)),0.);
 }
+vec3 citadel_pigment(int role) {
+    if(u_citadel_colors_on==1)return u_citadel_colors[role];
+    vec3 a[6]=vec3[6](vec3(.48,.49,.54),vec3(.09,.28,.34),vec3(.98,.63,.27),vec3(.25,.78,.85),vec3(.61,.22,.32),vec3(.13,.14,.21));
+    vec3 b[6]=vec3[6](vec3(.54,.40,.33),vec3(.22,.29,.31),vec3(1.,.88,.64),vec3(.85,.47,.27),vec3(.26,.49,.50),vec3(.14,.11,.15));
+    vec3 c[6]=vec3[6](vec3(.33,.43,.44),vec3(.25,.43,.35),vec3(.72,.91,.78),vec3(.91,.71,.47),vec3(.47,.39,.57),vec3(.09,.16,.19));
+    float phase=u_tower_motion.z*.014+max(0.,u_tower_visit-1.)*.38;
+    int family=int(floor(phase))%3;float mixPhase=smoothstep(.65,1.,fract(phase));
+    return mix(family==0?a[role]:family==1?b[role]:c[role],family==0?b[role]:family==1?c[role]:a[role],mixPhase);
+}
+vec4 citadel_tower(int i) {
+    vec2 center=i<4 ? vec2((i%2==0?-1.:1.)*.48,(i<2?-1.:1.)*.48)
+        : (i<6?vec2((i==4?-1.:1.)*.23,-.49):vec2(0.,.13));
+    float height=i==6?.98:(i<2?.78:(i<4?.64:.84));
+    return vec4(center,height,i==6?.205:(i<2?.13:.11));
+}
+vec3 citadel_emitter(int i) {
+    vec4 tower=citadel_tower(i);
+    return vec3(tower.x,tower.z+(i<2?.24:.10)+.015,tower.y);
+}
+float citadel_tower_light(int tower,float y) {
+    float glow=0.;
+    for(int i=0;i<4;i++) {
+        vec4 event=u_tower_events[i];float age=u_drift_time-event.x;
+        if(age<0. || age>5. || abs(event.y-float(tower))>.1)continue;
+        float travel=exp(-pow((y-(.1+age*.85))/.24,2.));
+        glow+=event.z*(exp(-age*.48)*.95+travel)*(1.-smoothstep(3.8,5.,age));
+    }
+    return min(1.5,glow)*u_tower_amount;
+}
 vec2 air_castle_map(vec3 p) {
     // Gatehouse and courtyard walls; the opening is cut through the front wall.
     float d=air_box(p-vec3(0.,.25,-.48),vec3(.5,.25,.065));
@@ -3261,11 +3456,11 @@ vec2 air_castle_map(vec3 p) {
     float roof=10.;
     for(int i=0;i<7;i++) {
         float id=float(i);
-        vec2 center=i<4 ? vec2((i%2==0 ? -1. : 1.)*.48,(i<2 ? -1. : 1.)*.48)
-            : (i<6 ? vec2((i==4 ? -1. : 1.)*.23,-.49) : vec2(0.,.13));
-        float h=i==6 ? .94 : (i<4 ? .62 : .72);
-        float rad=i==6 ? .20 : .125;
+        vec4 descriptor=citadel_tower(i);
+        vec2 center=descriptor.xy;float h=descriptor.z,rad=descriptor.w;
         vec3 q=p-vec3(center.x,0.,center.y);
+        float bound=air_box(q-vec3(0.,h*.5+(i==6?.42:0.),0.),vec3(i==6?.36:rad+.06,h*.5+(i==6?.70:(i<2?.25:.11)),i==6?.36:rad+.06));
+        if(bound>min(d,roof))continue;
         float cylinder=max(length(q.xz)-rad,abs(q.y-h*.5)-h*.5);
         d=min(d,cylinder);
         // Cap with ring parapet and discrete merlons, not a flat printed roof.
@@ -3275,11 +3470,30 @@ vec2 air_castle_map(vec3 p) {
         float merlon=air_box(vec3(dot(q.xz,toothAxis)-rad,q.y-h-.065,
             dot(q.xz,vec2(-toothAxis.y,toothAxis.x))),vec3(.028,.03,.030));
         if(i<6)d=min(d,min(ring,merlon));
+        if(i<2) {
+            // Twin watch spires distinguish the gate towers from rear parapets.
+            float spire=max(length(q.xz)-.15*(1.-clamp((q.y-h)/.24,0.,1.)),abs(q.y-h-.12)-.12);
+            roof=min(roof,spire*.75);
+        }
         if(i==6) {
             float cone=max(length(q.xz)-.235*(1.-clamp((q.y-h)/.40,0.,1.)),abs(q.y-h-.2)-.2);
             roof=min(roof,cone*.8);
+            // Observatory armillary crown: two angled structural rings.
+            vec3 arm=q-vec3(0.,h+.76,0.);
+            float survey=u_tower_motion.z*.42+u_time*.055;
+            float tilt=.28*sin(survey*.7)+.10*u_tower_motion.x;
+            arm.yz=mat2(cos(tilt),sin(tilt),-sin(tilt),cos(tilt))*arm.yz;
+            vec3 precess=arm;precess.xz=mat2(cos(survey),sin(survey),-sin(survey),cos(survey))*precess.xz;
+            vec3 tilted=vec3(precess.x,precess.y*.82-precess.z*.57,precess.y*.57+precess.z*.82);
+            float ringA=length(vec2(length(arm.xz)-.315,arm.y))-.014;
+            float ringB=length(vec2(length(tilted.xy)-.31,tilted.z))-.012;
+            roof=min(roof,min(ringA,ringB));
         }
     }
+    // Broad ribs rise from the courtyard into the observatory drum.
+    vec3 rib=vec3(abs(p.x)-.255,p.y-.62,p.z-.13);
+    float buttress=air_box(vec3(rib.x*.82+rib.y*.57,-rib.x*.57+rib.y*.82,rib.z),vec3(.024,.31,.038));
+    d=min(d,buttress);
     // Wall crenellations repeat in object space and rotate with the masonry.
     vec3 crenel=p;crenel.x=mod(p.x+.055,.11)-.055;
     d=min(d,max(air_box(crenel-vec3(0.,.535,-.48),vec3(.032,.04,.07)),abs(p.x)-.48));
@@ -3300,12 +3514,13 @@ vec2 air_castle_map(vec3 p) {
 vec3 air_citadel(vec2 p,vec3 sky,float amount) {
     if(amount<=0. || effect(1073741824)<=0.)return sky;
     float clock=u_time*.22+u_drift_time*.025;
-    vec2 q=p-vec2(0.,.035);
-    float orbit=.35+u_time*.045+u_drift_time*.007;
+    vec2 q=p-vec2(0.,0.);
+    float orbit=.35+u_time*.015+u_drift_time*.0035;
     float approach=2.8+.20*sin(u_drift_time*.055);
     vec3 ro=vec3(approach*sin(orbit),1.35+.08*sin(clock*.23),-approach*cos(orbit));
-    vec3 fw=normalize(vec3(0.,.36,0.)-ro),right=normalize(cross(fw,vec3(0,1,0))),up=cross(right,fw);
-    vec3 rd=normalize(fw+right*q.x*1.13+up*(q.y-.09)*1.13);
+    vec3 fw=normalize(vec3(0.,.54,0.)-ro),right=normalize(cross(fw,vec3(0,1,0))),up=cross(right,fw);
+    float focal=u_citadel_focal>0. ? u_citadel_focal : 1.13;
+    vec3 rd=normalize(fw+right*q.x*focal+up*(q.y-.09)*focal);
     float surfaceDepth=100.;
     // Castle and attached island participate in the same depth trace.
     // Conservative ray/box rejection only: retained rays keep the exact trace.
@@ -3314,21 +3529,24 @@ vec3 air_citadel(vec2 p,vec3 sky,float amount) {
         rd.y<0. ? -max(abs(rd.y),1e-8) : max(abs(rd.y),1e-8),
         rd.z<0. ? -max(abs(rd.z),1e-8) : max(abs(rd.z),1e-8));
     vec3 slabA=(vec3(-1.1,-.6,-1.1)-ro)/safeRay;
-    vec3 slabB=(vec3(1.1,1.4,1.1)-ro)/safeRay;
+    vec3 slabB=(vec3(1.1,2.12,1.1)-ro)/safeRay;
     vec3 entry=min(slabA,slabB),leave=max(slabA,slabB);
     float nearBox=max(entry.x,max(entry.y,entry.z));
     float farBox=min(leave.x,min(leave.y,leave.z));
-    if(abs(q.x)<.82 && q.y>-.52 && q.y<.68 && farBox>=max(1.2,nearBox) && nearBox<4.9) {
-        float t=1.2;vec2 hit=vec2(1.,0.);vec3 pos=ro;
-        for(int j=0;j<144;j++) {
+    vec2 surfaceUV=vec2(p.x*u_resolution.y/u_resolution.x+.5,p.y+.5);
+    bool cached=u_citadel_surface_on==1 && all(greaterThanEqual(surfaceUV,vec2(0.))) && all(lessThanEqual(surfaceUV,vec2(1.)));
+    vec4 cachedPoint=cached?texture(u_citadel_surface,surfaceUV):vec4(0.),cachedNormal=cached?texture(u_citadel_normal,surfaceUV):vec4(0.);
+    if((cached && cachedNormal.w>0.) || (!cached && abs(q.x)<.82 && q.y>-.52 && q.y<.68 && farBox>=max(1.2,nearBox) && nearBox<4.9)) {
+        float t=cached?length(cachedPoint.xyz):max(1.2,nearBox);vec2 hit=cached?vec2(0.,cachedPoint.w):vec2(1.,0.);vec3 pos=cached?ro+cachedPoint.xyz:ro;
+        if(!cached)for(int j=0;j<144;j++) {
             pos=ro+rd*t;hit=air_castle_map(pos);
-            if(hit.x<.0008 || t>4.9)break;
+            if(hit.x<.0008 || t>min(4.9,farBox))break;
             t+=max(.00035,hit.x*.50);
         }
         if(t<4.9 && hit.x<.0008) {
             surfaceDepth=t;
             vec2 e=vec2(.002,0.);
-            vec3 normal=normalize(vec3(air_castle_map(pos+e.xyy).x-air_castle_map(pos-e.xyy).x,
+            vec3 normal=cached?cachedNormal.xyz:normalize(vec3(air_castle_map(pos+e.xyy).x-air_castle_map(pos-e.xyy).x,
                 air_castle_map(pos+e.yxy).x-air_castle_map(pos-e.yxy).x,
                 air_castle_map(pos+e.yyx).x-air_castle_map(pos-e.yyx).x));
             vec3 light=normalize(vec3(-.5,1.,-.8));
@@ -3338,112 +3556,139 @@ vec3 air_citadel(vec2 p,vec3 sky,float amount) {
             vec2 brickAA=clamp(fwidth(uv*vec2(18.,24.)),vec2(.015),vec2(.35));
             float mortar=smoothstep(.06-brickAA.y,.06+brickAA.y,fract(brick.y))
                 *smoothstep(.045-brickAA.x,.045+brickAA.x,fract(brick.x));
-            vec3 stone=mix(vec3(.32,.28,.37),vec3(.48,.43,.51),mortar);
+            vec3 stone=citadel_pigment(0)*mix(.58,1.,mortar);
             float weathering=fbm(uv*35.);
             stone*=.78+.30*weathering;
             float courses=1.-smoothstep(.025,.055,abs(fract(pos.y*8.)-.5));
             stone+=vec3(.055,.045,.07)*courses;
-            if(hit.y>1.5)stone=hit.y<2.5 ? vec3(.06,.36,.39) : vec3(.26,.13,.07);
+            if(hit.y>1.5)stone=hit.y<2.5 ? citadel_pigment(1) : citadel_pigment(0)*vec3(.45,.32,.22);
             if(hit.y>2.5 && hit.y<3.5)stone*=.35+.65*step(.13,fract(pos.x*45.))*step(.14,fract(pos.y*18.));
-            if(hit.y>3.5)stone=mix(vec3(.07,.055,.045),vec3(.27,.20,.12),.5+.5*sin(pos.y*55.+fbm(pos.xz*7.)*5.));
-            if(hit.y>3.5 && pos.y>-.02)stone=vec3(.08,.16,.09);
+            if(hit.y>3.5)stone=citadel_pigment(5)*(.55+.65*noise(pos.xz*17.+pos.y*5.));
+            if(hit.y>3.5 && pos.y>-.02)stone=citadel_pigment(1)*.50;
             vec3 color=color_tint(stone,u_air_citadel_on,u_air_citadel[0])*(.36+.64*diffuse);
             // Recess shading under parapets and at the wall foot, without new meshes.
             color*=.78+.22*smoothstep(.0,.10,pos.y);
             if(hit.y<1.5)color*=.83+.17*smoothstep(.0,.06,abs(pos.y-.56));
             vec2 windowAA=clamp(fwidth(uv*12.),vec2(.01),vec2(.30));
             vec2 windowCell=fract(uv*12.);
-            float windows=smoothstep(.81-windowAA.x,.81+windowAA.x,windowCell.x)
-                *smoothstep(.68-windowAA.y,.68+windowAA.y,windowCell.y)
+            float windows=smoothstep(.72-windowAA.x,.72+windowAA.x,windowCell.x)
+                *smoothstep(.56-windowAA.y,.56+windowAA.y,windowCell.y)
                 *(1.-smoothstep(1.-windowAA.x,1.,windowCell.x))
                 *(1.-smoothstep(1.-windowAA.y,1.,windowCell.y))*step(.12,pos.y)*step(pos.y,.63);
-            float windowWave=floor(uv.y*12.)*.055+sin(uv.x*3.-clock*.8)*.16+clock*.12;
-            if(hit.y<1.5)color+=color_tint(air_palette(windowWave+.025*sin(floor(uv.x*12.)*7.)),u_air_citadel_on,u_air_citadel[1])*windows*(.24+u_scale*.65)*(1.-abs(normal.y));
+            int tower=pos.x<0. ? (pos.z<0.?0:2) : (pos.z<0.?1:3);
+            float selected=citadel_tower_light(tower,pos.y);
+            float towerBody=1.-smoothstep(.16,.26,length(pos.xz-citadel_emitter(tower).xz));
+            float district=hash(vec2(floor(uv.x*4.),floor(pos.y*8.))+vec2(tower*7));
+            float windowWave=.5+.5*sin(u_tower_motion.z*2.-pos.y*5.+tower*1.7);
+            float occupancy=smoothstep(.25,.8,district);
+            if(hit.y<1.5)color+=color_tint(citadel_pigment(2),u_air_citadel_on,u_air_citadel[1])*windows
+                *(occupancy*.36+u_tower_amount*(u_tower_motion.x*(.16+1.6*smoothstep(.3,.8,windowWave))*mix(.22,1.,occupancy)+selected*towerBody*2.6))*(1.-abs(normal.y));
+            // The selected tower carries warm masonry spill and a luminous cap, not a global flash.
+            color+=citadel_pigment(3)*selected*towerBody*(hit.y<1.5?.16:.48)*smoothstep(.1,.3,pos.y);
             if(hit.y>1.5 && hit.y<2.5) {
                 float azimuth=atan(pos.z-.13,pos.x);
-                float enamel=.5+.5*sin(azimuth*6.+pos.y*19.-clock*3.);
-                float tracery=pow(enamel,10.);
-                if(u_air_citadel_on==1)
-                    color=mix(color,air_palette(azimuth*.16+pos.y*.7-clock*.12)*u_air_citadel[1]*(.25+.3*diffuse),.55);
-                else
-                    color=mix(color,air_palette(azimuth*.16+pos.y*.7-clock*.12)*(.25+.3*diffuse),.55);
-                color+=color_tint(air_palette(pos.y*.8+clock*.2),u_air_citadel_on,u_air_citadel[1])*tracery*(.18+.7*u_scale+.5*u_impact);
+                float tracery=pow(.5+.5*sin(azimuth*8.+pos.y*25.),16.);
+                color+=citadel_pigment(3)*tracery*(.045+.20*u_tower_motion.y+selected*.65)*u_tower_amount;
+                color+=citadel_pigment(1)*pow(max(0.,dot(reflect(-light,normal),-rd)),24.)*.25;
             }
+            // The observatory drum has a glazed rose lattice, separate from windows.
+            float central=1.-smoothstep(.19,.23,length(pos.xz-vec2(0,.13)));
+            float az=atan(pos.z-.13,pos.x);
+            float ribsGlass=pow(.5+.5*cos(az*12.),18.);
+            float glazing=central*smoothstep(.62,.69,pos.y)*(1.-smoothstep(.90,.97,pos.y))*(1.-ribsGlass);
+            color=mix(color,citadel_pigment(1)*(.24+.30*diffuse),glazing*.72);
+            color+=citadel_pigment(2)*glazing*(.09+u_tower_motion.x*.26+selected*.3);
+            // Sparse gilded buttress/cornice lines remain attached to masonry.
+            float ribs=pow(1.-abs(sin(pos.x*31.+pos.z*23.)),28.)*step(.48,pos.y);
+            color+=citadel_pigment(2)*ribs*(.018+selected*.11);
             color+=vec3(.10,.25,.35)*pow(max(0.,dot(reflect(-light,normal),-rd)),24.);
             sky=mix(sky,color,amount);
         }
     }
-    // True world-space tower emitters. Closest ray/beam depth handles occlusion.
-    for(int i=0;i<8;i++) {
-        float id=float(i),scan=clock*2.3+sin(clock*.7)*1.8+floor(id*.5)*1.3;
-        vec3 emitter=vec3((i%2==0 ? -1. : 1.)*.48,.73,(i%4<2 ? -1. : 1.)*.48);
-        float fan=(mod(id,2.)-.5)*(.10+.28*(.5+.5*sin(clock*.9)));
-        vec3 direction=normalize(vec3(sin(scan+fan),.30+.70*(.5+.5*sin(scan*.8+fan)),cos(scan+fan)));
-        vec3 w=ro-emitter;float crossTerm=dot(rd,direction),den=max(.0001,1.-crossTerm*crossTerm);
-        float along=(dot(direction,w)-crossTerm*dot(rd,w))/den;
-        float depth=along*crossTerm-dot(rd,w);
-        vec3 beamPoint=emitter+direction*max(0.,along);
-        float distance=length(ro+rd*depth-beamPoint);
-        float width=.007+max(0.,along)*.0015;
-        float beam=exp(-distance*distance/(width*width));
-        float visible=step(0.,along)*step(0.,depth)*step(depth,surfaceDepth-.006);
-        if(beam>.002 && visible>0.) {
-            float march=.02;
-            for(int k=0;k<24;k++) {
-                if(march>=along || march>3.)break;
-                float obstruction=air_castle_map(emitter+direction*march).x;
-                if(obstruction<.002){visible=0.;break;}
-                march+=max(.005,obstruction*.7);
+    // citadel_panels: world-space signal panels; same surface depth, no additional castle trace.
+    for(int tower=0;tower<4;tower++) {
+        vec3 emitter=citadel_emitter(tower);
+        float wind=u_tower_motion.x,phase=u_tower_motion.z;
+        vec3 flagAnchor=emitter+vec3(0.,.22,0.);
+        float turn=.4+sin(phase*.65)*(.10+.16*wind);
+        vec3 axis=vec3(cos(turn),0,sin(turn)),planeNormal=cross(axis,vec3(0,1,0));
+        float denom=dot(rd,planeNormal);
+        if(abs(denom)>.01) {
+            float depth=dot(flagAnchor-ro,planeNormal)/denom;
+            vec3 point=ro+rd*depth-flagAnchor;vec2 panel=vec2(dot(point,axis),point.y);
+            float lengthPanel=.275+.035*wind+.012*sin(tower*3.);
+            float freeEnd=clamp(panel.x/lengthPanel,0.,1.);
+            float flutter=(sin(panel.x*20.-phase*2.8)*(.006+.015*wind)
+                +sin(panel.x*10.-phase*1.6)*.006*wind)*pow(freeEnd,1.3)
+                +sin(phase*5.+tower*.25)*u_tower_motion.w*.008*freeEnd;
+            panel.y-=flutter*u_tower_amount;
+            if(depth>0. && depth<surfaceDepth-.002 && panel.x>0. && panel.x<lengthPanel && panel.y<.06 && panel.y>-.09+panel.x*.06) {
+                vec2 uv=panel/vec2(lengthPanel,.15);
+                float threads=pow(.5+.5*sin((uv.x+uv.y)*45.),10.);
+                float border=1.-smoothstep(.006,.018,min(min(panel.x,lengthPanel-panel.x),min(.06-panel.y,panel.y+.09-panel.x*.06)));
+                float selected=citadel_tower_light(tower,emitter.y);
+                vec3 silk=citadel_pigment(4)*(.55+.3*abs(dot(planeNormal,normalize(vec3(-.5,1,-.8))))+.15*threads);
+                silk+=citadel_pigment(2)*selected*.35+citadel_pigment(3)*border*(.12+selected*.90);
+                sky=mix(sky,silk,amount*u_tower_amount);
             }
         }
-        float pulse=(.08+.92*pow(.5+.5*sin(clock*17.+floor(id*.5)*2.),4.))
-            *smoothstep(-.6,.4,sin(clock*.65+floor(id*.5)*1.7));
-        sky+=color_tint(air_palette(id*.12+clock*.08),u_air_citadel_on,u_air_citadel[3])*beam*visible*pulse*(.2+u_scale*.8+u_impact*.6)*amount;
+        vec3 poleView=emitter-ro,tipView=(flagAnchor+vec3(0.,.065,0.))-ro;
+        vec2 pole=vec2(dot(poleView,right),dot(poleView,up))/max(.1,dot(poleView,fw))/focal+vec2(0,.09);
+        vec2 tip=vec2(dot(tipView,right),dot(tipView,up))/max(.1,dot(tipView,fw))/focal+vec2(0,.09);
+        if(dot(tipView,fw)>0. && surfaceDepth>dot(poleView,rd)-.01)
+            sky=mix(sky,citadel_pigment(0)*1.3,air_line(p,pole,tip,.0012)*amount*u_tower_amount);
+        // A rooted beacon breathes with highs; selected tower remembers the hit.
+        float sweep=u_time*.09+phase*.12+float(tower)*.37,slot=floor(sweep);
+        float ease=smoothstep(.15,.80,fract(sweep));
+        float sway=mix(sin(slot*1.7+tower*2.1),sin((slot+1.)*1.7+tower*2.1),ease);
+        float crossSway=mix(cos(slot*1.3+tower),cos((slot+1.)*1.3+tower),ease);
+        vec3 direction=normalize(vec3(sway*.65,.90,crossSway*.50));
+        vec3 w=ro-emitter;float crossTerm=dot(rd,direction),den=max(.0001,1.-crossTerm*crossTerm);
+        float along=(dot(direction,w)-crossTerm*dot(rd,w))/den,depth=along*crossTerm-dot(rd,w);
+        float distance=length(ro+rd*depth-(emitter+direction*max(0.,along)));
+        float selected=citadel_tower_light(tower,emitter.y);
+        float beam=exp(-pow(distance/(.0045+max(0.,along)*.0017),2.))*exp(-max(0.,along)*.42);
+        float halo=exp(-pow(distance/(.013+max(0.,along)*.004),2.))*exp(-max(0.,along)*.65);
+        float visible=step(0.,along)*step(0.,depth)*step(depth,surfaceDepth-.005);
+        vec3 beacon=citadel_pigment(3);if(u_citadel_colors_on==0)beacon=pow(beacon,vec3(1.65))/max(max(beacon.r,max(beacon.g,beacon.b)),.01);
+        sky+=color_tint(beacon,u_air_citadel_on,u_air_citadel[3])*visible
+            *(beam*(.16+2.2*smoothstep(.30,.82,.55*u_scale+.25*u_flux+.20*u_sparkle)+selected*2.3)
+                +halo*(.04+.45*smoothstep(.30,.82,.55*u_scale+.25*u_flux+.20*u_sparkle)+selected*.30))*amount*u_tower_amount;
     }
-    // Chrysanthemum bursts with segmented ballistic willow tails and falling sparks.
-    for(int i=0;i<6;i++) {
-        float id=float(i),cycle=u_time*(.095+.006*id)+id*.67,phase=fract(cycle),serial=floor(cycle);
-        float age=clamp((phase-.28)/.72,0.,1.);
-        vec2 origin=vec2(sin(id*13.+serial*2.3)*.70,.13+.23*fract(sin(id*3.+serial)*437.));
-        // Comet ascends from a tower before opening into its burst.
-        vec3 launchWorld=vec3((i%2==0 ? -1. : 1.)*.48,.73,(i<3 ? -1. : 1.)*.48);
-        vec3 launchView=launchWorld-ro;
-        vec2 launch=vec2(dot(launchView,right),dot(launchView,up))/max(.1,dot(launchView,fw))/1.13+vec2(0.,.125);
-        float ascent=clamp(phase/.28,0.,1.);
-        vec2 head=mix(launch,origin,ascent),tail=mix(launch,origin,max(0.,ascent-.23));
-        if(phase<.28 && surfaceDepth>dot(launchView,rd))
-            sky+=vec3(.7,.8,1.)*air_line(p,head,tail,.0022)*(.4+ascent)*amount;
-        float celebration=.35+.65*smoothstep(.15,.75,max(u_scale,u_flux));
-        vec3 tint=color_tint(mix(air_palette(id*.21+serial*.13),vec3(1.,.61,.20),mod(id,2.)*.7),u_air_citadel_on,u_air_citadel[3]);
-        sky+=mix(tint,vec3(1.),.55)*exp(-length(p-origin)*180.)
-            *exp(-age*40.)*step(.28,phase)*celebration*amount*step(6.,surfaceDepth);
-        // No trails before ignition or behind the castle. The ballistic bound
-        // includes secondary branches plus a generous .10 glow margin; outside
-        // it even the slowest exponential tail is below display precision.
-        float burstRadius=.62*age+.18*age*age+.10;
-        if(age>0. && surfaceDepth>=6. && length(p-origin)<burstRadius)
-        for(int k=0;k<24;k++) {
-            float a=float(k)*2.399963+id,rad=.18+.13*fract(sin(float(k)*7.+id)*437.);
-            vec2 velocity=vec2(cos(a),sin(a))*rad;
-            float tail=0.;
-            float life=.58+.42*fract(sin(float(k)*13.+serial)*417.);
-            for(int seg=0;seg<3;seg++) {
-                float u=max(0.,age-float(seg)*.065),v=max(0.,u-.065);
-                vec2 pa=origin+velocity*u*2.-vec2(0.,u*u*.18);
-                vec2 pb=origin+velocity*v*2.-vec2(0.,v*v*.18);
-                tail+=air_line(p,pa,pb,.0018)*(1.-float(seg)*.20);
-            }
-            float fade=smoothstep(.01,.06,age)*(1.-smoothstep(life*.6,life,age));
-            vec2 tip=origin+velocity*age*2.-vec2(0.,age*age*.18);
-            float ember=exp(-length(p-tip)*650.)*(.4+.6*pow(.5+.5*sin(age*75.+float(k)),3.));
-            // Late secondary sparks split from selected tips and fall independently.
-            float splitAge=max(0.,age-.38);
-            vec2 splitOrigin=origin+velocity*.76-vec2(0.,.38*.38*.18);
-            vec2 splitDirection=vec2(-velocity.y,velocity.x)*(.45+.3*sin(float(k)*9.));
-            vec2 splitTip=splitOrigin+(velocity+splitDirection)*splitAge-vec2(0.,splitAge*splitAge*.26);
-            float branch=air_line(p,splitTip,splitTip-(velocity+splitDirection)*.06,.0012)
-                *smoothstep(.38,.44,age)*step(.5,fract(float(k)*.381));
-            sky+=tint*(tail+ember+branch*.7)*fade*(.32+u_sparkle*.45+u_impact*.35)*celebration*amount*step(6.,surfaceDepth);
+    // World-space launch, local bright burst and individually fading sparks.
+    for(int i=0;i<4;i++) {
+        vec4 event=u_tower_events[i];float seconds=u_drift_time-event.x;
+        if(seconds<0. || seconds>4.8 || u_tower_amount<=0.)continue;
+        int tower=int(event.y);vec3 launchWorld=citadel_emitter(tower);
+        vec3 originWorld=launchWorld+vec3((event.w-.5)*.25,(tower<2?.40:.65)+event.w*.10,0.);
+        vec3 launchView=launchWorld-ro,originView=originWorld-ro;
+        if(dot(originView,fw)<=0.)continue;
+        vec2 launch=vec2(dot(launchView,right),dot(launchView,up))/max(.1,dot(launchView,fw))/focal+vec2(0,.09);
+        vec2 origin=vec2(dot(originView,right),dot(originView,up))/max(.1,dot(originView,fw))/focal+vec2(0,.09);
+        vec3 hue=u_citadel_colors_on==1?citadel_pigment(3):pow(air_palette(event.w+event.y*.23),vec3(2.2));
+        if(u_citadel_colors_on==0)hue/=max(max(hue.r,max(hue.g,hue.b)),.001);
+        hue=color_tint(hue,u_air_citadel_on,u_air_citadel[3]);
+        float ascent=clamp(seconds/.65,0.,1.);
+        if(seconds<.65 && surfaceDepth>dot(launchView,rd)) {
+            vec2 head=mix(launch,origin,ascent),tail=mix(launch,origin,max(0.,ascent-.22));
+            sky+=(hue*(air_line(p,head,tail,.006)*.40+air_line(p,head,tail,.0015)*2.0)
+                +vec3(1.,.84,.57)*exp(-length(p-head)*700.)*.50)*event.z*amount*u_tower_amount;
+        }
+        float age=seconds-.65;
+        if(age<0. || age>4. || surfaceDepth<dot(originView,rd) || length(p-origin)>.10+age*.15)continue;
+        float peak=exp(-age*12.)*exp(-pow(length(p-origin)/(.008+.030*min(1.,age*9.)),2.));
+        sky+=hue*peak*2.7*event.z*amount*u_tower_amount;
+        for(int k=0;k<20;k++) {
+            float angle=float(k)*2.399963+event.w*6.28;
+            vec2 velocity=vec2(cos(angle),sin(angle)*.75)*(.065+.045*hash(vec2(k,event.w)));
+            vec2 head=origin+velocity*age-vec2(0,age*age*.011);
+            float oldAge=max(0.,age-.18);
+            vec2 tail=origin+velocity*oldAge-vec2(0,oldAge*oldAge*.011);
+            float fade=smoothstep(0.,.04,age)*exp(-age*.88)*(1.-smoothstep(3.2,4.,age));
+            float sparkle=.35+.65*pow(.5+.5*sin(float(k)*4.7+age*13.),8.);
+            float core=air_line(p,head,tail,.0016),glow=air_line(p,head,tail,.0065);
+            sky+=hue*(core*(1.4+sparkle*2.0)+glow*.34)*fade*event.z
+                *(.85+.60*u_tower_motion.y)*amount*u_tower_amount;
         }
     }
     return sky;
@@ -3505,17 +3750,26 @@ vec3 air_scene(vec2 p,vec3 material,vec4 form) {
         sky=mix(sky,color_tint(farms,u_air_sky_on,u_air_sky[2]),exp(-distance*.016)*mix(1.-smoothstep(18.,45.,distance),1.,vortex)*(1.-vortex*.9)*(1.-citadel)*(1.-storm));
     }
     // The planet is specific to the Citadel scene; existing Planet Canvas stays intact.
-    vec2 planet=(p-vec2(0.,-5.18))/5.;
+    vec2 planet=(p-vec2(0.,-5.28))/5.;
     float disk=dot(planet,planet);
     if(citadel>0.) {
         float limb=exp(-pow((sqrt(disk)-1.)*380.,2.));
         sky+=vec3(.07,.36,.9)*limb*citadel;
         if(disk<1.) {
             vec3 n=vec3(planet,sqrt(1.-disk));
-            float continents=fbm(n.xy*6.+vec2(clock*.09,n.z));
-            vec3 land=mix(vec3(.015,.04,.13),cosmic_vivid_material(material,energy)*1.7,.94);
-            float clouds=smoothstep(.50,.7,fbm(n.xy*13.+clock*.07));
-            land=mix(land,vec3(.29,.43,.53),clouds*.16);
+            float drift=u_time*.19+u_drift_time*.035;
+            vec3 surface=vec3(cos(drift)*n.x+sin(drift)*n.z,n.y,-sin(drift)*n.x+cos(drift)*n.z);
+            vec2 domain=vec2(atan(surface.x,surface.z)*1.9,surface.y*6.);
+            domain+=.20*vec2(sin(domain.y*2.1+drift),cos(domain.x*1.7-drift*.7));
+            float continents=fbm(domain*1.35);
+            float grain=fbm(domain*4.3+vec2(drift*.28,-drift*.10));
+            vec3 sea=citadel_pigment(5)*(.48+.55*grain);
+            vec3 land=mix(sea,citadel_pigment(1)*(.85+.6*grain),smoothstep(.40,.64,continents));
+            land=mix(land,material*(.35+.4*grain),.26);
+            float ribbons=pow(.5+.5*sin(domain.y*11.+sin(domain.x*3.-drift)*2.6+drift*1.3),8.);
+            land+=citadel_pigment(2)*ribbons*.035*(.3+energy);
+            float clouds=smoothstep(.52,.76,fbm(domain*3.4+vec2(drift*.35,drift*.12)));
+            land=mix(land,citadel_pigment(0)*1.05,clouds*.33);
             sky=mix(sky,color_tint(land,u_air_citadel_on,u_air_citadel[2])*(.42+.58*max(0.,dot(n,normalize(vec3(-.4,.6,1.))))),citadel);
         }
     }
@@ -3527,6 +3781,7 @@ vec3 air_scene(vec2 p,vec3 material,vec4 form) {
     if(effect(134217728)>0. || (weather>0. && (effect(536870912)>0. || u_daddy_long_legs>0.))) {
         // Far-to-near billows expand around the flight path and pass the camera.
         vec2 vanish=vec2(.0,.10);
+        if(form.x>0.) {
         // Thin stratus sheets pass above the fuller cumulus banks.
         vec2 sheetUV=p*vec2(2.2,13.)+vec2(clock*.08,-clock*.25);
         float sheetNoise=fbm(sheetUV+vec2(fbm(sheetUV*.6),0.));
@@ -3549,6 +3804,7 @@ vec3 air_scene(vec2 p,vec3 material,vec4 form) {
                 tint=mix(tint,material*(.55+n*.55),weave);
             }
             sky=mix(sky,color_tint(tint,u_air_clouds_on,u_air_clouds[0]),mask*(.60+.18*n)*form.x*effect(134217728));
+        }
         }
         // Reuse the accepted corridor's turns and perspective with cloud surfaces.
         if(storm>0.) {
@@ -3833,6 +4089,20 @@ vec3 earth_forms() {
 }
 // Integrated music time accelerates travel without moving the camera backwards on release.
 float earth_travel() { return u_time*3.+u_drift_time*.035; }
+float cavern_knot(int index){
+    uint n=(uint(index)*19349663u)^(73u*83492791u);
+    n^=n>>16;n*=2246822519u;n^=n>>13;
+    return (float(n&0xffffffu)/16777216.*2.-1.)*4.6;
+}
+vec2 cavern_path(float z){
+    float span=14.,radius=2.8;int index=int(floor(z/span+.5));float d=z-float(index)*span;
+    float x=cavern_knot(index),left=(x-cavern_knot(index-1))/span,right=(cavern_knot(index+1)-x)/span;
+    if(d<=-radius)return vec2(x+left*d,left);
+    if(d>=radius)return vec2(x+right*d,right);
+    float u=(d+radius)/(2.*radius);
+    return vec2(x-radius*left+2.*radius*(left*u+(right-left)*(u*u*u-.5*u*u*u*u)),left+(right-left)*(3.*u*u-2.*u*u*u));
+}
+float cavern_axis(float z){return cavern_path(z).x;}
 float earth_channel(float z) { return 1.5*sin(z*.10)+.6*sin(z*.23); }
 float earth_dune(vec2 p) {
     float sweep=p.x*.46+p.y*.16+.75*sin(p.y*.13)+.22*sin(p.x*.21-p.y*.31);
@@ -3849,44 +4119,127 @@ vec3 earth_worm_point(float u,float serial) {
     float x=lane+(u-.5)*(seed>.5 ? 8. : -8.);
     return vec3(x,earth_dune(vec2(x,z))-1.1+sin(u*3.141593)*3.4,z);
 }
-vec2 cavern_formation(vec3 p,vec2 cell) {
+
+vec4 cavern_recipe(vec2 cell,int part) {
+    ivec2 relative=ivec2(cell)-u_cavern_origin;
+    return texelFetch(u_cavern_cache,ivec2(relative.x*8+part,relative.y),0);
+}
+float mineral_front(vec3 p) {
+    float glow=0.;
+    for(int i=0;i<4;i++) {
+        vec4 event=u_mineral_fronts[i];float age=u_drift_time-event.x;
+        if(age<0. || age>6.)continue;
+        float r=length(vec2((p.x-event.w)*.7,p.z-event.y));
+        float band=exp(-pow((r-age*12.)/.95,2.));
+        float echo=exp(-abs(r-age*12.-2.4)*1.5)*.18;
+        glow+=(band+echo)*event.z*exp(-age*.48);
+    }
+    return min(1.5,glow)*u_mineral_amount;
+}
+// Selected cluster retains a readable afterglow while the front travels away.
+float mineral_anchor(vec3 p) {
+    float glow=0.;vec2 center=(floor(p.xz/2.8)+.5)*2.8;
+    for(int i=0;i<4;i++) {
+        vec4 event=u_mineral_fronts[i];float age=u_drift_time-event.x;
+        if(age<0. || age>6.)continue;
+        float selected=1.-smoothstep(.1,1.,length(center-vec2(event.w,event.y)));
+        glow+=selected*event.z*exp(-age*.72);
+    }
+    return min(1.2,glow)*u_mineral_amount;
+}
+// Per-specimen terminations and cleavage; same planes in AO and ray clipping.
+vec3 cavern_shape(vec4 crystal,float seed) {
+    bool fluorite=seed>.66;
+    float cap=fluorite? .10+.18*crystal.z : .32+.42*crystal.z;
+    float broken=crystal.z>.62? .12+.24*fract(crystal.z*7.1) : .015;
+    return vec3(crystal.x,cap,broken);
+}
+vec3 mineral_pigment(int role) {
+    if(u_mineral_colors_on==1)return u_mineral_colors[role];
+    // Original cosine mineral spectrum; slow continuous hue travel through a visit.
+    // Explicit source pigments/family holds take precedence without changing history.
+    if(role==0)return vec3(.075,.091,.116);
+    float phase=u_mineral_motion.y*.55+u_drift_time*.22;
+    vec3 hue=.5+.5*cos(vec3(0.,2.1,4.2)+phase+(role==2?2.3:role==3?.8:0.));
+    return role==3 ? vec3(.045)+pow(hue,vec3(.85))*.90
+         : vec3(.055)+pow(hue,vec3(1.35))*.66;
+}
+vec2 cavern_formation(vec3 p,vec2 cell,bool includeCrystals) {
     vec2 local=p.xz-(cell+.5)*2.8;
-    // Placement belongs to a stable cell, not the query point or music clock.
-    float axis=1.1*sin((cell.y+.5)*2.8*.075);
+    float axis=cavern_axis((cell.y+.5)*2.8);
     vec2 result=vec2(100.,0.);
-    float seed=hash(cell+31.);
-    vec2 offset=(vec2(hash(cell+2.),hash(cell+9.))-.5)*.65;
-    float centerX=(cell.x+.5)*2.8;
-    // Limestone grows down from the ceiling as well as up from the floor.
-    float roof=.6+sqrt(max(.1,19.36-pow((centerX-axis)*.80,2.)))+.18;
-    vec2 stal=local-offset;
-    float down=roof-p.y,hanging=.45+pow(hash(cell+47.),1.4)*2.6;
-    stal+=vec2(.12*sin(seed*19.),.10*cos(seed*31.))*down;
-    float stalRadius=(.22+.55*hash(cell+14.))*pow(clamp(1.-down/hanging,0.,1.),1.5);
+    ivec2 relative=ivec2(cell)-u_cavern_origin;
+    bool cached=u_cavern_cached==1 && all(greaterThanEqual(relative,ivec2(0))) && all(lessThan(relative,ivec2(8,24)));
+    vec4 desc=cached?cavern_recipe(cell,0):vec4(hash(cell+31.),.45+pow(hash(cell+47.),1.4)*2.6,.22+.55*hash(cell+14.),
+        .6+sqrt(max(.1,19.36-pow(((cell.x+.5)*2.8-axis)*.80,2.)))+.18);
+    float seed=desc.x;
+    vec4 foot=cached?cavern_recipe(cell,1):vec4((vec2(hash(cell+2.),hash(cell+9.))-.5)*.65,.12*sin(seed*19.),.10*cos(seed*31.));
+    vec2 stal=local-foot.xy;
+    float down=desc.w-p.y,hanging=desc.y;
+    stal+=foot.zw*down;
+    float stalRadius=desc.z*pow(clamp(1.-down/hanging,0.,1.),1.5);
     float stalactite=max(length(stal)-stalRadius,max(-down-2.,down-hanging))*.50;
     if(seed>.16 && stalactite<result.x)result=vec2(stalactite,2.5);
-    if(abs(centerX-axis)>1.1) {
+    if(!includeCrystals && seed>=.27)return result;
+    if(abs((cell.x+.5)*2.8-axis)>1.1) {
         for(int i=0;i<3;i++) {
             float id=float(i),a=seed*6.283+id*2.1;
-            vec2 q=local-vec2(cos(a),sin(a))*.17*id-offset;
-            q=mat2(cos(a),sin(a),-sin(a),cos(a))*q;
+            vec4 rotation=cached?cavern_recipe(cell,2+i*2):vec4(cos(a),sin(a),sin(a*3.)*.05,cos(a*2.)*.05);
             float individual=hash(cell+id*17.+63.);
-            float h=.55+pow(individual,.7)*3.1, y=p.y+2.5;
-            q+=vec2(sin(a*3.),cos(a*2.))*.05*y;
-            q+=vec2(sin(u_time*1.4+seed*9.),cos(u_time*1.1+seed*11.))*.025*u_flux*y;
-            float rad=(.16+.38*hash(cell+id+82.))*min(1.,max(0.,(h-y)/(.55+seed*.3)));
+            vec4 crystal=cached?cavern_recipe(cell,3+i*2):vec4(.55+pow(individual,.7)*3.1,.16+.38*hash(cell+id+82.),individual,.17*id);
+            individual=crystal.z;
+            if(individual<=.18)continue;
+            vec2 q=local-rotation.xy*crystal.w-foot.xy;
+            q=mat2(rotation.x,rotation.y,-rotation.y,rotation.x)*q;
+            float h=crystal.x,y=p.y+2.5;
+            vec3 shape=cavern_shape(crystal,seed);h=shape.x;
+            q+=rotation.zw*y;
+            // Bounded rooted shear: local seeds disagree in direction, topology stays fixed.
+            float life=u_mineral_motion.x*.62+sin(u_mineral_motion.y*1.7+seed*9.)*.028*u_mineral_motion.z;
+            q+=vec2(rotation.y,-rotation.x)*life*u_mineral_amount*y;
+            float cap=shape.y;
+            float rad=crystal.y*min(1.,max(0.,(h-y)/cap));
             float hex=max(abs(q.x)*.866025+abs(q.y)*.5,abs(q.y));
-            // Quartz needles, blocky fluorite and limestone have different profiles.
             if(seed>.66)hex=max(abs(q.x),abs(q.y));
             if(seed<.27) {
                 rad=(.22+.43*individual)*pow(clamp(1.-y/h,0.,1.),1.4);
                 hex=length(q)+.012*sin(y*18.+a);
             }
-            float crystal=max(hex-rad,max(-y,y-h))*.52;
-            if(individual>.18 && crystal<result.x)result=vec2(crystal,seed<.27 ? 2.5 : 1.+seed);
+            float fracture=y+q.x*.22+q.y*.13-(h-shape.z);
+            float distance=max(max(hex-rad,fracture),max(-y,y-h))*.46;
+            if(distance<result.x)result=vec2(distance,seed<.27 ? 2.5 : 1.+seed);
         }
     }
     return result;
+}
+vec4 cavern_query(vec3 p,bool includeCrystals) {
+    float axis=cavern_axis(p.z);
+    float shell=(4.4-length(vec2((p.x-axis)*.80,p.y-.6))
+        +.18*sin(p.z*.7+p.y*1.6)*sin(p.x*1.7))*.52;
+    vec4 result=vec4(min(shell,p.y+2.5),0.,10000.,10000.);
+    vec2 cell=floor(p.xz/2.8);
+    // Neighboring formations can protrude across a cell edge. Evaluate them
+    // consistently for both tracing and normals; otherwise surfaces get sliced.
+    vec2 local=p.xz-(cell+.5)*2.8;
+    vec2 side=step(vec2(0.),local)*2.-1.;
+    // Only four cells can overlap this point. Bound travel toward the omitted
+    // cells so the marcher cannot leap over their protruding formations.
+    float omittedBound=(2.8+min(abs(local.x),abs(local.y))-2.05)*.35;
+    result.x=min(result.x,omittedBound);
+    for(int z=0;z<2;z++) for(int x=0;x<2;x++) {
+        vec2 neighbor=cell+vec2(x,z)*side;
+        vec2 bounds=abs(p.xz-(neighbor+.5)*2.8)-vec2(2.05);
+        float lowerBound=max(max(bounds.x,bounds.y),0.)*.35;
+        if(lowerBound>result.x)continue;
+        vec2 candidate=cavern_formation(p,neighbor,includeCrystals);
+        if(candidate.x<result.x) result=vec4(candidate,neighbor);
+    }
+    return result;
+}
+float cavern_local_map(vec3 p,vec4 owner) {
+    if(owner.y>.5)return cavern_formation(p,owner.zw,true).x;
+    float axis=cavern_axis(p.z);
+    return min((4.4-length(vec2((p.x-axis)*.80,p.y-.6))+.18*sin(p.z*.7+p.y*1.6)*sin(p.x*1.7))*.52,p.y+2.5);
 }
 vec2 earth_map(vec3 p,int form) {
     if(form==0) {
@@ -3939,26 +4292,74 @@ vec2 earth_map(vec3 p,int form) {
         float arch=max(abs(bridgeZ)-1.05,abs(p.y-(5.6-.11*x*x))-.65)*.45;
         return vec2(min(min(cliff,arch),(p.y+1.+.13*sin(p.z*.5))*.7),0.);
     }
-    float axis=1.1*sin(p.z*.075)+.16*sin(p.z*.27+u_time*.12);
-    float shell=(4.4-length(vec2((p.x-axis)*.80,p.y-.6))
-        +.18*sin(p.z*.7+p.y*1.6)*sin(p.x*1.7))*.52;
-    vec2 result=vec2(min(shell,p.y+2.5),0.);
-    vec2 cell=floor(p.xz/2.8);
-    // Neighboring formations can protrude across a cell edge. Evaluate them
-    // consistently for both tracing and normals; otherwise surfaces get sliced.
-    vec2 local=p.xz-(cell+.5)*2.8;
-    vec2 side=step(vec2(0.),local)*2.-1.;
-    // Only four cells can overlap this point. Bound travel toward the omitted
-    // cells so the marcher cannot leap over their protruding formations.
-    float omittedBound=(2.8+min(abs(local.x),abs(local.y))-1.85)*.35;
-    result.x=min(result.x,omittedBound);
-    for(int z=0;z<2;z++) for(int x=0;x<2;x++) {
-        vec2 neighbor=cell+vec2(x,z)*side;
-        vec2 bounds=abs(p.xz-(neighbor+.5)*2.8)-vec2(1.85);
-        float lowerBound=max(max(bounds.x,bounds.y),0.)*.35;
-        if(lowerBound>result.x)continue;
-        vec2 candidate=cavern_formation(p,neighbor);
-        if(candidate.x<result.x) result=candidate;
+    return cavern_query(p,true).xy;
+}
+
+
+// Exact interval clipping for the redesigned convex quartz and fluorite bodies.
+// Slab rejection precedes descriptor fetches; geology retains conservative tracing.
+uniform int u_cavern_cell_count;
+bool cavern_clip(vec3 eye,vec3 ray,vec3 plane,float extent,inout float nearT,inout float farT,inout vec3 normal) {
+    float denom=dot(plane,ray),numer=extent-dot(plane,eye);
+    if(abs(denom)<1e-7)return numer>=0.;
+    float crossing=numer/denom;
+    if(denom<0.) {if(crossing>nearT){nearT=crossing;normal=plane;}}
+    else farT=min(farT,crossing);
+    return farT>=max(0.,nearT);
+}
+vec4 cavern_crystal_ray(vec3 eye,vec3 ray,float limit,out vec3 winningNormal) {
+    vec4 result=vec4(limit,0.,0.,0.);winningNormal=vec3(0,1,0);
+    if(u_cavern_cached!=1)return result;
+    vec3 safeRay=sign(ray+vec3(1e-10))*max(abs(ray),vec3(1e-7));
+    // Exact conservative ray-segment bounds: cells outside this rectangle cannot
+    // intersect their existing 2.45-unit boxes. Keep row/column order and all shapes.
+    vec2 endpoint=eye.xz+ray.xz*limit;
+    ivec2 first=ivec2(ceil((min(eye.xz,endpoint)-vec2(2.45))/2.8-.5));
+    ivec2 last=ivec2(floor((max(eye.xz,endpoint)+vec2(2.45))/2.8-.5));
+    first=max(first,u_cavern_origin);last=min(last,u_cavern_origin+ivec2(7,23));
+    for(int z=first.y;z<=last.y;z++) for(int x=first.x;x<=last.x;x++) {
+        ivec2 relative=ivec2(x,z)-u_cavern_origin;vec2 cell=vec2(x,z);
+        if(relative.y*8+relative.x>=u_cavern_cell_count)continue;
+        vec2 center=(cell+.5)*2.8;
+        vec3 lower=vec3(center.x-2.45,-2.5,center.y-2.45),upper=vec3(center.x+2.45,1.16,center.y+2.45);
+        vec3 entry=(lower-eye)/safeRay,exit=(upper-eye)/safeRay;
+        vec3 begin=min(entry,exit),end=max(entry,exit);
+        float nearBox=max(begin.x,max(begin.y,begin.z)),farBox=min(end.x,min(end.y,end.z));
+        if(farBox<max(.0,nearBox) || nearBox>result.x)continue;
+        vec4 desc=cavern_recipe(cell,0);
+        if(desc.x<.27 || abs(center.x-cavern_axis(center.y))<=1.1)continue;
+        vec4 foot=cavern_recipe(cell,1);
+        float seed=desc.x;
+        float life=(u_mineral_motion.x*.62+sin(u_mineral_motion.y*1.7+seed*9.)*.028*u_mineral_motion.z)*u_mineral_amount;
+        for(int i=0;i<3;i++) {
+            vec4 rot=cavern_recipe(cell,2+i*2),crystal=cavern_recipe(cell,3+i*2);
+            if(crystal.z<=.18)continue;
+            vec2 axisX=vec2(rot.x,-rot.y),axisZ=vec2(rot.y,rot.x);
+            vec2 offset=center+rot.xy*crystal.w+foot.xy;
+            vec2 lean=rot.zw+vec2(rot.y,-rot.x)*life;
+            vec3 localEye=vec3(dot(axisX,eye.xz-offset),eye.y+2.5,dot(axisZ,eye.xz-offset));
+            localEye.xz+=lean*localEye.y;
+            vec3 localRay=vec3(dot(axisX,ray.xz),ray.y,dot(axisZ,ray.xz));localRay.xz+=lean*ray.y;
+            vec3 shape=cavern_shape(crystal,seed);
+            float nearT=max(0.,nearBox),farT=min(farBox,result.x),cap=shape.y;
+            float height=shape.x;
+            vec3 normal=vec3(0,1,0);bool hit=cavern_clip(localEye,localRay,vec3(0,-1,0),0.,nearT,farT,normal);
+            hit=hit&&cavern_clip(localEye,localRay,vec3(0,1,0),height,nearT,farT,normal);
+            hit=hit&&cavern_clip(localEye,localRay,vec3(.22,1,.13),height-shape.z,nearT,farT,normal);
+            for(int face=0;face<6 && hit;face++) {
+                if(seed>.66 && face>=4)break;
+                vec2 n;
+                if(seed>.66)n=face==0?vec2(1,0):face==1?vec2(-1,0):face==2?vec2(0,1):vec2(0,-1);
+                else n=face<4?vec2(face%2==0?.866025:-.866025,face<2?.5:-.5):vec2(0,face==4?1.:-1.);
+                hit=cavern_clip(localEye,localRay,vec3(n.x,0,n.y),crystal.y,nearT,farT,normal);
+                hit=hit&&cavern_clip(localEye,localRay,vec3(n.x,crystal.y/cap,n.y),crystal.y*height/cap,nearT,farT,normal);
+            }
+            if(hit && nearT<result.x && nearT>0.) {
+                result=vec4(nearT,1.+seed,cell);
+                vec2 horizontal=axisX*normal.x+axisZ*normal.z;
+                winningNormal=normalize(vec3(horizontal.x,normal.y+dot(lean,normal.xz),horizontal.y));
+            }
+        }
     }
     return result;
 }
@@ -3973,26 +4374,46 @@ EarthSurface earth_surface(vec2 p,int form) {
         ro.x=earth_channel(travel);
         direction=normalize(vec3(earth_channel(travel+1.)-ro.x,.015,1.));
     } else {
-        ro.x=1.1*sin(travel*.075)+.16*sin(travel*.27+u_time*.12);ro.y=.1;
-        direction=normalize(vec3(.0825*cos(travel*.075)+.0432*cos(travel*.27+u_time*.12),.03,1.));
+        ro.x=cavern_axis(travel);ro.y=.1;
+        direction=normalize(vec3(cavern_path(travel).y,.03,1.));
     }
     vec3 right=normalize(cross(vec3(0,1,0),direction)),up=cross(direction,right);
-    float bank=.06*sin(travel*.075)*(1.+u_flux*1.6);
+    float bank=(form==2?.045*cavern_path(travel).y:.06*sin(travel*.075))*(1.+u_flux*1.6);
     p=mat2(cos(bank),sin(bank),-sin(bank),cos(bank))*p;
     vec3 ray=normalize(direction+right*p.x*1.45+up*p.y*1.45);
+    // Full-resolution rasterized surface; original per-pixel material remains below.
+    vec2 surfaceUV=vec2(p.x*u_resolution.y/u_resolution.x+.5,p.y+.5);
+    // p already includes bank here; unbank for the stage's screen-space address.
+    if(form==2 && u_cavern_surface_on==1){
+        vec2 raw=mat2(cos(bank),-sin(bank),sin(bank),cos(bank))*p;
+        surfaceUV=vec2(raw.x*u_resolution.y/u_resolution.x+.5,raw.y+.5);
+        if(all(greaterThanEqual(surfaceUV,vec2(0.))) && all(lessThanEqual(surfaceUV,vec2(1.)))){
+            vec4 point=texture(u_cavern_surface,surfaceUV),orientation=texture(u_cavern_normal,surfaceUV);
+            if(orientation.w>0.)return EarthSurface(ro+point.xyz,orientation.xyz,length(point.xyz),point.w);
+            return EarthSurface(ro+ray*55.,vec3(0,1,0),100.,0.);
+        }
+    }
     float t=.04;vec2 hit=vec2(1.,0.);
     for(int i=0;i<128;i++) {
-        hit=earth_map(ro+ray*t,form);
+        hit=form==2?cavern_query(ro+ray*t,false).xy:earth_map(ro+ray*t,form);
         if(hit.x<.003+.0006*t || t>55.)break;
         t+=clamp(hit.x,.003,1.4);
     }
     vec3 pos=ro+ray*t,normal=vec3(0,1,0);
     if(t<=55. && hit.x<.003+.0006*t) {
         float e=.006;
-        normal=normalize(vec3(earth_map(pos+vec3(e,0,0),form).x-earth_map(pos-vec3(e,0,0),form).x,
+        if(form==2) {
+            vec2 k=vec2(1.,-1.);vec4 owner=cavern_query(pos,false);
+            normal=normalize(k.xyy*cavern_local_map(pos+k.xyy*e,owner)+k.yyx*cavern_local_map(pos+k.yyx*e,owner)
+                +k.yxy*cavern_local_map(pos+k.yxy*e,owner)+k.xxx*cavern_local_map(pos+k.xxx*e,owner));
+        } else normal=normalize(vec3(earth_map(pos+vec3(e,0,0),form).x-earth_map(pos-vec3(e,0,0),form).x,
             earth_map(pos+vec3(0,e,0),form).x-earth_map(pos-vec3(0,e,0),form).x,
             earth_map(pos+vec3(0,0,e),form).x-earth_map(pos-vec3(0,0,e),form).x));
     } else t=100.;
+    if(form==2 && u_cavern_cached==1) {
+        vec3 crystalNormal;vec4 crystal=cavern_crystal_ray(ro,ray,min(t,55.),crystalNormal);
+        if(crystal.y>.5) {t=crystal.x;pos=ro+ray*t;normal=crystalNormal;hit.y=crystal.y;}
+    }
     return EarthSurface(pos,normal,t,hit.y);
 }
 vec2 earth_domain(EarthSurface surface,int form) {
@@ -4069,12 +4490,15 @@ vec3 earth_scene(vec2 p,EarthSurface surface,vec3 material,int form) {
             stone=color_tint(mix(vec3(.17,.055,.11),vec3(.58,.27,.13),sediment*u_earth_details.x),u_strata_land_on,u_strata_land[0]);
             stone=mix(stone,vec3(.07,.25,.31),pow(1.-sediment,5.)*.55*u_earth_details.x);
         } else {
-            stone=color_tint(mix(vec3(.14,.17,.21),vec3(.25,.28,.32),sediment*.5*u_earth_details.x),u_cavern_land_on,u_cavern_land[0]);
+            vec3 matrix=mineral_pigment(0);
+            stone=color_tint(mix(matrix*1.5,matrix*3.2,sediment*.5*u_earth_details.x),u_cavern_land_on,u_cavern_land[0]);
             if(surface.kind>.5 && surface.kind<2.) {
-                vec3 ore=.5+.5*cos(vec3(0.,2.1,4.2)+floor(surface.kind*17.)*2.3);
-                stone=color_tint(vec3(.055)+ore*.55,u_cavern_land_on,u_cavern_land[1]);
+                float cluster=fract(surface.kind*31.);
+                vec3 ore=mix(mineral_pigment(1),mineral_pigment(2),smoothstep(.35,.65,cluster));
+                float inclusions=noise(q.xz*2.8+q.y*1.3);
+                stone=color_tint(ore*(.45+.45*inclusions),u_cavern_land_on,u_cavern_land[1]);
             } else if(surface.kind>2.) {
-                stone=mix(vec3(.16,.12,.10),vec3(.38,.30,.20),bedding*.3+.3);
+                stone=mix(vec3(.085,.076,.067),vec3(.24,.21,.18),.30+.12*noise(q.xz*2.+q.y*.8));
             }
         }
         if(form==0 && surface.kind>2.) {
@@ -4096,7 +4520,7 @@ vec3 earth_scene(vec2 p,EarthSurface surface,vec3 material,int form) {
         float contact=clamp(1.-occlusion*1.5,.30,1.);
         if(form==2) {
             float travel=earth_travel()*1.35;
-            vec3 eye=vec3(1.1*sin(travel*.075)+.16*sin(travel*.27+u_time*.12),.1,travel);
+            vec3 eye=vec3(cavern_axis(travel),.1,travel);
             light=max(light,.75*max(0.,dot(n,normalize(eye-q))));
             stone*=.78+.32*noise(q.xz*2.7+q.y*1.9);
         }
@@ -4108,12 +4532,52 @@ vec3 earth_scene(vec2 p,EarthSurface surface,vec3 material,int form) {
         }
         float traveling=pow(.5+.5*sin(q.z*.95-q.y*2.-clock*3.5),8.);
         vec3 mineral=.5+.5*cos(vec3(.1,2.2,4.1)+q.y*.3+clock*.10);
-        color+=color_tint(mix(mineral,clamp(material,0.,1.),.4),u_earth_minerals_on,u_earth_minerals[0])*vein*u_earth_details.y*(.04+.32*energy+1.05*u_impact)*(.3+.7*traveling)*contact;
-        if(form==2 && surface.kind>.5 && surface.kind<2.) {
-            float glow=(.08+.38*energy+1.15*u_impact)*(.3+.7*traveling)*u_earth_details.y;
-            color+=stone*glow;
-            color+=color_tint(vec3(.32,.55,.65),u_cavern_land_on,u_cavern_land[2])*pow(light,18.)*(.3+u_sparkle)*u_earth_details.y;
-        }
+        color+=color_tint(form==2 ? mineral_pigment(1) : mix(mineral,clamp(material,0.,1.),.4),u_earth_minerals_on,u_earth_minerals[0])*vein*u_earth_details.y*(.04+.32*energy+1.05*u_impact)*(.3+.7*traveling)*contact*(form==2?.16:1.);
+        if(form==2) {
+            float front=mineral_front(q),anchor=mineral_anchor(q);
+            float facing=max(0.,dot(n,normalize(vec3(-.3,.35,-.9))));
+            float wet=pow(max(0.,dot(reflect(normalize(vec3(.3,-.8,.5)),n),normalize(vec3(0.,.1,-1.)))),32.);
+            color+=mineral_pigment(1)*wet*.17;
+            if(surface.kind>.5 && surface.kind<2.) {
+                bool fluorite=surface.kind>1.66;
+                float specimen=fract(surface.kind*31.);
+                float cloud=noise(q.xz*2.9+q.y*.65+specimen*13.);
+                float fracture=pow(1.-abs(sin(q.x*7.3+q.y*2.1+q.z*4.6+cloud*3.)),18.);
+                // Matte etching describes the face; internal light describes depth.
+                float etch=pow(.5+.5*sin(q.y*13.+q.x*7.+cloud*5.),14.)
+                    *smoothstep(.48,.70,noise(q.xz*4.+q.y));
+                float viewFace=max(0.,dot(n,normalize(vec3(cavern_axis(earth_travel()*1.35)-q.x,.1-q.y,earth_travel()*1.35-q.z))));
+                float rim=pow(1.-viewFace,3.);
+                if(fluorite) {
+                    float core=pow(cloud,3.)*(.12+.48*u_mineral_motion.z+front*.48+anchor*.62);
+                    float cleavage=pow(1.-abs(sin(q.x*3.1+q.z*2.7+q.y*.45)),26.);
+                    color*=.78+.22*cloud;
+                    color+=mix(stone*1.9,mineral_pigment(3),.20)*core*u_earth_details.y;
+                    color+=mineral_pigment(3)*cleavage*(.014+front*.09)*u_earth_details.y;
+                    color+=stone*rim*(.12+anchor*.40);
+                    color+=mineral_pigment(3)*pow(viewFace,28.)*(.045+u_sparkle*.24);
+                } else {
+                    color*=1.-etch*.22*u_earth_details.x;
+                    float inclusion=pow(cloud,5.);
+                    color+=mix(stone*1.4,mineral_pigment(3),.4)*inclusion
+                        *(.16+.45*u_mineral_motion.z+front*.72+anchor*.52)*u_earth_details.y;
+                    color+=mineral_pigment(3)*fracture*(.018+front*.18+anchor*.11)*u_earth_details.y;
+                    color+=color_tint(mineral_pigment(3),u_cavern_land_on,u_cavern_land[2])
+                        *(pow(viewFace,18.)*(.05+u_sparkle*.3)+rim*.075)*u_earth_details.y;
+                }
+                color+=stone*anchor*.55;
+            } else {
+                float crack=pow(.5+.5*sin(q.x*3.2+q.z*1.9+noise(q.xz*2.1)*4.),30.);
+                color+=mineral_pigment(3)*crack*(.035+front*.38)*u_earth_details.y;
+            }
+            // Material light spills only on nearby solid floor, preserving occlusion.
+            if(q.y<-2.42) {
+                float lane=exp(-pow(abs(q.x-cavern_axis(q.z))/1.9,4.));
+                float pools=pow(.5+.5*sin(q.z*.72+q.x*.5-u_mineral_motion.y),6.);
+                color+=mix(mineral_pigment(1),mineral_pigment(2),.5+.5*sin(q.z*.18))
+                    *lane*(.055+.18*pools*u_mineral_motion.z+front*.22)*u_earth_details.y;
+            }
+        } else if(u_mineral_amount>0. && (u_debug_state==24. || u_debug_state==25.)) color+=mineral_pigment(3)*vein*mineral_front(q)*.35*u_earth_details.y;
         // Tiny mineral glints use world coordinates, never a screen overlay.
         vec3 glitter=q*18.;
         vec3 cell=floor(glitter),local=fract(glitter)-.5;
@@ -4179,7 +4643,13 @@ float fog_density(vec3 p,int form) {
     return (.03+shell*.85)*smoothstep(.35,1.25,abs(gyroid))
         +front*.45*u_impact*u_fog_details.z;
 }
+vec3 marsh_pigment(int role){return u_marsh_palette_on==1?u_marsh_palette[role]:u_marsh_authored[role];}
+int marsh_index(float cell,float side){return int(cell-u_marsh_origin)*2+(side>0.?1:0);}
+vec4 marsh_meta(float cell,float side){int index=marsh_index(cell,side);return u_marsh_cached==1 && index>=0 && index<14?u_marsh_meta[index]:vec4(0.);}
+vec3 marsh_lamp_color(float side,bool reflection){vec3 pigment=marsh_pigment(side<0.?4:5);return color_tint(pigment,u_marsh_ghostlights_on,u_marsh_ghostlights[reflection?1:0]);}
+float marsh_ground_trail(vec2 p,vec2 a,vec2 b){vec2 d=b-a;float f=clamp(dot(p-a,d)/max(dot(d,d),1e-5),0.,1.);return exp(-pow(length(p-a-f*d)/.085,2.))*(1.-f*.35);}
 vec3 fog_lamp(float cell,float side) {
+    int index=marsh_index(cell,side);if(u_marsh_cached==1 && index>=0 && index<14)return u_marsh_lamps[index].xyz;
     float seed=fog_seed(vec2(cell,side));
     float phase=u_time*(.95+seed*.3)+seed*19.;
     // Forward half of the orbit briefly matches our travel, then darts away.
@@ -4190,6 +4660,7 @@ vec3 fog_lamp(float cell,float side) {
         cell*8.+4.+2.7*sin(phase));
 }
 float fog_lamp_light(float cell,float side) {
+    int index=marsh_index(cell,side);if(u_marsh_cached==1 && index>=0 && index<14)return u_marsh_lamps[index].w;
     float seed=fog_seed(vec2(cell,side));
     float pulse=.5+.5*sin(u_time*(.7+seed*.4)+seed*23.);
     return (.08+.92*pulse*pulse)*(.22+.85*u_scale+.6*u_sparkle+1.1*u_impact);
@@ -4204,10 +4675,10 @@ vec2 fog_terrain(vec3 p) {
         float height=.85+seed*1.65;
         float angle=(seed-.5)*.65;
         q.xz=mat2(cos(angle),sin(angle),-sin(angle),cos(angle))*q.xz;
-        float width=.35+seed*.40;
+        float width=.30+seed*.34+.035*fog_seed(vec2(cell,side+19.));
         // Every marker has an arched crown and a thin headstone profile.
         float cap=length(vec2(q.x,max(0.,p.y+1.4-height+width)))-width;
-        float rock=max(max(cap,abs(q.z)-(.16+seed*.23)),-p.y-1.5);
+        float rock=max(max(cap,abs(q.z)-(.14+seed*.18)),-p.y-1.5);
         if(rock<result.x)result=vec2(rock*.75,1.);
     }
     return result;
@@ -4220,20 +4691,20 @@ vec3 fog_stone(vec3 p,float light) {
     q.xz=mat2(cos(angle),sin(angle),-sin(angle),cos(angle))*q.xz;
     float grain=fog_billows(q*5.+seed*13.);
     float vein=pow(.5+.5*sin(q.x*13.+q.y*4.+grain*8.),8.);
-    vec3 stone=mix(vec3(.25,.30,.32),vec3(.34,.25,.36),seed);
+    vec3 stone=mix(marsh_pigment(2)*.88,marsh_pigment(2)*vec3(1.12,.83,1.08),seed);
     stone*=.75+.35*grain;
     stone=mix(stone,vec3(.08,.14,.17),vein*.7);
     // Fixed vein/crack coordinates; only their weathering coverage grows.
     float age=1.-exp(-max(0.,u_drift_time)*.012-seed*.4);
     float moss=smoothstep(.43,.68,grain)*
         (1.-smoothstep(.20+age*.85,.75+age*1.1,q.y));
-    stone=mix(stone,color_tint(vec3(.075,.19,.095)*(.7+grain*.6),u_marsh_solids_on,u_marsh_solids[2]),moss*.85);
+    stone=mix(stone,color_tint(marsh_pigment(3)*(.7+grain*.6),u_marsh_solids_on,u_marsh_solids[2]),moss*.85);
     float stem=abs(q.x+.13*sin(q.y*8.+seed*9.)+.12*sin(q.y*3.));
     float branch=abs(q.x-.43*(q.y-.7)+.08*sin(q.y*14.+seed*5.));
     float cracks=1.-smoothstep(.008,.022,min(stem,branch));
     cracks*=1.-smoothstep(age*2.8,age*2.8+.18,q.y);
     stone*=1.-cracks*.8*smoothstep(.12,.45,age);
-    return color_tint(stone,u_marsh_solids_on,u_marsh_solids[1])*light*(.8+.30*u_scale+.35*u_impact);
+    return color_tint(stone,u_marsh_solids_on,u_marsh_solids[1])*light*(.8+.30*u_marsh_motion.x);
 }
 vec2 fog_solid(vec3 p) {
     vec2 result=fog_terrain(p);
@@ -4265,7 +4736,7 @@ vec3 fog_scene(vec2 screen,vec3 material,int form) {
     vec2 p=mat2(cos(roll),sin(roll),-sin(roll),cos(roll))*screen;
     vec3 ray=normalize(forward+right*p.x*1.5+up*p.y*1.5);
     float stop=23.;
-    vec3 background=form==1 ? vec3(.013,.023,.035) : vec3(.006,.010,.025);
+    vec3 background=form==1 ? marsh_pigment(0)*.13 : vec3(.006,.010,.025);
     if(form==1) {
         // Solid intersections terminate the volume: nothing behind a rock can leak through.
         float floorDepth=ray.y<-.0001 ? min(23.,(-1.4-ro.y)/ray.y) : 23.;
@@ -4284,7 +4755,7 @@ vec3 fog_scene(vec2 screen,vec3 material,int form) {
                 fog_solid(q+vec3(0,e,0)).x-fog_solid(q-vec3(0,e,0)).x,
                 fog_solid(q+vec3(0,0,e)).x-fog_solid(q-vec3(0,0,e)).x));
             float light=.25+.65*max(0.,dot(n,normalize(vec3(-.3,.8,-.6))));
-            background=color_tint(vec3(.12,.16,.18),u_marsh_solids_on,u_marsh_solids[0])*light*(.8+.30*u_scale+.35*u_impact);
+            background=color_tint(marsh_pigment(1),u_marsh_solids_on,u_marsh_solids[0])*light*(.8+.30*u_marsh_motion.x);
             if(hit.y<.5) {
                 float pathCenter=.45*sin(q.z*.13);
                 float path=exp(-pow(abs(q.x-pathCenter)/1.65,3.));
@@ -4301,11 +4772,17 @@ vec3 fog_scene(vec2 screen,vec3 material,int form) {
                     float stem=exp(-pow(abs(delta.x)/.055,2.)-pow(abs(delta.y)/extent,6.));
                     float bar=exp(-pow(abs(delta.x)/(extent*.48),6.)-pow(abs(delta.y-extent*.32)/.055,2.));
                     float reflection=max(stem,bar)+.12*exp(-dot(delta,delta)*3.);
-                    background+=color_tint(mix(vec3(.14,.50,.32),vec3(.55,.28,.10),float(i)),u_marsh_ghostlights_on,u_marsh_ghostlights[1])*reflection*fog_lamp_light(id,side)*u_fog_details.y;
+                    int index=marsh_index(id,side);vec4 meta=marsh_meta(id,side);
+                    float trail=index>=0 && index<14 && u_marsh_cached==1?marsh_ground_trail(q.xz,u_marsh_wakes[index].xz,lamp.xz):0.;
+                    float ring=meta.x>.00001?exp(-pow((length(delta)-meta.y)/.13,2.))*meta.x:0.;
+                    background+=marsh_lamp_color(side,true)*(reflection+trail*(.045+.12*u_marsh_motion.x))*fog_lamp_light(id,side)*u_fog_details.y;
+                    background+=color_tint(marsh_pigment(6),u_marsh_ghostlights_on,u_marsh_ghostlights[1])*ring*.15*u_fog_details.y;
                 }
             } else if(hit.y>1.5) {
                 float cell=floor(q.z/8.),side=q.x<0. ? -1. : 1.;
-                background=color_tint(mix(vec3(.20,.65,.40),vec3(.65,.30,.08),step(0.,q.x)),u_marsh_ghostlights_on,u_marsh_ghostlights[0])*fog_lamp_light(cell,side)*1.7;
+                float core=pow(clamp(dot(n,-ray),0.,1.),2.);float heat=marsh_meta(cell,side).x;
+                background=marsh_lamp_color(side,false)*(.10+fog_lamp_light(cell,side)*1.7*(.34+.66*core))
+                    +color_tint(marsh_pigment(6),u_marsh_ghostlights_on,u_marsh_ghostlights[0])*(.025*pow(core,4.)+heat*(.16+.34*core));
             }
             else background=fog_stone(q,light);
         }
@@ -4322,22 +4799,28 @@ vec3 fog_scene(vec2 screen,vec3 material,int form) {
         float towardLight=fog_density(q+vec3(-.4,.65,-.25),form);
         float rim=clamp((density-towardLight)*2.,-.20,.65);
         float phase=q.z*.16+q.y*.55+u_time*.08;
-        vec3 pigment=fog_palette(phase,form);
+        vec3 pigment=form==1?marsh_pigment(0)*(.75+.45*(.5+.5*sin(phase))):fog_palette(phase,form);
         if(u_fog_vapor_on==1) pigment*=u_fog_vapor[form];
         // Material colors enter the scattering volume, not an extra transparent layer.
         pigment=mix(pigment,pigment*(.70+clamp(material,0.,1.)*.8),.18);
         float forwardLight=pow(max(0.,dot(ray,normalize(vec3(-.3,.3,1.)))),6.);
         vec3 lighting=pigment*(.22+rim+forwardLight*.45);
         float thread=pow(.5+.5*sin(fog_billows(q*1.8)*11.+phase-u_time),8.);
-        lighting+=pigment*thread*(.08+.30*u_sparkle+.60*u_impact)*u_fog_details.z;
+        lighting+=pigment*thread*(form==1 ? .08+.30*u_marsh_motion.y : .08+.30*u_sparkle+.60*u_impact)*u_fog_details.z;
         if(u_fog_internal_on==1)
-            lighting+=pigment*(u_fog_internal[0]-vec3(1.))*thread*(.08+.30*u_sparkle+.60*u_impact)*u_fog_details.z;
+            lighting+=pigment*(u_fog_internal[0]-vec3(1.))*thread*(form==1 ? .08+.30*u_marsh_motion.y : .08+.30*u_sparkle+.60*u_impact)*u_fog_details.z;
         if(form==1) {
             float cell=floor(q.z/8.);
             for(int j=-1;j<=1;j++)for(int k=0;k<2;k++) {
                 float id=cell+float(j),side=k==0 ? -1. : 1.;
-                float d=length(q-fog_lamp(id,side));
-                lighting+=color_tint(mix(vec3(.25,.90,.50),vec3(.75,.35,.12),float(k)),u_marsh_ghostlights_on,u_marsh_ghostlights[0])*exp(-d*.95)*fog_lamp_light(id,side)*2.2*u_fog_details.y;
+                vec3 lamp=fog_lamp(id,side);float d=length(q-lamp);vec4 meta=marsh_meta(id,side);
+                float radius=length(q.xz-lamp.xz);
+                float breath=meta.x>.00001?exp(-pow((radius-meta.y)/.19,2.))*meta.x*exp(-abs(q.y+1.)*2.):0.;
+                lighting+=marsh_lamp_color(side,false)*exp(-d*.95)*fog_lamp_light(id,side)*2.2*u_fog_details.y;
+                if(meta.x>.00001) {
+                    lighting+=color_tint(marsh_pigment(6),u_marsh_ghostlights_on,u_marsh_ghostlights[0])*(breath*.75+meta.x*exp(-d*2.)*.35)*u_fog_details.y;
+                    density*=1.+.035*breath*u_fog_details.z;
+                }
             }
         } else {
             float pulse=pow(.5+.5*sin(q.z*.65-u_time*2.+q.y),5.);
@@ -4345,6 +4828,7 @@ vec3 fog_scene(vec2 screen,vec3 material,int form) {
             if(u_fog_internal_on==1)
                 lighting+=pigment*(u_fog_internal[1]-vec3(1.))*pulse*(.14+.65*energy+1.3*u_impact)*u_fog_details.y;
         }
+        if(form==1)through=exp(-density*stepLength);
         accumulated+=transmittance*(1.-through)*max(lighting,vec3(0.));
         transmittance*=through;
     }
@@ -4446,22 +4930,152 @@ vec3 plasma_stars(vec2 p,int form) {
     }
     return light;
 }
-vec3 plasma_loop(float f,float id) {
-    float theta=mix(.43,2.71159,f),az=id*.7853982;
-    float stretch=1.9+.20*sin(id*2.1+u_time*.19)+u_scale*.30;
-    float radius=stretch*sin(theta)*sin(theta);
-    az+=.24*sin(theta*3.+u_time*.4+id)*(.3+u_flux);
-    return vec3(radius*sin(theta)*cos(az),radius*cos(theta),radius*sin(theta)*sin(az));
-}
 vec3 plasma_node(float id) {
     float phase=id*.897598+u_time*(.07+.012*sin(id));
     return vec3(cos(phase)*(1.65+.22*u_scale),sin(phase*1.37+id)*.95,
         sin(phase)*1.25);
 }
+// Renderer-cached field paths: one projected descriptor per vertex, bounded groups.
+vec3 magnetic_pigment(int role) {
+    if(u_magnetic_bloom_on==1)return u_magnetic_bloom[role];
+    vec3 a[6]=vec3[6](vec3(.016,.031,.051),vec3(.125,.184,.216),vec3(.816,.471,.231),vec3(.263,.710,.671),vec3(1.,.910,.639),vec3(.608,.663,.608));
+    vec3 b[6]=vec3[6](vec3(.031,.020,.059),vec3(.161,.141,.196),vec3(.659,.400,.855),vec3(.349,.604,.851),vec3(1.,.898,.827),vec3(.647,.569,.773));
+    vec3 c[6]=vec3[6](vec3(.047,.075,.094),vec3(.529,.612,.612),vec3(.875,.525,.388),vec3(.239,.514,.624),vec3(1.,1.,.827),vec3(.835,.859,.761));
+    float phase=u_magnetic_motion.z*.013+max(0.,u_magnetic_visit-1.)*.36;
+    int family=int(floor(phase))%3;float blend=smoothstep(.65,1.,fract(phase));
+    return mix(family==0?a[role]:family==1?b[role]:c[role],family==0?b[role]:family==1?c[role]:a[role],blend);
+}
+vec3 magnetic_cached_field(vec2 p,vec3 material) {
+    vec3 ray=normalize(vec3(p,1.35));float energy=u_magnetic_motion.x,high=u_magnetic_motion.y,phase=u_magnetic_motion.z;
+    vec3 color=color_tint(magnetic_pigment(0),u_plasma_sky_on,u_plasma_sky[0])*.28+plasma_stars(p,0)*u_plasma_details.z*.60;
+    vec3 center=vec3(0,0,4.1),coreNormal=vec3(0,0,-1);float solidDepth=100.;
+    // Two original convex pole pieces, asymmetric side radii and broken cap planes.
+    // Analytic plane clipping; no new ray marcher or repeated field construction.
+    if(abs(p.x)<.30 && abs(p.y)<.31)for(int piece=0;piece<2;piece++) {
+        float signPiece=piece==0?1.:-1.;
+        vec3 origin=transpose(u_magnetic_axes)*(-center)-vec3(0,signPiece*(.31+.025+.03*energy),0);
+        vec3 direction=transpose(u_magnetic_axes)*ray;float near=0.,far=100.;vec3 face=vec3(0,0,-1);
+        for(int j=0;j<10;j++) {
+            float az=float(j)*.785398;
+            vec3 plane=vec3(cos(az),signPiece*.18,sin(az));float extent=.30+.018*sin(float(j)*2.3+piece*1.7);
+            if(j==8){plane=vec3(.18,1.,-.08);extent=.27;}
+            if(j==9){plane=vec3(-.12,-1.,.16);extent=.27;}
+            float denominator=dot(plane,direction),distance=extent-dot(plane,origin);
+            if(abs(denominator)<1e-8){if(distance<0.)far=-1.;continue;}
+            float cut=distance/denominator;
+            if(denominator<0. && cut>near){near=cut;face=plane;}
+            if(denominator>0.)far=min(far,cut);
+        }
+        if(near>0. && far>=near && near<solidDepth){solidDepth=near;coreNormal=normalize(u_magnetic_axes*face);}
+    }
+    if(solidDepth<99.) {
+
+        vec3 local=transpose(u_magnetic_axes)*(ray*solidDepth-center);
+        vec3 normal=coreNormal;
+        float diffuse=max(0.,dot(normal,normalize(vec3(-.6,.7,-.8))));
+        float azimuth=atan(local.z,local.x);
+        float grain=noise(local.xy*65.+local.z*vec2(31.,47.))*.5+.5;
+        float flutes=pow(.5+.5*cos(azimuth*8.+local.y*4.),12.);
+        float poles=smoothstep(.28,.45,abs(local.y)),waist=1.-smoothstep(.06,.14,abs(local.y));
+        vec3 pole=local.y>0.?magnetic_pigment(2):magnetic_pigment(3);
+        vec3 ceramic=mix(magnetic_pigment(1),pole*.55,poles);
+        ceramic*=mix(1.,.22,waist)*(.70+.30*grain);
+        color=color_tint(ceramic,u_magnetic_field_on,u_magnetic_field[0])*(.28+.72*diffuse);
+        color+=magnetic_pigment(5)*flutes*(.035+.075*high)*(1.-waist);
+        color+=magnetic_pigment(5)*pow(max(0.,dot(reflect(-normalize(vec3(-.6,.7,-.8)),normal),-ray)),22.)*.22;
+        float edge=pow(1.-max(0.,dot(normal,-ray)),3.);
+        color+=pole*(edge*.22+poles*.045)*(1.+energy*.4);
+        for(int i=0;i<4;i++) {
+            vec4 event=u_magnetic_events[i];float age=u_drift_time-event.x;
+            if(age<0. || age>6.)continue;
+            float direction=azimuth-event.y*.785398;
+            float mark=exp(-(1.-cos(direction))*22.)*poles;
+            color+=magnetic_pigment(4)*mark*event.z*exp(-age*1.3)*.65*u_magnetic_amount*u_plasma_details.y;
+        }
+    }
+    vec3 emission=vec3(0);
+    float width=.0028+.0022*energy;
+    for(int row=0;row<12;row++) {
+        vec4 bounds=u_magnetic_bounds[row];
+        if(any(lessThan(p,bounds.xy-.08)) || any(greaterThan(p,bounds.zw+.08)))continue;
+        float nearest=100.,along=0.,side=0.;
+        for(int group=0;group<8;group++) {
+            vec4 box=u_magnetic_groups[row*8+group];
+            if(any(lessThan(p,box.xy-.08)) || any(greaterThan(p,box.zw+.08)))continue;
+            vec4 a=texelFetch(u_magnetic_paths,ivec2(group*6,row),0);
+            for(int j=1;j<=6;j++) {
+                vec4 b=texelFetch(u_magnetic_paths,ivec2(group*6+j,row),0);
+                vec2 delta=b.xy-a.xy;float f=clamp(dot(p-a.xy,delta)/max(dot(delta,delta),1e-10),0.,1.);
+                float depth=1./mix(a.z,b.z,f),distance=length(p-mix(a.xy,b.xy,f));
+                if(depth/ray.z<solidDepth+.005 && distance<nearest) {
+                    nearest=distance;along=mix(a.w,b.w,f);side=(delta.x*(p.y-a.y)-delta.y*(p.x-a.x))/max(length(delta),1e-8);
+                }
+                a=b;
+            }
+        }
+        if(nearest>=.075)continue;
+        float edgeFade=1.-smoothstep(.05,.075,nearest);
+        float wire=exp(-pow((nearest-width*.55)/(width*.42),2.));
+        float inner=exp(-pow(nearest/(width*.52),2.));
+        float halo=exp(-nearest/(width*4.))*.17*edgeFade;
+        float grain=.60+.40*pow(.5+.5*sin(along*180.-phase*4.+row),8.);
+        vec3 pole=mix(magnetic_pigment(2),magnetic_pigment(3),smoothstep(.3,.7,along));
+        pole=mix(pole,magnetic_pigment(5),(.15+.25*max(0.,side/width))*grain);
+        float selected=0.,charge=0.;
+        if(row<8) {
+            for(int i=0;i<4;i++) {
+                vec4 event=u_magnetic_events[i];float age=u_drift_time-event.x;
+                if(age<0. || age>6.)continue;
+                float own=abs(float(row)-event.y)<.1?1.:0.;
+                float pair=abs(float(row)-mod(event.y+1.,8.))<.1?.45:0.;
+                float front=(age-.1)/1.65;
+                if(front>0. && front<1.25)charge+=event.z*(own*exp(-pow((along-front)/.065,2.))+pair*exp(-pow((along-(1.-front))/.065,2.)))*exp(-age*.23);
+                selected+=own*event.z*exp(-age*.65)*.25*(1.-smoothstep(4.8,6.,age));
+            }
+            float drift=pow(.5+.5*cos(along*25.-phase*9.+row*1.7),16.);
+            emission+=color_tint(pole,u_magnetic_field_on,u_magnetic_field[1])*(wire+halo)*(.25+.62*energy+selected)*u_plasma_details.x;
+            emission+=color_tint(magnetic_pigment(4),u_magnetic_field_on,u_magnetic_field[2])*(inner+halo*2.)*charge*3.5*u_magnetic_amount*u_plasma_details.y;
+            emission+=magnetic_pigment(5)*inner*drift*(.025+.24*high)*u_plasma_details.z;
+        } else {
+            vec4 event=u_magnetic_events[row-8];float age=u_drift_time-event.x;
+            float envelope=smoothstep(.6,.95,age)*(1.-smoothstep(2.,2.7,age));
+            float packets=.3+.7*pow(.5+.5*cos(along*15.-age*10.),8.);
+            emission+=color_tint(mix(magnetic_pigment(2),magnetic_pigment(3),along),u_magnetic_field_on,u_magnetic_field[2])*(wire+halo*2.)*event.z*envelope*packets*2.8*u_magnetic_amount*u_plasma_details.y;
+        }
+    }
+    return color+emission/(1.+emission*.60);
+}
+
+vec3 magnetic_core_position(){
+    float drive=clamp(.55*u_scale+.45*u_flux,0.,1.);
+    return vec3(sin(u_time*.27),sin(u_time*.19+1.)*.65,cos(u_time*.23))*(.025+.105*drive);
+}
+vec3 plasma_loop(float f,float id) {
+    float theta=mix(.43,2.71159,f),az=id*.7853982;
+    float stretch=1.9+.20*sin(id*2.1+u_time*.19)+u_scale*.30;
+    float knot=floor((theta-.43)/.38)*.38+.43,u=(theta-knot)/.38;
+    float angular=mix(pow(sin(knot),2.),pow(sin(knot+.38),2.),u);
+    float sharpen=smoothstep(.25,.85,.55*u_scale+.45*u_flux+.25*u_impact);
+    float radius=stretch*mix(sin(theta)*sin(theta),angular,sharpen*.85);
+    az+=.24*sin(theta*3.+u_time*.4+id)*(.3+u_flux);
+    return magnetic_core_position()+vec3(radius*sin(theta)*cos(az),radius*cos(theta),radius*sin(theta)*sin(az));
+}
+
+vec3 experimental_plasma_scene(vec2 p,vec3 material,int form) {
+    if(form==0)return magnetic_cached_field(p,material);
+    vec2 uv=vec2(p.x*u_resolution.y/u_resolution.x+.5,p.y+.5);
+    if(form==1)return texture(u_arc_scene,uv).rgb;
+    return texture(u_aurora_scene,uv).rgb;
+}
+
 vec3 plasma_scene(vec2 p,vec3 material,int form) {
+    if(u_plasma_experimental==1)return experimental_plasma_scene(p,material,form);
     float energy=clamp(.5*u_scale+.5*u_flux,0.,1.);
-    vec3 ray=normalize(vec3(p,1.35));
-    vec3 color=color_tint(vec3(.003,.005,.014),u_plasma_sky_on,u_plasma_sky[0])+plasma_stars(p,form)*u_plasma_details.z;
+    float bank=.12*sin(u_drift_time*.11)+.04*sin(u_drift_time*.037+1.2);
+    vec2 veil_p=mat2(cos(bank),sin(bank),-sin(bank),cos(bank))*p;
+    vec3 ray=normalize(vec3(form==2?veil_p:p,1.35));
+    vec2 stars_p=form==2?mat2(cos(bank),-sin(bank),sin(bank),cos(bank))*p:p;
+    vec3 color=color_tint(vec3(.003,.005,.014),u_plasma_sky_on,u_plasma_sky[0])+plasma_stars(stars_p,form)*u_plasma_details.z;
     vec3 pigment=.70+.6*clamp(material,0.,1.);
     if(form==2) {
         // Thin folded emitting sheets: absorb behind the folds, retain dark gaps.
@@ -4491,7 +5105,7 @@ vec3 plasma_scene(vec2 p,vec3 material,int form) {
     float solidDepth=100.;vec3 solidCenter=vec3(0.);float solidId=0.;
     for(int i=0;i<7;i++) {
         if(form==0 && i>0)break;
-        vec3 center=plasma_view(form==0 ? vec3(0.) : plasma_node(float(i)));
+        vec3 center=plasma_view(form==0 ? magnetic_core_position() : plasma_node(float(i)));
         float radius=form==0 ? .48+.035*u_scale : .10+.035*plasma_seed(vec2(i,3.));
         float depth=plasma_sphere(ray,center,radius);
         if(depth<solidDepth) {solidDepth=depth;solidCenter=center;solidId=float(i);}
@@ -4499,10 +5113,12 @@ vec3 plasma_scene(vec2 p,vec3 material,int form) {
     if(solidDepth<99.) {
         vec3 n=normalize(ray*solidDepth-solidCenter);
         float shade=.20+.80*max(0.,dot(n,normalize(vec3(-.6,.7,-.8))));
-        float bands=.5+.5*sin(n.y*17.+n.x*6.+sin(n.z*9.+n.x*5.)+u_time*.55);
-        vec3 body=plasma_tint(solidId*.7+u_time*.09+n.y*2.);
+        float bands=form==0 ? .5+.5*sin(n.y*17.+n.x*6.+sin(n.z*9.+n.x*5.)+u_time*.55)
+            : .5+.5*cos(atan(n.z,n.x)*3.+n.y*5.-u_time*.4);
+        vec3 body=plasma_tint(solidId*.7+u_time*.09+n.y*2.+(form==0?energy*.65:1.4));
+        if(form==1)body=mix(body,vec3(.78,.91,1.),.28);
         color=color_tint(body,form==0 ? u_magnetic_field_on : u_arcs_charge_on,
-            form==0 ? u_magnetic_field[0] : u_arcs_charge[0])*pigment*(.12+.12*bands)*shade;
+            form==0 ? u_magnetic_field[0] : u_arcs_charge[0])*pigment*(form==0?(.12+.12*bands):(.20+.16*bands))*shade;
         float rim=pow(1.-max(0.,dot(n,-ray)),3.);
         color+=color_tint(body,form==0 ? u_magnetic_field_on : u_arcs_charge_on,
             form==0 ? u_magnetic_field[0] : u_arcs_charge[0])*(rim*.45+pow(bands,10.)*(.10+.3*u_impact))*(.5+energy);
@@ -4511,11 +5127,16 @@ vec3 plasma_scene(vec2 p,vec3 material,int form) {
     if(form==0) {
         for(int k=0;k<8;k++) {
             float id=float(k);
-            vec3 a=plasma_view(plasma_loop(0.,id));
+            bool cachedLoop=u_original_path_on==1;
+            if(cachedLoop){vec4 bounds=texelFetch(u_original_paths,ivec2(41,k),0);if(any(lessThan(p,bounds.xy-.12)) || any(greaterThan(p,bounds.zw+.12)))continue;}
+            vec3 a=cachedLoop ? texelFetch(u_original_paths,ivec2(0,k),0).xyz : plasma_view(plasma_loop(0.,id));
             float nearest=100.,along=0.;
             for(int j=1;j<=40;j++) {
-                float f=float(j)/40.;vec3 b=plasma_view(plasma_loop(f,id));
-                vec2 sample=plasma_segment(p,a,b);a=b;
+                float f=float(j)/40.;vec3 b=cachedLoop ? texelFetch(u_original_paths,ivec2(j,k),0).xyz : plasma_view(plasma_loop(f,id));
+                vec2 sample;
+                if(cachedLoop){vec2 delta=b.xy-a.xy;float part=clamp(dot(p-a.xy,delta)/max(dot(delta,delta),1e-8),0.,1.);sample=vec2(length(p-a.xy-part*delta),1./mix(a.z,b.z,part));}
+                else sample=plasma_segment(p,a,b);
+                a=b;
                 if(sample.y/ray.z>solidDepth+.005)continue;
                 if(sample.x<nearest) {nearest=sample.x;along=f;}
             }
@@ -4526,11 +5147,12 @@ vec3 plasma_scene(vec2 p,vec3 material,int form) {
             float halo=exp(-nearest/(width*5.))*.28;
             float pulse=pow(.5+.5*sin(along*15.-u_time*3.+id*2.),12.);
             vec3 hue=plasma_tint(id*.55+along*2.+u_time*.065);
-            emission+=color_tint(hue,u_magnetic_field_on,u_magnetic_field[1])*pigment*(filament+halo)*(.60+.70*energy)*u_plasma_details.x;
+            emission+=color_tint(hue,u_magnetic_field_on,u_magnetic_field[1])*pigment*(filament+halo)*(.45+1.35*energy*energy+.35*u_impact)*u_plasma_details.x;
             emission+=color_tint(hue,u_magnetic_field_on,u_magnetic_field[2])*(filament+halo)*pulse*(.12+u_impact*1.2+u_sparkle*.3)*u_plasma_details.y;
             emission+=color_tint(hue,u_magnetic_field_on,u_magnetic_field[2])*filament*pow(pulse,3.)*.3*u_sparkle*u_plasma_details.z;
         }
     } else {
+        float wireDepth=100.;vec3 wireCore=vec3(0.);
         for(int k=0;k<7;k++) {
             float id=float(k),seed=plasma_seed(vec2(k,11.));
             vec3 start=plasma_node(id),end=plasma_node(mod(id+2.,7.));
@@ -4544,14 +5166,17 @@ vec3 plasma_scene(vec2 p,vec3 material,int form) {
                 vec3 q=mix(start,end,f)+side*jag*sin(f*3.14159);
                 vec3 b=plasma_view(q);vec2 sample=plasma_segment(p,a,b);a=b;
                 if(sample.y/ray.z<solidDepth+.008) {
-                    float width=.0015+.0015*u_impact;
+                    float width=.0015+.0015*u_impact+.0007*smoothstep(.20,.85,energy);
                     float line=exp(-sample.x*sample.x/(width*width));
                     float glow=exp(-sample.x/(width*6.))*.16;
                     vec3 hue=plasma_tint(seed*5.+u_time*.09+f*.8);
-                    emission+=color_tint(hue,u_arcs_charge_on,u_arcs_charge[1])*pigment*(line+glow)*(.10+.20*energy)*u_plasma_details.x;
-                    emission+=color_tint(hue,u_arcs_charge_on,u_arcs_charge[1])*(line+glow)*flash*1.5*u_plasma_details.y;
+                    vec3 charge=color_tint(hue,u_arcs_charge_on,u_arcs_charge[1])*(pigment*(.055+.52*smoothstep(.12,.82,energy))*u_plasma_details.x+flash*1.5*u_plasma_details.y);
+                    emission+=charge*glow;
                     float pulse=pow(.5+.5*sin(f*17.-u_time*4.+id),18.);
-                    emission+=color_tint(hue,u_arcs_charge_on,u_arcs_charge[2])*line*pulse*.65*u_sparkle*u_plasma_details.z;
+                    if(sample.x<width*2.5 && sample.y/ray.z<wireDepth){
+                        wireDepth=sample.y/ray.z;
+                        wireCore=charge*line+color_tint(hue,u_arcs_charge_on,u_arcs_charge[2])*line*pulse*.65*u_sparkle*u_plasma_details.z;
+                    }
                 }
                 if(j==5 || j==11 || j==15) {
                     vec3 tip=q+side*(.2+.35*seed)+axis*.20;
@@ -4561,6 +5186,7 @@ vec3 plasma_scene(vec2 p,vec3 material,int form) {
                 }
             }
         }
+        emission+=wireCore;
     }
     // Compress emitted light alone, retaining saturated cores and dark surroundings.
     return color+emission/(1.+emission*.65);
@@ -4597,7 +5223,178 @@ float handoff_share(float family,float front) {
 }
 
 // Modal experiment table. Metre amplitudes; optical gain never changes physics.
-void main()
+uniform vec4 u_cym_modes[36];
+uniform int u_cym_count,u_cym_colors_on;
+uniform vec4 u_cym_basin;
+uniform vec2 u_cym_actuator;
+uniform vec3 u_cym_colors[5];
+uniform float u_cym_material,u_cym_depth;
+uniform vec3 u_cym_camera,u_cym_style;
+uniform vec2 u_cym_pan;
+uniform vec3 u_cym_stone_colors[2];
+uniform int u_cym_stone_colors_on;
+uniform vec3 u_cym_view; // optional orbit, tracer contrast, reset source-time
+uniform vec3 u_cym_dye_colors[2];
+uniform int u_cym_dye_colors_on;
+vec2 cym_optical_motion;
+vec3 cym_pigment(int i) {
+    if(u_cym_colors_on==1)return u_cym_colors[i];
+    if(i==0)return vec3(.008,.025,.05);
+    if(i==1)return vec3(.03,.10,.14);
+    if(i==2)return vec3(.85,.91,.98);
+    if(i==3)return vec3(.45,.65,.72);
+    return vec3(.015,.022,.031);
+}
+vec4 cym_field(vec2 p) {
+    vec2 z=vec2(0);vec2 dx=vec2(0),dy=vec2(0),lap=vec2(0);
+    for(int i=0;i<36;i++) {
+        if(i>=u_cym_count)break;
+        vec4 mode=u_cym_modes[i];vec2 k=mode.xy*3.14159265;
+        vec2 c=cos(k*p),s=sin(k*p);
+        z+=mode.zw*c.x*c.y;
+        lap-=mode.zw*dot(k,k)*c.x*c.y;
+        dx+=mode.zw*(-k.x*s.x*c.y);
+        dy+=mode.zw*(-k.y*c.x*s.y);
+    }
+    float amplitude=sqrt(dot(z,z)+4e-10);
+    float curvature=(dot(dx,dx)+dot(dy,dy)+dot(z,lap))/amplitude-(dot(z,dx)*dot(z,dx)+dot(z,dy)*dot(z,dy))/pow(amplitude,3.);
+    // Strong, bounded optical magnification reveals tiny slopes without inventing flow.
+    vec2 tracerSlope=vec2(dx.x,dy.x)*u_cym_basin.z*12.;
+    cym_optical_motion=.018*tanh(tracerSlope/.018);
+    float height=(amplitude-.00002)*u_cym_basin.z;
+    vec2 slope=vec2(dot(z,dx),dot(z,dy))/max(amplitude,.00000001)*u_cym_basin.z;
+    if(u_cym_basin.w>.5 && u_cym_basin.w<1.5) {height=z.x*u_cym_basin.z;slope=vec2(dx.x,dy.x)*u_cym_basin.z;curvature=lap.x;}
+    // Smooth bounded optical relief: the physical modal state is untouched.
+    // Regularized quadrature norm avoids cusps at cancellation; raw-height view stays signed.
+    float compression=1.+abs(height)/.065;
+    height/=compression;slope/=compression*compression;
+    return vec4(height,slope,curvature*u_cym_basin.z/(compression*compression));
+}
+float cym_stone_noise(vec2 p) {
+    vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+    float a=fract(sin(dot(i,vec2(127.1,311.7)))*43758.5453);
+    float b=fract(sin(dot(i+vec2(1,0),vec2(127.1,311.7)))*43758.5453);
+    float c=fract(sin(dot(i+vec2(0,1),vec2(127.1,311.7)))*43758.5453);
+    float d=fract(sin(dot(i+vec2(1,1),vec2(127.1,311.7)))*43758.5453);
+    return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);
+}
+vec3 cym_stone(vec2 p) {
+    vec3 base=u_cym_stone_colors_on==1 ? u_cym_stone_colors[0] : vec3(.009,.012,.019);
+    vec3 mineral=u_cym_stone_colors_on==1 ? u_cym_stone_colors[1] : vec3(.64,.71,.77);
+    float cloud=cym_stone_noise(p*3.7),detail=cym_stone_noise(p*17.);
+    float vein=pow(1.-abs(sin((p.x*.68+p.y)*13.+cloud*4.+detail*.6)),18.);
+    float hair=pow(1.-abs(sin((p.x*.68+p.y)*13.+cloud*4.+detail*.6+.20)),36.);
+    if(u_cym_style.x<.5)return base*(.6+.6*cloud)+mineral*(vein*.025+hair*.012);
+    return mix(base*.9,mineral*(.32+.25*cloud),.32+.14*detail)+mineral*(vein*.38+hair*.15);
+}
+vec3 cym_water(vec2 p) {
+    // Deliberate table view: a shallow rectangular pool floating in dark space,
+    // jewelled nodes, fluid glints and submerged copper caustics.
+    float aspect=u_cym_basin.x/u_cym_basin.y;
+    float yaw=u_cym_camera.x,pitch=u_cym_camera.y;
+    vec3 target=vec3(u_cym_pan.x,0.,u_cym_pan.y);
+    float distance=u_cym_camera.z*max(1.,1./max(aspect,.5));
+    vec3 eye=target+distance*vec3(sin(yaw)*cos(pitch),sin(pitch),cos(yaw)*cos(pitch));
+    mat3 camera=journey_view(eye,target,0.);
+    vec3 ray=normalize(camera*vec3(p,1.08));
+    float t=-eye.y/ray.y;
+    vec2 point=(eye+ray*t).xz;
+    vec2 size=vec2(1.12,1.12/max(aspect,.5));
+    vec2 q=point/(size*2.)+.5;
+    vec3 background=cym_pigment(0)*(.12+.6*exp(-dot(p,p)*2.));
+    if(t<0.)return background;
+    float edge=max(abs(point.x)/size.x,abs(point.y)/size.y);
+    float bevel=exp(-pow((edge-1.)*55.,2.));
+    if(edge>1.) {
+        float frameMask=1.-smoothstep(1.04,1.11,edge);
+        float machining=.5+.5*sin(point.x*280.+point.y*90.);
+        vec3 frame=cym_pigment(4)*(.5+.14*machining)+cym_pigment(2)*bevel*.22;
+        frame+=cym_pigment(3)*exp(-pow((edge-1.025)*220.,2.))*.65;
+        return mix(background,frame,frameMask);
+    }
+    vec4 field=cym_field(q);
+    // Three bounded refinements give surface relief/parallax with no second solver.
+    for(int j=0;j<3;j++) {
+        t=(field.x-eye.y)/ray.y;point=(eye+ray*t).xz;q=point/(size*2.)+.5;
+        field=cym_field(clamp(q,0.,1.));
+    }
+    if(any(lessThan(q,vec2(0))) || any(greaterThan(q,vec2(1))))return background;
+    vec3 normal=normalize(vec3(-field.y/(size.x*2.),1.,-field.z/(size.y*2.)));
+    vec3 reflected=reflect(ray,normal);
+    float fresnel=.035+.65*pow(1.-max(0.,dot(normal,-ray)),5.);
+    vec3 keyLight=normalize(vec3(cos(u_cym_style.y)*.85,1.15,sin(u_cym_style.y)*.85));
+    float light=max(0.,dot(normal,keyLight));
+    float glint=pow(max(0.,dot(reflected,normalize(vec3(-.4,.8,-.8)))),u_cym_material>1.5 ? 35. : 90.);
+    float second=pow(max(0.,dot(reflected,normalize(vec3(.9,.4,.2)))),120.);
+    float caustic=pow(.5+.5*sin(q.x*38.+field.y*7.+sin(q.y*23.-field.z*6.)),12.)
+        *pow(.5+.5*sin(q.y*31.-field.z*8.),4.);
+    float amplitude=clamp(field.x*7.,0.,1.);
+    vec3 water=mix(cym_pigment(0),cym_pigment(1),.22+.65*light);
+    water+=cym_pigment(3)*caustic*(.03+.16*amplitude)*(1.-fresnel);
+    // Authored light-box reflections bend with modal normals, not an injected wave.
+    vec2 env=reflected.xz/max(.25,abs(reflected.y));
+    vec2 lightUV=mat2(cos(u_cym_style.y),sin(u_cym_style.y),-sin(u_cym_style.y),cos(u_cym_style.y))*env;
+    float strip=exp(-pow((lightUV.x+.18)*18.,2.))*exp(-pow((lightUV.y+1.2)*.8,2.));
+    float crossLight=exp(-pow((env.y-.7)*12.,2.))*exp(-env.x*env.x*.6);
+    float fineLight=exp(-pow((lightUV.x-.38)*26.,2.))*exp(-pow((lightUV.y+.8)*.8,2.));
+    vec3 environment=cym_pigment(0)*.35+cym_pigment(2)*(strip*.58+fineLight*.16);
+    environment+=cym_pigment(3)*crossLight*.045;
+    float edgeDepth=1.-exp(-min(min(q.x,1.-q.x),min(q.y,1.-q.y))*30.);
+    water*=.32+.68*edgeDepth;
+    // Bed light and refracted micro-caustics reveal water depth and pressure ridges.
+    water+=cym_pigment(2)*caustic*(.035+.11*amplitude)*edgeDepth;
+    float ridge=1.-exp(-length(field.yz)*3.5);
+    // Thin refracting water above a textured bed, with optical absorption separate from physics.
+    vec2 bed=q+field.yz*.08;
+    float path=clamp(u_cym_depth/.005,.2,5.)/max(.35,dot(normal,-ray));
+    float transmission=exp(-path*.38);
+    vec3 floorColor=cym_stone(bed);
+    float focusing=pow(clamp(-field.w*.25,0.,1.),2.);
+    // Local curvature focusing is an optical approximation, not a second wave solver.
+    floorColor+=cym_pigment(3)*focusing*(.15+.25*caustic);
+    water=mix(water*.24,floorColor,transmission*.88)*(.55+.45*edgeDepth);
+    water+=cym_pigment(2)*focusing*.13;
+    water+=cym_pigment(1)*(.014+.055*light)+cym_pigment(2)*ridge*.085;
+    if(u_cym_material>.5 && u_cym_material<1.5)water=mix(water,environment,.65);
+    if(u_cym_material>1.5)water=mix(water,cym_pigment(1)*(.08+.4*amplitude),.7);
+    water=mix(water,environment,.15+fresnel*.45)+cym_pigment(2)*(glint*.32+second*.12);
+    float rim=pow(1.-min(min(q.x,1.-q.x),min(q.y,1.-q.y))*2.,35.);
+    water+=cym_pigment(3)*rim*.32;
+    vec2 electrode=(q-u_cym_actuator)*vec2(1.,1./max(aspect,.5));
+    water+=cym_pigment(3)*exp(-dot(electrode,electrode)*6000.)*.3;
+    // Sparse timed pigment marks: optical displacement only, NOT advected fluid.
+    // Birth/spreading is presentation, independent of audio; slopes provide real surface cues.
+    if(u_cym_view.y>0. && u_cym_basin.w<1.5) {
+        float clock=max(0.,u_drift_time-u_cym_view.z);
+        vec2 tracerUV=q+clamp(cym_optical_motion,vec2(-.035),vec2(.035));
+        for(int i=0;i<3;i++) {
+            float birth=floor((clock-float(i)*10.)/30.)*30.+float(i)*10.;
+            float age=clock-birth;
+            if(birth<0. || age>24.)continue;
+            float id=birth/10.;
+            vec2 center=vec2(.20+.60*fract(sin(id*17.3+2.1)*437.1),.20+.60*fract(sin(id*31.7+1.3)*321.9));
+            vec2 d=tracerUV-center;
+            float radius=.014+.009*min(age,14.);
+            float radial=length(d);
+            float angle=atan(d.y,d.x)-u_cym_style.z*age*.8*exp(-radial*radial/(radius*radius*3.));
+            float scallop=1.+.15*sin(angle*3.+id)+.07*sin(angle*7.-id);
+            float spot=exp(-dot(d,d)/(radius*radius*scallop));
+            vec2 swirlUV=vec2(cos(angle),sin(angle))*radial/max(radius,.001);
+            float plume=cym_stone_noise(swirlUV*3.8+vec2(id*2.4,id*7.1));
+            float threads=pow(smoothstep(.25,.72,plume),2.);
+            float halo=exp(-dot(d,d)/(radius*radius*2.6))*(.18+.22*threads);
+            float fade=smoothstep(0.,.65,age)*(1.-smoothstep(17.,24.,age));
+            vec3 pigment=u_cym_dye_colors_on==1 ? u_cym_dye_colors[i%2] : (i%2==0 ? vec3(.95,.19,.055) : vec3(.64,.20,.95));
+            float coverage=clamp((spot*(.18+.52*threads)+halo*.75)*fade*u_cym_view.y,0.,.68);
+            water=mix(water,pigment*(.38+.55*light)+environment*.12,coverage);
+        }
+    }
+    if(u_cym_basin.w>1.5 && u_cym_basin.w<2.5)water=mix(cym_pigment(0),cym_pigment(2),1.-exp(-abs(field.x)*25.));
+    if(u_cym_basin.w>2.5)water=normal*.5+.5;
+    return water/(vec3(1.)+water*.25);
+}
+
+vec4 scene_frame()
 {
     bool directed = u_directed == 1;
     bool held_plasma = u_debug_state >= 31.5 && u_debug_state < 35.5;
@@ -4613,6 +5410,7 @@ void main()
     // Correct for the window's aspect ratio.
     vec2 p = uv - 0.5;
     p.x *= u_resolution.x / u_resolution.y;
+    p=main_carry(p);
     if (directed) {
         float warp=(u_handoff.x>.5 ? 0. : u_world_warp)*(.12+.12*clamp(u_scale+u_flux,0.,1.));
         float angle=warp*exp(-dot(p,p)*1.2)*sin(length(p)*3.+u_time*.12);
@@ -4620,16 +5418,15 @@ void main()
         p*=1.+warp*(.6-length(p)*.3);
     }
 
+    if (u_debug_state > 36.5 && u_debug_state < 37.5) {return vec4(cym_water(p),1.);}
     if (u_debug_state > 35.5 && u_debug_state < 36.5)
     {
-        fragColor = vec4(isolated_galaxy_scene(p), 1.0);
-        return;
+        return vec4(isolated_galaxy_scene(p), 1.0);
     }
 
     if (debug_state > 2.5 && debug_state < 3.5)
     {
-        fragColor = vec4(isolated_cosmic_scene(p, vec3(0.0), 0.0, 1.0)+stellar_layers(p), 1.0);
-        return;
+        return vec4(isolated_cosmic_scene(p, vec3(0.0), 0.0, 1.0)+stellar_layers(p), 1.0);
     }
 
     vec2 screen_p = p;
@@ -5008,7 +5805,7 @@ float geo_mandala = mix(geo_radial, geo_facet,
 );
 
 // Fine crystalline detail: flux adds high-frequency structure.
-float geo_detail = fbm(q * (6.0 + flux * 10.0) + vec2(t * 0.3, -t * 0.2));
+float geo_detail = geometric_weight>0. ? fbm(q * (6.0 + flux * 10.0) + vec2(t * 0.3, -t * 0.2)) : 0.;
 float geo_crystalline = geo_mandala * (1.0 - flux * 0.25)
     + geo_detail * flux * 0.12;
 
@@ -5387,6 +6184,11 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
 
     vec3 before_artifacts = color;
 
+    vec3 material_mix=selected_materials()*(1.-u_echo_weave);
+    float new_weight=dot(u_new_materials,vec3(1.));
+    if(new_weight>0.) material_mix=selected_materials()*max(0.,1.-u_echo_weave-new_weight);
+    bool sibling_replace=material_mix.y+material_mix.z+u_echo_weave+new_weight>0.;
+    if(material_mix.x>0. || !sibling_replace) {
     // Secondary morphology variation: slowly-evolving parameters that
     // let the living artifacts drift between different structural
     // families (blobs, petals, rings, shards, eyes, lattice) without
@@ -5516,9 +6318,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     color += art_accent * art_edge * effect(1) * (0.35 + geometric_weight * 0.30)
         * (1.0-water_takeover*.80);
 
-    vec3 material_mix=selected_materials()*(1.-u_echo_weave);
-    float new_weight=dot(u_new_materials,vec3(1.));
-    if(new_weight>0.) material_mix=selected_materials()*max(0.,1.-u_echo_weave-new_weight);
+    }
     vec3 sibling_delta=vec3(0.);
     if(material_mix.y+material_mix.z+u_echo_weave+new_weight>0.) {
         vec3 living=color-before_artifacts;
@@ -5846,5 +6646,23 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         vec4 passage=u_journey.x>4.5 ? vec4(0) : journey_warp(screen_p,max(0.,sin(share*3.14159265))*.22);
         color=color*(1.-passage.a)+passage.rgb;
     }
-    fragColor = vec4(color, 1.0);
+    return vec4(color, 1.0);
+}
+
+// Optical crossfade blends complete endpoint images after each scene's own shading.
+// The loop keeps one copy of the existing scene evaluator and allocates no resources.
+void main(){
+    vec2 region_p=gl_FragCoord.xy/u_resolution-.5;region_p.x*=u_resolution.x/u_resolution.y;
+    bool optical=u_directed==1 && u_debug_state==0. && u_main_transition.x<-.5;
+    float phase=clamp(u_main_transition.y,0.,1.);
+    vec4 first=vec4(0.);
+    for(int pass=0;pass<2;pass++){
+        main_weights(region_p);
+        if(optical)main_pair_weights(phase>=1. ? 1. : float(pass));
+        vec4 frame=scene_frame();
+        if(pass==0)first=frame;
+        else first=mix(first,frame,phase);
+        if(!optical || phase<=0. || phase>=1.)break;
+    }
+    fragColor=first;
 }

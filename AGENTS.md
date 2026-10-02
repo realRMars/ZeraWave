@@ -1,302 +1,268 @@
-# ZeraWave Engineering Doctrine
+# ZeraWave engineering and creative working agreement
 
-Version: 1.0
+Version: 1.1 — 2026-09-30
 Project: ZeraWave
 Root: `C:\ZeraWave`
 
 ## 1. Mission
 
-ZeraWave is a music-reactive visualizer that transforms real audio into a living visual experience.
+ZeraWave is a music-reactive visual instrument with character, movement, emotion,
+surprise and sustained visual interest. Technical correctness and creative quality
+are both completion requirements. Smooth rendering of an uninteresting idea does
+not satisfy an expressive scene assignment.
 
-The engineering goal is to build upon the existing project incrementally, preserving working systems while expanding capability.
-
-Correctness, continuity, and maintainability take priority over coding speed.
+Build on the working project while developing the complete experience requested.
+Performance, continuity and maintainability support that experience; they are not
+a reason to default to the smallest, quietest or least ambitious visual.
 
 ## 2. Source of Truth
 
-The current repository is the source of truth.
+The user's latest direction and explicit assignment determine scope. Read the
+current code for implemented behavior, ROADMAP.md for priorities and
+ZERAWAVE_HANDOFF.md for checkpoint status. Historical documents and task notes
+record their own time and scope; their restrictions do not govern later tasks.
 
-Before proposing or implementing a change:
-
-1. Inspect the relevant existing files.
-2. Identify current interfaces, dependencies, and behavior.
-3. Check whether the required functionality already exists.
-4. Reuse existing modules wherever practical.
-5. Ask for clarification when important context is missing.
-
-Never assume a module is absent because it was not mentioned in a prompt.
-
-Never recreate a working system simply because a new implementation seems cleaner.
+Inspect relevant files, interfaces, callers and existing techniques before editing.
+Reuse working systems where they fit. When important information cannot be
+inferred, ask a focused question and continue independent authorized work.
+Make ordinary artistic and implementation decisions within the brief.
 
 ## 3. No Architectural Drift
 
-Do not introduce new architecture, duplicate modules, abstractions, frameworks, or dependencies without a demonstrated need.
+Extend `app/visuals/renderer.py` and the existing audio, parameter, catalog and
+Studio systems. Avoid duplicate renderers, parallel inspectors, unrequested
+frameworks, stylistic refactors and unrelated module relocation.
 
-In particular:
+New assets, geometry, camera behavior, shader helpers, render passes, bounded
+buffers, materials, spatial effects and effect classes can be necessary parts of
+an assigned scene. They are allowed within that assignment; they do not
+automatically constitute an architectural replacement. Explain meaningful design
+tradeoffs and implement the solution that serves the visual result. Do not force
+everything into one shader or reduce the art to avoid extending existing systems.
 
-- `app/visuals/renderer.py` is the existing renderer and must be inspected before any renderer-related work.
-- Do not create a second renderer, parameter system, audio pipeline, or shader interface that duplicates existing functionality.
-- Do not relocate or rename working modules as part of unrelated tasks.
-- Do not refactor working code merely for stylistic preference.
-
-If an existing design presents a genuine limitation, explain the limitation and propose the smallest viable change before implementing it.
+Replacing the overall renderer/audio architecture or adding dependencies outside
+the authorized scope still requires a concrete reviewable proposal.
 
 ## 4. Preserve Working Systems
 
-Existing tested functionality is valuable project state.
+Preserve unrelated working features, user files, tests and other agents' edits.
+Check callers before interface changes and provide migration for changed storage.
+Do not retune audio normalization from a single song or delete tests to hide failures.
 
-Agents must not casually:
+A requested redesign authorizes changing the candidate scene's geometry, lighting,
+motion, composition and authored palette. Its previous appearance is a comparison
+reference, not a requirement for identical pixels. Preservation checks protect
+unaffected scenes, valid saved data and shared behavior.
 
-- Delete or overwrite existing files.
-- Remove tests because they are inconvenient.
-- Replace working implementations wholesale.
-- Change established interfaces without checking their callers.
-- Retune working audio normalization based on a single song.
-- Introduce breaking changes without identifying their impact.
-
-File deletion, major refactoring, and architectural replacement require explicit user approval.
+Deletion of existing project files, unrelated major refactoring and architectural
+replacement require user authorization. Authorization already given in the task
+counts; do not ask again for the same scope. Never discard uncommitted user work.
 
 ## 5. Incremental Development
 
-Work in small, independently verifiable steps.
+Implement in manageable steps while continuing through the whole authorized task.
 
-Required workflow:
+1. Inspect the relevant code and current working changes.
+2. State the intended visible result and a brief implementation approach.
+3. Build, inspect and iterate on the complete assigned feature.
+4. Run relevant checks, inspect motion and review the resulting diff.
+5. Provide a usable Studio preview and honest handoff for user review.
 
-1. Inspect.
-2. Explain the intended change.
-3. Identify the exact files to modify.
-4. Make one small logical change.
-5. Run the relevant standalone test(s).
-6. Inspect the output and resulting diff.
-7. Report results and any remaining concerns.
-8. Request approval before committing.
+Do not wait for user approval after each edit, technique, test or internal step.
+For scene development, "one addition at a time" means one complete scene for
+viewer review. That scene may need several assets and reusable effects. This is
+not a one-effect, one-file or one-shader limit.
 
-Do not bundle unrelated improvements into the same change.
-
-Do not continue to the next implementation step until the current step has been reviewed.
+Pause at the assignment's actual review boundary, such as user acceptance before
+Main integration. Explicit authorization may already include integration.
+Keep unrelated improvements outside the task. Commit rules are in section 10.
 
 ## 6. Testing Requirements
 
-ZeraWave currently uses standalone Python test scripts.
+Use the project environment and existing standalone `*_test.py` scripts.
+Do not introduce pytest or duplicate test infrastructure merely for convenience.
 
-- Do not install or introduce pytest unless explicitly requested.
-- Prefer existing `*_test.py` scripts.
-- Extend existing tests when appropriate instead of creating duplicate test infrastructure.
-- Do not claim a test passed unless it was actually executed and its result inspected.
-- Distinguish between tests that passed, tests that failed, and tests that were not run.
-- A successful import or syntax check does not prove runtime correctness.
-- A mocked test does not prove real audio or graphics integration.
+Choose meaningful checks for the change. Use focused checks during iteration;
+run broader regressions when shared changes or failures justify them and at the
+appropriate completion point. A documentation correction does not require the
+application suite. Avoid repeatedly running exhaustive suites for minor art tweaks.
 
-For audio-reactive graphics, preserve the distinction between:
-- Synthetic signal tests
-- Live audio tests
-- Renderer/shader tests
-- End-to-end real-time visual tests
+Report tests actually executed, failures and checks not run. Distinguish syntax,
+mocked, synthetic, GPU, decoded replay, controlled-live and natural live-music
+evidence. None alone establishes all the others.
+
+For creative work, inspect sequences or motion as well as captures. Judge
+composition, visible musical response, evolving behavior and extended interest.
+Nonblank frames, numerical color changes and passing regressions do not establish
+a compelling scene. The user owns artistic acceptance; testing is not a reason
+to stop before the requested creative work is implemented.
+
+Measure resource cost at stated conditions. Optimize avoidable work while keeping
+the intended visual quality. Do not claim frame-rate guarantees from shader time.
 
 ## 7. Audio Architecture
 
-Maintain clear separation of responsibilities:
+Keep capture, FFT, normalization and onset analysis in `app/audio/`.
+Keep musical interpretation, visual mapping and presentation in `app/visuals/`.
+The renderer owns graphics resources, drawing and the window lifecycle.
 
-`app/audio/`
-- Audio capture and analysis
-- FFT and frequency-band calculations
-- Normalization and smoothing
-- Onset/transient detection
-
-`app/visuals/`
-- Mapping audio signals into visual meaning
-- Visual parameter definitions
-- Visual simulation and presentation
-- Existing renderer and shader integration
-
-Renderer internals:
-- Graphics resource management
-- Shader execution
-- Geometry and drawing
-- Window and rendering lifecycle
-
-Audio analysis should not become coupled to graphics implementation details without a demonstrated requirement.
-
-Visual mapping should remain independently testable.
+Reuse shared audio features for new visual expression. Keep mapping independently
+testable and avoid coupling analysis to a specific scene.
 
 ## 8. Renderer and Shader Integrity
 
-The existing renderer and shaders must be inspected before changes.
+Inspect lifecycle, parameter interfaces, uniforms, callers and resource ownership.
+Preserve working window management, loading, event handling and cleanup unless
+the task requires a change. Extend the existing renderer rather than creating
+another playback engine.
 
-Before modifying renderer behavior, identify:
-
-- Current renderer lifecycle
-- Existing parameter interface
-- Existing shader uniforms
-- Current rendering behavior
-- Existing tests and callers
-
-Preserve working window management, shader loading, geometry, event handling, buffer swapping, and cleanup unless the task specifically requires changing them.
-
-Prefer extending the existing renderer and shader interface over creating a parallel system.
+Use appropriate geometry, assets, camera transforms or additional passes when
+they improve the assigned scene. Bound persistent resources and handle resize,
+restart and cleanup. Existing scene-specific coordinate systems do not dictate
+the composition or representation of every future world.
 
 ## 9. Dependencies and Environment
 
-Target environment:
+Target Windows, PowerShell, VS Code and the existing Python `.venv`.
+The development GPU is an NVIDIA RTX 3070 Laptop GPU; measure on the actual device.
 
-- Windows
-- PowerShell
-- VS Code
-- Python virtual environment: `.venv`
-- Git
-- NVIDIA RTX 3070 8GB
-
-Do not install packages, alter the environment, or introduce new dependencies without explaining why and receiving approval.
-
-Use the existing virtual environment for project tests.
-
-Avoid changes that unnecessarily require cloud services, paid APIs, or external infrastructure.
+Use existing tools and libraries first. Explain and obtain authorization before
+installing packages or changing the environment when not already authorized.
+Avoid unnecessary paid services or external infrastructure.
 
 ## 10. Git and Checkpoints
 
-Git checkpoints are part of the development process.
+Inspect Git status and preserve unrelated changes. Before an authorized commit,
+review the exact diff, run `git diff --check` and relevant validation, and report
+the checkpoint contents. Never stage another worker's changes without authorization.
 
-Before changes, inspect Git status when practical.
-
-Before committing:
-
-- Review the exact diff.
-- Run `git diff --check`.
-- Run relevant tests.
-- Confirm unrelated changes are not included.
-- Report the proposed commit contents.
-
-Never discard, reset, overwrite, or clean uncommitted user work without explicit approval.
-
-Do not commit without explicit user approval.
-
-The desired checkpoint state is a clean working tree.
+Do not commit or push without user authorization; authorization persists across
+turns. A commit is local, and a push updates GitHub. Do not reset or clean user
+work to obtain a clean tree. Preserve the frozen portable; new builds require an
+explicitly assigned release task and a new output path.
 
 ## 11. Agent Honesty and Reporting
 
-Agents must accurately report what they did.
-
-Never claim to have:
-- Inspected a file that was not inspected.
-- Run a test that was not executed.
-- Verified behavior that was not observed.
-- Completed a task that remains partially implemented.
-
-If something is uncertain, say so.
-
-If a tool fails, report the failure rather than silently substituting an assumption.
-
-Do not hide warnings, regressions, skipped tests, or incomplete work.
+Report only files inspected, changes made, tests executed and behavior observed.
+Separate implementation, automated checks and user acceptance. Explain limitations
+and incomplete requested work plainly; do not describe a basic prototype as a
+finished creative scene when major requested behavior is absent.
 
 ## 12. Scope Control
 
-Follow the user's immediate task.
+Deliver the user's complete requested outcome. A scene assignment includes the
+supporting art, assets, effects, palettes, controls and integration within Studio
+needed to make that scene enjoyable and reviewable.
 
-Do not autonomously expand scope into:
-- Unrequested refactoring
-- New frameworks
-- New renderer architecture
-- Dependency upgrades
-- File cleanup
-- Broad project restructuring
+Original materials, spatial techniques and new effect classes are welcome when
+they serve the brief. Register useful reusable components in the existing library,
+with clear compatibility, names and controls. Avoid unrelated frameworks, cleanup,
+dependency upgrades and project restructuring.
 
-When cleanup appears beneficial, first provide:
-- The exact files involved
-- Their current purpose
-- Evidence they are redundant or obsolete
-- Risks of removal
-- A proposed safe cleanup plan
-
-Wait for approval before deleting files.
+For cleanup, inspect current purpose and references, provide the concrete removal
+scope and preserve required evidence before requesting any missing authorization.
 
 ## 13. AI Agent Operating Protocol
 
-Before implementing a task, provide a brief plan containing:
+Give a short plan suited to the task, then do the work. Keep the user informed of
+meaningful findings, design choices and blockers. Do not turn ordinary creative
+choices into repeated permission requests or stop after the first technical pass.
 
-- Existing files inspected
-- Current behavior
-- Exact proposed change
-- Files expected to change
-- Test that will verify the change
+At completion report the visible result, new reusable components, Studio review
+steps, checks actually run, limitations and checkpoint status. Keep implementation
+detail proportional to what the user needs to review.
 
-If the task cannot be completed safely with the available context, stop and request the missing information.
+Complete and refine the assigned scene before starting another unassigned scene.
+A review gate ends that assignment's implementation phase, not each internal step.
 
-After implementation, report:
+### October 1 interview: builder and reviewer briefs
 
-- Files changed
-- Summary of changes
-- Tests actually executed and results
-- Known limitations or concerns
-- Git status
-- Recommended next step
+Source: Robert's context interview, 2026-10-01. Active batch: Cavern, Citadel,
+Magnetic/Arcs/Auroral, Marsh, Molten, then director/transitions and one integrated
+Robert review. This four-file consolidation is explicitly user-approved without
+separate Overseer approval; coordinating parent may resume the paused builder.
+This exception applies only to this consolidation, not future shared-doc edits.
+Internal iterations are autonomous in scope. Honest per-scene review target >=7.5; do not inflate scores.
 
-Do not independently move to the next task without review.
+Builder briefs state recognizable scene identity, specific present-input musical
+links, quiet behavior, sustained/event contrast, extended variety, reusable
+original effects/palettes/non-fade transitions and resource bounds. Depth/3D
+optional; generic appearance and weak musical connection equally fundamental
+failures. Steady BPM-linked flow is valid.
+
+Reviewer briefs bind hashes, baseline, artifact/time and evidence class.
+Assess identity/craft, musical connection, quiet/active/release range,
+continuity/variety and usability/performance limits; explain weaknesses and
+high-value corrections. A score is not user acceptance, full AV or lab validation.
+Stills/silent sequences do not establish continuous listening.
+
+Use small source-bound evidence packs, representative normal-time motion and
+affected held/entry/return cases with targeted checks. Reuse unchanged evidence
+with provenance. Recompile/recapture for changed risks; expensive startup probes
+must resolve a specific uncertainty. Integrated regression/review at batch
+boundary, broader checks when shared risk justifies them. Preserve failures;
+separate cold startup, warm lifecycle, GPU draw, whole-loop/capture cost and
+listening. Never stop unrelated sessions.
+
+Streams commonly last 1-2 hours, sometimes 4+ hours; inspect long-session continuity with
+bounded logs/descriptors and proportional soaks. Short clips do not establish
+multi-hour variety. Preserve richness, adapt quality before sustained crawl,
+derive tiers/LOD from measurement. No assumed FPS/device minimum.
 
 ## 14. Architectural Evolution
 
-This doctrine does not prohibit future redesign.
-
-Architecture may evolve when actual requirements, observed limitations, or test results justify it.
-
-Any significant architectural change must include:
-- The problem being solved
-- Why the existing design is insufficient
-- Alternatives considered
-- Migration and regression risks
-- A reviewable implementation plan
-
-The objective is deliberate evolution, not permanent attachment to the first design.
+Architecture can evolve to support a demonstrated creative or engineering need.
+For a major replacement, explain the problem, alternatives, migration risks and
+reviewable implementation plan. Ordinary extensions described in sections 3 and
+8 can proceed within an assigned scene without a separate architecture task.
 
 ## 15. Prime Directive
 
-**Inspect before creating. Preserve before replacing. Test before claiming. Review before committing.**
-
-Build ZeraWave from the working project that exists—not from an imagined clean slate.
+**Inspect the project. Build the requested experience. Preserve unrelated work.
+Verify what changed. Let the user judge the art.**
 
 ## 16. Coordination and document ownership
 
-The user's current instructions and explicit assignments take precedence.
-These rules prevent conflicting edits, not ordinary progress within a task.
-
 - The user chooses direction and accepts visual results. The Overseer maintains
-  ROADMAP.md (sole plan), ZERAWAVE_HANDOFF.md (current checkpoint), README.md
-  (entry map), and shared policy in AGENTS.md. Treat ZERAWAVE_VISUAL_IDENTITY.md
-  as a shared design contract: propose changes unless assigned to edit it.
-- Workers read these shared documents but do not independently rewrite them.
-  Report proposed status/priority/policy changes to the user/Overseer in the
-  task result or an optional note. An explicit documentation assignment may
-  delegate named shared files; do not request permission again for that scope.
-- Workers may update feature-specific operating/technical documentation such as
-  DEVELOPMENT_STUDIO.md, TECHNIQUE_LIBRARY.md, PLAYER.md and maintenance contracts
-  when needed by their assigned change. Coordinate overlapping files first;
-  read the latest contents and preserve other workers' edits.
-- New visuals normally become reviewable in the existing Dev Studio, then receive
-  user review/refinement and Main integration when approved or already authorized.
-  Supplemental scripts are not a replacement for this workflow. Studio redesign
-  and commercial product work are not implied by adding a feature control.
-- Workers can carry out routine implementation, related tests and necessary
-  fixes within their assigned scope. The review gates in sections 5 and 13 mean
-  logical task/artistic/scope boundaries, not approval after every edit or test.
-  Existing explicit requirements for deletion, dependencies, major architectural
-  changes and commits remain. Previously granted user authorization still counts.
-- Optional notes belong in docs/agent-notes/<task-name>.md, one per task, not a
-  new root journal. A concise final chat report is sufficient for short tasks.
-  Notes contain scope/files, changes, checks actually run, evidence links,
-  unresolved issues and proposed handoff updates. Separate reported facts from
-  acceptance and proposals. Do not copy the roadmap or large logs into notes.
-- Notes are working evidence, not policy, approval, or a competing backlog.
-  Workers own only their task note; the Overseer promotes reviewed conclusions
-  into shared docs. Historical snapshots remain preserved records.
-- Before editing, inspect Git status and identify owned files. Never clean up,
-  stage, revert or commit another worker's changes. Do not start a conflicting
-  mutation while another worker relies on those files or processes.
+  ROADMAP.md (sole plan), ZERAWAVE_HANDOFF.md (checkpoint), README.md (entry map),
+  AGENTS.md and ZERAWAVE_VISUAL_IDENTITY.md (shared direction).
+- Workers can update assigned code, feature instructions, technique ownership,
+  relevant maintenance contracts and their task notes. Shared planning changes
+  normally go to the Overseer; an explicit documentation assignment delegates
+  that scope without another permission request.
+- Shared-document ownership does not prevent implementing the user's latest
+  assignment. Report stale policy and follow the current user instruction.
+- New visuals become reviewable in the existing Dev Studio, followed by user
+  refinement and Main integration when approved or already authorized. Add useful
+  review controls within the workflow. A general Studio redesign or paid Studio
+  product is a separate task.
+- A complete world has its own identity, meaningful motion, musical behavior and
+  variety over an extended hold. Develop the new assets, materials, spatial
+  treatments, palettes or effect classes needed to deliver it. When the brief
+  calls for library expansion, ship usable reusable components as part of the
+  scene rather than leaving them as optional suggestions.
+- Optional notes belong in `docs/agent-notes/<task-name>.md`, one per task.
+  Record changes, actual checks, evidence, open issues and proposed status updates.
+  No mandatory journals or duplicate backlogs. Notes are evidence, not policy.
+- Read the latest file before editing overlapping work; coordinate conflicts.
+  Do not clean, revert, stage or commit another worker's edits without authorization.
+  Do not stop unrelated user sessions or processes for your tests.
 
 ## 17. Editable artistic colors
 
-For new or extended visuals, consider meaningful editable color targets through
-the existing color_controls declarations, generated inspector and live transport.
-Preserve authored defaults, shading, geometry and musical response; use stable
-target/role IDs and clear artistic names. Document intentional exceptions or
-unsupported controls. Verify applicable controls through Dev Studio. Expose useful
-artistic choices, not every computed shader expression. Existing-world rollout is
-assigned in reviewed batches; this rule is not authorization for a mass rewrite.
+New color-bearing visuals must expose meaningful source pigments and gradients
+through the existing declarations, generated inspector and live transport.
+Document genuine exceptions; spatial-only effects may inherit material colors.
+Use stable target/role IDs, clear artistic labels and correct scope.
+
+Design authored colors and named palette families as part of a scene's identity.
+When the brief calls for evolving palettes, implement visible, controllable
+evolution and useful sharing across compatible targets. Preserve explicit manual
+edits, hold/reset behavior and saved sessions. Map compatible artistic roles;
+do not assume all effects need the same number or meaning of colors.
+
+A color edit should preserve the target's shading, geometry, audio response and
+history unless the control explicitly changes those things. This color-editing
+contract does not prohibit redesigning those systems in an assigned visual task.
+Missing roles fall back to authored values. Build on the completed inspector
+rollout; future scenes must not need a separate editor.

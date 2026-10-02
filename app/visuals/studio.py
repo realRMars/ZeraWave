@@ -13,13 +13,16 @@ import time
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
+from transition_catalog import RECIPES,SCENES,description as transition_description,validate_settings,compatible
 from color_controls import validate_colors, targets_for, scene_colors
 from studio_color_link import ColorLink
 from color_inspector import ColorInspector
+from cymatics_session import validate as validate_cymatics, defaults as cymatics_defaults
+from cymatics_controls import CymaticsControls
 
 from technique_library import entries as library_entries, search as search_library
 from live_visual_test import LIVE_STATES
-from preview_layers import (ORBITAL_LAYERS, EFFECTS, MATERIALS, MODES, default_profile, validate_layers, world_for_state, material_trio_profile, material_quartet_profile, WORLDS, NEW_MATERIALS, SPATIAL_TREATMENTS, ENVELOPERS, STELLAR_LAYERS)
+from preview_layers import (MOLTEN_TREATMENTS, MARSH_TREATMENTS, VEIL_TREATMENTS, ARC_TREATMENTS, MAGNETIC_TREATMENTS, TOWER_TREATMENTS, MINERAL_TREATMENTS, ORBITAL_LAYERS, EFFECTS, MATERIALS, MODES, default_profile, validate_layers, world_for_state, material_trio_profile, material_quartet_profile, WORLDS, NEW_MATERIALS, SPATIAL_TREATMENTS, ENVELOPERS, STELLAR_LAYERS)
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEEDS = {'Real time': 1., '2×': 2., '6×': 6., '12×': 12., 'Fastest': 0.}
@@ -32,6 +35,13 @@ DEFAULTS = dict(state='water', source='Test track', track='', speed='12×',
 # Stable keys are session IDs; labels can evolve independently. Add descendants
 # here at any depth. A cycle names an existing authored meld for a whole branch.
 WORLD_TREE = {
+    'cymatics': dict(label='Cymatics',children={'water':dict(label='Water — Resonance basin',state='cymatics')}),
+    'experimental': dict(label='Experimental / unfinished', children={
+        'transition_study':dict(label='Legacy transition study (Demo)',state='transition'),
+        'lodestone':dict(label='Lodestone Field (Experimental)',state='lodestone_experimental'),
+        'stormglass':dict(label='Stormglass Network (Experimental)',state='stormglass_experimental'),
+        'folded_aurora':dict(label='Folded Aurora (Experimental)',state='folded_aurora_experimental'),
+    }),
     'organic': dict(label='Organic', cycle='organic', children={
         'membrane': dict(label='Membrane', state='membrane'),
         'roots': dict(label='Roots', state='roots'),
@@ -43,7 +53,6 @@ WORLD_TREE = {
         'canvas': dict(label='Planet canvas', state='canvas'),
         'galaxy': dict(label='Galaxy', state='galaxy'),
     }),
-    'transition': dict(label='Transition', state='transition'),
     'elements': dict(label='Elements', children={
         'plasma': dict(label='Plasma', cycle='plasma', children={
             'magnetic': dict(label='Magnetic Bloom', state='magnetic'),
@@ -160,9 +169,11 @@ def validate_session(data):
     values = {key: data.get(key, value) for key, value in DEFAULTS.items()}
     selection = (path_for_state(values['state']) if data['version'] == 1
                  else data.get('selection'))
+    if selection == ['transition']:selection=['experimental','transition_study']
     if selection == ['cosmic', 'geometry']:
         selection = ['cosmic', 'canvas']
     states = selection_states(selection)
+    values['transitions']=validate_settings(data.get('transitions'))
     values['layers'] = validate_layers(data.get('layers', {}) if data['version'] == 3 else {})
     if data.get('material_isolation'):
         values['material_isolation'] = validate_isolation(data['material_isolation'])
@@ -171,6 +182,7 @@ def validate_session(data):
     if 'color_overrides' in data:
         clean_colors = validate_colors(data['color_overrides'])
         if clean_colors: values['color_overrides'] = clean_colors
+    values['cymatics']=validate_cymatics(data.get('cymatics'),stored=True)
     preview_profiles(values)
     values['selection'] = list(selection)
     values['state'] = states[0]
@@ -194,6 +206,7 @@ def validate_session(data):
 
 def effect_section(key):
     """Presentation only; retain catalog IDs, compatibility and combined order."""
+    if EFFECTS[key][1]=='Transitions':return 'Transitions'
     if key in MATERIALS: return 'Materials'
     if EFFECTS[key][1] == 'Envelopers': return 'Envelopers'
     if EFFECTS[key][1] in ('Material', 'Spatial', 'Sky effects'): return 'Shared FX'
@@ -244,13 +257,33 @@ def comparison_runs(values):
             for label, palette in (('A', 'authored'), ('B', 'soft-dream'))]
 
 
+def color_scope_for_states(states):
+    if len(states)==1:return states[0]
+    experimental={'lodestone_experimental','stormglass_experimental','folded_aurora_experimental','transition'}
+    return 'experimental' if states and set(states)<=experimental else 'blend'
+
+
 def command(values, output):
     selection = values['selection'] if 'selection' in values else path_for_state(values['state'])
     states = selection_states(selection)
+    cfg=validate_settings(values.get('transitions'))
+    if cfg['pair']:
+        states=[next(k for k,v in LIVE_STATES.items() if v==state) for state in cfg['pair']]
+        world=world_for_state(cfg['pair'][0])
+        isolated=cfg['isolate'].get('pair') or cfg['isolate'].get(world) or cfg['isolate'].get('blend')
+        if isolated and not compatible(isolated,*cfg['pair']):raise ValueError(RECIPES[isolated][0]+': '+transition_description(isolated))
     palette = values.get('planet_palette', 'authored')
     if not isinstance(palette, str) or palette not in PLANET_PALETTES:
         raise ValueError('Unknown Planet Canvas palette.')
-    state_args = ['--state', states[0]]
+    if states==['cymatics']:
+        cfg=validate_cymatics(values.get('cymatics'),stored=True)
+        args=[sys.executable,'-X','utf8','-u',str(ROOT/'app/visuals/cymatics_preview.py'),'--config',json.dumps(cfg,separators=(',',':'))]
+        if cfg['source']=='track':args+=['--track',values['track']]
+        colors=scene_colors(validate_colors(values.get('color_overrides',{})),'cymatics')
+        args+=['--colors',json.dumps(colors,separators=(',',':'))]
+        if values['duration']!='Full track':args+=['--max-seconds',values['duration'].split()[0]]
+        return args
+    state_args = ['--state', states[0], '--transitions',json.dumps(cfg,separators=(',',':'))]
     if states == ['galaxy']:
         raw=str(values.get('galaxy_seed','7301'))
         if not raw.isdecimal() or not 0<=int(raw)<=4294967295:raise ValueError('Galaxy seed must be an integer from 0 to 4294967295.')
@@ -261,7 +294,7 @@ def command(values, output):
     # Park the saved experiment choice outside this single held form.
     if states == ['canvas']: state_args += ['--palette', palette]
     colors = validate_colors(values.get('color_overrides', {}))
-    color_scope = states[0] if len(states)==1 else 'blend'
+    color_scope = color_scope_for_states(states)
     if targets_for(color_scope):
         state_args += ['--colors', json.dumps(scene_colors(colors, color_scope), separators=(',', ':'))]
     if len(states) > 1: state_args += ['--states', *states]
@@ -315,6 +348,12 @@ class Studio:
         self.session_path = None
         self.layer_profiles = {}
         self.material_isolation = {}
+        self.transition_isolation={}
+        self.transition_pair=tk.BooleanVar(value=False)
+        self.transition_from=tk.StringVar(value=SCENES[26])
+        self.transition_to=tk.StringVar(value=SCENES[22])
+        self.transition_hold=tk.StringVar(value='12')
+        self.transition_duration=tk.StringVar(value='6')
         self.color_overrides = {}
         self.color_editor = None
         self.color_link = None
@@ -398,7 +437,7 @@ class Studio:
         self.rebuild_selectors()
         self.source_box = field(2, 'Input', 'source', SOURCES)
         self.track_box = field(3, 'Test track', 'track', [str(p) for p in available])
-        field(4, 'Replay speed', 'speed', tuple(SPEEDS))
+        self.speed_box=field(4, 'Replay speed', 'speed', tuple(SPEEDS))
         field(5, 'Test duration', 'duration', ('Full track','30 seconds','60 seconds'))
         ttk.Checkbutton(self.preview,text='Save frames and audio measurements',
                         variable=self.vars['captures']).grid(row=7,column=1,columnspan=2,sticky='w',pady=8)
@@ -427,6 +466,9 @@ class Studio:
         self.build_library()
         self.menus()
         root.protocol('WM_DELETE_WINDOW',self.close)
+        self.cymatics_tab=ttk.Frame(self.tabs,padding=12)
+        self.tabs.add(self.cymatics_tab,text='Cymatics')
+        self.cymatics_panel=CymaticsControls(self,self.cymatics_tab)
         root.after(200,self.poll)
 
     def build_library(self):
@@ -501,11 +543,16 @@ class Studio:
         self.library_detail.delete('1.0', 'end')
         self.library_detail.insert('1.0', text)
         self.library_detail.configure(state='disabled')
-        self.library_choose.configure(state='normal' if row and 'selection' in row else 'disabled')
+        self.library_choose.configure(text='Add to scene' if row and row['id'].startswith('effect:') else 'Choose for preview',state='normal' if row and ('selection' in row or row['id'].startswith('effect:')) else 'disabled')
 
     def choose_library_world(self):
         selected = self.library_list.selection()
         row = next((r for r in self.library_rows if selected and r['id'] == selected[0]), None)
+        if row and row['id'].startswith('effect:'):
+            key=row['id'].split(':',1)[1]
+            if self.layer_world() not in EFFECTS[key][2]:self.status.set('This effect is incompatible with the selected world.');return
+            self.effect_choice.set(EFFECTS[key][0]);self.add_layer();self.tabs.select(self.layers_tab)
+            self.sections.select(self.section_frames[effect_section(key)]);return
         if row and 'selection' in row:
             self.select(row['selection'])
             self.tabs.select(self.preview)
@@ -517,6 +564,8 @@ class Studio:
                       layers=validate_layers(self.layer_profiles))
         if self.material_isolation: values['material_isolation'] = dict(self.material_isolation)
         if self.color_overrides: values['color_overrides'] = validate_colors(self.color_overrides)
+        values['transitions']=self.transition_values()
+        values['cymatics']=self.cymatics_panel.settings(stored=True) if hasattr(self,'cymatics_panel') else cymatics_defaults()
         return values
 
     def select(self, selection):
@@ -563,9 +612,13 @@ class Studio:
         else:
             hint += ('\nPalette prototype: Planet Canvas only; independent of material.' if states == ['canvas'] else
                      '\nPalette prototype inactive. Select Cosmic / Planet canvas to review it.')
+        if states==['cymatics']:hint+='\nCymatics uses the Cymatics tab Input selector and runs in real time, initially muted.'
         self.selection_hint.set(hint)
 
     def refresh_palette(self):
+        cymatics=selection_states(self.selection)==['cymatics']
+        self.source_box.configure(state='disabled' if cymatics else 'readonly')
+        self.speed_box.configure(state='disabled' if cymatics else 'readonly')
         if selection_states(self.selection)==['galaxy']:self.galaxy_controls.pack(fill='x')
         else:self.galaxy_controls.pack_forget()
         active = selection_states(self.selection) == ['canvas']
@@ -606,10 +659,26 @@ class Studio:
         self.sections = ttk.Notebook(panel)
         self.sections.pack(fill='x')
         self.section_frames = {}
-        for name in ('Materials', 'Shared FX', 'World details', 'Envelopers', 'Palettes'):
+        for name in ('Materials', 'Shared FX', 'World details', 'Transitions', 'Envelopers', 'Palettes'):
             frame = ttk.Frame(self.sections, padding=8)
             self.sections.add(frame, text=name)
             self.section_frames[name] = frame
+        relations=self.section_frames['Transitions']
+        ttk.Label(relations,text='Scene relationships: Together chooses one compatible recipe per handoff. Cycle follows saved transition order. Materials and FX keep their own list order.',wraplength=590).pack(anchor='w')
+        row=ttk.Frame(relations);row.pack(fill='x',pady=3)
+        ttk.Checkbutton(row,text='Chosen scene pair',variable=self.transition_pair).pack(side='left')
+        for var in (self.transition_from,self.transition_to):
+            ttk.Combobox(row,textvariable=var,values=list(SCENES.values()),state='readonly',width=20).pack(side='left',padx=3)
+        row=ttk.Frame(relations);row.pack(fill='x')
+        for text,var in (('Rest (seconds)',self.transition_hold),('Handoff (seconds)',self.transition_duration)):
+            ttk.Label(row,text=text).pack(side='left');ttk.Entry(row,textvariable=var,width=5).pack(side='left',padx=4)
+        ttk.Button(row,text='Preview pair',command=self.preview_transition_pair).pack(side='left',padx=4)
+        row=ttk.Frame(relations);row.pack(fill='x',pady=3)
+        ttk.Button(row,text='Isolate selected transition',command=self.isolate_transition).pack(side='left')
+        ttk.Button(row,text='Restore transition list',command=self.restore_transitions).pack(side='left',padx=4)
+        ttk.Button(row,text='Return to selected scene / Main',command=self.leave_transition_pair).pack(side='left')
+        self.transition_note=tk.StringVar(value='Add recipes below or from Library. Select a transition row to see its scene compatibility. Material meld and the legacy study retain their existing workflows.')
+        ttk.Label(relations,textvariable=self.transition_note,wraplength=590).pack(anchor='w')
         material = self.section_frames['Materials']
         ttk.Label(material, text='Isolation holds one material + enabled FX/details together; Cycle pauses.').pack(anchor='w')
         row = ttk.Frame(material); row.pack(fill='x', pady=4)
@@ -684,7 +753,7 @@ class Studio:
         hold.bind('<<ComboboxSelected>>', lambda event:self.change_layer_playback())
         ttk.Label(panel, text='Saved combined cycle order — all sections; not separate render passes').pack(anchor='w')
         table_frame = ttk.Frame(panel); table_frame.pack(fill='both', expand=True)
-        self.layer_table = ttk.Treeview(table_frame, columns=('on', 'name', 'category'), show='headings', height=4, selectmode='browse')
+        self.layer_table = ttk.Treeview(table_frame, columns=('on', 'name', 'category'), show='headings', height=3, selectmode='browse')
         for key, title, width in (('on', 'Enabled', 70), ('name', 'Effect / cycle order', 260), ('category', 'Category', 120)):
             self.layer_table.heading(key, text=title)
             self.layer_table.column(key, width=width, minwidth=60, stretch=key != 'on')
@@ -692,7 +761,7 @@ class Studio:
         self.layer_table.configure(yscrollcommand=scroll.set)
         scroll.pack(side='right', fill='y'); self.layer_table.pack(fill='both', expand=True)
         self.layer_table.bind('<Double-1>', lambda event:self.edit_layer('toggle'))
-        actions = ttk.Frame(panel); actions.pack(fill='x', pady=10)
+        actions = ttk.Frame(panel); actions.pack(fill='x', pady=(4, 4))
         for label, action in [('On / off', 'toggle'), ('Solo whole list', 'solo'), ('Remove', 'remove'), ('Up', 'up'), ('Down', 'down')]:
             ttk.Button(actions, text=label, command=lambda a=action:self.edit_layer(a)).pack(side='left', padx=(0, 5))
         strength=ttk.Frame(panel);strength.pack(fill='x')
@@ -743,6 +812,38 @@ class Studio:
                 'Only enabled effects run. An empty list shows the base form. ')
         note += 'Up / Down sets cycle order. Meld fades during the last 35% of each hold.'
         self.layer_note.set(note)
+
+    def transition_values(self):
+        pair=[next(k for k,v in SCENES.items() if v==var.get()) for var in (self.transition_from,self.transition_to)] if self.transition_pair.get() else []
+        return validate_settings(dict(pair=pair,isolate=dict(self.transition_isolation),hold=float(self.transition_hold.get()),duration=float(self.transition_duration.get())))
+
+    def preview_transition_pair(self):
+        if not self.transition_pair.get() and self.layer_world() in self.transition_isolation:self.transition_isolation['pair']=self.transition_isolation[self.layer_world()]
+        self.transition_pair.set(True);self.tabs.select(self.preview);self.start()
+
+    def isolate_transition(self):
+        rows=self.layer_table.selection()
+        key=rows[0] if rows and rows[0] in RECIPES else next((k for k in RECIPES if RECIPES[k][0]==self.effect_choice.get()),None)
+        if key is None:self.status.set('Select a transition in the saved list or picker.');return
+        if key=='tr_study':
+            self.transition_pair.set(False);self.select(['experimental','transition_study']);self.tabs.select(self.preview);return
+        if key=='tr_material':
+            profile=self.layer_profiles.setdefault(self.layer_world(),default_profile(self.layer_world()))
+            if not any(row['enabled'] and row['id'] in MATERIALS for row in profile['items']):profile['items'][:0]=[dict(id=k,enabled=True) for k in MATERIALS]
+            profile['mode']='meld';self.sections.select(self.section_frames['Materials']);self.refresh_layers();return
+        cfg=self.transition_values()
+        if cfg['pair'] and not compatible(key,*cfg['pair']):
+            self.status.set(RECIPES[key][0]+': '+transition_description(key));return
+        self.transition_isolation['pair' if cfg['pair'] else self.layer_world()]=key
+        self.transition_note.set('Isolated '+RECIPES[key][0]+'. '+transition_description(key)+' Saved FX/details and transition order stay parked.')
+
+    def restore_transitions(self):
+        self.transition_isolation.pop('pair' if self.transition_pair.get() else self.layer_world(),None)
+        self.transition_note.set('Saved transition list restored; compatible recipes follow list playback.')
+
+    def leave_transition_pair(self):
+        self.transition_pair.set(False);self.tabs.select(self.preview)
+        self.status.set('Chosen pair parked. Start resumes the selected scene, family or Main.')
 
     def isolate_material(self):
         world = self.layer_world()
@@ -796,6 +897,8 @@ class Studio:
 
     def show_treatment_amount(self,event=None):
         selected=self.layer_table.selection()
+        if selected and selected[0] in RECIPES:
+            self.transition_note.set(RECIPES[selected[0]][0]+': '+transition_description(selected[0]))
         if selected:
             profile=self.layer_profiles.get(self.layer_world(),default_profile(self.layer_world()))
             item=next((item for item in profile['items'] if item['id']==selected[0]),{})
@@ -803,7 +906,7 @@ class Studio:
 
     def change_treatment_amount(self):
         selected=self.layer_table.selection()
-        if not selected or selected[0] not in SPATIAL_TREATMENTS+ENVELOPERS+STELLAR_LAYERS+ORBITAL_LAYERS:
+        if not selected or selected[0] not in SPATIAL_TREATMENTS+ENVELOPERS+STELLAR_LAYERS+ORBITAL_LAYERS+MINERAL_TREATMENTS+TOWER_TREATMENTS+MAGNETIC_TREATMENTS+ARC_TREATMENTS+VEIL_TREATMENTS+MARSH_TREATMENTS+MOLTEN_TREATMENTS:
             self.status.set('Select a spatial effect, Stellar layer or Enveloper row to change its amount.');return
         from copy import deepcopy
         world=self.layer_world();profile=deepcopy(self.layer_profiles.get(world,default_profile(world)))
@@ -905,6 +1008,7 @@ class Studio:
         self.status.set('Three materials meld across every world. Select a held form or Main blend, then start preview.')
 
     def new(self):
+        self.cymatics_panel.set(cymatics_defaults())
         for key,value in DEFAULTS.items(): self.vars[key].set(value)
         available=tracks()
         if available: self.vars['track'].set(str(available[0]))
@@ -912,6 +1016,8 @@ class Studio:
         self.layer_profiles={}
         self.material_isolation={}
         self.color_overrides={}
+        self.transition_isolation={};self.transition_pair.set(False)
+        self.transition_hold.set('12');self.transition_duration.set('6')
         self.select(DEFAULT_SELECTION)
         self.status.set('New session. Any running preview keeps its current settings.')
 
@@ -928,6 +1034,11 @@ class Studio:
             values=validate_session(json.loads(Path(path).read_text(encoding='utf-8')))
             for key,value in values.items():
                 if key in self.vars:self.vars[key].set(value)
+            self.cymatics_panel.set(values.get('cymatics'))
+            cfg=values['transitions'];self.transition_isolation=cfg['isolate']
+            self.transition_pair.set(bool(cfg['pair']))
+            if cfg['pair']:self.transition_from.set(SCENES[cfg['pair'][0]]);self.transition_to.set(SCENES[cfg['pair'][1]])
+            self.transition_hold.set(str(cfg['hold']));self.transition_duration.set(str(cfg['duration']))
             self.layer_profiles=values['layers']
             self.material_isolation=values.get('material_isolation', {})
             self.color_overrides=values.get('color_overrides', {})
@@ -951,7 +1062,7 @@ class Studio:
 
     def color_scene(self):
         states=selection_states(self.selection)
-        scope=states[0] if len(states)==1 else 'blend'
+        scope='blend' if self.transition_pair.get() else color_scope_for_states(states)
         return scope if targets_for(scope) else None
 
     def color_preset_folder(self):
@@ -997,7 +1108,7 @@ class Studio:
             args += ['--seed', '7301', '--comparison-label', label]
             self.comparison_label = label
         selected_states=selection_states(values['selection'])
-        live_scene=selected_states[0] if len(selected_states)==1 else 'blend'
+        live_scene='blend' if values.get('transitions',{}).get('pair') else color_scope_for_states(selected_states)
         live_scene = live_scene if targets_for(live_scene) and not label else None
         if live_scene: args += ['--studio-color-input']
         output.mkdir(parents=True)
@@ -1028,6 +1139,9 @@ class Studio:
             ('; decoded replay from zero, fresh history. Do not resize/close early. Controls affect next preview.' if label else
              '; controls affect next preview. Live runs are not matched comparisons.'))
         if live_scene: self.status.set('Running color preview. Open Palettes > live color inspector; colors apply live, other settings apply next preview.')
+        if live_scene=='cymatics':
+            self.active_preview.set('Cymatics Water - '+values['cymatics']['source']+' input; starts muted.')
+            self.status.set('Water: Input, basin and live controls are in the Cymatics tab. Colors use Palettes. Source changes require Stop/Start.')
 
     def start(self):
         if self.process is not None: return
@@ -1070,8 +1184,14 @@ class Studio:
 
     def stop(self):
         if self.process is not None and self.process.poll() is None:
-            self.process.terminate()
-            self.process.wait(timeout=5)
+            if self.active_color_scene=='cymatics' and self.color_link:
+                # EOF requests the owned Water loop to run its normal source/output cleanup.
+                self.color_link.close()
+                try:self.process.wait(timeout=3)
+                except subprocess.TimeoutExpired:pass
+            if self.process.poll() is None:
+                self.process.terminate()
+                self.process.wait(timeout=5)
             self.status.set('Stopped. Partial results remain; comparison cancelled.')
         self.comparison_result('cancelled')
         self.finish()
@@ -1090,6 +1210,7 @@ class Studio:
         self.refresh_palette()
 
     def poll(self):
+        self.cymatics_panel.refresh()
         if self.color_link:
             status=self.color_link.get_status()
             startup=status.get('startup', {})

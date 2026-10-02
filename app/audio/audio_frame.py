@@ -36,3 +36,6 @@ class AudioFrame:
         self.beat_phase = 0.
         self.beat_tick = False
         self.tempo = 0.
+        self.band12 = None
+        self.spectrum_frequencies = None
+        self.spectrum_magnitudes = None

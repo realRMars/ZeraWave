@@ -1,3 +1,5 @@
+import time
+from transition_catalog import parse_settings
 import argparse
 import sys
 from pathlib import Path
@@ -22,7 +24,7 @@ from signal_processor import SignalProcessor, VisualSignalConditioner
 
 LIVE_STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3,
                "transition": 4, "canvas": 5, "water": 6, "sea": 7,
-               "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35, "galaxy": 36}
+               "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35, "galaxy": 36, "cymatics": 37, "lodestone_experimental":38, "stormglass_experimental":39, "folded_aurora_experimental":40}
 
 
 def make_bar(value, width=30):
@@ -133,10 +135,13 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors):
     )
     for key, value in analyzer.beat_tracker.update_flux(flux_raw, len(samples)/48000., frame.energy).items():
         setattr(frame, key, value)
+    frame.band12 = analyzer.frequency_bands.summarize(frequencies, magnitudes, len(samples))
+    frame.spectrum_frequencies = frequencies
+    frame.spectrum_magnitudes = magnitudes
     return frame
 
 
-def main(state="blend", states=None, layers=None, device=None, quiet=False, palette="authored", colors=None, color_input=False, seed=None, galaxy_visit=0, galaxy_short=False):
+def main(state="blend", states=None, layers=None, device=None, quiet=False, palette="authored", colors=None, color_input=False, seed=None, galaxy_visit=0, galaxy_short=False, transitions=None):
     capture = AudioCapture(device_name=device)
     analyzer = AudioAnalyzer()
     processor = SignalProcessor(smoothing=0.5)
@@ -151,6 +156,7 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
     renderer.debug_state = LIVE_STATES[state]
     renderer.debug_sequence = tuple(LIVE_STATES[name] for name in (states or ()))
     renderer.layer_profiles = validate_layers(layers or {})
+    renderer.configure_transitions(transitions)
     configure_colors(renderer, colors, color_input)
 
     detectors = {
@@ -179,32 +185,33 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
 
     try:
         renderer.create()
-        capture.start()
+        from capture_stream import CaptureStream
+        stream=CaptureStream(capture,lambda samples:(samples,analyze_samples(samples,analyzer,processor,conditioner,detectors)))
+        stream.start();next_present=time.perf_counter();next_console=0.
 
         while not renderer.should_close():
-            samples = capture.read(numframes=2048)
-
-            frame = analyze_samples(samples, analyzer, processor, conditioner, detectors)
-            result = mapper.map_frame(frame)
-
-            renderer.parameters.scale = result["scale"]
-            renderer.parameters.movement = result["movement"]
-            renderer.parameters.sparkle = result["sparkle"]
-            renderer.parameters.impact = result["impact"]
-            renderer.parameters.flux = frame.flux
-            renderer.parameters.beat_confidence = frame.beat_confidence
-            renderer.parameters.beat_tick = frame.beat_tick
+            incoming=stream.drain();impact=0.;tick=False
+            for stamp,(samples,frame) in incoming:
+                renderer.consume_pcm(samples)
+                result=mapper.map_frame(frame)
+                impact=max(impact,result['impact']);tick=tick or frame.beat_tick
+                for name,value in result.items():peaks[name]=max(peaks[name],value)
+                renderer.parameters.scale=result['scale'];renderer.parameters.movement=result['movement'];renderer.parameters.sparkle=result['sparkle'];renderer.parameters.impact=impact
+                renderer.parameters.flux=frame.flux;renderer.parameters.beat_confidence=frame.beat_confidence
+            renderer.parameters.beat_tick=tick
             renderer.render()
             renderer.swap_buffers()
             renderer.poll_events()
 
-            for name, value in result.items():
+            for name, value in (result.items() if incoming else ()):
                 peaks[name] = max(
                     peaks[name],
                     value,
                 )
 
-            if not quiet: print(
+            if not quiet and incoming and time.perf_counter()>=next_console:
+                next_console=time.perf_counter()+.20
+                print(
                 "\033[H\033[J"
                 "ZeraWave Live Visualizer\n"
                 "=========================\n"
@@ -230,9 +237,12 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
                 f"Impact   {peaks['impact']:.2f}\n"
             )
 
+            next_present=max(next_present+1./60.,time.perf_counter())
+            delay=next_present-time.perf_counter()
+            if delay>0:time.sleep(delay)
     finally:
         try:
-            capture.stop()
+            if 'stream' in locals():stream.stop()
         finally:
             renderer.close()
 
@@ -245,6 +255,7 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ZeraWave with live system audio.")
+    parser.add_argument('--transitions',type=parse_settings)
     parser.add_argument("--state", choices=tuple(LIVE_STATES), default="blend",
                         help="blend: normal flow; canvas: hold planet; transition: 40-second diagnostic cycle; water: isolated liquid world")
     parser.add_argument("--states", nargs="+", choices=tuple(LIVE_STATES), help="Development cycle: hold each state for 28 seconds.")
@@ -259,4 +270,4 @@ if __name__ == "__main__":
     parser.add_argument('--galaxy-visit',type=int,default=0)
     parser.add_argument('--galaxy-short',action='store_true')
     args = parser.parse_args()
-    main(args.state, args.states, args.layers, args.device, args.quiet, args.palette, args.colors, args.studio_color_input, args.seed,args.galaxy_visit,args.galaxy_short)
+    main(args.state, args.states, args.layers, args.device, args.quiet, args.palette, args.colors, args.studio_color_input, args.seed,args.galaxy_visit,args.galaxy_short, args.transitions)

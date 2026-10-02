@@ -1,4 +1,58 @@
-# ZeraWave Visual Identity v0.1
+# ZeraWave Visual Identity
+
+Creative direction clarified 2026-10-01 (context interview). The principles below describe the visual
+ambition; implementation status and priorities live in [ROADMAP.md](ROADMAP.md).
+
+## October 1 interview: clarified direction
+
+Source: Robert's context interview, 2026-10-01. Streams usually 1-2 hours, sometimes 4+;
+long-session interest and musical fit matter. Generic look and weak musical
+connection equally fundamental failures. Depth/3D optional; steady BPM-linked
+flow valid, pleasing hits and high/mid/low response desirable. Quiet passages
+slower/subtly beautiful rather than forced maximum intensity.
+
+Fresh fitting interpretation each song play; recurring motifs welcome, fixed
+repeated sequences not desired. Fast deterministic motion follows present music.
+Future slower semantic/lyric ideas build persistent fitting worlds and reject
+stale literal events. Painting/cracking/hatching dancing eggs is aspiration,
+not implemented understanding. Buffering acceptable in principle; stream delay
+alone does not prove lookahead.
+
+First paying users streamers/content creators, including musicians making
+videos. Live visuals and song-to-video export should share one default generated
+interpretation, optional variants, editable scenes/transitions/colors and a
+reopenable timing/variation project. Simple onboarding, findable presets,
+distinctive UI; deep Studio follows customers. Games/Vesper worlds long-term.
+Experimental means working but unfinished.
+
+Preserve richness while smooth; quality adaptation follows measured hardware.
+Evidence-based renderer/custom-engine proposals welcome; giant rewrite not
+authorized. ZeraphinaX grows through proven useful reuse. Offline claims require
+implemented/available/downloaded resources; online AI optional. Pricing/semantic
+capabilities remain hypotheses, not current features or authorized commerce.
+
+## Current creative standard
+
+Build worlds with a recognizable identity, meaningful movement, character
+and moments of surprise. A held scene should develop over a song and reward
+continued watching. Camera travel, moving structures, expressive assets, material
+changes, spatial transformations and evolving palettes are available artistic
+tools. Develop new reusable techniques when the scene needs them.
+
+Choose a strong visual direction using real art and motion references. Abstraction,
+fantasy and bold transformations are welcome. Clean edges and smooth gradients
+matter, but polishing a nearly static composition does not fulfill a brief for
+an evolving world. A neutral prototype and passing tests are starting evidence;
+judge the experience in motion and iterate toward the requested result.
+
+Maintain craft in both calm and intense passages. Neither constant chaos nor
+constant restraint is the default requirement. Use contrast deliberately, make
+musical response visible, and avoid mechanical repetition. Optimize measured
+cost while preserving the style and behavior that make the scene worth watching.
+
+One complete scene per user review can include multiple original assets, materials,
+spatial effects, palettes and new effect classes. Extend the existing library and
+Studio workflow so the user can edit colors and try the useful components elsewhere.
 
 ## 1. Core Definition
 
@@ -303,7 +357,9 @@ Future selection may consider characteristics such as:
 * musical density
 * instrumentation
 
-Automatic mode selection is a future capability, not a requirement for the first implementation.
+These are aspirational selection ideas. The current Main director already uses
+energy, lift and release; richer musical recognition remains future work.
+Do not infer phrase, chorus or instrument recognition from the current code.
 
 ---
 
@@ -335,7 +391,8 @@ A new visual mode should primarily change **interpretation**, not duplicate the 
 
 # 9. Emotional Range
 
-ZeraWave should not always attempt to look beautiful, energetic, or impressive.
+ZeraWave should maintain high visual craft across a wide emotional range.
+Intensity can vary without making the scene feel unfinished or uninteresting.
 
 It should be capable of:
 
@@ -439,15 +496,16 @@ Potential future capabilities include:
 
 These possibilities should not prematurely dictate the architecture.
 
-Build only what current evidence requires.
+Build the complete assigned experience. Creative exploration is a valid reason
+to extend the visual system; prototype and measure choices in service of the art.
 
 ---
 
 # 14. Current Development Principle
 
-ZeraWave v0.1 is an exploration, not a finished visual language.
+ZeraWave's visual language continues to develop through complete scene experiments.
 
-The purpose of the first implementation is to discover which combinations of:
+Each assignment should explore which combinations of:
 
 **music → expression → visual behavior**
 
@@ -455,7 +513,7 @@ actually produce the intended experience.
 
 Therefore:
 
-**Prototype before committing to complexity.**
+**Prototype boldly, inspect motion, and iterate toward the creative brief.**
 
 A successful experiment should influence the architecture.
 
@@ -478,9 +536,9 @@ A dream can linger while the music animates its internal life. Elapsed time alon
 should not force rapid changes. Transitions may be ambiguous: a branch may begin
 to suggest a fractal, then a galaxy, without a hard scene cut.
 
-The first visual-vocabulary milestone focuses on Organic, Geometric, and Cosmic.
-They must differ in recognizable structure, not just palette or distortion of
-the same field. Broader aspirations include landscapes, life, fantasy, faces,
+The first visual-vocabulary milestone introduced Organic, Geometric, and Cosmic;
+Elemental families have since expanded the implementation. New scenes should
+differ in recognizable structure, movement and behavior as well as palette. Broader aspirations include landscapes, life, fantasy, faces,
 and suggestive forms that the viewer discovers through pareidolia.
 
 The eye is one possible emergent phenomenon, not a compulsory permanent center.
@@ -489,12 +547,13 @@ identity remains important, alongside the possibility of softer, darker, cosmic,
 or luminous material treatments. Dark space should feel intentional.
 
 Future imagery or silhouettes should become part of the form rather than pasted
-pictures. Assets, particles, feedback, and geometry are possible techniques, not
-current architectural requirements.
+pictures. Assets, particles, feedback and geometry are available techniques;
+use those that serve the assigned scene and integrate them into the working
+renderer. No universal representation or single-form limit is imposed.
 
-Interaction should remain minimal. A future Bonk control could shake up a
-lingering dream; a tap/Dance control could encourage movement. These are deferred
-ideas, not features to implement in the current repair.
+Keep the player approachable and the existing Studio editing workflow useful.
+A future Bonk control could shake up a lingering dream; a tap/Dance control could
+encourage movement. Those specific controls remain deferred on the roadmap.
 
 Creative acceptance: ZeraWave should produce different visual experiences that
 can sustain interest and evolve within their identity, rather than repeatedly

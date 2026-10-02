@@ -59,18 +59,31 @@ class StartupNotice:
                 pass
         return seconds
 
-    def close(self):
+    def close(self, pump=None):
         if not self.process:
             return
         try:
             self.process.stdin.close()  # EOF also closes notice on error/Stop.
         except (OSError, ValueError):
             pass
+
+        def wait_owned(timeout):
+            if pump is None:
+                return self.process.wait(timeout=timeout)
+            deadline = time.monotonic() + timeout
+            while self.process.poll() is None:
+                pump()
+                remaining = deadline-time.monotonic()
+                if remaining <= 0.:
+                    raise subprocess.TimeoutExpired('owned startup notice', timeout)
+                time.sleep(min(.01, remaining))
+            return self.process.returncode
+
         try:
-            self.process.wait(timeout=1.)
+            wait_owned(1.)
         except subprocess.TimeoutExpired:
             self.process.terminate()  # Only this owned notice, not the preview.
-            self.process.wait(timeout=2.)
+            wait_owned(2.)
         self.process = None
 
 

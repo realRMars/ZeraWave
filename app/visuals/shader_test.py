@@ -1,3 +1,4 @@
+from transition_catalog import parse_settings
 import math
 import argparse
 from preview_layers import echo_weave_at, parse_layers, validate_layers, layers_at, materials_at
@@ -15,7 +16,7 @@ from renderer import Renderer, VERTEX_SHADER, blend_uniforms, blend_chapter, BLE
 from studio_color_link import configure_colors
 from color_controls import parse_colors
 
-STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35, "galaxy": 36}
+STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35, "galaxy": 36,"lodestone_experimental":38,"stormglass_experimental":39,"folded_aurora_experimental":40}
 
 
 def save_png(path, pixels):
@@ -130,6 +131,7 @@ def roots_color_test(baseline_path, output):
         from preview_layers import MATERIALS
         for material in MATERIALS:
             r.layer_profiles={'organic':dict(mode='together',seconds=12.,items=[dict(id=material,enabled=True)])}
+            r.configure_transitions(transitions)
             r.set_colors({});r.render(float(second));no_blossom=pixels()
             r.set_colors({'roots.blossoms':edits['roots.blossoms']});r.render(float(second))
             assert np.array_equal(no_blossom,pixels()),(material,'Color enabled disabled blossoms')
@@ -374,7 +376,7 @@ def galaxy_scene_test(baseline_path, output):
     from renderer import LIVE_FORMS
     from preview_layers import world_for_state
     output.mkdir(parents=True, exist_ok=True)
-    assert 36 not in LIVE_FORMS and world_for_state(36) == 'galaxy'
+    assert 36 in LIVE_FORMS and world_for_state(36) == 'galaxy'
     r=Renderer(width=640,height=360,seed=7301)
     old=old_vao=None
     report={'baseline':str(baseline_path),'resolution':[640,360]}
@@ -2958,7 +2960,7 @@ def fire_test(baseline_path, output, molten_expansion=False, firescape_expansion
         renderer.close()
 
 
-def main(debug_state=0, states=None, layers=None, palette="authored", colors=None, color_input=False, seed=None, galaxy_visit=0, galaxy_short=False):
+def main(debug_state=0, states=None, layers=None, palette="authored", colors=None, color_input=False, seed=None, galaxy_visit=0, galaxy_short=False, transitions=None):
     renderer = Renderer(
         width=1280,
         height=720,
@@ -3612,6 +3614,7 @@ def spatial_test(output):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument('--transitions',type=parse_settings)
     parser.add_argument("--roots-color-test", nargs=2, type=Path, metavar=("BASELINE", "OUTPUT"))
     parser.add_argument("--world-repairs-test", nargs=2,type=Path)
     parser.add_argument("--spatial-test", type=Path)
@@ -3785,4 +3788,4 @@ if __name__ == "__main__":
     elif args.sweep:
         sweep(args.sweep)
     else:
-        main(STATES[args.state], args.states, args.layers, args.palette, args.colors, args.studio_color_input, args.seed,args.galaxy_visit,args.galaxy_short)
+        main(STATES[args.state], args.states, args.layers, args.palette, args.colors, args.studio_color_input, args.seed,args.galaxy_visit,args.galaxy_short, args.transitions)

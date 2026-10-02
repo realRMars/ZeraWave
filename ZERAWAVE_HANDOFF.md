@@ -1,102 +1,91 @@
 # ZeraWave handoff
 
-## Current checkpoint — 2026-09-28
+Updated: 2026-10-01 (interview consolidation). Read the [roadmap](ROADMAP.md) for current priorities and
+[AGENTS.md](AGENTS.md) for scope and coordination. This replaces the stale
+Roots/color-rollout takeover checkpoint, preserved in [history](docs/history/README.md).
 
-The working checkout includes the accepted Cavern/Aftershock/Sea repair pass:
-stable cavern formations, continued bounded Aftershock strikes, sideways aurora
-motion, and optional shooting stars shared with Water reflections. The current
-working checkout is newer than the frozen portable checkpoint.
+## Checkpoint and working state
 
-Main is an energy/lift/release director, not a fixed itinerary or phrase/chorus
-recognizer. Echo Weave is implemented as the fourth material in Main’s default
-quartet; it is no longer merely a proposal. Existing saved trio profiles remain
-supported. Studio remains a development tool; a paid Studio 1 is out of scope.
+Source: Robert's October 1 interview and parent handoff.
+Local HEAD verified 312287e66ece8c0296037d2bfffcc4ac9e3b5609,
+Build approved Galaxy Odyssey and responsive shader startup. Robert approved
+Galaxy; scoped push to main parent-verified, not remotely queried here.
+Galaxy still outside Main; no further commit/push authority. Preserve dirty
+user/worker changes and frozen portable.
 
-## Limitations and scope
+Builder safely paused, no commands running (parent report). This four-file
+consolidation is user-approved/applied; parent may resume Cavern refinement.
+Authorized batch:
+Cavern -> Citadel -> Magnetic/Arcs/Auroral -> Marsh -> Molten ->
+director/transitions integrated review. Cavern candidate saved; next scenes not claimed built.
+Crystal Cavern first candidate independent provisional review: 7.0/10
+(identity 6.8, musical connection 7.2), below the 7.5 batch target. Retain
+localized musical fronts and settling; refine irregular mineral character,
+distinct material behavior and excessive repetitive stripes before advancing.
+This assessment is parent-reported, not a fresh review by this documentation task.
+Water Basin is parked for audio/UI weaknesses. Envelopers remain off.
 
-- The next palette is only proposed. Authored remains preserved until a
-  contrasting soft-dream palette is reviewed in motion and accepted.
-- No new portable build is requested. Preserve
-  `work/releases/ZeraWave-preview-final.zip` at `d4992d0`; it excludes the
-  2026-09-28 repair pass.
-- Silent replay and deterministic GPU checks are not live-audio or second-PC
-  validation. Captures do not alone establish motion quality.
-- Cavern measured approximately **23.75 ms/frame at 720p** on the development
-  machine in the prior repair-pass record. This is historical measurement, not
-  current verification or a frame-rate guarantee.
-- Aftershock has eight bounded sites; under sustained qualifying impacts,
-  recycling can retire an older visible plume early.
-- Sea's sky remains separate from the shared material canvas; reflected sky
-  activity does not change that composition boundary.
-- No claim is made here about a general consumer release or device compatibility.
+Evidence: docs/agent-notes/crystal-cavern-upgrade.md;
+work/cavern-upgrade-01/final/source-manifest.json. Do not replace captures/rerun
+expensive GPU checks just to consolidate docs.
 
-## Validation provenance
+## Current direction and gates
 
-The accepted repair-pass evidence is recorded in the prior handoff snapshot and
-its linked `work/` evidence paths. That snapshot reports the relevant standalone
-Studio, player, beat-tracker, and GPU checks; it should be read as historical
-provenance, not a claim that those checks were rerun during this documentation
-refresh. The frozen portable was built from `d4992d0`; current checkout HEAD is
-`e8ffd9f` at the time of this refresh.
+October 1 direction: distinctive identity AND clear musical connection,
+quiet beauty and variety over 1-2 hours, sometimes 4+ hours; 3D optional. Fresh fitting song
+interpretations with recurring motifs, not fixed repeated itineraries.
+No lyric/genre/phrase recognition inferred. New effects/palettes/non-fade
+transitions approved in batch. Once resumed, autonomous internal iteration,
+honest >=7.5 per-scene assessment and one final Robert review. Scores do not
+substitute for AV evidence or acceptance.
+
+First paying audience streamers/content creators including musicians.
+Live visuals plus editable video export/reopenable timing-and-variation projects
+desired, not established implemented support. Deep Studio follows feedback.
+ROADMAP remains sole priority sequence.
+
+## Current behavior to preserve
+
+- Main is an energy/lift/release director. Approximate spectral periodicity can
+  qualify a transition wait of up to 0.8 seconds; there is no downbeat,
+  phrase or chorus recognition claim.
+- Main's authored show has seven materials and the three newer spatial
+  treatments. Saved older material profiles remain supported.
+- Prism Assembly, Digital Bloom and Chromatic Memory remain **off by default**.
+  Keep their explicit Studio review/opt-in paths for later work.
+- Planet Canvas and unrelated accepted scenes remain intact during the batch.
+  Preservation comparisons do not require an intentionally redesigned Galaxy to
+  match its old pixels.
+- Live colors use the existing inspector, stable role IDs and session/preset
+  support. Future color-bearing visuals extend that system.
+- Studio is the development tool; paid Studio 1 is future-only.
+- Preserve `work/releases/ZeraWave-preview-final.zip` at `d4992d0`.
+  It is older than the current checkout; another portable is lowest priority.
+
+## Validation provenance and limitations
+
+No application/GPU/listening checks rerun by this documentation task. Cavern
+note/manifest inspected; numbers below are reported worker evidence:
+
+- RTX 3070 Laptop, held 720p GPU about 18.6-19.4 ms versus 23-24 ms prior; affected
+  midpoint 20.6 ms. Whole-loop medians about 20.6-21.8 ms at stated hidden conditions.
+  Above a 16.7 ms total 60 Hz budget; no 60fps or streaming-headroom claim.
+- Cold compilation 80-83 seconds; warm lifecycle passed. One post-cold-ready
+  responsiveness probe failed; cold first-frame behavior remains unresolved.
+- Source-bound held/music/Main-return sequences and palette controls recorded.
+  Silent sequences/stills cannot establish continuous AV or art acceptance.
+- Existing color/nine-treatment ledgers retained as dated evidence. Do not
+  transfer old first-Galaxy cost/rejected-art status to approved Galaxy.
+- Water parked, not completed/accepted; Galaxy Main gate separate; Envelopers off.
+  Device minima and full process memory remain unverified.
+
+Preserve Aftershock bounded-site and Sea sky/material contracts unless assigned
+redesign changes them; see docs/MAINTENANCE_CONTRACTS.md and dated history.
 
 ## Read next
 
-- [ROADMAP.md](ROADMAP.md): sole prioritized backlog.
-- [DEVELOPMENT_STUDIO.md](DEVELOPMENT_STUDIO.md): current Studio use.
-- [PLAYER.md](PLAYER.md): player and build instructions.
-- [docs/MAINTENANCE_CONTRACTS.md](docs/MAINTENANCE_CONTRACTS.md): Cosmic and
-  Elemental maintenance boundaries.
-- [Historical handoff](docs/history/2026-09-28-handoff.md): acceptance
-  decisions, commits, evidence paths, and limitations.
-
-## Active work reported after the accepted checkpoint
-
-Updated 2026-09-28 from worker/user reports; these do not establish artistic
-acceptance. Documentation consolidation was reviewed. File Worker reports the
-bounded cleanup complete, historical helpers archived with matching hashes,
-and player checks passed. No commit was reported.
-
-Builder completed Planet palette controls, Studio grouping/A-B work, and now the
-held Roots live color inspector. Roots exposes two shading gradients, ridge tint
-and shared blossom tint, with live updates, reset/revert and named preset/session
-persistence. The user must review the hands-on workflow and appearance next.
-Main defaults remain unchanged; broader world/material color editing is pending.
-
-Builder reports Studio, routing/persistence, 36-state authored preservation,
-intended-region rendering and a 240-update resource check passed. The Overseer
-read the validation note, not reran those checks. Continuous audiovisual listening
-and user artistic acceptance remain pending. See
-[Roots validation and limitations](docs/agent-notes/roots-live-colors.md).
-
-ROADMAP.md now prioritizes live color authoring, then reviewed batches across
-applicable visuals. Keep the completed Planet tools; Soft Dream itself is not
-recorded as accepted. The Overseer owns shared planning; workers may maintain
-task notes and feature instructions under AGENTS.md.
-
-## User checkpoint approval — 2026-09-28
-
-The user likes the live Roots color workflow and explicitly authorized committing
-the completed work. This supersedes the pending initial workflow-acceptance
-status above, but does not claim exhaustive audiovisual validation or acceptance
-of every possible color setting. Broader editable-color rollout and Main-default
-changes remain unassigned. Further tweaks can follow this checkpoint.
-
-Before checkpointing, the Overseer reran the complete Studio suite successfully
-with the project environment and UTF-8 output. Log:
-work/overseer-checkpoint-studio.log. This includes Roots live routing/persistence
-and existing Studio compatibility checks; it is not a continuous listening test.
-
-## Next-model takeover: full editable-color rollout
-
-The user requests continuation across all applicable existing visuals and future
-creations. ROADMAP.md's active milestone is now the complete model-independent
-execution plan, including inventory, sequential batches, cycles/Main preview,
-compatibility and completion criteria. On receiving the takeover prompt, execute
-that milestone rather than stopping at another proposal or the first extra world.
-
-Baseline checkpoint: dddc618. Preserve authored defaults and existing tools.
-No new commit, dependency installation, production palette change or portable build
-is authorized by the rollout plan. Record progress in
-docs/agent-notes/color-inspector-rollout.md when execution begins. Routine batch
-completion does not require renewed permission; artistic acceptance remains the
-user's. Narrow shared-document status updates are delegated in the plan.
+- [ROADMAP.md](ROADMAP.md): active batch, customer direction and retained backlog.
+- [ZERAWAVE_VISUAL_IDENTITY.md](ZERAWAVE_VISUAL_IDENTITY.md): creative quality.
+- [DEVELOPMENT_STUDIO.md](DEVELOPMENT_STUDIO.md): actual preview controls.
+- [TECHNIQUE_LIBRARY.md](TECHNIQUE_LIBRARY.md): ownership and extension patterns.
+- [PLAYER.md](PLAYER.md): player and preserved portable instructions.

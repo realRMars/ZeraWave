@@ -19,3 +19,6 @@ For agents: read [AGENTS.md](AGENTS.md), then the current handoff and roadmap.
 The Overseer maintains shared planning; workers own their assigned changes and
 may keep optional [task notes](docs/agent-notes/README.md). New visuals are
 reviewed through the existing Dev Studio before approved Main integration.
+A scene assignment covers the assets, movement, reusable techniques and palettes
+needed for the complete experience. Historical plans, research-stage restrictions
+and completed task notes do not narrow the user's current brief.

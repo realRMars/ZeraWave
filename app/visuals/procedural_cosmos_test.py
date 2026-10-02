@@ -70,12 +70,12 @@ def main():
         assert len(identities)==196 and len(palette_set)==196 and len(layouts)>100
         assert {entry_phase(seed,i) for i in range(5)}=={0.,18.8,24.,39.,63.4}
     assert authored_pigments.cache_info().currsize<=12
-    # Force returns under existing Main timing limits without changing which
-    # world the actual Main director selects (Galaxy remains disabled there).
+    # Exercise explicit interrupted route clocks independently of the director.
+    # Ordinary Main now protects a complete authored journey before departure.
     from renderer import Renderer,LIVE_FORMS
     from studio import DEFAULTS,validate_session,command
     from color_controls import galaxy_authored_colors
-    assert 36 not in LIVE_FORMS
+    assert 36 in LIVE_FORMS
     for seed in (7301,42,1337):
         r=Renderer(seed=seed);r.set_galaxy_start(0,True);seconds=0.;visit=0;identities=[]
         while seconds<14400.:

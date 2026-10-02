@@ -13,3 +13,8 @@ Include:
 Do not duplicate the roadmap, paste large logs, record secrets, or edit another
 worker's note. Notes do not grant approval or change priorities. Shared document
 ownership and exceptions are defined in [AGENTS.md](../../AGENTS.md).
+
+Read each note in its dated task scope. Statements such as "Roots only", "no new
+materials" or "minimum change" describe an earlier assignment, not restrictions
+on future scenes. Later user decisions and [ROADMAP.md](../../ROADMAP.md) supersede
+old pending-review/default claims. Feature guides describe current operation.

@@ -16,8 +16,9 @@ class ColorInbox:
         self.fd = fd
         self.lock = threading.Lock()
         self.pending = None
+        self.scene_revision=-1; self.pending_scene=None
         self.revision = -1
-        self.closed = False
+        self.closed = False; self.eof=False
         self.thread = threading.Thread(target=self._read,daemon=True,name='Studio color input')
         self.thread.start()
 
@@ -38,11 +39,22 @@ class ColorInbox:
                     buffer = b''; discarding = True
         except OSError:
             pass
+        finally:
+            self.eof=True
 
     def accept(self, line):
         if self.closed: return
+        message=None
         try:
             message = json.loads(line)
+            if isinstance(message,dict) and message.get('kind')=='cymatics':
+                from cymatics_session import validate
+                revision=message.get('revision')
+                if type(revision) is not int or not 0<=revision<2**31:raise ValueError('Invalid scene revision')
+                clean=validate(message.get('config'))
+                with self.lock:
+                    if not self.closed and revision>self.scene_revision:self.scene_revision=revision;self.pending_scene=(revision,clean)
+                return
             if not isinstance(message,dict) or message.get('kind')!='colors': raise ValueError('Unknown live update.')
             revision = message.get('revision')
             if type(revision) is not int or not 0<=revision<2**31: raise ValueError('Invalid revision.')
@@ -51,7 +63,12 @@ class ColorInbox:
                 if self.closed or revision<=self.revision: return
                 self.revision=revision; self.pending=(revision,colors)
         except (ValueError, TypeError, UnicodeError) as exc:
-            print(ACK_PREFIX+json.dumps(dict(error=str(exc))),flush=True)
+            print(ACK_PREFIX+json.dumps(dict(scene_error=str(exc),scene_rejected=message.get('revision')) if isinstance(message,dict) and message.get('kind')=='cymatics' else dict(error=str(exc))),flush=True)
+
+    def take_scene(self):
+        with self.lock:
+            result,self.pending_scene=self.pending_scene,None
+            return result
 
     def take(self):
         with self.lock:
@@ -77,7 +94,7 @@ class ColorLink:
     def __init__(self, process, log):
         self.process,self.log=process,log
         self.condition=threading.Condition()
-        self.pending=None
+        self.pending=None;self.pending_scene=None;self.scene_revision=0
         self.closed=False
         self.revision=0
         self.status={}
@@ -94,13 +111,22 @@ class ColorLink:
             self.condition.notify()
             return self.revision
 
+    def submit_scene(self,config):
+        from cymatics_session import validate
+        clean=validate(config)
+        with self.condition:
+            if self.closed:return None
+            self.scene_revision+=1;self.pending_scene=dict(kind='cymatics',revision=self.scene_revision,config=clean)
+            self.condition.notify();return self.scene_revision
+
     def _write(self):
         try:
             while True:
                 with self.condition:
-                    self.condition.wait_for(lambda:self.pending is not None or self.closed)
+                    self.condition.wait_for(lambda:self.pending is not None or self.pending_scene is not None or self.closed)
                     if self.closed: break
-                    message,self.pending=self.pending,None
+                    if self.pending is not None:message,self.pending=self.pending,None
+                    else:message,self.pending_scene=self.pending_scene,None
                 payload=(json.dumps(message,separators=(',',':'))+'\n').encode('utf-8')
                 if len(payload)>MAX_MESSAGE: raise ValueError('Live update is too large.')
                 # Raw unbuffered pipe may write partially; keep each snapshot framed.

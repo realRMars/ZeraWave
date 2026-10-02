@@ -1,0 +1,65 @@
+# Arc Constellation upgrade01 — independent review candidate
+
+October 1, 2026. Sole assignment: arcs/state33. Parent accepted Magnetic Bloom7.6, following accepted Cavern/Citadel refinements; all three remain preserved. Auroral and complete Plasma35 review await assignment. No shared-plan edits, extra workers, staging, commits, pushes, Water work, Galaxy/Main change or Envelopers. HEAD312287e unchanged.
+
+## Visible result and review path
+
+A branching stormglass chart replaces the orbiting rainbow striped balls and globally bright zigzags. Nine individually proportioned junctions use three authored silhouettes, dark apertures, star cores, beveled metal caps, engraved inner frames and distinct face sheen. These are intentionally stylized projected glass facets, not a volumetric glass/physics simulation or a magnetic loop reskin.
+
+Sustained bass/mid-derived visual inputs and flux charge a slowly advancing route through the chart; highs feed small path witnesses and finer corona. An actual onset selects a stable chart edge, drives a hot front toward its junction (~0.84s), then relays through that junction to a valid neighbor (~1.03s). Junction glow, a small local quiver and conductive residue linger independently of the current impact. Four six-second events reuse FluxMemory attack/release, hysteresis and deterministic return selection. Eight chart paths stay delicate in quiet; sustained charge adds route contrast. Release lets stored local charge and field pressure settle. Slow position/orientation drift and energy-integrated three-family palette evolution provide bounded variation. Four-hour rendered variety is unverified.
+
+Run `.venv\Scripts\python.exe app\visuals\studio.py`; choose Elements → Plasma → Arc Constellation. Load `work/arcs-upgrade-01/review-session.json`: Test track, Warbot Jazz, Real time, Authored details. Colors → Stormglass Constellation pigments exposes ground/glass/metal/charge/residue/dust. Families: Stormglass Indigo, Ember Telegraph, Salt Observatory. Hold/manual edits park authored evolution; Reset restores it. Existing arcs.charge node/arc/spark IDs remain compatible. A custom Plasma list should retain Field/Arcs/Sparks and add Charge Relay under Field motion, amount0..1. Library includes Stormglass Charge Relay and Cached Asterism Chart with actual source references.
+
+For independent review compare baseline-quiet/sustained/hit.png with held-sheet-labeled.png. Held-normal-time.apng is18s/271frames at320×180, nominal15Hz; inspect onset-order-sheet-labeled.png10.0–11.6s and release-order-sheet-labeled.png14.0–17.73s, plus selected640×360 originals. Music-normal-time.apng is shared-analysis silent Warbot Jazz45–57s (282analysis records/181frames); track hash and actual input/event traces are in evidence.json. Main-return-normal-time.apng uses the actual director with forced33→32→33 timing,181frames at160×90. Three palette stills compare fixed-time source pigments. Suggested focal frames: held10.60/11.00 for arrival/relay and music49.71/52.05 for multiple charged junctions.
+
+Builder inspected ordered extracted frames and full-resolution selected images using the supported image tool. No animation-player playback or continuous AV listening is claimed. No natural live-music test, multi-hour visual soak, director-selection validation or full Plasma35 review. Source-bound evidence is a candidate for the parent’s honest >=7.5 gate; no self score or user acceptance claim.
+
+## Measured design tradeoff
+
+Initial actual720p baseline: quiet7.76ms GPU (later paired6.48), sustained6.40, hit6.38. Isolated exact old126-segment construction/projection plus21 branches/core occlusion cost1.336ms median. Simplified emission and omitted sky/shared canvas make that a proxy, not subtraction attribution or proof of the sole hotspot.
+
+Initial monolithic implementation compiled in132.53s. A dynamic-loop/per-frame-palette attempt worsened it to205.34s and exceeded the existing240s total capture deadline; the fixture terminated its owned child. Both sources/logs and partial evidence remain under first-* and monolithic-revision/. No timeout inflation or cache deletion.
+
+This demonstrated compiler problem justified one small lazy Arc scene pass in the existing renderer. Its8,810-byte shader draws the chart into one RGBA16F surface, then the existing dream.frag samples it for held views and normal Main handoffs. Main’s old Arc construction loop is removed; all other existing shader function bodies are byte-identical to baseline except the targeted plasma_scene dispatch. The separate shader reuses the current project plasma-sky/tint/seed helpers; future shared-sky changes should coordinate both files. This is a bounded scene extension, not another renderer, playback engine or shader partitioning framework.
+
+Actual final first-source shared program compile102.78s/native first present103.17s, including the small pass’s first use. This improves the failed205s attempt but does not solve the inherited long startup or beat the prior Magnetic91.55s observation. Resource bounds: nine junctions, twelve17-vertex paths,48 group boxes, four events, one3264B descriptor texture and one viewport-sized RGBA16F surface (7,372,800B/7.03MiB at1280×720), lazy allocation, reuse, resize and close/restart cleanup. Arc pass draws only when Arc is present; its allocated surface remains bounded while another scene holds. Existing color transport dispatches the same declared source roles to this pass; no new editor, audio processing or dependency.
+
+Paired actual RTX3070Laptop1280×720, alternating order,30 retained samples, authoritative before Renderer.render/shader in one borrowed fixture context/window. GPU query includes the new Arc pass and shared draw. Loop includes mapping/draw/swap/poll/finish, excludes audio analysis/capture. Submit may include driver backpressure. Before retained its own lazy Magnetic descriptor for the midpoint and released it without destroying the shared fixture context.
+
+| Case | GPU median ms before → final | Loop median ms before → final | Final loop p95 ms | Cache/upload median ms |
+|---|---:|---:|---:|---:|
+| quiet | 6.48 → 3.05 | 8.62 → 7.24 | 16.65 | 1.41 |
+| sustained | 6.48 → 2.89 | 8.67 → 7.13 | 20.26 | 1.41 |
+| hit | 6.48 → 2.88 | 8.66 → 7.14 | 8.60 | 1.44 |
+| arcs-magnetic-midpoint | 7.22 → 3.77 | 11.56 → 10.40 | 23.17 | 1.41 |
+
+Held submit rose from0.64–0.68 to2.60–2.72ms; midpoint2.71→4.90ms. One60s/900frame native15Hz cadence run: loop median9.02ms/p9520.69ms, cache/upload1.58ms median, fixed3264B descriptors, at most four events. Separate720p readback2.02ms. Whole-loop tails remain significant; no60fps, stream headroom, device minimum or multi-hour resource guarantee.
+
+## Exact checks and retained limits
+
+- Final `arc_constellation_test.py`: PASS determinism, stable event geometry, active relay/amount-zero, accelerated4h numeric state/cache/group coverage, family coverage,3264B paths, legacy colors, v1/v2/v3 sessions, correct scopes and unique library IDs. Magnetic/Citadel standalone checks also passed before the scene-pass split; their source modules stayed unchanged. Accepted Cavern/Citadel/Magnetic mapping hashes remain exact.
+- Final nativeGPU comparison640×360/time24: zero changed channels for13 unaffected states5,19,20,21,22,23,24,26,29,32,34,36,37. This is sampled preservation, not every route/time. Shared-function-preservation.json records the sole targeted function change. Native pigment edit changed61,093 channels while nonempty events, phase and descriptor geometry stayed equal.
+- Three actual GPU family captures, amount0 with temporary paths inactive/no charge residue, actual framebuffer resize640×360→964×621 and descriptor/surface cleanup: PASS. Surface grew from1,843,200 to4,789,152B as expected. The palette fixture emitted a harmless second-close GLFW warning after successful cleanup; log preserved and future fixture avoids that duplicate close.
+- Actual Studio first start2.26s, live editACK2/resetACK3, resize, normal closeexit0 and Stop/no owned windows passed. Its restart took7.62s and failed350ms. Preserve studio-first-failure/ and original studio-lifecycle.json. A targeted task-only replay timing shim then ran actual Studio start2.37s/restart2.28s and all11 native350ms probes passed, with colors/resize/close/Stop; measured render maxima13–15ms and swap maxima201–264ms. No production change explains this intermittent difference. The first failure is not declared fixed; the trace run supports usability while leaving a responsiveness risk.
+- Loading-notice Cancel during compilation: nine responsive350ms probes, exit125 after4.24s,0.151s after Cancel. Unique source-comment key is not proof of driver cache miss. Source/debug state33, no unrelated sessions stopped.
+- Final successful cold evidence capture:189/191 native350ms probes passed; first post-ready probes passed. Misses at125.12/126.92s are around the offline audio-preparation boundary. Targeted phase-timestamp diagnostic measured audio imports0.473s and reproduced one import-phase miss plus two later render-phase misses. This proves a fixture import gap but leaves the later misses unattributed; do not infer all responsiveness failures are resolved. Exact successful capture fixture is arcs_evidence.captured.py. Future fixture imports run before window creation, with chunked event polling retained for replay preparation/encoding. No visual recapture or cold-test repetition was used to erase failures.
+- The diagnostic initially called a nonexistent Studio.build_command method and failed before preview launch; corrected to the inspected studio.command, failed log retained. No tests/failure records deleted. Final source AST and `git diff --check`: PASS. No exhaustive whole-project suite rerun.
+
+## Handoff
+
+Nine production files are frozen under final-source/, with baseline/final hashes, actual capture/performance source binding, accepted-module hashes, task-only diff and artifact hashes in source-manifest.json. Sources matched the successful capture and paired measurements exactly; only future fixture scheduling changed afterward. Task-local source/captures retain all failed iterations without expanding the final review matrix.
+
+Ready for independent Arc-specific review with the cold compile, intermittent restart/native probe misses and listening limits explicit. Highest-value review: distinct character of the stormglass junctions; sustained charge legibility against localized relays; whether the quiet chart and slow drift carry enough interest. Parent directs any refinement or the next Auroral assignment after the >=7.5 gate; no user wait or advancement requested here.
+
+
+## Surface guard follow-up — October 1
+
+Parent independently passed the frozen Arc art at7.5 and verified its9 sources/150 artifacts/633 frames; this is parent-reported acceptance of scoped art, not a new self score. The parent then identified an unguarded nonpositive framebuffer size at the Arc draw call. The prior unsafe draw was not reproduced on device.
+
+Fixed `Renderer.render` to poll events and return before setting a viewport or drawing when width/height are nonpositive. Added a defensive size check inside `ArcStage.draw` before releasing/replacing its valid surface. Positive-size art/shaders/colors/network code is unchanged. Added the narrow standalone regression to `arc_constellation_test.py`; no framework or dependency.
+
+Targeted RTX3070Laptop check: actual iconify reported framebuffer(0,0) in15 samples; the existing Arc texture/FBO/size remained intact, restore returned640×360 and drawing resumed. Five invalid-size cases (zero width, zero height, both zero, negative width, negative height) passed against the actual stage and injected framebuffer results against the actual renderer, with event polling and retained surface. Six native resizes with33→32→33 switches retained or resized the single surface correctly. Close cleared descriptor and scene resources. Three same-uniform GPU surface comparisons against the exact pre-fix draw body (quiet/sustained/hit) changed zero channels. The harness finally called close twice and emitted a GLFW uninitialized warning after successful cleanup; the log is retained and the saved reproduction fixture now closes once.
+
+Final standalone numeric/session/cache regression and Python AST passed; `git diff --check` passed. No new shader compilation, full motion recapture, capture matrix or performance audit was needed. Both shader hashes and all six unaffected production files match the accepted pack. Existing cold/restart/render-phase responsiveness limitations remain unchanged; this guard is not presented as their diagnosis or fix.
+
+Small technical review pack: `work/arcs-surface-guard-01/source-manifest.json`, `fix.diff`, `checks.json`, `checks.log`, `regression.log` and `arc_surface_guard_check.py`. Three changed files are frozen under its final-source/. The accepted prior note is preserved as accepted-task-note.md and the original art pack remains frozen. Ready for parent review of this fix; Auroral has not started. No staging, commit, push or shared-document edit.

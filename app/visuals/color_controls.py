@@ -174,6 +174,9 @@ TARGETS = (
         (ColorSlot('coals','Coals tint',(1.,1.,1.)),ColorSlot('embers','Embers tint',(1.,1.,1.)),
          ColorSlot('seams','Hot seams tint',(1.,1.,1.)),ColorSlot('ash','Ash tint',(1.,1.,1.))),
         'Shared fire details retain their layer flags, seeded trajectories and independent lifetimes.'),
+    ColorTarget('molten.palette','Molten Flow pigments','molten','roles','u_molten_palette',
+        (ColorSlot('heat','Incandescent liquid',(0.95, 0.24, 0.025)),ColorSlot('seam','Fine hot seams',(1.0, 0.43, 0.055)),ColorSlot('crust','Cooling crust',(0.033, 0.027, 0.03)),ColorSlot('bank','Basalt banks',(0.015, 0.017, 0.026)),ColorSlot('sky','Ridge sky',(0.032, 0.045, 0.068)),ColorSlot('vent','Vent cores',(1.0, 0.8, 0.3))),
+        'Six source pigments retain branching topology, pressure, vent placement and cooling history; explicit edit/hold parks palette evolution.'),
     ColorTarget('molten.flow', 'Molten flow', 'molten', 'roles', 'u_molten_flow',
         (ColorSlot('heat','Liquid heat tint',(1.,1.,1.)),ColorSlot('bank','Rock bank tint',(1.,1.,1.)),
          ColorSlot('sky','Distant sky tint',(1.,1.,1.))),
@@ -206,6 +209,11 @@ TARGETS = (
     ColorTarget('air.balloons', 'Windstream balloons', 'windstreams', 'roles', 'u_air_balloons',
         (ColorSlot('fabric','Balloon fabric tint',(1.,1.,1.)),ColorSlot('glint','Balloon glint tint',(1.,1.,1.))),
         'Balloon fabric and highlights retain their depth order, spin and music response.'),
+    ColorTarget('citadel.lantern', 'Observatory Citadel pigments', 'citadel', 'roles', 'u_citadel_colors',
+        (ColorSlot('stone','Moonstone masonry',(.48,.49,.54)),ColorSlot('enamel','Crown enamel',(.09,.28,.34)),
+         ColorSlot('lamp','Window lanterns',(.98,.63,.27)),ColorSlot('beacon','Tower signal light',(.25,.78,.85)),
+         ColorSlot('cloth','Wind panel silk',(.61,.22,.32)),ColorSlot('rock','Suspended island rock',(.13,.14,.21))),
+        'Distinct architectural source pigments; edits retain tower memory, panel motion and geometry. Existing castle tint controls remain compatible.'),
     ColorTarget('air.citadel', 'Sky Citadel', 'citadel', 'roles', 'u_air_citadel',
         (ColorSlot('stone','Castle stone tint',(1.,1.,1.)),ColorSlot('windows','Window and tracery tint',(1.,1.,1.)),
          ColorSlot('earth','Earth disk tint',(1.,1.,1.)),ColorSlot('celebration','Beams and fireworks tint',(1.,1.,1.))),
@@ -226,6 +234,10 @@ TARGETS = (
     ColorTarget('strata.land', 'Strata', 'strata', 'roles', 'u_strata_land',
         (ColorSlot('sediment','Sedimentary layers tint',(1.,1.,1.)),ColorSlot('aurora','Distant aurora tint',(1.,1.,1.))),
         'The stone bedding and distant ribbon stay attached to their source masks.'),
+    ColorTarget('mineral.prism', 'Mineral Resonance pigments', 'earth_shared', 'roles', 'u_mineral_colors',
+        (ColorSlot('matrix','Dark mineral matrix',(.026,.045,.065)),ColorSlot('cool','Cool crystal pigment',(.085,.46,.43)),
+         ColorSlot('warm','Warm crystal pigment',(.43,.16,.32)),ColorSlot('edge','Internal light pigment',(.92,.64,.28))),
+        'Localized facets, thin mineral veins and afterglow. Authored palette evolution parks when this target is edited; color edits retain event and geometry history.'),
     ColorTarget('cavern.land', 'Crystal Cavern', 'cavern', 'roles', 'u_cavern_land',
         (ColorSlot('stone','Cavern stone tint',(1.,1.,1.)),ColorSlot('crystals','Crystal tint',(1.,1.,1.)),
          ColorSlot('light','Crystal light tint',(1.,1.,1.))),
@@ -237,6 +249,12 @@ TARGETS = (
     ColorTarget('fog.internal', 'Internal fog light', 'fog_shared', 'roles', 'u_fog_internal',
         (ColorSlot('threads','Internal light threads tint',(1.,1.,1.)),ColorSlot('pulse','Traveling pulse tint',(1.,1.,1.))),
         'Internal light remains gated by the detail flags and musical response.'),
+    ColorTarget('marsh.palette','Ghostlight Marsh pigments','marsh','roles','u_marsh_palette',
+        (ColorSlot('vapor','Bank vapor',(.098,.247,.208)),ColorSlot('path','Wet path',(.125,.165,.176)),
+         ColorSlot('markers','Weathered standing stones',(.267,.314,.333)),ColorSlot('moss','Living moss',(.075,.200,.110)),
+         ColorSlot('cool','Cool ghostlights',(.251,.820,.486)),ColorSlot('warm','Warm ghostlights',(.737,.349,.125)),
+         ColorSlot('wake','Light crests and local wakes',(.659,.882,.749))),
+        'Seven source pigments; edits preserve roadside silhouettes, individual light placement, event history and depth. Authored evolution parks on explicit edit/hold.'),
     ColorTarget('marsh.solids', 'Marsh solids', 'marsh', 'roles', 'u_marsh_solids',
         (ColorSlot('ground','Ground and path tint',(1.,1.,1.)),ColorSlot('stones','Standing stones tint',(1.,1.,1.)),
          ColorSlot('moss','Stone moss tint',(1.,1.,1.))),
@@ -247,14 +265,29 @@ TARGETS = (
     ColorTarget('plasma.sky', 'Plasma sky', 'plasma_shared', 'roles', 'u_plasma_sky',
         (ColorSlot('background','Dark sky tint',(1.,1.,1.)),ColorSlot('stars','Star and asterism tint',(1.,1.,1.))),
         'Star trajectories, lensing and detail flags remain authored.'),
+    ColorTarget('magnetic.bloom','Lodestone Bloom pigments (Experimental)','lodestone_experimental','roles','u_magnetic_bloom',
+        (ColorSlot('ground','Deep field ground',(.016,.031,.051)),ColorSlot('stone','Ceramic lodestone',(.125,.184,.216)),
+         ColorSlot('north','Copper pole & windings',(.816,.471,.231)),ColorSlot('south','Cool pole & windings',(.263,.710,.671)),
+         ColorSlot('charge','Traveling hot charge',(1.,.910,.639)),ColorSlot('sheen','Winding sheen',(.608,.663,.608))),
+        'Source pigments retain projected field geometry, localized charge memory and magnetic settling. Artistic field interpretation.'),
     ColorTarget('magnetic.field', 'Magnetic Field', 'magnetic', 'roles', 'u_magnetic_field',
         (ColorSlot('core','Charged core tint',(1.,1.,1.)),ColorSlot('loops','Field loop tint',(1.,1.,1.)),
          ColorSlot('sparks','Loop pulse tint',(1.,1.,1.))),
         'Opaque core and emitting loops retain their orbit, occlusion and music response.'),
+    ColorTarget('arcs.asterism','Stormglass Constellation pigments (Experimental)','stormglass_experimental','roles','u_arcs_asterism',
+        (ColorSlot('ground','Night chart ground',(.020,.028,.055)),ColorSlot('glass','Stormglass faces',(.090,.210,.290)),
+         ColorSlot('metal','Engraved metal caps',(.690,.490,.250)),ColorSlot('charge','Traveling discharge',(.820,.950,1.)),
+         ColorSlot('residue','Charge residue',(.340,.510,.880)),ColorSlot('dust','Fine chart paths & sheen',(.420,.570,.710))),
+        'Original stormglass junctions and chart routes; source pigments retain charge relay, event history and lingering traces.'),
     ColorTarget('arcs.charge', 'Electric Arcs', 'arcs', 'roles', 'u_arcs_charge',
         (ColorSlot('nodes','Charge node tint',(1.,1.,1.)),ColorSlot('arcs','Discharge tint',(1.,1.,1.)),
          ColorSlot('sparks','Spark and branch tint',(1.,1.,1.))),
         'Nodes and discharges keep their seeded paths, phase and depth tests.'),
+    ColorTarget('auroral.veil','Auroral Veil pigments (Experimental)','folded_aurora_experimental','roles','u_auroral_veil',
+        (ColorSlot('night','Night atmosphere',(.012,.035,.071)),ColorSlot('hem','Luminous folded hems',(.408,.886,.729)),
+         ColorSlot('body','Curtain body',(.133,.537,.651)),ColorSlot('tip','Upper wisps',(.525,.420,.808)),
+         ColorSlot('ripple','Local ripple crests',(.922,1.,.780)),ColorSlot('horizon','Velvet horizon',(.098,.200,.267))),
+        'Layered flowing sheets with material-space ripple history; pigment edits preserve timing, sheet placement and musical memory.'),
     ColorTarget('auroral.curtains', 'Auroral Curtains', 'auroral', 'roles', 'u_auroral_curtains',
         (ColorSlot('sheets','Curtain sheet tint',(1.,1.,1.)),ColorSlot('pulses','Traveling pulse tint',(1.,1.,1.))),
         'Curtain transmission, folds, thin threads and event envelope remain authored.'),
@@ -288,12 +321,28 @@ TARGETS += (
 )
 
 
+TARGETS += (
+    ColorTarget('cymatics.water','Resonance water','cymatics','roles','u_cym_colors',
+        (ColorSlot('deep','Deep water',(.008,.025,.05)),ColorSlot('body','Water pigment',(.03,.10,.14)),
+         ColorSlot('reflection','Sky reflections',(.85,.91,.98)),ColorSlot('caustic','Caustic light',(.45,.65,.72)),
+         ColorSlot('frame','Basin frame',(.015,.022,.031))),
+        'Optical pigments only: preserves physical state, clock, damping and excitation.'),
+)
+
+TARGETS += (ColorTarget('cymatics.tracers','Water dye markers','cymatics','roles','u_cym_dye_colors',
+    (ColorSlot('warm','Warm dye',(.95,.19,.055)),ColorSlot('cool','Cool dye',(.64,.20,.95))),
+    'Artistic refracted markers, not transported dye. Colors preserve the physical field and source.'),)
+
+TARGETS += (ColorTarget('cymatics.stone','Basin stone finish','cymatics','roles','u_cym_stone_colors',
+    (ColorSlot('base','Stone body',(.009,.012,.019)),ColorSlot('vein','Mineral veins',(.64,.71,.77))),
+    'Original procedural obsidian/marble finish; preserves water, dye and excitation.'),)
+
 STATE_COLOR_SCENE = ('blend','organic','geometric','cosmic','transition','canvas',
     'water','sea','dyes','rain','waterfall','membrane','roots','currents',
     'fire','molten','fire_cycle','firescape','aftershock',
     'windstreams','stormfront','vortex','citadel','air',
     'dunes','strata','cavern','earth','nebula','marsh','pressure','fog',
-    'magnetic','arcs','auroral','plasma','galaxy')
+    'magnetic','arcs','auroral','plasma','galaxy','cymatics','lodestone_experimental','stormglass_experimental','folded_aurora_experimental')
 
 _CYCLE_FORMS = {
     'organic': ('membrane','roots'), 'cosmic': ('canvas',), 'transition': ('canvas',),
@@ -303,6 +352,7 @@ _CYCLE_FORMS = {
     'earth': ('dunes','strata','cavern'),
     'fog': ('nebula','marsh','pressure'),
     'plasma': ('magnetic','arcs','auroral'),
+    'experimental': ('lodestone_experimental','stormglass_experimental','folded_aurora_experimental','transition'),
 }
 _WATER_FORMS = frozenset(_CYCLE_FORMS['water'])
 _FIRE_FORMS = frozenset(_CYCLE_FORMS['fire_cycle'])
@@ -325,9 +375,12 @@ _SHARED_COMPAT = {
 
 
 def targets_for(scene):
-    if scene == 'blend': return tuple(target for target in TARGETS if target.scene != 'galaxy')
+    if scene == 'blend': return tuple(target for target in TARGETS if target.scene not in ('cymatics','lodestone_experimental','stormglass_experimental','folded_aurora_experimental'))
     if scene == 'galaxy': return tuple(target for target in TARGETS if target.scene == 'galaxy' or target.id in ('stellar.sails','sky.stars'))
     forms = _CYCLE_FORMS.get(scene, (scene,))
+    experimental={'lodestone_experimental':'magnetic','stormglass_experimental':'arcs','folded_aurora_experimental':'auroral'}
+    if scene in experimental:forms=(scene,experimental[scene])
+    elif scene=='experimental':forms=forms+tuple(experimental.values())+('canvas',)
     extra = (('water_shared',) if any(form in _WATER_FORMS for form in forms) else ()) + (
         ('fire_shared',) if any(form in _FIRE_FORMS for form in forms) else ()) + (
         ('air_shared',) if any(form in _AIR_FORMS for form in forms) else ()) + (
@@ -464,6 +517,34 @@ def validate_preset(data):
 
 # Families match the target's declared roles; gradient structures never cross targets.
 PALETTE_FAMILIES = {
+ 'molten.palette': {'Basalt River':('#F23D06','#FF6E0E','#080709','#040407','#080B11','#FFCC4D'),
+                    'Copper Caldera':('#DC4D16','#F1A65B','#100A0C','#08070B','#110C17','#FFE7A3'),
+                    'Sulfur Twilight':('#E5610E','#EBBD47','#0A0B09','#05090B','#09151A','#FFF4B3')},
+ 'marsh.palette': {'Bog Lantern':('#193F35','#202A2D','#445055','#13331C','#40D17C','#BC5920','#A8E1BF'),
+                   'Moonlit Fen':('#203B50','#182B36','#536372','#1B3940','#7BD8DE','#BDA270','#D9EFEC'),
+                   'Copper Reed':('#493326','#2F2520','#635644','#303B21','#A8C984','#DF9144','#F6D5AC')},
+ 'auroral.veil': {'Polar Jade':('#030912','#68E2BA','#2289A6','#866BCE','#EBFFC7','#193344'),
+                  'Rose Equinox':('#0D081A','#F796CF','#7C62B8','#63DAD3','#FFECC8','#362840'),
+                  'Solar Copper':('#130908','#F3B661','#CE6546','#5D89BA','#FFF4DA','#432522')},
+ 'arcs.asterism': {'Stormglass Indigo':('#05070E','#17364A','#B07D40','#D1F2FF','#5782E0','#6B91B5'),
+                    'Ember Telegraph':('#0D0507','#3D1726','#CC6636','#FFF0B5','#E84D6B','#945C7D'),
+                    'Salt Observatory':('#060E10','#2E5E63','#ABCABF','#FFFFEB','#4FCCAB','#8CB8BA')},
+ 'magnetic.bloom': {'Copper Induction':('#04080D','#202F37','#D0783B','#43B5AB','#FFE8A3','#9BA99B'),
+                    'Violet Lodestone':('#08050F','#292432','#A866DA','#599AD9','#FFE5D3','#A591C5'),
+                    'Porcelain Current':('#0C1318','#879C9C','#DF8663','#3D839F','#FFFFD3','#D5DBC2')},
+ 'citadel.lantern': {'Moonstone Regatta':('#7A7D8A','#174757','#FAA145','#40C7D9','#9C3852','#212436'),
+                     'Amber Watch':('#8A6655','#394950','#FFE1A3','#D97946','#437E7F','#241C26'),
+                     'Verdigris Choir':('#536D70','#416D59','#B8E8C7','#E8B577','#776392','#162A30')},
+ 'mineral.prism': {'Fluorite Lantern': ('#070C11','#16756E','#6E2952','#EBA347'),
+                   'Copper Quartz': ('#120D14','#357E8C','#A44E39','#EDD6A1'),
+                   'Glacial Amethyst': ('#0A101B','#426CA1','#854E95','#8FE4D1')},
+ 'cymatics.stone': {'Midnight Obsidian':('#020307','#6F8796'),'Pearl Marble':('#12151C','#D9DFDB'),'Rose Quartz':('#170F19','#CBABB7')},
+ 'cymatics.tracers': {'Saffron & Violet':('#F2300E','#A333F2'),'Coral & Mint':('#FF6574','#55E6AC'),'Ink & Gold':('#38206C','#FFC54B')},
+ 'cymatics.water': {'Obsidian Light':('#02040A','#081A24','#D9E8FA','#73A6B8','#040608'),
+                    'Pearl Basin':('#080C12','#27363F','#FFF4E4','#8CC4D9','#17202A'),
+                    'Tidal Glass':('#02060D','#06576E','#80E6DE','#F09138','#0E131C'),
+                    'Quicksilver Night':('#090C19','#3C4F7D','#DDE8FA','#7BF0CF','#212735'),
+                    'Rose Laboratory':('#170918','#6C365D','#F5BEDB','#E9B47C','#231624')},
  'galaxy.structure': {'Copper Comet': ('#FBC281','#377CCB','#21162F','#B2EAFE','#FF3D6E','#1FD9A6'),
                       'Orchid Eclipse': ('#E8A1CE','#9550DB','#171D34','#75E8D7','#F5AA5D','#328BCC'),
                       'Verdigris Dawn': ('#FFE0A0','#279F91','#1D2236','#D4F6D2','#F07FAF','#6585EE')},

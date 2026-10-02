@@ -134,12 +134,12 @@ def galaxy_scene_studio_test():
     from preview_layers import STELLAR_LAYERS, stellar_layers_at
     from studio import SOURCES
     from renderer import LIVE_FORMS
-    assert 36 not in LIVE_FORMS
+    assert 36 in LIVE_FORMS
     assert selection_states(['cosmic']) == ['canvas']
     assert selection_states(['cosmic','galaxy']) == ['galaxy']
     assert path_for_state('galaxy') == ['cosmic','galaxy']
     assert {t.id for t in targets_for('galaxy')} == {'galaxy.structure','galaxy.system','stellar.sails','sky.stars'}
-    assert not any(t.id == 'galaxy.structure' for t in targets_for('blend'))
+    assert {'galaxy.structure','galaxy.system'} <= {t.id for t in targets_for('blend')}
     assert {key for key,info in EFFECTS.items() if 'galaxy' in info[2]} == set(STELLAR_LAYERS)|{'gravity_well'}
     assert stellar_layers_at({},36,0.) == (1.,1.)
     assert stellar_layers_at({},0,0.) == (0.,0.)

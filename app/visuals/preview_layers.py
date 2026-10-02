@@ -7,7 +7,7 @@ import json
 import math
 
 WORLDS = ('blend', 'organic', 'geometric', 'cosmic', 'transition', 'water', 'fire', 'air', 'earth', 'fog', 'plasma')
-PROFILE_WORLDS = WORLDS + ('galaxy',)
+PROFILE_WORLDS = WORLDS + ('galaxy','cymatics')
 FIELD = ('blend', 'organic', 'geometric', 'cosmic', 'transition')
 EFFECTS = {
     'artifacts': ('Living artifacts', 'Material', WORLDS),
@@ -68,6 +68,20 @@ for key,label in zip(ENVELOPERS, ('Prism Assembly','Digital Bloom','Chromatic Me
 STELLAR_LAYERS = ('stellar_sails', 'parallax_shoal')
 for key,label in zip(STELLAR_LAYERS, ('Ion Comets','Parallax Shoal')):
     EFFECTS[key] = (label,'Sky effects',('galaxy','cosmic','fog','plasma'))
+MOLTEN_TREATMENTS = ('current_memory',)
+EFFECTS['current_memory']=('Current Memory','Field motion',('blend','fire'))
+MARSH_TREATMENTS = ('ghostlight_memory',)
+EFFECTS['ghostlight_memory']=('Ghostlight Memory','Field motion',('blend','fog'))
+VEIL_TREATMENTS = ('veil_memory',)
+EFFECTS['veil_memory']=('Veil Ripples','Field motion',('blend','plasma'))
+ARC_TREATMENTS = ('arc_relay',)
+EFFECTS['arc_relay']=('Charge Relay','Field motion',('blend','plasma'))
+MAGNETIC_TREATMENTS = ('flux_memory',)
+EFFECTS['flux_memory']=('Flux Memory','Field motion',('blend','plasma'))
+TOWER_TREATMENTS = ('tower_cadence',)
+EFFECTS['tower_cadence']=('Tower Cadence','Architectural motion',('blend','air'))
+MINERAL_TREATMENTS = ('mineral_resonance',)
+EFFECTS['mineral_resonance']=('Mineral Resonance','Surface motion',('blend','earth'))
 ORBITAL_LAYERS = ('gravity_well',)
 EFFECTS['gravity_well']=('Stellar Gravity Well','Spatial',('galaxy',))
 SKY_EFFECTS = ('shooting_stars',) + STELLAR_LAYERS
@@ -76,7 +90,10 @@ EXPLICIT_MATERIALS = ('echo_weave',) + NEW_MATERIALS
 EARTH_DETAILS = ('earth_sediment', 'earth_veins', 'earth_dust', 'earth_worm')
 FOG_DETAILS = ('fog_volume', 'fog_lights', 'fog_fronts')
 PLASMA_DETAILS = ('plasma_field', 'plasma_arcs', 'plasma_sparks')
-BITS = {key: (0 if key in EXPERIMENTS + EXPLICIT_MATERIALS + EARTH_DETAILS + FOG_DETAILS + PLASMA_DETAILS + SKY_EFFECTS + SPATIAL_TREATMENTS + ENVELOPERS + ORBITAL_LAYERS else 1 << i) for i, key in enumerate(EFFECTS)}
+from transition_catalog import RECIPES as TRANSITION_RECIPES
+TRANSITION_IDS=tuple(TRANSITION_RECIPES)
+for key,info in TRANSITION_RECIPES.items():EFFECTS[key]=(info[0],'Transitions',tuple(w for w in WORLDS if w not in ('galaxy','cymatics')))
+BITS = {key: (0 if key in TRANSITION_IDS + EXPERIMENTS + EXPLICIT_MATERIALS + EARTH_DETAILS + FOG_DETAILS + PLASMA_DETAILS + SKY_EFFECTS + SPATIAL_TREATMENTS + ENVELOPERS + ORBITAL_LAYERS + MINERAL_TREATMENTS + TOWER_TREATMENTS + MAGNETIC_TREATMENTS + ARC_TREATMENTS + VEIL_TREATMENTS + MARSH_TREATMENTS + MOLTEN_TREATMENTS else 1 << i) for i, key in enumerate(EFFECTS)}
 MODES = {'authored': 'Authored', 'together': 'Selected together', 'cycle': 'Cycle list', 'meld': 'Meld materials'}
 MATERIALS = ('artifacts', 'alloy', 'lattice', 'echo_weave') + NEW_MATERIALS
 
@@ -93,8 +110,14 @@ def default_profile(world=None):
 def profile_at(profiles,state):
     world=world_for_state(state)
     profile=profiles.get(world,default_profile(world))
+    items=[row for row in profile['items'] if row['id'] not in TRANSITION_IDS]
+    # A scene relationship must not become a blank visual-effect cycle step.
+    if len(items)!=len(profile['items']):
+        profile=dict(profile,items=items)
+        if not items:return default_profile(world)
     if world=='blend' and profile['mode']=='authored':return default_profile(world)
     return profile
+
 
 
 def validate_layers(data):
@@ -122,7 +145,7 @@ def validate_layers(data):
             row=dict(id=key, enabled=item['enabled'])
             if 'amount' in item:
                 amount=item['amount']
-                if key not in SPATIAL_TREATMENTS+ENVELOPERS+STELLAR_LAYERS+ORBITAL_LAYERS or type(amount) not in (int,float) or not math.isfinite(amount) or not 0<=amount<=1:
+                if key not in SPATIAL_TREATMENTS+ENVELOPERS+STELLAR_LAYERS+ORBITAL_LAYERS+MINERAL_TREATMENTS+TOWER_TREATMENTS+MAGNETIC_TREATMENTS+ARC_TREATMENTS+VEIL_TREATMENTS+MARSH_TREATMENTS+MOLTEN_TREATMENTS or type(amount) not in (int,float) or not math.isfinite(amount) or not 0<=amount<=1:
                     raise ValueError('Treatment amount must be 0-1 on a new spatial effect or Enveloper.')
                 row['amount']=float(amount)
             clean.append(row)
@@ -135,7 +158,7 @@ def parse_layers(text):
 
 
 def world_for_state(state):
-    if 32 <= state <= 35: return 'plasma'
+    if 32 <= state <= 35 or state in (38,39,40): return 'plasma'
     if 28 <= state <= 31: return 'fog'
     if 24 <= state <= 27: return 'earth'
     if 19 <= state <= 23: return 'air'
@@ -143,6 +166,7 @@ def world_for_state(state):
     if state == 2: return 'geometric'
     if state in (3, 5): return 'cosmic'
     if state == 36: return 'galaxy'
+    if state == 37: return 'cymatics'
     if state == 4: return 'transition'
     if 6 <= state <= 10 or state == 13: return 'water'
     if state in (14, 15, 16, 17, 18): return 'fire'
@@ -229,7 +253,7 @@ def plasma_details_at(profiles, state, seconds):
 def material_trio_profile(world):
     """Authored details plus the three materials, suitable for main-live testing."""
     return dict(mode='meld', seconds=36., items=[dict(id=key, enabled=True)
-        for key, info in EFFECTS.items() if world in info[2] and key not in EXPERIMENTS + EXPLICIT_MATERIALS + SPATIAL_TREATMENTS + ENVELOPERS + STELLAR_LAYERS + ORBITAL_LAYERS])
+        for key, info in EFFECTS.items() if world in info[2] and key not in TRANSITION_IDS + EXPERIMENTS + EXPLICIT_MATERIALS + SPATIAL_TREATMENTS + ENVELOPERS + STELLAR_LAYERS + ORBITAL_LAYERS])
 
 
 def material_quartet_profile(world):
@@ -300,3 +324,45 @@ def gravity_well_at(profiles,state,seconds):
     if world_for_state(state)!='galaxy':return 0.
     if profile_at(profiles,state)['mode']=='authored':return .72
     return treatment_weights(profiles,state,seconds,ORBITAL_LAYERS)[0]
+
+def current_memory_at(profiles,state,seconds):
+    profile=profile_at(profiles,state)
+    if state==0 and ('blend' not in profiles or profiles['blend']['mode']=='authored'):return 1.
+    if profile['mode']=='authored':return 1. if state in (15,16) else 0.
+    return treatment_weights(profiles,state,seconds,MOLTEN_TREATMENTS)[0]
+
+def ghostlight_memory_at(profiles,state,seconds):
+    profile=profile_at(profiles,state)
+    if state==0 and ('blend' not in profiles or profiles['blend']['mode']=='authored'):return 1.
+    if profile['mode']=='authored':return 1. if state in (29,31) else 0.
+    return treatment_weights(profiles,state,seconds,MARSH_TREATMENTS)[0]
+
+def veil_memory_at(profiles,state,seconds):
+    profile=profile_at(profiles,state)
+    if state==0 and ('blend' not in profiles or profiles['blend']['mode']=='authored'):return 1.
+    if profile['mode']=='authored':return 1. if state in (34,35,40) else 0.
+    return treatment_weights(profiles,state,seconds,VEIL_TREATMENTS)[0]
+
+def arc_relay_at(profiles,state,seconds):
+    profile=profile_at(profiles,state)
+    if state==0 and ('blend' not in profiles or profiles['blend']['mode']=='authored'):return 1.
+    if profile['mode']=='authored':return 1. if state in (33,35,39) else 0.
+    return treatment_weights(profiles,state,seconds,ARC_TREATMENTS)[0]
+
+def magnetic_memory_at(profiles,state,seconds):
+    profile=profile_at(profiles,state)
+    if state==0 and ('blend' not in profiles or profiles['blend']['mode']=='authored'):return 1.
+    if profile['mode']=='authored':return 1. if state in (32,35,38) else 0.
+    return treatment_weights(profiles,state,seconds,MAGNETIC_TREATMENTS)[0]
+
+def tower_cadence_at(profiles,state,seconds):
+    profile=profile_at(profiles,state)
+    if state==0 and ('blend' not in profiles or profiles['blend']['mode']=='authored'):return 1.
+    if profile['mode']=='authored':return 1. if state in (22,23) else 0.
+    return treatment_weights(profiles,state,seconds,TOWER_TREATMENTS)[0]
+
+def mineral_resonance_at(profiles,state,seconds):
+    profile=profile_at(profiles,state)
+    if state==0 and ('blend' not in profiles or profiles['blend']['mode']=='authored'):return 1.
+    if profile['mode']=='authored':return 1. if state in (26,27) else 0.
+    return treatment_weights(profiles,state,seconds,MINERAL_TREATMENTS)[0]

@@ -10,8 +10,18 @@ import math
 
 from procedural_cosmos import uniforms as journey_uniforms, PERIOD
 from parameters import VisualParameters
+from mineral_resonance import FormationCache, MineralResponse
+from citadel_response import TowerCadence
+from magnetic_response import FluxMemory,FieldPaths
+from arc_constellation import ArcNetwork,ArcStage
+from auroral_memory import VeilPalette
+from molten_response import MoltenMemory,MoltenPalette
+from marsh_response import MarshResponse,LampCache,MarshPalette
+from transition_catalog import validate_settings,select_recipe,recipe_uniforms,reprise_budgets,compatible,RECIPES,eligible_recipes
+from main_director import candidate_scores,choose_transition,transition_uniforms
 from envelopers import EnveloperStage
 from color_controls import validate_colors, color_uniforms, targets_for, STATE_COLOR_SCENE, galaxy_authored_colors
+from preview_layers import world_for_state as world_for_preview
 from preview_layers import gravity_well_at, stellar_layers_at, treatment_weights, SPATIAL_TREATMENTS, ENVELOPERS, material_weights, shooting_stars_at, echo_selected, echo_weave_at, layers_at, materials_at, daddy_long_legs_at, earth_details_at, fog_details_at, plasma_details_at
 
 VERTEX_SHADER = """
@@ -33,8 +43,8 @@ AIR_FORMS = (19, 20, 21, 22)
 EARTH_FORMS = (24, 25, 26)
 FOG_FORMS = (28, 29, 30)
 PLASMA_FORMS = (32, 33, 34)
-# State 36 is a held Galaxy review scene; it is deliberately absent from Main.
-LIVE_FORMS = BLEND_FORMS + AIR_FORMS + EARTH_FORMS + FOG_FORMS + PLASMA_FORMS
+# Approved Galaxy shares the canonical live Main roster, not the fixture itinerary.
+LIVE_FORMS = BLEND_FORMS + AIR_FORMS + EARTH_FORMS + FOG_FORMS + PLASMA_FORMS + (36,)
 
 @lru_cache(maxsize=8)
 def blend_chapter(chapter):
@@ -121,6 +131,25 @@ def world_uniforms(weights, progress=0., enabled=True, handoff=None):
                 u_plasma_weight=plasma, u_plasma_mix=plasma_mix, u_galaxy_weight=weights.get(36,0.))
 
 
+class OriginalLoopStage:
+    """Exact original loop equations evaluated once per328 vertices, not per pixel."""
+    def __init__(self,ctx,vertices):
+        source=(Path(__file__).parent/'shaders/dream.frag').read_text(encoding='utf-8')
+        functions=source[source.index('vec3 plasma_view('):source.index('float plasma_sphere(')]
+        functions+=source[source.index('vec3 magnetic_core_position('):source.index('vec3 experimental_plasma_scene(')]
+        fragment='#version 330\nuniform float u_time,u_scale,u_flux,u_impact;\nout vec4 position;\n'+functions+'\nvec3 projected(float f,float row){vec3 q=plasma_view(plasma_loop(f,row));return vec3(q.xy/q.z*1.35,1./q.z);}\nvoid main(){int j=int(gl_FragCoord.x);float row=floor(gl_FragCoord.y);\n if(j<41){position=vec4(projected(float(j)/40.,row),1.);return;}\n vec2 low=vec2(100.),high=vec2(-100.);\n for(int i=0;i<=40;i++){vec2 q=projected(float(i)/40.,row).xy;low=min(low,q);high=max(high,q);}\n position=vec4(low,high);\n}\n'
+        self.ctx=ctx;self.program=ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=fragment)
+        self.texture=ctx.texture((42,8),4,dtype='f4');self.texture.filter=(moderngl.NEAREST,moderngl.NEAREST)
+        self.texture.repeat_x=self.texture.repeat_y=False;self.fbo=ctx.framebuffer(color_attachments=(self.texture,))
+        self.vao=ctx.vertex_array(self.program,[(vertices,'2f','in_position')])
+    def draw(self,program,size,values):
+        for name,value in zip(('u_time','u_scale','u_flux','u_impact'),values):self.program[name].value=value
+        self.fbo.use();self.ctx.viewport=(0,0,42,8);self.vao.render(mode=moderngl.TRIANGLE_STRIP)
+        self.ctx.screen.use();self.ctx.viewport=(0,0,*size);self.texture.use(13);program['u_original_paths'].value=13
+    def release(self):
+        for resource in (self.vao,self.fbo,self.texture,self.program):resource.release()
+
+
 class Renderer:
     # Base flow range before the bounded musical energy boost in render().
     FLOW_FLOOR = 0.35
@@ -137,13 +166,38 @@ class Renderer:
         self.program = None
         self.vertices = None
         self.vao = None
+        self.surface_stage = None
+        self.original_loop_stage = None
         self.enveloper_stage = None
         self.enveloper_failed = False
         self.echo_resources = None
+        self.echo_parked = None
+        self.echo_weight = 0.
         self.echo_last_time = None
         self.echo_clock = 0.
         self.echo_remainder = 0.
+        self.cavern_cache = FormationCache()
+        self.cavern_texture = None
+        self.mineral_response = MineralResponse()
+        self.tower_cadence = TowerCadence(7301 if seed is None else seed)
+        self.flux_memory=FluxMemory(7301 if seed is None else seed)
+        self.field_paths=FieldPaths(7301 if seed is None else seed)
+        self.magnetic_texture=None
+        self.magnetic_cache_cpu_ms=0.
+        self.arc_memory=FluxMemory(7424 if seed is None else seed+123)
+        self.arc_network=ArcNetwork(7301 if seed is None else seed)
+        self.arc_texture=None
+        self.arc_stage=None
+        self.arc_cache_cpu_ms=0.
+        self.aurora_memory=FluxMemory(7680 if seed is None else seed+379)
+        self.veil_palette=VeilPalette()
+        self.aurora_stage=None
+        self.aurora_mapping_cpu_ms=0.
+        self.marsh_response=MarshResponse(7810 if seed is None else seed+509)
+        self.marsh_cache=LampCache();self.marsh_palette=MarshPalette();self.marsh_cache_cpu_ms=0.
+        self.molten_memory=MoltenMemory(8100 if seed is None else seed+799);self.molten_palette=MoltenPalette();self.molten_mapping_cpu_ms=0.
 
+        self.startup_notice = None
         self.start_time = None
         self.last_render_time = None
         self.impact_envelope = 0.0
@@ -155,6 +209,13 @@ class Renderer:
         self.firescape_rate = self.FLOW_FLOOR
         self.firescape_travel = 0.0
         self.flow_rate = self.FLOW_FLOOR
+        self.cymatics = None
+        self.cymatics_material = 0.
+        self.cymatics_view = (1.,.65,0.)
+        from cymatics_view import BasinView
+        self.cymatics_camera=BasinView()
+        self.cymatics_style=(0.,-.65,.6)
+        self.cymatics_mute_requested=False
         self.cosmos_seed = 7301 if seed is None else int(seed)
         self.galaxy_time = 0.0
         self.galaxy_start_visit=0
@@ -176,6 +237,10 @@ class Renderer:
         self.parameters = VisualParameters()
         self.debug_state = 0
         self.debug_sequence = ()
+        self.transition_settings=validate_settings()
+        self.transition_sequence=False
+        self.director_recipe=None
+        self.director_reprise=False
         self.layer_profiles = {}
         # Development-only color choice; independent of materials and sessions.
         self.preview_palette = "authored"
@@ -198,6 +263,7 @@ class Renderer:
         self.director_since = 0.
         self.director_transition = 0.
         self.director_duration = 8.
+        self.galaxy_main_since = 0.
         self.director_min_hold = 14.
         self.director_max_hold = 40.
         self.director_fast = None
@@ -206,44 +272,73 @@ class Renderer:
         self.director_last_seen = {}
         self.director_history = []
         self.director_pending = None
+        deck=list(LIVE_FORMS);self.director_rng.shuffle(deck)
+        self.director_priorities={state:i/max(1,len(deck)-1) for i,state in enumerate(deck)}
+        self.director_recent_pairs=[];self.director_recent_styles=[];self.director_recent_recipes=[]
+        self.director_style=0;self.director_layout=(0.,0.,0.,0.);self.director_choice={}
         self.planet_visits = 0
-        self.blast_events = []
+        self.blast_events = []; self.blast_retire={};self.blast_retired=[]
         self.blast_serial = 0
         self.blast_hits = 0
         self.blast_armed = True
         self.last_blast_hit = -1000.
         self.last_blast = -1000.
 
+    def configure_transitions(self,settings=None):
+        self.transition_settings=validate_settings(settings)
+        pair=self.transition_settings['pair']
+        if pair:
+            self.debug_sequence=tuple(pair);self.transition_sequence=True
+        elif self.transition_settings['isolate'].get(world_for_preview(self.debug_state)) or any(row['enabled'] and row['id'] in RECIPES for row in self.layer_profiles.get(world_for_preview(self.debug_state),{}).get('items',[])):
+            forms={1:(11,12),6:(7,8,9,10,13),16:(14,15,17,18),23:AIR_FORMS,27:EARTH_FORMS,31:FOG_FORMS,35:PLASMA_FORMS}
+            if self.debug_state in forms:self.debug_sequence=forms[self.debug_state];self.transition_sequence=True
+            elif self.debug_sequence:self.transition_sequence=True
+        if pair:
+            profile=self.layer_profiles.get(world_for_preview(pair[0]),self.layer_profiles.get('blend',{}))
+            isolated=self.transition_settings['isolate'].get('pair') or self.transition_settings['isolate'].get(world_for_preview(pair[0])) or self.transition_settings['isolate'].get('blend')
+            select_recipe(random.Random(0),*pair,profile,isolated)
+
+    def sequence_blend(self,seconds):
+        cfg=self.transition_settings;span=cfg['hold']+cfg['duration'];index=int(max(0.,seconds)//span)
+        source=self.debug_sequence[index%len(self.debug_sequence)];target=self.debug_sequence[(index+1)%len(self.debug_sequence)]
+        age=max(0.,seconds)%span
+        if age<cfg['hold']:
+            self.blend_values=world_uniforms({},enabled=False);return
+        p=min(1.,(age-cfg['hold'])/cfg['duration']);p=p*p*(3.-2.*p)
+        world=world_for_preview(source)
+        profile=self.layer_profiles.get(world,self.layer_profiles.get('blend',{}))
+        isolate=self.transition_settings['isolate'].get('pair') or self.transition_settings['isolate'].get(world) or self.transition_settings['isolate'].get('blend')
+        style,layout,key=select_recipe(random.Random(self.cosmos_seed+index*104729),source,target,profile,isolate,index)
+        self.blend_values=world_uniforms({source:1.-p,target:p},p,handoff=(source,target))
+        self.blend_values.update(recipe_uniforms(key,p,source,target,layout,world_family))
+        self.director_recipe=key
+
     def state_at(self, seconds):
         """Development-only holds; ordinary rendering keeps its existing state."""
+        if self.transition_sequence:
+            span=self.transition_settings['hold']+self.transition_settings['duration']
+            if max(0.,seconds)%span>=self.transition_settings['hold']:return 0
+            return self.debug_sequence[int(max(0.,seconds)//span)%len(self.debug_sequence)]
         if self.debug_sequence:
             return self.debug_sequence[int(max(0.0, seconds) // 28.0) % len(self.debug_sequence)]
         return self.debug_state
 
     def choose_world(self, energy, lift=False):
-        # Preference, not a playlist: quiet worlds remain possible at high energy.
-        preferred = {11:.25,12:.4,2:.75,5:.65,7:.65,8:.3,9:.25,
-                     10:.55,13:.25,14:.7,15:.5,17:.8,18:.9,
-                     19:.3,20:.75,21:.85,22:.6,24:.3,25:.65,26:.7,28:.4,29:.25,30:.85,32:.65,33:.9,34:.35}
-        choices=[];scores=[]
-        for state in LIVE_FORMS:
-            if state == self.director_current:continue
-            last=self.director_last_seen.get(state)
-            absence=240. if last is None else self.director_time-last
-            if absence<38.:continue
-            fit=.15+math.exp(-((energy-preferred[state])/.30)**2)
-            novelty=.5+min(absence,180.)/90.
-            anchor=1.
-            if state in (2,5) and energy>.48:
-                waiting=self.director_time-(last if last is not None else 0.)
-                anchor=1.6+min(24.,(max(0.,waiting-35.)/18.)**2)
-            if state==5 and lift:anchor*=2.5
-            affinity = 1.65 if handoff_kind(self.director_current,state) else 1.
-            choices.append(state);scores.append(fit*novelty*anchor*affinity)
-        return self.director_rng.choices(choices,weights=scores,k=1)[0]
+        rows=candidate_scores(LIVE_FORMS,self.director_current,energy,lift,self.director_time,
+            self.director_last_seen,self.director_recent_pairs,self.director_priorities,self.color_overrides)
+        if not rows:
+            self.director_choice=dict(reason='empty eligible pool fallback',state=self.director_current)
+            return self.director_current if self.director_current is not None else LIVE_FORMS[0]
+        chosen=self.director_rng.choices(rows,weights=[row['score'] for row in rows],k=1)[0]
+        self.director_choice=dict(energy=energy,lift=bool(lift),source=self.director_current,
+            selected=chosen,alternatives=sorted(rows,key=lambda row:row['score'],reverse=True)[:4],
+            rationale='musical fit, soft recency/pair penalty, coverage and visual contrast with bounded shuffled variation')
+        return chosen['state']
 
     def update_blend(self, seconds, delta, enabled=True):
         """Audio opportunities choose one complete handoff; never stack takeovers."""
+        if self.transition_sequence:
+            self.sequence_blend(seconds);return
         if not enabled:
             self.blend_values=world_uniforms({},enabled=False)
             return
@@ -267,7 +362,8 @@ class Renderer:
             self.director_since=now
             self.director_last_seen[self.director_current]=now
             self.planet_visits+=int(self.director_current==5)
-            self.director_history.append(dict(seconds=seconds,state=self.director_current,reason='opening'))
+            if self.director_current==36:self.galaxy_main_since=now
+            self.director_history.append(dict(seconds=seconds,state=self.director_current,reason='opening',selection=self.director_choice))
         if self.director_target is not None:
             progress=min(1.,max(0.,(now-self.director_transition)/self.director_duration))
             if progress>=1.:
@@ -276,14 +372,24 @@ class Renderer:
                 self.director_since=now
                 self.director_min_hold=self.director_rng.uniform(12.,19.)
                 self.director_max_hold=self.director_rng.uniform(32.,48.)
+                self.director_min_hold,self.director_max_hold=reprise_budgets(self.director_min_hold,self.director_max_hold,self.director_reprise)
+                self.director_history[-1].update(reprise=self.director_reprise,hold_min=self.director_min_hold,hold_max=self.director_max_hold)
             else:
                 progress=progress*progress*(3.-2.*progress)
                 self.blend_values=world_uniforms({self.director_current:1.-progress,
                     self.director_target:progress},progress, handoff=(self.director_current,self.director_target))
+                if self.director_recipe:
+                    self.blend_values.update(recipe_uniforms(self.director_recipe,progress,self.director_current,self.director_target,self.director_layout,world_family))
+                else:
+                    self.blend_values.update(transition_uniforms(self.director_style,progress,self.director_current,self.director_target,self.director_layout))
                 return
         age=now-self.director_since
         reason=None
-        if age>=self.director_min_hold:
+        # Preserve the authored full route on Main entry and return. Ordinary
+        # world/reprise budgets remain unchanged; Galaxy becomes releasable at its
+        # existing route boundary (including incoming transition time).
+        route_complete=self.director_current!=36 or now-self.galaxy_main_since>=PERIOD
+        if age>=self.director_min_hold and route_complete:
             if lift:reason='energy lift'
             elif release:reason='release'
             elif hit and self.director_fast>.45:reason='strong hit'
@@ -303,11 +409,23 @@ class Renderer:
             reason = None
         if reason:
             self.director_target=self.choose_world(energy if release else max(energy,self.director_fast),lift)
+            if self.director_target==36:self.galaxy_main_since=now
+            self.director_reprise=(len(self.director_history)>=2 and self.director_target==self.director_history[-2]['state'] and now-self.director_last_seen.get(self.director_target,-1e6)<100.)
+            profile=self.layer_profiles.get('blend',{})
+            isolate=self.transition_settings['isolate'].get('blend')
+            # Main can encounter an incompatible pair: retain authored compatible choices.
+            if isolate and not compatible(isolate,self.director_current,self.director_target):isolate=None
+            self.director_style,self.director_layout,self.director_recipe=select_recipe(self.director_rng,self.director_current,self.director_target,profile,isolate,len(self.director_history),self.director_recent_recipes)
+            transition_reason=RECIPES[self.director_recipe][0]
+            eligible=eligible_recipes(self.director_current,self.director_target,profile)
+            self.director_recent_recipes=(self.director_recent_recipes+[self.director_recipe])[-12:]
+            self.director_recent_pairs=(self.director_recent_pairs+[(self.director_current,self.director_target)])[-12:]
+            self.director_recent_styles=(self.director_recent_styles+[self.director_style])[-12:]
             self.director_transition=now
             self.director_duration=self.director_rng.uniform(6.,9.) if reason!='release' else self.director_rng.uniform(8.,11.)
             self.planet_visits+=int(self.director_target==5)
             self.director_last_seen[self.director_target]=now
-            self.director_history.append(dict(seconds=seconds,state=self.director_target,reason=reason))
+            self.director_history.append(dict(seconds=seconds,state=self.director_target,reason=reason,source=self.director_current,selection=self.director_choice,transition=self.director_style,transition_id=self.director_recipe,reprise=self.director_reprise,transition_reason=transition_reason,eligible_transition_ids=eligible,layout=self.director_layout))
             self.director_history=self.director_history[-64:]
         self.blend_values=world_uniforms({self.director_current:1.})
 
@@ -324,7 +442,10 @@ class Renderer:
 
     def update_blasts(self, seconds):
         """Eight bounded sites; births stay on fresh onsets, never timer expiry."""
-        self.blast_events = [e for e in self.blast_events if 0.<=seconds-e[0]<20.]
+        expired=[e for e in self.blast_events if not 0.<=seconds-e[0]<20. or (e[1] in self.blast_retire and seconds>=self.blast_retire[e[1]]+.65)]
+        for e in expired:self.blast_retired=(self.blast_retired+[(e[1],seconds,self.blast_retire.get(e[1]))])[-16:]
+        self.blast_events=[e for e in self.blast_events if e not in expired]
+        self.blast_retire={e[1]:self.blast_retire[e[1]] for e in self.blast_events if e[1] in self.blast_retire}
         visible = self.state_at(seconds)==18 or (self.blend_values['u_directed']
             and self.blend_values['u_world_mix'][3]*self.blend_values['u_fire_mix'][3]>.15)
         impact=max(0.,min(1.,self.parameters.impact))
@@ -347,9 +468,12 @@ class Renderer:
                     +((6./depth-6./max(4.,e[3]-seconds*.30))/.12)**2)
                     for e in self.blast_events),default=1.)
             x,z=max(candidates,key=separation)
-            # Recycle the oldest (most faded) site instead of waiting for all
-            # eight 20-second lifetimes to expire. Capacity stays bounded.
-            self.blast_events = self.blast_events[-7:]
+            # At seven occupied slots, begin retiring the oldest before filling
+            # the eighth. The .65s fade completes before the next >=.70s birth.
+            if len(self.blast_events)>=7:
+                self.blast_retire.setdefault(self.blast_events[0][1],seconds)
+            if len(self.blast_events)>=8:
+                raise RuntimeError('Aftershock retirement failed to free a bounded slot.')
             self.blast_events.append((seconds,float(self.blast_serial),x,z))
             self.blast_serial+=1;self.last_blast=seconds;self.blast_hits=0
 
@@ -406,6 +530,7 @@ class Renderer:
             glfw.make_context_current(self.window)
 
             self.ctx = moderngl.create_context()
+            self._color_uploads={};self._color_dirty=True
 
             shader_path = Path(__file__).parent / "shaders" / "dream.frag"
             fragment_shader = shader_path.read_text(encoding="utf-8")
@@ -436,9 +561,19 @@ class Renderer:
                 "in_position",
             )
 
+            if self.debug_state in (0,22,26) or any(state in (22,26) for state in self.debug_sequence):
+                from scene_surfaces import SurfaceStage
+                self.surface_stage=SurfaceStage(self.ctx);self.surface_stage.resize(glfw.get_framebuffer_size(self.window))
+            if self.debug_state in (0,32,35) or any(state==32 for state in self.debug_sequence):
+                self.original_loop_stage=OriginalLoopStage(self.ctx,self.vertices)
+                self.original_loop_stage.draw(self.program,glfw.get_framebuffer_size(self.window),(0.,0.,0.,0.))
+                self.ctx.finish()
+            if self.debug_state==37:self.install_cymatics_controls()
             self.startup_metrics['create_seconds'] = time.perf_counter() - began
-            if notice:
-                notice.phase('ready')
+            # Compilation success is not presentation readiness. Keep the
+            # responsive owned notice through first draw and driver first-use.
+            self.startup_notice = notice
+            notice = None
         except BaseException:
             if notice:
                 notice.phase('failed')
@@ -446,38 +581,63 @@ class Renderer:
         finally:
             if notice:
                 notice.close()
-        if visible:
-            glfw.show_window(self.window)
+        # Visible window is revealed only after its first complete swap.
         # Animation begins after loading, independent of compile/notice time.
         self.start_time = time.perf_counter()
 
+    def install_cymatics_controls(self):
+        glfw.set_window_title(self.window,'Water | Left drag orbit | Right/Shift drag pan | Wheel zoom | R reset | M mute')
+        def button(window,which,action,mods):
+            if which not in (glfw.MOUSE_BUTTON_LEFT,glfw.MOUSE_BUTTON_RIGHT):return
+            x,y=self.cymatics_camera.cursor if hasattr(self.cymatics_camera,'cursor') else glfw.get_cursor_pos(window);self.cymatics_camera.button(0 if which==glfw.MOUSE_BUTTON_LEFT else 1,action==glfw.PRESS,x,y,bool(mods & glfw.MOD_SHIFT))
+        def move(window,x,y):self.cymatics_camera.move(x,y,*glfw.get_window_size(window))
+        def scroll(window,x,y):self.cymatics_camera.scroll(y)
+        def key(window,key,scancode,action,mods):
+            if action!=glfw.PRESS:return
+            if key==glfw.KEY_R:self.cymatics_camera.reset()
+            if key==glfw.KEY_M:self.cymatics_mute_requested=True
+        glfw.set_mouse_button_callback(self.window,button);glfw.set_cursor_pos_callback(self.window,move);glfw.set_scroll_callback(self.window,scroll);glfw.set_key_callback(self.window,key)
 
     def release_echo(self):
-        if self.echo_resources is not None:
-            textures, targets, program, vao = self.echo_resources
-            for resource in [vao, program, *targets, *textures]: resource.release()
-            self.echo_resources = None
+        for bundle in (self.echo_resources,getattr(self,'echo_parked',None)):
+            if bundle is not None:
+                textures, targets, program, vao = bundle
+                for resource in [vao, program, *targets, *textures]: resource.release()
+        self.echo_resources = self.echo_parked = None
         self.echo_last_time = None
         self.echo_clock = self.echo_remainder = 0.
 
+    def park_echo(self):
+        # Muted history is inactive/reset, but retain one bounded 4MiB allocation.
+        # Deleting its in-flight GL objects at Main -> held caused native fences.
+        if self.echo_resources is not None:
+            self.echo_parked=self.echo_resources;self.echo_resources=None
+        self.echo_last_time=None
+        self.echo_clock=self.echo_remainder=0.
+
     def update_echo(self, seconds, enabled, keep_alive=False):
-        self.program['u_echo_weave'].value = float(enabled)
+        self.echo_weight = float(enabled)
+        self.program['u_echo_weave'].value = self.echo_weight
         if not enabled and not keep_alive:
-            self.release_echo()
+            self.park_echo()
             return
         target, viewport = self.ctx.fbo or self.ctx.screen, self.ctx.viewport
         try:
             if self.echo_resources is None:
-                textures = [self.ctx.texture((512, 512), 4, dtype='f2') for _ in range(2)]
-                for texture in textures:
-                    texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
-                    texture.repeat_x = texture.repeat_y = False
-                targets = [self.ctx.framebuffer(color_attachments=[texture]) for texture in textures]
-                program = self.ctx.program(vertex_shader=VERTEX_SHADER,
-                    fragment_shader=(Path(__file__).parent/'shaders/echo_weave.frag').read_text())
-                vao = self.ctx.simple_vertex_array(program, self.vertices, 'in_position')
-                self.echo_resources = textures, targets, program, vao
-                for framebuffer in targets: framebuffer.clear()
+                if self.echo_parked is not None:
+                    self.echo_resources=self.echo_parked;self.echo_parked=None
+                    for framebuffer in self.echo_resources[1]:framebuffer.clear()
+                else:
+                    textures = [self.ctx.texture((512, 512), 4, dtype='f2') for _ in range(2)]
+                    for texture in textures:
+                        texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+                        texture.repeat_x = texture.repeat_y = False
+                    targets = [self.ctx.framebuffer(color_attachments=[texture]) for texture in textures]
+                    program = self.ctx.program(vertex_shader=VERTEX_SHADER,
+                        fragment_shader=(Path(__file__).parent/'shaders/echo_weave.frag').read_text())
+                    vao = self.ctx.simple_vertex_array(program, self.vertices, 'in_position')
+                    self.echo_resources = textures, targets, program, vao
+                    for framebuffer in targets: framebuffer.clear()
             textures, targets, program, vao = self.echo_resources
             delta = 0. if self.echo_last_time is None else seconds-self.echo_last_time
             if delta < 0. or delta > 1.:
@@ -515,7 +675,7 @@ class Renderer:
                 for _ in range(13):
                     if visit_signature(self.cosmos_seed,self.galaxy_next_visit)[1] not in self.galaxy_recent:break
                     self.galaxy_next_visit+=1
-                age=0. if held and not self.galaxy_short_visit else entry_phase(self.cosmos_seed,self.galaxy_next_visit)
+                age=entry_phase(self.cosmos_seed,self.galaxy_next_visit) if held and self.galaxy_short_visit else 0.
                 self.galaxy_time=self.galaxy_next_visit*PERIOD+age
             self.galaxy_seen_once=True;self._color_dirty=True
         if present:
@@ -541,12 +701,24 @@ class Renderer:
         self.color_overrides = clean
         self._color_dirty = True
 
+    def consume_pcm(self, samples):
+        if self.debug_state != 37: return
+        if self.cymatics is None:
+            from cymatics import Basin
+            self.cymatics = Basin()
+        import numpy as np
+        pcm=np.asarray(samples,dtype=float)
+        if pcm.ndim>1:pcm=pcm.mean(axis=1)
+        for start in range(0,len(pcm),2048):self.cymatics.advance(pcm[start:start+2048])
 
     def render(self, elapsed_time=None):
         if self.window is None:
             raise RuntimeError("Renderer has not been created")
 
         width, height = glfw.get_framebuffer_size(self.window)
+        if width <= 0 or height <= 0:
+            self.poll_events()
+            return
 
         self.ctx.viewport = (0, 0, width, height)
 
@@ -656,10 +828,6 @@ class Renderer:
                 self.stellar_last_event=current_time
                 if transient:self.stellar_armed=False
         self.program['u_stellar_events'].value=self.stellar_events+[(-1000.,0.,0.,0.)]*(8-len(self.stellar_events))
-        present=state==36 or self.blend_values.get('u_galaxy_weight',0.)>0.
-        self.update_galaxy_visit(present,delta_time,state==36,rewound)
-        for name,value in journey_uniforms(self.cosmos_seed,self.galaxy_time,self.star_time).items():
-            self.program[name].value=value
         self.program['u_gravity_well'].value=gravity_well_at(self.layer_profiles,state,current_time)
         self.program['u_stellar_layers'].value=stellar_layers_at(self.layer_profiles,state,current_time)
 
@@ -692,7 +860,18 @@ class Renderer:
         self.program['u_air_afterglow'].value = self.air_afterglow
         self.program['u_air_trails'].value = self.air_trails + [(0.,0.)] * (3-len(self.air_trails))
         self.program["u_flux"].value = self.parameters.flux
-        self.program["u_debug_state"].value = float(self.state_at(current_time))
+        self.program["u_debug_state"].value = float(state-6 if state in (38,39,40) else state)
+        self.program['u_plasma_experimental'].value=int(state in (38,39,40))
+        if self.state_at(current_time)==37:
+            if self.cymatics is None:
+                from cymatics import Basin
+                self.cymatics=Basin()
+            for key,value in self.cymatics.uniforms().items():self.program[key].value=value
+            self.program['u_cym_material'].value=self.cymatics_material
+            self.program['u_cym_view'].value=self.cymatics_view
+            pose,pan=self.cymatics_camera.sample(current_time,bool(self.cymatics_view[0]))
+            self.program['u_cym_camera'].value=pose;self.program['u_cym_pan'].value=pan
+            self.program['u_cym_style'].value=self.cymatics_style
         self.program["u_planet_palette"].value = int(
             self.preview_palette == "soft-dream" and self.state_at(current_time) == 5)
         mode, mask = layers_at(self.layer_profiles, self.state_at(current_time), current_time)
@@ -713,9 +892,137 @@ class Renderer:
         self.program['u_material_mix'].value = materials_at(
             self.layer_profiles, self.state_at(current_time), current_time)
         self.update_blend(current_time, delta_time, self.state_at(current_time) == 0 and mode != 0)
+        present=state==36 or self.blend_values.get('u_galaxy_weight',0.)>0.
+        self.update_galaxy_visit(present,delta_time,state==36,rewound)
+        if present:
+            self.program['u_stellar_layers'].value=stellar_layers_at(self.layer_profiles,36,current_time)
+            self.program['u_gravity_well'].value=gravity_well_at(self.layer_profiles,36,current_time)
+        for name,value in journey_uniforms(self.cosmos_seed,self.galaxy_time,self.star_time).items():
+            self.program[name].value=value
+        from preview_layers import mineral_resonance_at
+        mineral_amount=mineral_resonance_at(self.layer_profiles,state,current_time)
+        cavern_present=state in (26,27) or (self.blend_values.get('u_earth_weight',0.)>0. and self.blend_values['u_earth_mix'][2]>0.)
+        earth_present=state in (24,25,26,27) or self.blend_values.get('u_earth_weight',0.)>0.
+        if state==0 and not cavern_present:mineral_amount=0.
+        travel=(visual_time*3.+current_time*.035)*1.35
+        motion=self.mineral_response.advance(current_time,delta_time,self.parameters.scale,
+            self.parameters.movement,self.parameters.sparkle,self.parameters.impact,travel,
+            earth_present and mineral_amount>0.)
+        mineral_surface=(motion[0],motion[1],motion[2]*mineral_amount,motion[3]*mineral_amount)
+        self.program['u_mineral_motion'].value=mineral_surface
+        self.program['u_mineral_fronts'].value=self.mineral_response.fronts()
+        self.program['u_mineral_amount'].value=mineral_amount
+        self.program['u_cavern_cached'].value=int(cavern_present)
+        self.program['u_cavern_cell_count'].value=192
+        if cavern_present:
+            data=self.cavern_cache.update(travel)
+            if self.cavern_texture is None:
+                self.cavern_texture=self.ctx.texture((64,24),4,dtype='f4')
+                self.cavern_texture.filter=(moderngl.NEAREST,moderngl.NEAREST)
+                self.cavern_texture.repeat_x=self.cavern_texture.repeat_y=False
+            if data is not None:self.cavern_texture.write(data)
+            self.cavern_texture.use(location=3)
+            self.program['u_cavern_cache'].value=3
+            self.program['u_cavern_origin'].value=self.cavern_cache.origin
+
+        from preview_layers import tower_cadence_at
+        citadel_present=(state==22 or (state==23 and current_time%144.>=95.4)) or (self.blend_values.get('u_air_weight',0.)>0. and self.blend_values['u_air_mix'][3]>0.)
+        tower_amount=tower_cadence_at(self.layer_profiles,state,current_time)
+        tower=self.tower_cadence.advance(current_time,delta_time,self.parameters.scale,self.parameters.movement,
+            self.parameters.sparkle,self.parameters.impact,citadel_present and tower_amount>0.)
+        self.program['u_tower_motion'].value=tower
+        self.program['u_tower_events'].value=self.tower_cadence.fronts()
+        self.program['u_tower_visit'].value=float(self.tower_cadence.visit)
+        self.program['u_tower_amount'].value=tower_amount
+
+        from preview_layers import magnetic_memory_at
+        magnetic_present=state==38
+        magnetic_amount=magnetic_memory_at(self.layer_profiles,state,current_time)
+        field=self.flux_memory.advance(current_time,delta_time,self.parameters.scale,self.parameters.movement,self.parameters.sparkle,self.parameters.flux,self.parameters.impact,magnetic_present and magnetic_amount>0.)
+        self.program['u_magnetic_motion'].value=(field[0]*magnetic_amount,field[1]*magnetic_amount,field[2],field[3]*magnetic_amount)
+        self.program['u_magnetic_events'].value=self.flux_memory.fronts()
+        self.program['u_magnetic_visit'].value=float(self.flux_memory.visit)
+        self.program['u_magnetic_amount'].value=magnetic_amount
+        self.program['u_magnetic_paths'].value=4
+        if magnetic_present:
+            began_cache=time.perf_counter()
+            data,bounds,groups,axes=self.field_paths.build(self.flux_memory,current_time,magnetic_amount)
+            if self.magnetic_texture is None:
+                self.magnetic_texture=self.ctx.texture((49,12),4,dtype='f4')
+                self.magnetic_texture.filter=(moderngl.NEAREST,moderngl.NEAREST)
+                self.magnetic_texture.repeat_x=self.magnetic_texture.repeat_y=False
+            self.magnetic_texture.write(data);self.magnetic_texture.use(location=4)
+            self.program['u_magnetic_bounds'].value=bounds
+            self.program['u_magnetic_groups'].value=groups
+            self.program['u_magnetic_axes'].value=axes
+            self.magnetic_cache_cpu_ms=(time.perf_counter()-began_cache)*1000
+        from preview_layers import arc_relay_at
+        arc_present=state==39
+        arc_amount=arc_relay_at(self.layer_profiles,state,current_time)
+        arc=self.arc_memory.advance(current_time,delta_time,self.parameters.scale,self.parameters.movement,self.parameters.sparkle,self.parameters.flux,self.parameters.impact,arc_present and arc_amount>0.)
+        self.program['u_arc_scene'].value=6
+        if arc_present:
+            if self.arc_stage is None:self.arc_stage=ArcStage(self.ctx,self.vertices,VERTEX_SHADER);self._color_dirty=True
+            ap=self.arc_stage.program
+            ap['u_arc_motion'].value=(arc[0]*arc_amount,arc[1]*arc_amount,arc[2],arc[3]*arc_amount)
+            ap['u_arc_counts'].value=(9,12)
+
+        if arc_present:
+            began_arc=time.perf_counter()
+            data,bounds,groups,nodes,shapes,links=self.arc_network.build(self.arc_memory,current_time,arc_amount)
+            if self.arc_texture is None:
+                self.arc_texture=self.ctx.texture((17,12),4,dtype='f4')
+                self.arc_texture.filter=(moderngl.NEAREST,moderngl.NEAREST)
+                self.arc_texture.repeat_x=self.arc_texture.repeat_y=False
+            self.arc_texture.write(data);self.arc_texture.use(location=5)
+            ap['u_arc_authored'].value=self.arc_network.pigments(self.arc_memory)
+            ap['u_arc_bounds'].value=bounds;ap['u_arc_groups'].value=groups
+            ap['u_arc_nodes'].value=nodes;ap['u_arc_shape'].value=shapes;ap['u_arc_links'].value=links
+            self.arc_cache_cpu_ms=(time.perf_counter()-began_arc)*1000
+        from preview_layers import veil_memory_at
+        aurora_present=state==40
+        veil_amount=veil_memory_at(self.layer_profiles,state,current_time)
+        veil=self.aurora_memory.advance(current_time,delta_time,self.parameters.scale,self.parameters.movement,self.parameters.sparkle,self.parameters.flux,self.parameters.impact,aurora_present and veil_amount>0.)
+        self.program['u_aurora_scene'].value=7
+        if aurora_present:
+            began_veil=time.perf_counter()
+            if self.aurora_stage is None:self.aurora_stage=ArcStage(self.ctx,self.vertices,VERTEX_SHADER,'auroral_veil.frag',7);self._color_dirty=True
+            vp=self.aurora_stage.program
+            vp['u_veil_motion'].value=(veil[0]*veil_amount,veil[1]*veil_amount,veil[2],veil[3]*veil_amount)
+            vp['u_veil_events'].value=self.aurora_memory.fronts();vp['u_veil_amount'].value=veil_amount
+            vp['u_veil_layers'].value=6;vp['u_veil_authored'].value=self.veil_palette.sample(self.aurora_memory)
+            self.aurora_mapping_cpu_ms=(time.perf_counter()-began_veil)*1000
+        from preview_layers import ghostlight_memory_at
+        marsh_present=(state==29 or (state==31 and 26.6<=current_time%114.<76.)) or (self.blend_values.get('u_fog_weight',0.)>0. and self.blend_values.get('u_fog_mix',(0.,0.,0.))[1]>0.)
+        marsh_amount=ghostlight_memory_at(self.layer_profiles,state,current_time)
+        marsh_travel=visual_time*3.2+current_time*.04
+        marsh=self.marsh_response.advance(current_time,delta_time,self.parameters.scale,self.parameters.movement,self.parameters.sparkle,self.parameters.flux,self.parameters.impact,marsh_travel,marsh_present and marsh_amount>0.)
+        self.program['u_marsh_cached'].value=int(marsh_present)
+        self.program['u_marsh_motion'].value=(marsh[0]*marsh_amount,marsh[1]*marsh_amount,marsh[2],marsh[3]*marsh_amount)
+        if marsh_present:
+            began_marsh=time.perf_counter();lamps,meta,wakes=self.marsh_cache.build(self.marsh_response,current_time,visual_time,marsh_travel,marsh_amount)
+            self.program['u_marsh_lamps'].value=lamps;self.program['u_marsh_meta'].value=meta;self.program['u_marsh_wakes'].value=wakes
+            self.program['u_marsh_origin'].value=float(self.marsh_cache.origin);self.program['u_marsh_authored'].value=self.marsh_palette.sample(self.marsh_response)
+            self.marsh_cache_cpu_ms=(time.perf_counter()-began_marsh)*1000
+        from preview_layers import current_memory_at
+        molten_present=(state==15 or (state==16 and 19.<=current_time%84.<56.)) or (self.blend_values.get('u_world_mix',(0.,0.,0.,0.))[3]>0. and self.blend_values.get('u_fire_mix',(0.,0.,0.,0.))[1]>0.)
+        molten_amount=current_memory_at(self.layer_profiles,state,current_time)
+        began_molten=time.perf_counter()
+        molten=self.molten_memory.advance(current_time,delta_time,self.parameters.scale,self.parameters.movement,self.parameters.sparkle,self.parameters.flux,self.parameters.impact,molten_present and molten_amount>0.)
+        self.program['u_molten_motion'].value=tuple(v*molten_amount for v in molten)
+        self.program['u_molten_phase'].value=self.molten_memory.phase
+        self.program['u_molten_growth'].value=self.molten_memory.development
+        self.program['u_molten_amount'].value=molten_amount
+        if molten_present:
+            self.program['u_molten_events'].value=self.molten_memory.deposits()
+            self.program['u_molten_authored'].value=self.molten_palette.sample(self.molten_memory)
+        self.molten_mapping_cpu_ms=(time.perf_counter()-began_molten)*1000
         self.update_blasts(current_time)
         self.program['u_event_blasts'].value = 1
         self.program['u_blast_events'].value = self.blast_events + [(-1000.,-1.,0.,0.)]*(8-len(self.blast_events))
+        self.program['u_blast_retire'].value=[self.blast_retire.get(e[1],-1000.) for e in self.blast_events]+[-1000.]*(8-len(self.blast_events))
+        self.program['u_main_transition'].value=self.blend_values.get('u_main_transition',(0.,0.,0.,0.))
+        self.program['u_main_layout'].value=self.blend_values.get('u_main_layout',(0.,0.,0.,0.))
         for name, value in self.blend_values.items():
             self.program[name].value = value
         self.update_shockwaves(current_time)
@@ -730,14 +1037,46 @@ class Renderer:
         if present and state!=36:active=tuple(dict.fromkeys(active+tuple(t.id for t in targets_for('galaxy'))))
         effective_colors=galaxy_authored_colors(self.color_overrides,36 if present else state,self.cosmos_seed,int(self.galaxy_time//PERIOD))
         if self._color_dirty or active != self._color_active or any(v.get('_cycle',{}).get('mode')=='cycle' for v in effective_colors.values()):
+            # Active-world changes often resolve to identical pigments/flags.
+            # Do not invalidate driver uniform state with duplicate uploads.
+            if not hasattr(self,'_color_uploads'):self._color_uploads={}
+            programs=(self.program,self.arc_stage.program if self.arc_stage is not None else None,self.aurora_stage.program if self.aurora_stage is not None else None)
             for name, value in color_uniforms(effective_colors, active, current_time).items():
-                if name in self.program: self.program[name].value = value
+                for program in programs:
+                    if program is None or name not in program:continue
+                    uploaded=self._color_uploads.setdefault(program,{})
+                    if uploaded.get(name)!=value:
+                        program[name].value=value;uploaded[name]=value
             if present:
                 next_colors=galaxy_authored_colors(self.color_overrides,36,self.cosmos_seed,int(self.galaxy_time//PERIOD)+1)
                 next_values=color_uniforms(next_colors,active,current_time)
                 if 'u_galaxy_colors' in next_values:self.program['u_next_galaxy_colors'].value=next_values['u_galaxy_colors']
             self._color_dirty = False
             self._color_active = active
+        if arc_present:
+            for name in ('u_time','u_star_time','u_scale','u_flux','u_sparkle','u_impact','u_plasma_details'):
+                if name in self.program and name in self.arc_stage.program:self.arc_stage.program[name].value=self.program[name].value
+            self.arc_stage.draw((width,height))
+            self.ctx.screen.use();self.ctx.viewport=(0,0,width,height)
+        if aurora_present:
+            for name in ('u_time','u_star_time','u_scale','u_flux','u_sparkle','u_impact','u_drift_time','u_plasma_details'):
+                if name in self.program and name in self.aurora_stage.program:self.aurora_stage.program[name].value=self.program[name].value
+            self.aurora_stage.draw((width,height))
+            self.ctx.screen.use();self.ctx.viewport=(0,0,width,height)
+        if self.surface_stage is not None:
+            self.surface_stage.warm_rows(travel)
+            self.surface_stage.prepare_cavern(travel)
+        self.program['u_cavern_surface_on'].value=0;self.program['u_citadel_surface_on'].value=0
+        if cavern_present or citadel_present:
+            if self.surface_stage is None:
+                from scene_surfaces import SurfaceStage
+                self.surface_stage=SurfaceStage(self.ctx)
+            self.surface_stage.draw(self,(width,height),cavern_present,citadel_present,(mineral_surface,tower,mineral_amount))
+        original_loops=state in (32,35) or (state==0 and self.blend_values.get('u_plasma_weight',0.)>0. and self.blend_values.get('u_plasma_mix',(0.,0.,0.))[0]>0.)
+        self.program['u_original_path_on'].value=int(original_loops)
+        if original_loops:
+            if self.original_loop_stage is None:self.original_loop_stage=OriginalLoopStage(self.ctx,self.vertices)
+            self.original_loop_stage.draw(self.program,(width,height),(visual_time,self.parameters.scale,self.parameters.flux,self.impact_envelope))
         weights=treatment_weights(self.layer_profiles,state,current_time,ENVELOPERS)
         if max(weights)>0. and width>0 and height>0 and not self.enveloper_failed:
             try:
@@ -772,6 +1111,16 @@ class Renderer:
 
     def swap_buffers(self):
         glfw.swap_buffers(self.window)
+        if self.startup_notice is not None:
+            notice = self.startup_notice
+            self.startup_notice = None
+            glfw.show_window(self.window)
+            glfw.poll_events()
+            self.startup_metrics['first_present_seconds'] = time.perf_counter()-notice.started
+            notice.phase('ready')
+            close_start=time.perf_counter()
+            notice.close(pump=glfw.poll_events)
+            self.startup_metrics['notice_close_seconds']=time.perf_counter()-close_start
 
     def get_time(self):
         if self.start_time is None:
@@ -780,8 +1129,20 @@ class Renderer:
         return time.perf_counter() - self.start_time
 
     def close(self):
+        if self.startup_notice is not None:
+            self.startup_notice.close();self.startup_notice=None
+        if self.cavern_texture is not None:
+            self.cavern_texture.release();self.cavern_texture=None;self.cavern_cache.origin=None
+        if self.magnetic_texture is not None:self.magnetic_texture.release();self.magnetic_texture=None
+        if self.arc_texture is not None:self.arc_texture.release();self.arc_texture=None
+        if self.arc_stage is not None:self.arc_stage.release();self.arc_stage=None
+        if self.aurora_stage is not None:self.aurora_stage.release();self.aurora_stage=None
+        if self.surface_stage is not None:
+            self.surface_stage.release();self.surface_stage=None
+        if self.original_loop_stage is not None:self.original_loop_stage.release();self.original_loop_stage=None
         if self.enveloper_stage:self.enveloper_stage.release();self.enveloper_stage=None
         if self.color_inbox: self.color_inbox.close()
+        self._color_uploads={}
         self.release_echo()
         if self.vao is not None:
             self.vao.release()

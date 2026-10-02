@@ -1,0 +1,38 @@
+# Crystal Cavern refinement02 â€” internal reviewer handoff
+
+2026-10-01. Refines candidate01, baseline manifest/source hashes verified. HEAD312287e remains unchanged. No staging, commit or push; no Water work, next scene, shared-plan edits or portable rebuild. Galaxy stays outside Main and all three Envelopers stay off. Parent owns independent >=7.5 review; no self-assigned score or artistic acceptance claim.
+
+## Visible result
+
+Quartz has uneven leader/companion proportions, irregular offsets, rooted lean and individually clipped/broken termination planes. Fluorite forms squat intergrown cleaved bodies instead of the same tall quartz silhouette. Quartz uses matte etched faces, cloudy inclusions and fracture light; fluorite uses localized cloudy cores, sparse cleavage glints and a sharper face response. Repetitive horizontal luminous stripes are removed. Existing floor spill, chamber travel, persistent placement, local fronts and musical settling remain.
+
+Hits choose existing forward formations on the nearer chamber banks. The selected cell carries a six-second bounded afterglow, independent of camera travel; the front expands from that world-space location. Sustained input maintains interior light and small rooted motion; release settles without re-seeding geometry. Quiet passages retain dim mineral bodies, glints and a legible chamber rather than forced active intensity. Available shared scale/movement/sparkle/impact inputs only; no semantic/instrument recognition.
+
+## Files and reusable pieces
+
+Changed only app/visuals/shaders/dream.frag, renderer.py, mineral_resonance.py, mineral_resonance_test.py and technique_library.py, plus this task note. Exact patch against authoritative pre-task local snapshots: work/cavern-refine-02/task-scope.diff. Existing Mineral Resonance and Cached chamber formations library entries now describe selected-cluster memory and distinct materials. No new effect framework, dependencies or framebuffer. Cache remains512 LRU cells,192 streamed cells and24KiB texture; four events expire within6s.
+
+Existing mineral.prism IDs/families, amount control, target edits/Hold/reset and v1-v3 session behavior remain. Inspector layout/transport unchanged; current actual Studio live edit/reset ACK2/3 passed. Palette-family appearance evidence from candidate01 can be reused for inspector/control provenance only; its old scene captures are not final appearance evidence.
+
+## Reviewer path
+
+Import work/cavern-refine-02/review-session.json into Dev Studio, or select Elements > Earth > Crystal Cavern, Test track, Real time, Authored, then Start. Scene colors > Mineral Resonance pigments: Fluorite Lantern / Copper Quartz / Glacial Amethyst; edit a role, Hold/reset. Explicit custom lists need Mineral Resonance enabled. Amount0 suppresses response. Main-return evidence uses actual director/handoff packing with forced26â†’29â†’26 timing; it does not establish automatic director selection quality.
+
+Start with held-sheet-labeled.png, music-sheet-labeled.png and main-return-sheet-labeled.png, then the three *-compact-normal-time.apng files (160x90, same complete frame order/timing). Original320x180 APNGs remain for closer inspection; compact-evidence.json records derivation hashes. Labels also accompany original sheets as .labels.json files. source-manifest.json binds final sources, prior baseline and artifact hashes; evidence.json carries exact per-frame inputs, selected world anchors, source trackSHA and forced Main trace. Held includes quiet/light/sustain/hit/active/release18s; music uses the same decoded Warbot Jazz45â€“57s; Main return12s. APNG playback is approximately normal source time15Hz. Actual capture wall times were 21.67/14.25/13.73s because readback/PNG/APNG work sometimes missed pacing deadlines. This is not a claimed real-time capture throughput.
+
+Inspected ordered phase/contact frames,10.00/10.20/10.60/11.00 onset views, decoded-track frames and Main-return sequence. The crystal silhouette/material split is clearer and floor/cell response recedes through travel. This is temporal frame inspection, not verified animation-player playback or continuous AV listening. Short sequences cannot establish1â€“4h artistic variety. Parent should independently judge recognition, musical tracking and extended interest.
+
+## Exact checks and costs
+
+- mineral_resonance_test.py PASS after final bank selection: spring/frame partitioning, onset/anchor persistence, cache/numeric bounds, palettes/manual overrides, v1-v3 sessions and Main gates.341244 camera/formation/extreme-shear samples had no inside point; minimum positive plane inequality.33041 is not a physical distance or proof for all future geometry. Accelerated4h response/cache soak at1Hz bounded events/cache; it is not rendered/listening evidence.
+- parameter_mapper_test.py PASS map_frame parity. Four changed Python modules parsed; affected tracked git diff --check PASS. Index left unstaged. Eight final GPU pixel fixtures5/22/24/25/27/29/32/37 match prior shader exactly at sampled conditions;27 is only a sampled branch phase, not blanket protection of deliberately changed Cavern.
+- RTX3070Laptop GPU1280x720, alternating prior/current,30 retained samples each using actual prior descriptors: quiet 20.07â†’20.01ms; active 20.26â†’20.17ms; Cavern/Marsh midpoint 23.06â†’22.88ms. Current p95 20.34/20.36/23.14ms. Preserves candidate01 cost at same current conditions; absolute costs vary from prior18.6â€“19.4ms measurement. GPU draw only, no new whole-loop/capture/streaming FPS guarantee; still above16.7ms total60Hz budget.
+- Actual Studio.selectâ†’startâ†’commandâ†’Popenâ†’decoded replay PASS: warm presentation 2.16s,350ms message response, live editACK2/resetACK3,964x621 resize response, close exit0, restart 2.01s, Stop exit1 and zero owned windows left. No unrelated process/session stopped.
+
+## Narrow startup diagnosis and retained failures
+
+Previously ready was emitted before reveal and first draw, and color ACK can precede completed GPU presentation. Renderer now retains its separately responsive owned notice through first draw/swap and only exposes ready after reveal/event poll. Notice cleanup also covers exit before first swap. Startup can remain long; no arbitrary application timeout increase or cache deletion.
+
+Exact changed source first-use program compilation87.93s; immediate probe failed in our initial fixture after it deliberately slept600ms without polling. Capture/performance packaging also caused blocking probes. These failures are preserved, not replaced by warm success. Dedicated new source-comment-key probe measured 57.95s compile: all557 loading-notice and41 named owned render-window samples passed unchanged350ms, including first after ready (2.19ms response) and an actual live colorACK. Source-comment key is not proof of driver-cache miss; startup source hash recorded. Final warm exact-source compile.225s plus actual Studio route above. The prior candidate01 failure's exact cause remains historical/unproven; the premature ready path is corrected and current first-use presentation path has targeted evidence.
+
+Other fixture failures/repairs are listed in final-checks.json, including missing Pillow before compilation (no install), readback resize correction, overly strict companion test, missing treatments-test arguments (suite not run), and owned Studio duplicate-output recovery. Full application suite, fresh natural listening, full process-memory isolation and multi-hour rendered variety were not run. No remaining implementation blocker; candidate is ready for independent parent review, not automatic >=7.5 acceptance. Next scene not begun.

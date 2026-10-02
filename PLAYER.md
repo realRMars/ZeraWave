@@ -19,7 +19,9 @@ the normal graceful exit.
 Windows x64 and an OpenGL 3.3-capable graphics driver are required. This is an
 unsigned portable preview, not an installer or a claim of compatibility with
 untested PCs. Python is included in the ZIP. No administrator access is needed.
-The product player runs Main Blend with the current four-material default.
+The checkout's player runs Main Blend with the seven-material authored show.
+The three Envelopers are currently disabled by default pending visual redesign;
+The retained portable below has its older behavior.
 Studio remains the project's development environment, not a consumer product.
 No test music is distributed.
 

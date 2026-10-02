@@ -1,3 +1,4 @@
+from transition_catalog import parse_settings
 """Development-only offline replay of a decoded WAV through the live pipeline."""
 
 import argparse
@@ -29,7 +30,7 @@ from signal_processor import SignalProcessor, VisualSignalConditioner
 
 
 def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
-           capture_dir=None, capture_interval=15.0, states=None, layers=None, seed=None, palette="authored", comparison_label=None, colors=None, color_input=False, galaxy_visit=0, galaxy_short=False):
+           capture_dir=None, capture_interval=15.0, states=None, layers=None, seed=None, palette="authored", comparison_label=None, colors=None, color_input=False, galaxy_visit=0, galaxy_short=False, transitions=None):
     if palette not in ("authored", "soft-dream"):
         raise ValueError("Unknown preview palette")
     if not math.isfinite(speed) or speed < 0:
@@ -62,6 +63,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
         renderer.debug_state = debug_state
         renderer.debug_sequence = tuple(LIVE_STATES[name] for name in (states or ()))
         renderer.layer_profiles = validate_layers(layers or {})
+        renderer.configure_transitions(transitions)
         configure_colors(renderer, colors, color_input)
         rows = []
         chunk = 2048
@@ -72,26 +74,34 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
             if comparison_label:
                 import glfw
                 glfw.set_window_attrib(renderer.window, glfw.RESIZABLE, glfw.FALSE)
-            replay_start = time.perf_counter()
+            replay_start = time.perf_counter();read_to=0.;next_present=0.;frame=None;result=None;rendered_frames=0;analyzed_frames=0
             while not renderer.should_close() and song_time < (max_seconds or float("inf")):
-                raw = audio.readframes(chunk)
-                if not raw:
-                    break
-                samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
-                if channels > 1:
-                    samples = samples.reshape(-1, channels)
-                frame = analyze_samples(samples, analyzer, processor, conditioner, detectors)
-                result = mapper.map_frame(frame)
+                realtime=speed==1.
+                song_time=time.perf_counter()-replay_start if realtime else read_to
+                if max_seconds is not None and song_time>=max_seconds:break
+                new_input=False;eof=False;impact=0.;tick=False
+                while frame is None or read_to<=song_time:
+                    raw = audio.readframes(chunk)
+                    if not raw:eof=True;break
+                    samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+                    if channels > 1:samples = samples.reshape(-1, channels)
+                    renderer.consume_pcm(samples)
+                    frame = analyze_samples(samples, analyzer, processor, conditioner, detectors)
+                    result = mapper.map_frame(frame)
+                    impact=max(impact,result['impact']);tick=tick or frame.beat_tick
+                    read_to+=len(samples)/rate;analyzed_frames+=1;new_input=True
+                    if not realtime:break
+                if eof:break
                 renderer.parameters.scale = result["scale"]
                 renderer.parameters.movement = result["movement"]
                 renderer.parameters.sparkle = result["sparkle"]
-                renderer.parameters.impact = result["impact"]
+                renderer.parameters.impact = impact if new_input else result["impact"]
                 renderer.parameters.flux = frame.flux
                 renderer.parameters.beat_confidence = frame.beat_confidence
-                renderer.parameters.beat_tick = frame.beat_tick
+                renderer.parameters.beat_tick = tick
                 active_state = states[int(song_time // 28.) % len(states)] if states else state
                 layer_mode, layer_mask = layers_at(renderer.layer_profiles, LIVE_STATES[active_state], song_time)
-                renderer.render(elapsed_time=song_time)
+                renderer.render(elapsed_time=song_time);rendered_frames+=1
                 if capture_dir is not None and song_time >= next_capture:
                     width, height = renderer.ctx.screen.size
                     pixels = np.frombuffer(renderer.ctx.screen.read(components=3, alignment=1),
@@ -99,7 +109,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                     filename = f"frame-{song_time:08.3f}.png"
                     save_png(capture_dir / filename, pixels[::-1])
                     captures.append(dict(file=filename, seconds=song_time,
-                        state=active_state, flow_rate=renderer.flow_rate, planet_visits=renderer.planet_visits, blast_events=list(renderer.blast_events), world_mix=renderer.blend_values, echo_weight=renderer.program["u_echo_weave"].value, beat_confidence=frame.beat_confidence, tempo=frame.tempo, material_mix=list(renderer.program["u_material_mix"].value), shockwaves=list(renderer.shockwaves), layer_mode=layer_mode, layer_mask=layer_mask, bass=frame.bass, mids=frame.mids, highs=frame.highs,
+                        state=active_state, flow_rate=renderer.flow_rate, planet_visits=renderer.planet_visits, blast_events=list(renderer.blast_events), world_mix=renderer.blend_values, echo_weight=renderer.echo_weight, beat_confidence=frame.beat_confidence, tempo=frame.tempo, material_mix=list(renderer.program["u_material_mix"].value), shockwaves=list(renderer.shockwaves), layer_mode=layer_mode, layer_mask=layer_mask, bass=frame.bass, mids=frame.mids, highs=frame.highs,
                         flux=frame.flux, **result,
                         contrast=float(pixels.astype(float).std(axis=(0, 1)).mean()),
                         dark_fraction=float((pixels.max(axis=2) < 35).mean()),
@@ -107,15 +117,14 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                     next_capture += capture_interval
                 renderer.swap_buffers()
                 renderer.poll_events()
-                rows.append({"seconds": song_time, "beat_confidence": frame.beat_confidence, "tempo": frame.tempo, "echo_weight": renderer.program["u_echo_weave"].value, "state": active_state, "shockwave_count": len(renderer.shockwaves), "blast_count": len(renderer.blast_events), "planet_visits": renderer.planet_visits, "flow_rate": renderer.flow_rate, "layer_mode": layer_mode, "layer_mask": layer_mask, "bass": frame.bass, "mids": frame.mids,
+                if new_input:rows.append({"seconds": song_time, "beat_confidence": frame.beat_confidence, "tempo": frame.tempo, "echo_weight": renderer.echo_weight, "state": active_state, "shockwave_count": len(renderer.shockwaves), "blast_count": len(renderer.blast_events), "planet_visits": renderer.planet_visits, "flow_rate": renderer.flow_rate, "layer_mode": layer_mode, "layer_mask": layer_mask, "bass": frame.bass, "mids": frame.mids,
                              "highs": frame.highs, "flux": frame.flux, **result})
-                song_time += len(samples) / rate
-                if speed > 0:
-                    # Pace against song time, including drawing/capture overhead.
-                    # Never drop analysis chunks; slower GPUs simply run behind.
-                    delay = replay_start + song_time / speed - time.perf_counter()
-                    if delay > 0:
-                        time.sleep(delay)
+                if realtime:
+                    next_present=max(next_present+1./60.,time.perf_counter()-replay_start)
+                    delay=replay_start+next_present-time.perf_counter()
+                else:
+                    song_time=read_to;delay=replay_start+song_time/speed-time.perf_counter() if speed>0 else 0.
+                if delay>0:time.sleep(delay)
         finally:
             renderer.close()
 
@@ -129,7 +138,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
     if capture_dir is not None:
         (capture_dir / "captures.json").write_text(json.dumps(dict(
             source=str(path), state=state, states=states, palette=palette, layers=renderer.layer_profiles, song_seconds=song_time,
-            analyzed_frames=len(rows), captures=captures,
+            analyzed_frames=analyzed_frames, rendered_frames=rendered_frames, captures=captures,
             director_seed=renderer.director_seed, director_history=renderer.director_history,
             note="Decoded music through the real analysis and GPU pipeline; no audible playback."),
             indent=2), encoding="utf-8")
@@ -138,6 +147,7 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
 
 def main():
     parser = argparse.ArgumentParser(description="Replay a decoded WAV through ZeraWave without audio playback.")
+    parser.add_argument('--transitions',type=parse_settings)
     parser.add_argument("wav", type=Path)
     parser.add_argument("--speed", type=float, default=12.0, help="Playback pacing multiplier (0 = no pacing).")
     parser.add_argument("--max-seconds", type=float, default=None)
@@ -157,8 +167,8 @@ def main():
     parser.add_argument('--galaxy-short',action='store_true')
     args = parser.parse_args()
     seconds, rows = replay(args.wav, args.speed, args.max_seconds, args.metrics, args.state,
-                           args.capture_dir, args.capture_interval, args.states, args.layers, args.seed, args.palette, args.comparison_label, args.colors, args.studio_color_input, args.galaxy_visit,args.galaxy_short)
-    print(f"Replay complete: {seconds:.1f}s song time, {len(rows)} analyzed frames")
+                           args.capture_dir, args.capture_interval, args.states, args.layers, args.seed, args.palette, args.comparison_label, args.colors, args.studio_color_input, args.galaxy_visit,args.galaxy_short, args.transitions)
+    print(f"Replay complete: {seconds:.1f}s song time, {len(rows)} input snapshots")
 
 
 if __name__ == "__main__":
