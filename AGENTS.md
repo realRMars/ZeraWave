@@ -1,6 +1,6 @@
 # ZeraWave engineering and creative working agreement
 
-Version: 1.1 — 2026-09-30
+Version: 1.2 - 2026-10-02 (checkpoint and coordination reconciliation)
 Project: ZeraWave
 Root: `C:\ZeraWave`
 
@@ -177,12 +177,12 @@ A review gate ends that assignment's implementation phase, not each internal ste
 
 ### October 1 interview: builder and reviewer briefs
 
-Source: Robert's context interview, 2026-10-01. Active batch: Cavern, Citadel,
-Magnetic/Arcs/Auroral, Marsh, Molten, then director/transitions and one integrated
-Robert review. This four-file consolidation is explicitly user-approved without
-separate Overseer approval; coordinating parent may resume the paused builder.
-This exception applies only to this consolidation, not future shared-doc edits.
-Internal iterations are autonomous in scope. Honest per-scene review target >=7.5; do not inflate scores.
+Source: Robert's context interview, 2026-10-01. These briefing and evidence
+standards continue for scoped assignments; completed work and current acceptance
+belong in ZERAWAVE_HANDOFF.md. Do not resume a historical paused-builder or
+first-candidate instruction. Internal iterations are autonomous within the
+approved scope. Honest per-scene review target >=7.5; do not inflate scores or
+replace recorded user acceptance with an invented technical certificate.
 
 Builder briefs state recognizable scene identity, specific present-input musical
 links, quiet behavior, sustained/event contrast, extended variety, reusable
@@ -208,6 +208,40 @@ Streams commonly last 1-2 hours, sometimes 4+ hours; inspect long-session contin
 bounded logs/descriptors and proportional soaks. Short clips do not establish
 multi-hour variety. Preserve richness, adapt quality before sustained crawl,
 derive tiers/LOD from measurement. No assumed FPS/device minimum.
+
+### Approved assignment and review route
+
+1. Establish the user's scope, preservation boundaries and review gate.
+2. The designated Prompter prepares the assignment brief; Bob approves it before
+   dispatch to the sole implementation builder.
+3. The builder completes and internally refines the authorized work, then returns
+   actual results with source/diff identity, evidence and remaining limitations.
+4. The designated Prompter prepares the actual-results review brief; Bob approves
+   it before dispatch to the critic.
+5. The critic performs the bounded, source-bound review. Corrections stay within
+   the approved findings and brief; a new scope returns through Prompter and Bob.
+6. Robert owns user acceptance. Review scores, technical checks and user
+   acceptance remain separate; no indefinite automatic fix/rescore loop.
+
+Do not add workers, dispatch a critic, or start the next phase merely because a
+skill was read. Internal implementation steps do not each require another user
+approval. Follow the current assignment's actual handoff and review boundary.
+
+### Project skills: explicitly load the applicable file
+
+- [zerawave-task-handoff](.agents/skills/zerawave-task-handoff/SKILL.md): assignment
+  and actual-results transfers, preservation boundaries, source/evidence binding
+  and the designated review route.
+- [zerawave-evidence-critique](.agents/skills/zerawave-evidence-critique/SKILL.md):
+  approved visual evidence reviews with honest attribution and confidence.
+- [zerawave-matched-performance](.agents/skills/zerawave-matched-performance/SKILL.md):
+  scoped slowdown comparisons and performance evidence with matched conditions.
+
+For an applicable task, read its SKILL.md from the checkout explicitly. A fresh
+delegated skill catalog may omit these project files; a user-visible sidebar
+refresh is not proof that the delegated task loaded them. Skills do not grant
+scope, dispatch, shared-document ownership, integration or commit/push authority.
+Validation limits are recorded in ZERAWAVE_HANDOFF.md; do not claim auto-loading.
 
 ## 14. Architectural Evolution
 
@@ -247,6 +281,16 @@ Verify what changed. Let the user judge the art.**
 - Read the latest file before editing overlapping work; coordinate conflicts.
   Do not clean, revert, stage or commit another worker's edits without authorization.
   Do not stop unrelated user sessions or processes for your tests.
+
+### One-time documentation ownership exception: 2026-10-02
+
+The user assigned Bob ownership for this four-root-document reconciliation while
+other builders are idle. This exception covers AGENTS.md, ROADMAP.md,
+ZERAWAVE_HANDOFF.md and ZERAWAVE_VISUAL_IDENTITY.md for this pass only; it does
+not remove the standing Overseer ownership above. Return to Bob/Prompter before
+the next player brief is dispatched. No player implementation, commit or push is
+part of this documentation pass. Keep private assistant notes and conversation
+exports out of project deliverables.
 
 ## 17. Editable artistic colors
 

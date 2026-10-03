@@ -197,6 +197,8 @@ class Renderer:
         self.marsh_cache=LampCache();self.marsh_palette=MarshPalette();self.marsh_cache_cpu_ms=0.
         self.molten_memory=MoltenMemory(8100 if seed is None else seed+799);self.molten_palette=MoltenPalette();self.molten_mapping_cpu_ms=0.
 
+        self.player = None
+        self.startup_callback = None
         self.startup_notice = None
         self.start_time = None
         self.last_render_time = None
@@ -324,11 +326,13 @@ class Renderer:
         return self.debug_state
 
     def choose_world(self, energy, lift=False):
-        rows=candidate_scores(LIVE_FORMS,self.director_current,energy,lift,self.director_time,
-            self.director_last_seen,self.director_recent_pairs,self.director_priorities,self.color_overrides)
+        pool=LIVE_FORMS if self.player is None else self.player.config["queue"]
+        last_seen=self.director_last_seen if self.player is None or self.player.config["recent_history"] else {}
+        rows=candidate_scores(pool,self.director_current,energy,lift,self.director_time,
+            last_seen,self.director_recent_pairs,self.director_priorities,self.color_overrides)
         if not rows:
             self.director_choice=dict(reason='empty eligible pool fallback',state=self.director_current)
-            return self.director_current if self.director_current is not None else LIVE_FORMS[0]
+            return pool[0] if self.player is not None else (self.director_current if self.director_current is not None else LIVE_FORMS[0])
         chosen=self.director_rng.choices(rows,weights=[row['score'] for row in rows],k=1)[0]
         self.director_choice=dict(energy=energy,lift=bool(lift),source=self.director_current,
             selected=chosen,alternatives=sorted(rows,key=lambda row:row['score'],reverse=True)[:4],
@@ -342,7 +346,11 @@ class Renderer:
         if not enabled:
             self.blend_values=world_uniforms({},enabled=False)
             return
+        if self.player is not None and not self.player.available and self.director_current is not None:
+            return  # Capture recovery holds world/transition ownership while scene motion gently idles.
         dt=max(0.,delta)
+        if self.player is not None and (not self.player.running or (self.player.held and self.director_target is None)):
+            dt=0.
         self.director_time+=dt
         now=self.director_time
         energy=max(0.,min(1.,.45*self.parameters.scale
@@ -358,7 +366,7 @@ class Renderer:
         lift=self.director_fast-self.director_slow>.12
         release=self.director_slow-self.director_fast>.12
         if self.director_current is None:
-            self.director_current=self.choose_world(energy)
+            self.director_current=self.choose_world(energy) if self.player is None else self.player.initial(lambda pool:self.choose_world(energy))
             self.director_since=now
             self.director_last_seen[self.director_current]=now
             self.planet_visits+=int(self.director_current==5)
@@ -407,8 +415,18 @@ class Renderer:
         elif reason and confidence >= .65 and not self.parameters.beat_tick:
             self.director_pending = (reason, now + .8)
             reason = None
+        if self.player is not None:
+            if not self.player.running or self.player.held:
+                reason=None;self.director_pending=None
+            if self.player.running and self.player.bonk_pending:
+                reason='Bonk';self.director_pending=None
         if reason:
-            self.director_target=self.choose_world(energy if release else max(energy,self.director_fast),lift)
+            choice=lambda pool:self.choose_world(energy if release else max(energy,self.director_fast),lift)
+            self.director_target=self.choose_world(energy if release else max(energy,self.director_fast),lift) if self.player is None else self.player.next(self.director_current,choice)
+            if self.player is not None and self.director_target in (None,self.director_current):
+                self.director_target=None;self.director_since=now
+                self.blend_values=world_uniforms({self.director_current:1.})
+                return
             if self.director_target==36:self.galaxy_main_since=now
             self.director_reprise=(len(self.director_history)>=2 and self.director_target==self.director_history[-2]['state'] and now-self.director_last_seen.get(self.director_target,-1e6)<100.)
             profile=self.layer_profiles.get('blend',{})
@@ -519,13 +537,17 @@ class Renderer:
         notice = None
         began = time.perf_counter()
         self.startup_metrics = {}
-        if visible:
+        if self.startup_callback is not None:
+            self.startup_callback("context")
+        if visible and self.startup_callback is None:
             from shader_startup import StartupNotice
             # Native shader compilation may hold the GIL/event thread. The
             # owned notice has its own event loop; no frozen blank GL window.
             notice = StartupNotice(self.title)
             glfw.hide_window(self.window)
             notice.phase('context')
+        if visible and self.startup_callback is not None:
+            glfw.hide_window(self.window)
         try:
             glfw.make_context_current(self.window)
 
@@ -535,6 +557,7 @@ class Renderer:
             shader_path = Path(__file__).parent / "shaders" / "dream.frag"
             fragment_shader = shader_path.read_text(encoding="utf-8")
 
+            if self.startup_callback is not None:self.startup_callback('compiling')
             if notice:
                 notice.phase('compiling')
             compile_start = time.perf_counter()
@@ -544,6 +567,7 @@ class Renderer:
             )
 
             self.startup_metrics['program_seconds'] = time.perf_counter() - compile_start
+            if self.startup_callback is not None:self.startup_callback('resources')
             if notice:
                 notice.phase('resources')
             self.vertices = self.ctx.buffer(
@@ -1111,6 +1135,9 @@ class Renderer:
 
     def swap_buffers(self):
         glfw.swap_buffers(self.window)
+        if self.startup_callback is not None:
+            callback=self.startup_callback;self.startup_callback=None
+            glfw.show_window(self.window);glfw.poll_events();callback("ready")
         if self.startup_notice is not None:
             notice = self.startup_notice
             self.startup_notice = None

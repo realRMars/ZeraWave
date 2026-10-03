@@ -1,6 +1,6 @@
 # ZeraWave Visual Identity
 
-Creative direction clarified 2026-10-01 (context interview). The principles below describe the visual
+Creative direction clarified 2026-10-01; player presentation direction reconciled 2026-10-02. The principles below describe the visual
 ambition; implementation status and priorities live in [ROADMAP.md](ROADMAP.md).
 
 ## October 1 interview: clarified direction
@@ -30,6 +30,16 @@ Evidence-based renderer/custom-engine proposals welcome; giant rewrite not
 authorized. ZeraphinaX grows through proven useful reuse. Offline claims require
 implemented/available/downloaded resources; online AI optional. Pricing/semantic
 capabilities remain hypotheses, not current features or authorized commerce.
+
+## Settled player presentation direction
+
+The player should be approachable, with branded startup and a clear audio chooser.
+Use a separate control panel for Bonk, Start, Stop, Hold, Pause and
+queue/shuffle/loop. Place the now-showing current world/category/subcategory
+ticker only in that panel so the visual instrument remains a dedicated canvas.
+Preserve the settled control meanings; this direction does not invent action
+semantics or claim those controls already exist. The implementation sequence,
+current checkpoint and later Studio/Fractals scope belong in ROADMAP/HANDOFF.
 
 ## Current creative standard
 
@@ -552,8 +562,9 @@ use those that serve the assigned scene and integrate them into the working
 renderer. No universal representation or single-form limit is imposed.
 
 Keep the player approachable and the existing Studio editing workflow useful.
-A future Bonk control could shake up a lingering dream; a tap/Dance control could
-encourage movement. Those specific controls remain deferred on the roadmap.
+Bonk is now part of the agreed player-interface direction; its precise behavior
+belongs in the approved player brief. The separate tap/Dance idea remains deferred.
+Future imagery should continue to serve the evolving form and musical experience.
 
 Creative acceptance: ZeraWave should produce different visual experiences that
 can sustain interest and evolve within their identity, rather than repeatedly

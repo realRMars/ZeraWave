@@ -22,9 +22,7 @@ from color_controls import parse_colors
 from preview_layers import parse_layers, validate_layers
 from signal_processor import SignalProcessor, VisualSignalConditioner
 
-LIVE_STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3,
-               "transition": 4, "canvas": 5, "water": 6, "sea": 7,
-               "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35, "galaxy": 36, "cymatics": 37, "lodestone_experimental":38, "stormglass_experimental":39, "folded_aurora_experimental":40}
+from world_catalog import LIVE_STATES
 
 
 def make_bar(value, width=30):

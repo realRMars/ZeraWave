@@ -1,17 +1,19 @@
 # ZeraWave development plan
 
-Updated: 2026-10-01 (interview consolidation). This is the sole prioritized plan. The user's latest
-assignment sets scope; code establishes implementation and user review establishes
-artistic acceptance. This update replaces the completed color-rollout takeover
-plan, preserved in [history](docs/history/README.md).
+Updated: 2026-10-03 (accepted player checkpoint).
+This is the sole prioritized plan. The user's latest assignment sets scope;
+code establishes implementation and user review establishes artistic acceptance.
+Historical plans remain in [history](docs/history/README.md). The accepted visual
+baseline is 2bcb03f; the player checkpoint builds on that baseline.
 
 ## Current direction
 
-Greater visual variety and complete, expressive world scenes are the priority.
-Build one complete scene at a time. The current authorized batch uses internal
-per-scene review followed by one integrated Robert/viewer review.
-Dev Studio already supports the workflow: build, preview, refine, then integrate
-into Main when accepted or explicitly authorized.
+The reviewed visual batch and current Main/Galaxy preview are user-accepted.
+The player interface and bounded device-loss cleanup are implemented and accepted.
+Startup/native performance, then standalone DSP, remain next in the agreed sequence;
+each requires its own approved assignment. Complete one scope before starting another.
+Distinctive identity, meaningful musical response and sustained visual interest
+remain the creative standard; internal technical checks do not replace review.
 
 A scene assignment includes the assets, camera or object movement, materials,
 spatial effects, palette families and any new effect class needed for a
@@ -23,27 +25,57 @@ intentional composition in motion, alongside character, change and surprise.
 Quiet passages deserve engaging behavior too. Optimize the chosen experience;
 do not use performance concerns to justify an inert or visually thin prototype.
 
-## Current priority: authorized Main upgrade batch
+## Completed visual and player checkpoints
 
-Source: Robert's context interview and parent handoff, 2026-10-01.
-Galaxy is user-approved at scoped commit
-312287e66ece8c0296037d2bfffcc4ac9e3b5609; parent verified push to main.
-Galaxy remains outside Main. Water Basin is parked with audio/UI weaknesses;
-Envelopers off. Do not resume stale Galaxy correction assignments.
+Robert accepted the current Main/Galaxy preview and authorized its checkpoint.
+Commit [2bcb03f](https://github.com/realRMars/ZeraWave/commit/2bcb03fdd1ec03a49189b3b3c343dcb053fbc9b5)
+contains the reviewed Cavern, Citadel, original Magnetic/Arcs/Auroral, Marsh,
+Molten, Aftershock, director/transitions, bounded-resource and entry/projection
+refinements, and Galaxy's Main integration. Normal push to GitHub main was
+verified against the exact committed hash.
 
-Authorized order: Crystal Cavern -> Sky Citadel -> Magnetic Bloom / Arc
-Constellation / Auroral Veil -> Ghostlight Marsh -> Molten Flow ->
-director/transitions -> one integrated Robert review. Builder safely paused for
-guidance consolidation, now approved/applied. Parent may resume Cavern refinement.
-First candidate implemented locally; next scenes not claimed implemented.
-Crystal Cavern first candidate independent provisional review: 7.0/10
-(identity 6.8, musical connection 7.2), below the 7.5 batch target. Retain
-localized musical fronts and settling; refine irregular mineral character,
-distinct material behavior and excessive repetitive stripes before advancing.
-This assessment is parent-reported, not a fresh review by this documentation task.
-Once resumed, iterate autonomously with an honest >=7.5 per-scene target and
-one final Robert review.
-New original effects/palettes/non-fade transitions approved in this batch.
+Main has 27 eligible worlds, including Galaxy Odyssey36. Water Basin37 remains
+parked; Experimental38-40 stay outside Main; the three Envelopers remain off.
+The accepted checkpoint does not certify every technical gate. Preserve the
+native fullscreen-surrogate/Aperture/Molten pacing, Aftershock7.4, startup,
+AV/listening and multi-hour limitations in [the handoff](ZERAWAVE_HANDOFF.md).
+
+The four-root-doc reconciliation is complete and included with the accepted
+player checkpoint. Robert reported active BlackShark off -> unavailable -> on +
+Refresh recovery without closing the runtime, repeated normal Start/Stop, and
+10/10 acceptance. Commit and normal push were explicitly authorized. This does
+not certify unattended recovery, audio quality, device diversity or the preserved
+startup/performance limits. No release build is part of this checkpoint.
+
+## Next authorized sequence
+
+1. **Player interface (completed):** branded startup and audio chooser, plus a separate
+   control panel with Bonk, Start, Stop, Hold, Pause and queue/shuffle/loop controls.
+   The now-showing ticker (current world/category/subcategory) belongs only in
+   that panel. Preserve the recorded device/lifecycle contracts and settled
+   control semantics. The [accepted player guide](docs/agent-notes/player-checkpoint-2026-10-03.md)
+   records current controls, exact source selection, quiet Refresh and recovery limits.
+2. **Startup and native performance:** a separate source-bound assignment for
+   cold/startup responsiveness and the remaining native pacing risks. Keep
+   cold/warm, GPU draw, caller/submission and presentation evidence separate;
+   preserve failed probes and full visual quality. No new optimization is
+   authorized by this checkpoint publication.
+3. **Standalone DSP:** follows player and startup/native performance. Its
+   implementation scope belongs in its own approved brief; preserve the shared
+   audio/visual boundaries. This plan does not add a DSP architecture or dependency.
+
+### Later agreed milestones
+
+- **Fractals world/forms and image import** follows all three phases above.
+  This is a planning milestone; no fractal, image-import or mobile implementation
+  is authorized here. Keep future imported imagery integrated with the visual
+  instrument rather than promoting every brainstorm into a feature.
+- **Studio cleanup:** Build & Preview should present the approved Main roster;
+  Experimental gets its own tab and selectors, preserving existing assets and
+  controls. This remains a distinct later UI task unless the next approved brief
+  explicitly includes it. The current Studio has not yet been reorganized.
+
+## Continuing creative and engineering direction
 
 Global director should use history/energy/contrast/recency and bounded suitable
 variation rather than unrestricted RNG; genre/tone recognition is future.
@@ -69,16 +101,20 @@ code/assets without rights review.
 
 ## Working checkpoint
 
-- HEAD 312287e66ece8c0296037d2bfffcc4ac9e3b5609: approved Galaxy Odyssey and
-  responsive shader startup. Push parent-verified; not queried remotely by this
-  documentation task. No further commit/push authorization.
-- Local dirty work is authoritative: parked Water/12-band and Cavern candidate
-  plus unrelated changes; preserve all.
-- Cavern evidence: docs/agent-notes/crystal-cavern-upgrade.md and
-  work/cavern-upgrade-01/final/source-manifest.json; provisional 7.0, refinement due.
-- Main retains seven materials/newer spatial treatments; Galaxy/Cymatics remain
-  outside Main and three Envelopers off.
-- Older inspector ledgers contain dated coverage, not current totals.
+- Verified visual baseline:
+  `2bcb03fdd1ec03a49189b3b3c343dcb053fbc9b5`. The accepted player source and
+  earlier four-root reconciliation form the next authorized checkpoint. The
+  builder reports its actual commit hash and remote verification after publication.
+- Current source-bound review starts with
+  [Main lineup](work/main-lineup-01/review-index.json) and the
+  [entry/projection delta](work/robert-refinement-02/entry-projection-delta/review-index.json).
+  Older candidate notes/hashes remain historical evidence, not current assignments.
+- Main retains seven authored materials and existing spatial treatments. Galaxy
+  is included; parked Water support preserves Studio imports/saved sessions
+  without making Basin Main-ready. Unrelated dirty work and the frozen portable
+  remain preserved.
+- The three project skills are committed; explicit loading, coordination and
+  their validation limits are described in AGENTS.md and ZERAWAVE_HANDOFF.md.
 
 See [current handoff](ZERAWAVE_HANDOFF.md) for evidence and limitations,
 [Studio instructions](DEVELOPMENT_STUDIO.md) for actual controls, and
@@ -101,9 +137,9 @@ Use tests proportionally; avoid expensive repeated full suites without new risk.
 Preserve existing user work and the separate authorization rules for commits,
 pushes, dependencies, destructive cleanup and release builds.
 
-## Following priorities
+## Other retained directions: only when separately selected
 
-1. **More distinct Cosmic scenes**, after the current batch, when selected: multiple suns,
+1. **More distinct Cosmic scenes**, when separately selected: multiple suns,
    intersecting systems, scale journeys or a pulsar are candidate directions.
    Choose one with the user; none is a Planet Canvas accessory by default.
 2. **Growth, maturity and transformation:** develop worlds that emerge, linger
@@ -126,7 +162,7 @@ rollout beyond the requested reusable demonstration should follow observed fit.
 | Quiet states and non-percussive music | Review within new scenes; broader director investigation remains available. |
 | Sea sky as material canvas | Optional later change; current sky/reflection boundary remains intact. |
 | Soft Dream on Planet Canvas | Existing experimental A/B option; not a prerequisite for new palette families or Galaxy. |
-| Bonk / Dance controls | User-deferred. |
+| Bonk / Dance controls | Bonk is implemented in the player; tap/Dance remains deferred. |
 | Daddy Long Legs | Shelved, opt-in experiment. |
 
 Fix confirmed regressions and performance obstacles within the affected task.

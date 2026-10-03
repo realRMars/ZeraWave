@@ -17,11 +17,12 @@ if not exist "%LIVE_TEST%" (
     exit /b 1
 )
 
-echo Starting ZeraWave live visualizer...
-echo Play music through your system audio output, then close the visualizer window when finished.
-echo.
-
-"%PYTHON_EXE%" "%LIVE_TEST%"
+rem Normal launch uses the player; explicit diagnostic arguments retain the live runner.
+if "%~1"=="" (
+    "%PYTHON_EXE%" -X utf8 "%PROJECT_ROOT%app\player.py"
+) else (
+    "%PYTHON_EXE%" -X utf8 "%LIVE_TEST%" %*
+)
 set "EXIT_CODE=%ERRORLEVEL%"
 
 if not "%EXIT_CODE%"=="0" (

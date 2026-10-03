@@ -1,91 +1,183 @@
 # ZeraWave handoff
 
-Updated: 2026-10-01 (interview consolidation). Read the [roadmap](ROADMAP.md) for current priorities and
-[AGENTS.md](AGENTS.md) for scope and coordination. This replaces the stale
-Roots/color-rollout takeover checkpoint, preserved in [history](docs/history/README.md).
+Updated: 2026-10-03 (accepted player checkpoint).
+[ROADMAP.md](ROADMAP.md) is the sole sequence/plan; [AGENTS.md](AGENTS.md) owns
+the working procedure. The accepted player checkpoint includes the earlier
+four-root reconciliation and narrow settled status updates.
 
-## Checkpoint and working state
+## Verified visual baseline and acceptance
 
-Source: Robert's October 1 interview and parent handoff.
-Local HEAD verified 312287e66ece8c0296037d2bfffcc4ac9e3b5609,
-Build approved Galaxy Odyssey and responsive shader startup. Robert approved
-Galaxy; scoped push to main parent-verified, not remotely queried here.
-Galaxy still outside Main; no further commit/push authority. Preserve dirty
-user/worker changes and frozen portable.
+Historical visual baseline, verified on GitHub main when published:
+`2bcb03fdd1ec03a49189b3b3c343dcb053fbc9b5` —
+[Refine approved worlds and integrate Galaxy into Main](https://github.com/realRMars/ZeraWave/commit/2bcb03fdd1ec03a49189b3b3c343dcb053fbc9b5).
+Robert accepted the current Main/Galaxy preview and authorized this normal
+commit/push. The committed tree matched the reviewed82-file checkpoint; remote
+main was then verified to equal that exact commit. No release was built.
 
-Builder safely paused, no commands running (parent report). This four-file
-consolidation is user-approved/applied; parent may resume Cavern refinement.
-Authorized batch:
-Cavern -> Citadel -> Magnetic/Arcs/Auroral -> Marsh -> Molten ->
-director/transitions integrated review. Cavern candidate saved; next scenes not claimed built.
-Crystal Cavern first candidate independent provisional review: 7.0/10
-(identity 6.8, musical connection 7.2), below the 7.5 batch target. Retain
-localized musical fronts and settling; refine irregular mineral character,
-distinct material behavior and excessive repetitive stripes before advancing.
-This assessment is parent-reported, not a fresh review by this documentation task.
-Water Basin is parked for audio/UI weaknesses. Envelopers remain off.
+The visual batch, bounded-resource/entry-projection corrections and Main lineup
+are implemented at that checkpoint. Earlier first-Cavern/provisional7.0 and
+paused-builder instructions are historical, not the current assignment. Prior
+notes, baseline hashes and failures remain unchanged. User acceptance does not
+certify every pacing, startup, AV or long-session technical gate below.
 
-Evidence: docs/agent-notes/crystal-cavern-upgrade.md;
-work/cavern-upgrade-01/final/source-manifest.json. Do not replace captures/rerun
-expensive GPU checks just to consolidate docs.
+Main includes Galaxy Odyssey36 and the accepted original32/33/34 scenes.
+Water Basin37 remains parked for audio/UI weaknesses; Experimental Lodestone
+Field38, Stormglass Network39 and Folded Aurora40 remain outside Main. Their
+existing support/assets and review paths are preserved. Prism Assembly, Digital
+Bloom and Chromatic Memory remain off by default. Parked Water/Cymatics support,
+its directly corresponding tests/note and necessary mixed Studio/Main hunks were
+explicitly approved for the working-checkout dependency closure; no new Water
+feature or Basin Main acceptance followed from that inclusion.
 
-## Current direction and gates
+## Main inventory and current review routes
 
-October 1 direction: distinctive identity AND clear musical connection,
-quiet beauty and variety over 1-2 hours, sometimes 4+ hours; 3D optional. Fresh fitting song
-interpretations with recurring motifs, not fixed repeated itineraries.
-No lyric/genre/phrase recognition inferred. New effects/palettes/non-fade
-transitions approved in batch. Once resumed, autonomous internal iteration,
-honest >=7.5 per-scene assessment and one final Robert review. Scores do not
-substitute for AV evidence or acceptance.
+This is eligibility, not a fixed itinerary or frequency guarantee.
 
-First paying audience streamers/content creators including musicians.
-Live visuals plus editable video export/reopenable timing-and-variation projects
-desired, not established implemented support. Deep Studio follows feedback.
-ROADMAP remains sole priority sequence.
+| Group | Eligible states |
+| --- | --- |
+| Organic / geometry / Planet Canvas | Membrane11, Root Blossoms12, Geometric Corridor2, Planet Canvas5 |
+| Water | Sea7, Dyes8, Rain9, Waterfall10, Currents13 |
+| Fire | Fire14, Molten15, Firescape17, Aftershock18 |
+| Air | Windstreams19, Stormfront20, Vortex21, Citadel22 |
+| Earth | Dunes24, Strata25, Crystal Cavern26 |
+| Fog | Nebula28, Marsh29, Pressure30 |
+| Original Plasma | Magnetic Bloom32, Arc Constellation33, Auroral Veil34 |
+| Galaxy | Galaxy Odyssey36 |
 
-## Current behavior to preserve
+- `run_zerawave.bat` or `run_live_visualizer.bat` without arguments opens the
+  accepted player. Choose an exact output loopback or input endpoint. Explicit
+  arguments to the latter still use the diagnostic live_visual_test.py runner.
+- `run_development_studio.bat` opens the existing Studio; Main blend, Live system
+  audio, Start preview uses the same canonical `renderer.py::LIVE_FORMS` roster.
+  Studio Test track is silent decoded replay; Synthetic preview is synthetic.
+- [review-session-blend.json](work/robert-refinement-02/review-session-blend.json)
+  has empty selection and no forced pair/seed, so it uses ordinary Main. Its
+  explicit60-second replay limit can end before Galaxy is selected or completes;
+  saved held-Galaxy seed controls are parked for Main.
+- Galaxy Main entry/return starts the existing74-second full route and becomes
+  releasable at its route boundary. Existing compatible universal transitions,
+  authored inhabitants, source pigments/manual overrides and fresh re-entry
+  ordinal remain; normal Main is not pinned to Galaxy.
 
-- Main is an energy/lift/release director. Approximate spectral periodicity can
-  qualify a transition wait of up to 0.8 seconds; there is no downbeat,
-  phrase or chorus recognition claim.
-- Main's authored show has seven materials and the three newer spatial
-  treatments. Saved older material profiles remain supported.
-- Prism Assembly, Digital Bloom and Chromatic Memory remain **off by default**.
-  Keep their explicit Studio review/opt-in paths for later work.
-- Planet Canvas and unrelated accepted scenes remain intact during the batch.
-  Preservation comparisons do not require an intentionally redesigned Galaxy to
-  match its old pixels.
-- Live colors use the existing inspector, stable role IDs and session/preset
-  support. Future color-bearing visuals extend that system.
-- Studio is the development tool; paid Studio 1 is future-only.
-- Preserve `work/releases/ZeraWave-preview-final.zip` at `d4992d0`.
-  It is older than the current checkout; another portable is lowest priority.
+## Accepted player checkpoint and publication
 
-## Validation provenance and limitations
+The branded player panel, clean separate visual output, controls and queue are
+implemented. The inline exact-source dropdown and quiet Refresh remain; no
+dynamic default/fallback or extra retry dialog is introduced. Bounded capture
+recovery preserves intent, current world/transition/queue and explicit Pause.
+The project-owned SoundCard0.4.6 WASAPI close adapter confirms owning-thread
+reference release before replacement; failed/unconfirmed cleanup retains the
+existing full-player restart notice. It does not patch installed packages.
 
-No application/GPU/listening checks rerun by this documentation task. Cavern
-note/manifest inspected; numbers below are reported worker evidence:
+After the bounded safety review, Robert reported active BlackShark off ->
+unavailable -> on + Refresh recovery without closing the runtime, repeated normal
+Start/Stop, and **10/10 acceptance**. This is reported physical user acceptance;
+unattended recovery, audio quality and additional device/Windows combinations
+remain uncertified. Robert explicitly authorized the local commit and normal
+GitHub push. The parent handles the two Pages updates after the builder reports
+the exact committed hash and remote-main verification. No release was built.
 
-- RTX 3070 Laptop, held 720p GPU about 18.6-19.4 ms versus 23-24 ms prior; affected
-  midpoint 20.6 ms. Whole-loop medians about 20.6-21.8 ms at stated hidden conditions.
-  Above a 16.7 ms total 60 Hz budget; no 60fps or streaming-headroom claim.
-- Cold compilation 80-83 seconds; warm lifecycle passed. One post-cold-ready
-  responsiveness probe failed; cold first-frame behavior remains unresolved.
-- Source-bound held/music/Main-return sequences and palette controls recorded.
-  Silent sequences/stills cannot establish continuous AV or art acceptance.
-- Existing color/nine-treatment ledgers retained as dated evidence. Do not
-  transfer old first-Galaxy cost/rejected-art status to approved Galaxy.
-- Water parked, not completed/accepted; Galaxy Main gate separate; Envelopers off.
-  Device minima and full process memory remain unverified.
+The four-root reconciliation is complete. Its one-time ownership exception does
+not remove standing Overseer ownership. The approved Prompter/Bob/sole-builder/
+review/user-acceptance route remains; this publication starts no next phase.
 
-Preserve Aftershock bounded-site and Sea sky/material contracts unless assigned
-redesign changes them; see docs/MAINTENANCE_CONTRACTS.md and dated history.
+### Current player controls and evidence
 
-## Read next
+Use the [accepted player guide](docs/agent-notes/player-checkpoint-2026-10-03.md)
+for Start/Stop/Pause/Resume, momentary Hold, compatible Bonk, queue and focused
+shortcuts. Stop after output readiness stops listening and permits quiet settling;
+explicit Pause freezes drawing/clocks. Resume uses fresh packets without an event
+backlog. Hold preserves an arriving world; Bonk requests one compatible transition.
+Queue edits take effect at a world boundary. Now-showing is panel-only.
 
-- [ROADMAP.md](ROADMAP.md): active batch, customer direction and retained backlog.
-- [ZERAWAVE_VISUAL_IDENTITY.md](ZERAWAVE_VISUAL_IDENTITY.md): creative quality.
-- [DEVELOPMENT_STUDIO.md](DEVELOPMENT_STUDIO.md): actual preview controls.
-- [TECHNIQUE_LIBRARY.md](TECHNIQUE_LIBRARY.md): ownership and extension patterns.
-- [PLAYER.md](PLAYER.md): player and preserved portable instructions.
+Settings remain `%LOCALAPPDATA%/ZeraWave/settings.json`; only a successful exact
+source identity is saved. Refresh alone sends no listening command. Select a
+replacement explicitly when an endpoint is missing; there is no recording/upload
+or per-app capture. On unconfirmed cleanup, follow the existing notice to close
+the entire player and visual output, reopen, then reselect the source.
+
+Historical builder notes/packs retain their original pre-acceptance status:
+[interface](docs/agent-notes/player-interface-01.md),
+[recovery](docs/agent-notes/player-capture-recovery.md),
+[inline source](docs/agent-notes/player-inline-source.md), and
+[final cleanup](docs/agent-notes/player-final-cleanup.md).
+The final `work/player-interface-01/final-cleanup-delta/review-index.json` binds
+source, exact delta and six passing offline commands. At publication those source
+bytes are checked against the staged Git content with only newline normalization;
+the final checks are reused, not rerun or relabeled as live certification.
+No new GPU, native pacing, listening or long-session test is run for publication.
+The original player pack retains its reproduced baseline Studio test failure at
+line566 and unverified physical output shortcuts; no test was removed to hide it.
+
+README/PLAYER retain unrelated old dirty Galaxy-status paragraphs outside this
+checkpoint. This handoff remains authoritative for current Main membership;
+README's player link points to the accepted guide.
+
+## Source-bound evidence and limitations to retain
+
+No application, GPU, listening or performance test was rerun for checkpoint
+publication. The following are existing visual worker evidence, not new certification:
+
+- [Entry/projection handoff](docs/agent-notes/robert-refinement-02.md#latest-entryprojection-correction---final-narrow-source)
+  and [final pack](work/robert-refinement-02/entry-projection-delta/review-index.json):
+  default1280x720 and monitor-attached2560x1440 fullscreen **SURROGATE**, not a
+  reproduction of Robert's unknown fullscreen action. Swap return is not scanout;
+  power/thermal/background conditions were uncontrolled. Severe tested
+  Cavern/Citadel/Magnetic entry/return stalls improved; no universal FPS guarantee.
+- Native Aperture still had16/112 presentation intervals above50ms and
+  GPU p99 56.58ms. Returning Molten retained three51–52ms intervals plus a151.27ms
+  query-allocation interval about1.05s into hold. The strict all-pacing gate is
+  incomplete. Checkpoint publication does not reopen optimization.
+- Aftershock's prior7.4 review caveat remains. Robert accepted the current
+  included checkpoint; no score was inflated or the scene silently removed.
+- [Main lineup handoff](docs/agent-notes/main-lineup-01.md) and
+  [final pack](work/main-lineup-01/review-index.json): RTX3070 Laptop640x360 actual
+  GPU Main entry/full Galaxy route/exit and controlled re-entry passed; full
+  held/Main Galaxy endpoint equality, manual colors and bounded clock/history
+  behavior were checked. Accelerated elapsed steps and diagnostic seed6 prove
+  reachability/lifecycle, not normal visit frequency or live listening.
+- Earlier cold80–83s compilation and one immediate post-cold-ready responsiveness
+  failure retain their original provenance. Later incidental125.69s and133.77s
+  cold compile observations and warm native lifecycle passes do not establish a
+  final cold-responsiveness certificate. Preserve failures separately from warm
+  successes; no arbitrary timeout inflation or claimed cold-cost fix.
+- Silent synthetic/decoded motion and sampled sequences are not continuous
+  natural AV listening, scanout validation or multi-hour rendered variety/resource
+  evidence. Resource bounds are not peak VRAM/RSS or minimum-device guarantees.
+  Robert's artistic acceptance remains distinct from these technical limits.
+
+Evidence packs/captures/audio under work/ remain local and ignored; they were
+not distributed with the GitHub checkpoint. Older task notes preserve their
+own date/status. Do not relabel them as the final source or current assignment.
+
+## Project skills and validation status
+
+The visual baseline commits
+[zerawave-task-handoff](.agents/skills/zerawave-task-handoff/SKILL.md),
+[zerawave-evidence-critique](.agents/skills/zerawave-evidence-critique/SKILL.md) and
+[zerawave-matched-performance](.agents/skills/zerawave-matched-performance/SKILL.md).
+Explicitly read the applicable file: the fresh delegated catalog did not
+advertise them. The user reports sidebar visibility after refresh; that is not
+verified delegated auto-loading, trigger or installed-runtime behavior.
+
+Basic structure/frontmatter/name/description and local-reference checks passed
+for the committed skills. The official validator was not run because PyYAML is
+missing from the project environment (absence checked in the earlier
+root-doc reconciliation). No dependency was installed. These limits do not grant dispatch/ownership
+or override the current brief.
+
+## Preservation and read next
+
+Preserve unrelated dirty documents, research/brainstorm folders and the planning
+proposal. Publication adds the reviewed player source/tests and necessary docs;
+no new runtime or environment changes are made during publication.
+Keep `work/releases/ZeraWave-preview-final.zip` at d4992d0 unchanged; future
+portable/release work needs its own assigned output path and authorization.
+
+- [ROADMAP.md](ROADMAP.md): player completed; startup/native performance then standalone DSP;
+  later Fractals/image import and separately scoped Studio cleanup.
+- [AGENTS.md](AGENTS.md): coordination, applicable skill loading and ownership.
+- [ZERAWAVE_VISUAL_IDENTITY.md](ZERAWAVE_VISUAL_IDENTITY.md): creative/product direction.
+- [DEVELOPMENT_STUDIO.md](DEVELOPMENT_STUDIO.md): existing controls, not the future tab redesign.
+- [TECHNIQUE_LIBRARY.md](TECHNIQUE_LIBRARY.md) and
+  [maintenance contracts](docs/MAINTENANCE_CONTRACTS.md): reuse/preservation contracts.

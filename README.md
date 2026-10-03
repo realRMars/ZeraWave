@@ -3,7 +3,7 @@
 ZeraWave is a Windows music-reactive visualizer. The current checkout is the
 development source; the portable preview is a preserved, older checkpoint.
 
-- [Player instructions](PLAYER.md)
+- [Player instructions](docs/agent-notes/player-checkpoint-2026-10-03.md)
 - [Development Studio instructions](DEVELOPMENT_STUDIO.md)
 - [Prioritized roadmap](ROADMAP.md)
 - [Visual identity](ZERAWAVE_VISUAL_IDENTITY.md)
