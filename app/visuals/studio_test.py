@@ -528,6 +528,240 @@ def roots_colors_studio_test():
     print('PASS: declared colors/gradients, bounded pipe framing/rejection, generated inspector, resets/revert/presets/sessions, coalesced live updates, synthetic + decoded child restart/EOF, real GPU controlled-live routing. Evidence:',output)
 
 
+def studio_organization_test():
+    """Offline selector/session/callback contract; withdrawn Tk, no child/device/GPU."""
+    from copy import deepcopy
+    from contextlib import ExitStack
+    import runpy
+    from renderer import LIVE_FORMS
+    from studio import STUDIO_TREES, session_states, selection_scope
+    from world_catalog import studio_trees
+    from color_controls import family_setup
+
+    def leaves(tree, path=()):
+        result = {}
+        for key, node in tree.items():
+            here = (*path, key)
+            if 'children' in node:
+                assert node['children'], ('Empty category', here)
+                result.update(leaves(node['children'], here))
+            else:
+                result[here] = LIVE_STATES[node['state']]
+        return result
+
+    original = deepcopy(WORLD_TREE)
+    full_ids = [row['id'] for row in entries(WORLD_TREE)]
+    main_forms = leaves(STUDIO_TREES['main'])
+    experimental_forms = leaves(STUDIO_TREES['experimental'])
+    assert len(main_forms) == len(LIVE_FORMS) == 27
+    assert set(main_forms.values()) == set(LIVE_FORMS) and 36 in main_forms.values()
+    assert set(experimental_forms.values()) == {4, 37, 38, 39, 40}
+    assert not set(main_forms.values()) & set(experimental_forms.values())
+    assert {**main_forms, **experimental_forms} == leaves(WORLD_TREE)
+    assert list(STUDIO_TREES['main']) == ['organic', 'geometric', 'cosmic', 'elements']
+    assert list(STUDIO_TREES['experimental']) == ['cymatics', 'experimental']
+    assert 'world:cymatics/water' in full_ids and 'world:experimental/lodestone' in full_ids
+    # Approval belongs to leaves; an approved family cannot leak a new variant
+    # through either its selectors or the pre-existing authored cycle.
+    fixture = deepcopy(WORLD_TREE)
+    fixture['organic']['children']['unapproved_variant'] = dict(label='Future variant', state='cymatics')
+    fixture['unused_category'] = dict(label='Unused', children={
+        'nested': dict(label='Nested', children={'study': dict(label='Study', state='transition')})})
+    fixture['empty_category'] = dict(label='Empty', children={})
+    projected = studio_trees(LIVE_FORMS, fixture)
+    assert 'unapproved_variant' not in projected['main']['organic']['children']
+    assert 'cycle' not in projected['main']['organic']
+    assert 'unused_category' not in projected['main']
+    assert 'empty_category' not in projected['main'] and 'empty_category' not in projected['experimental']
+    assert selection_states(['organic'], projected['main']) == ['membrane', 'roots']
+    assert 'unapproved_variant' in projected['experimental']['organic']['children']
+    assert fixture['organic']['cycle'] == 'organic'
+    assert WORLD_TREE == original and entries(WORLD_TREE) == entries(original)
+    baseline = ROOT/'work/studio-organization-01/baseline/app/visuals/world_catalog.py'
+    if baseline.is_file():
+        baseline_tree = runpy.run_path(str(baseline))['WORLD_TREE']
+        assert original == baseline_tree
+        assert full_ids == [row['id'] for row in entries(baseline_tree)]
+
+    settings = __import__('cymatics_session').defaults()
+    settings['oscillator'].update(frequency=5.7, amplitude=.3, waveform='triangle', sweep_end=7.2, sweep_seconds=12.)
+    settings.update(material='ink', finish='marble', dye_strength=.43,
+                    camera_orbit=False, light_angle=.2, dye_swirl=.37)
+    settings['basin'].update(width=.12, length=.09, depth=.007, damping=.45, optical_gain=85.)
+    settings['bands']['gain'] = 1.3
+    colors = {'cymatics.water': family_setup('cymatics.water', 'Obsidian Light'),
+              'roots.blossoms': {'tint': {'color': '#00FF88'}}}
+    profile = {'plasma': dict(mode='together', seconds=13., items=[dict(id='plasma_field', enabled=True)])}
+    legacy_count = 0
+    for path, state_id in {**main_forms, **experimental_forms}.items():
+        state = next(name for name, number in LIVE_STATES.items() if number == state_id)
+        for version in (1, 2, 3):
+            data = dict(version=version, selection=list(path), state=state, source='Synthetic preview',
+                        cymatics=settings, color_overrides=colors, layers=profile,
+                        planet_palette='soft-dream', galaxy_seed='42')
+            clean = validate_session(data)
+            assert clean['selection'] == (path_for_state(state) if version == 1 else list(path))
+            assert LIVE_STATES[clean['state']] == state_id
+            assert clean['selection_scope'] == ('main' if state_id in LIVE_FORMS else 'experimental')
+            assert clean['cymatics'] == __import__('cymatics_session').validate(settings, stored=True)
+            assert clean['color_overrides'] == colors
+            assert validate_session(dict(version=3, **clean)) == clean
+            argv = command(clean, ROOT/'work/studio-organization-01')
+            if state_id == 37:
+                assert any(arg.endswith('cymatics_preview.py') for arg in argv)
+                assert json.loads(argv[argv.index('--config')+1]) == clean['cymatics']
+            else:
+                assert argv[argv.index('--state')+1] == state
+            legacy_count += 1
+    for old in (dict(version=1, state='transition'), dict(version=3, selection=['transition'])):
+        assert validate_session(old)['selection'] == ['experimental', 'transition_study']
+    assert validate_session(dict(version=3, selection=['cymatics', 'water'],
+                                 selection_scope='cymatics'))['selection_scope'] == 'experimental'
+    muted = deepcopy(settings)
+    muted.update(monitor=True, paused=True, restart=4, dye_reset=2, view_reset=3)
+    stored = validate_session(dict(version=3, selection=['cymatics', 'water'], cymatics=muted))['cymatics']
+    assert not stored['monitor'] and not stored['paused']
+    assert stored['restart'] == stored['dye_reset'] == stored['view_reset'] == 0
+    try:
+        validate_session(dict(version=3, selection=['cymatics', 'missing']))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('Invalid saved visual must fail, never become the first Main world')
+
+    # Guard every device/renderer/child entry even though this test never starts
+    # a real preview. Tcl widgets remain withdrawn for the whole check.
+    with ExitStack() as guards, tempfile.TemporaryDirectory(dir=ROOT/'work') as temporary:
+        for target in ('renderer.Renderer.create', 'capture.AudioCapture.__init__',
+                       'oscillator.Monitor.__init__', 'studio.subprocess.Popen'):
+            guards.enter_context(patch(target, side_effect=AssertionError('Offline check attempted '+target)))
+        guards.enter_context(patch('studio.messagebox.showerror', side_effect=AssertionError))
+        folder = Path(temporary)
+        root = tk.Tk(); root.withdraw(); app = Studio(root)
+        try:
+            root.update()
+            assert root.state() == 'withdrawn'
+            assert app.tabs.tab(app.cymatics_tab, 'text') == 'Experimental'
+            assert [app.tabs.tab(tab, 'text') for tab in app.tabs.tabs()].count('Experimental') == 1
+            assert 'Cymatics' not in [app.tabs.tab(tab, 'text') for tab in app.tabs.tabs()]
+            assert set(app.selector_rows[0][1]['values']) == {'', 'Organic', 'Geometric', 'Cosmic', 'Elements'}
+            assert set(app.experimental_selector_rows[0][1]['values']) == {'Cymatics', 'Experimental / unfinished'}
+            assert [app.cymatics_panel.pages.tab(tab, 'text') for tab in app.cymatics_panel.pages.tabs()] == ['Drive', 'Water basin', 'Style & bands']
+            assert {'frequency', 'amplitude', 'waveform', 'edges', 'damping', 'camera_orbit', 'dye', 'monitor'} <= set(app.cymatics_panel.vars)
+            app.cymatics_panel.set(settings)
+            app.color_overrides = deepcopy(colors); app.layer_profiles = deepcopy(profile)
+            # Rebuilding/populating/Library search must leave the project intact.
+            before = deepcopy(app.values())
+            with patch.object(app, 'select', side_effect=AssertionError('Population fired selection callback')):
+                app.rebuild_selectors(); app.refresh_library(); root.update()
+            assert app.values() == before
+            assert [row['id'] for row in app.library_rows] == full_ids
+            assert set(app.library_list.get_children()) == set(full_ids)
+
+            for path in main_forms:
+                app.select(list(path)); root.update()
+                assert app.selection == list(path) and app.selection_scope == 'main'
+                assert app.tabs.select() == str(app.preview)
+            remembered_main = deepcopy(app.studio_selections['main'])
+            for path in experimental_forms:
+                app.library_list.selection_set('world:'+'/'.join(path))
+                app.choose_library_world(); root.update()
+                assert app.selection == list(path) and app.selection_scope == 'experimental'
+                assert app.tabs.select() == str(app.cymatics_tab)
+                assert app.studio_selections['main'] == remembered_main
+                assert app.values()['layers'] == profile and app.values()['color_overrides'] == colors
+            app.select(['cymatics', 'water']); root.update()
+            assert app.cymatics_tools.winfo_manager() == 'pack'
+            assert str(app.experimental_inputs['source']['state']) == 'disabled'
+            assert str(app.source_box['state']) == 'readonly'
+            app.select(['experimental', 'lodestone']); root.update()
+            assert app.cymatics_tools.winfo_manager() == ''
+            assert str(app.experimental_inputs['source']['state']) == 'readonly'
+            # Actual combobox callbacks and actual notebook events restore each
+            # view independently; shared settings/colors/layers remain parked.
+            value, box, changed = app.experimental_selector_rows[1]
+            value.set('Stormglass Network (Experimental)'); changed(); root.update()
+            experimental_path = ['experimental', 'stormglass']
+            assert app.selection == experimental_path
+            app.tabs.select(app.preview); root.update()
+            assert app.selection == remembered_main
+            value, box, changed = app.selector_rows[0]
+            value.set('Organic'); changed(); root.update()
+            assert app.selection == ['organic']
+            assert app.studio_selections['experimental'] == experimental_path
+            app.tabs.select(app.cymatics_tab); root.update()
+            assert app.selection == experimental_path
+            assert app.values()['cymatics'] == before['cymatics']
+            assert app.values()['layers'] == profile and app.values()['color_overrides'] == colors
+            assert app.process is None and app.color_link is None
+            # Preview buttons use their own active selection. Mock launch only,
+            # inspect exact existing runner commands without starting a child.
+            for path in (['cosmic', 'galaxy'], experimental_path, ['cymatics', 'water']):
+                app.select(path); root.update()
+                with patch.object(app, 'launch') as launch:
+                    button = app.start_button if app.selection_scope == 'main' else app.experimental_start_button
+                    button.invoke()
+                    launched = launch.call_args.args[0]
+                    assert launched['selection'] == path
+                    assert session_states(launched) == app.selected_states()
+                    command(launched, folder)
+            app.select(['cymatics', 'water']); root.update()
+            with patch('studio.subprocess.Popen') as child, patch('studio.ColorLink') as link:
+                link.return_value.submit.return_value = 1
+                link.return_value.get_status.return_value = {}
+                app.start()
+                assert any(arg.endswith('cymatics_preview.py') for arg in child.call_args.args[0])
+                assert str(app.start_button['state']) == str(app.experimental_start_button['state']) == 'disabled'
+                assert str(app.stop_button['state']) == str(app.experimental_stop_button['state']) == 'normal'
+                log = app.log
+                link.return_value.close.side_effect = log.close
+                app.tabs.select(app.preview); root.update()
+                assert app.active_color_scene == 'cymatics' and child.call_count == 1
+                app.start(); assert child.call_count == 1  # only one owned preview
+                app.finish()
+                assert str(app.start_button['state']) == str(app.experimental_start_button['state']) == 'normal'
+                assert str(app.stop_button['state']) == str(app.experimental_stop_button['state']) == 'disabled'
+            for path in ([], ['cosmic', 'galaxy'], experimental_path, ['cymatics', 'water']):
+                app.select(path); root.update()
+                expected = deepcopy(app.values())
+                app.session_path = folder/'saved.json'; app.save()
+                frozen = app.session_path.read_bytes()
+                app.new(); root.update()
+                with patch('studio.filedialog.askopenfilename', return_value=str(folder/'saved.json')):
+                    app.load()
+                root.update()
+                assert app.values() == expected
+                assert (folder/'saved.json').read_bytes() == frozen
+                assert app.tabs.select() == str(app.preview if selection_scope(path) == 'main' else app.cymatics_tab)
+            invalid = folder/'invalid.json'
+            invalid.write_text(json.dumps(dict(version=3, selection=['cymatics', 'missing'])))
+            frozen = invalid.read_bytes(); before_invalid = deepcopy(app.values())
+            with patch('studio.filedialog.askopenfilename', return_value=str(invalid)), patch('studio.messagebox.showerror') as error:
+                app.load()
+            assert error.call_count == 1 and app.values() == before_invalid and invalid.read_bytes() == frozen
+            # Legacy load routes the original visual/settings without rewriting.
+            for version in (1, 2, 3):
+                for path, state in ((['cymatics', 'water'], 'cymatics'),
+                                    (experimental_path, 'stormglass_experimental'),
+                                    (['cosmic', 'galaxy'], 'galaxy')):
+                    file = folder/'legacy.json'
+                    file.write_text(json.dumps(dict(version=version, selection=path, state=state,
+                                                   cymatics=settings, color_overrides=colors, layers=profile)))
+                    frozen = file.read_bytes()
+                    with patch('studio.filedialog.askopenfilename', return_value=str(file)): app.load()
+                    root.update()
+                    assert app.selection == path and app.selected_states() == [state]
+                    assert app.values()['cymatics'] == before['cymatics'] and file.read_bytes() == frozen
+                    assert app.tabs.select() == str(app.preview if state == 'galaxy' else app.cymatics_tab)
+            assert WORLD_TREE == original and entries(WORLD_TREE) == entries(original)
+            assert root.state() == 'withdrawn'
+        finally:
+            app.close()
+    print(f'PASS: Main 27 incl Galaxy; Experimental 5 forms + all Cymatics tools; Library {len(full_ids)} unchanged IDs; '
+          f'{legacy_count} legacy validations, saved Main/Experimental/Cymatics roundtrips, independent selectors, '
+          'callbacks/population and mocked preview routing. Withdrawn Tk; no child/GPU/audio/device access.')
+
+
 def main():
     found = find_code('water_current')
     assert any(r['symbol'] == 'water_current' and r['language'] == 'GLSL' for r in found)
@@ -952,7 +1186,9 @@ def main():
 if __name__=='__main__':
     import subprocess
     import sys
-    if '--roots-colors-test' in sys.argv:
+    if '--organization-test' in sys.argv:
+        studio_organization_test()
+    elif '--roots-colors-test' in sys.argv:
         roots_colors_studio_test()
     elif '--studio-comparison-test' in sys.argv:
         studio_comparison_test()

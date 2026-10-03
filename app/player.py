@@ -158,8 +158,13 @@ class Player:
         self.hold_button = ttk.Button(controls, text='Hold · press', state='disabled')
         self.hold_button.pack(side='left', padx=6)
         self.hold_button.bind('<ButtonPress-1>', self.press_hold)
-        self.bonk_button = ttk.Button(controls, text='Bonk →', style='Accent.TButton', command=lambda: self.send('bonk'), state='disabled')
+        self.bonk_mode = tk.StringVar(value='Normal')
+        self.bonk_button = ttk.Button(controls, text='Bonk →', style='Accent.TButton', command=self.bonk, state='disabled')
         self.bonk_button.pack(side='left')
+        self.bonk_mode_box = ttk.Combobox(controls, textvariable=self.bonk_mode,
+                                        values=('Normal', 'Instant'), state='readonly', width=7)
+        self.bonk_mode_box.pack(side='left', padx=(6, 0))
+        self.bonk_mode_box.bind('<<ComboboxSelected>>', self.change_bonk_mode)
         self.queue_toggle = ttk.Button(controls, text='Queue & preferences', command=self.show_panel)
         self.queue_toggle.pack(side='right')
         self.progress = ttk.Progressbar(self.box, mode='indeterminate')
@@ -469,7 +474,8 @@ class Player:
             process = self.process
             self.outgoing = queue.Queue(maxsize=64)
             outgoing = self.outgoing
-            outgoing.put(dict(config, source=source, session_id=self.runtime_session))
+            outgoing.put(dict(config, source=source, session_id=self.runtime_session,
+                              bonk_mode=self.bonk_mode.get().lower()))
             log = self.log
             runtime_session = self.runtime_session
             def write():
@@ -543,6 +549,13 @@ class Player:
             self.send('hold', owner='panel.button', active=True)
         return 'break'
 
+    def change_bonk_mode(self, event=None):
+        self.send('bonk_mode', mode=self.bonk_mode.get().lower())
+        self.update_controls()
+
+    def bonk(self):
+        self.send('bonk', mode=self.bonk_mode.get().lower())
+
     def release_hold(self, event=None):
         if self.root.grab_current() is self.hold_button:
             self.hold_button.grab_release()
@@ -561,7 +574,7 @@ class Player:
         if event.keysym in ('Shift_L', 'Shift_R'):
             self.send('hold', owner='panel.' + event.keysym, active=True)
         elif event.keysym == 'space':
-            self.send('bonk')
+            self.bonk()
         elif event.state & 4 and event.keysym == 'Return':
             self.start()
         elif event.state & 4 and event.keysym.lower() == 's':
@@ -599,7 +612,9 @@ class Player:
         self.stop_button.configure(state='normal' if self.process is not None else 'disabled')
         self.pause_button.configure(state='normal' if ready and running else 'disabled', text='Resume' if self.state.get('paused') else 'Pause')
         self.hold_button.configure(state='normal' if ready and running else 'disabled', text='Holding…' if self.state.get('held') else 'Hold · press')
-        self.bonk_button.configure(state='normal' if ready and running and not self.state.get('paused') and self.state.get('target') is None else 'disabled')
+        self.bonk_button.configure(state='normal' if ready and running and not self.state.get('paused') and
+                                   (self.state.get('target') is None or self.bonk_mode.get() == 'Instant') else 'disabled')
+        self.bonk_mode_box.configure(state='disabled' if self.initializing else 'readonly')
         self.devices.configure(state='readonly')
         self.refresh_button.configure(state='normal')
 
@@ -651,9 +666,10 @@ class Player:
             mode = ('Paused · ' if self.state['paused'] else ('Holding · ' if self.state['held'] and self.state['running'] else '')) + capture
             if self.state.get('capture_state') == 'releasing' or self.state['running']:
                 self.status.set(self.state.get('restart_notice') or self.enumeration_notice or capture)
-            if target:
+            if target or self.state.get('transition_complete'):
                 label = RECIPES.get(self.state['transition_id'], (self.state['transition_id'],))[0]
-                mode += f" · {label} · {self.state['transition_progress']:.0%}"
+                percent = 100 if self.state.get('transition_complete') else min(99, int(self.state['transition_progress']*100))
+                mode += f" · {label} · {percent}%"
             if self.state.get('pending_config'):
                 mode += ' · queue update pending next boundary'
             self.phase.set(mode)

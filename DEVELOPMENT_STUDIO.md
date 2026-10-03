@@ -7,7 +7,8 @@ or a commitment to paid ZeraWave Studio 1.
 
 Run `run_development_studio.bat` from the project root. Use **Library** to find
 an existing world, effect, or technique; **Build & preview** to select a
-world/form and input; **Effects & layers** to inspect optional selections; and
+approved Main world/form and input; **Experimental** for unfinished worlds and
+the existing Cymatics tools; **Effects & layers** to inspect optional selections; and
 **Review** to inspect the resulting run folder.
 
 For visual work, review a held form in motion through quiet and sustained active
@@ -17,6 +18,51 @@ analyzer, mapper, and renderer; it is not live audio validation. A still capture
 alone does not verify motion or stateful effects.
 
 ## Operating Studio
+
+### Organization contract
+
+**Build & preview** presents only canonical Main-approved forms, currently 27
+including Galaxy. Approval comes from `renderer.LIVE_FORMS`, also used by the
+player, rather than catalog membership or an internal review score. The existing
+top-level taxonomy is **Organic**, **Geometric**, **Cosmic**, and **Elements**;
+Elements has its own categories. Filtering happens at every leaf, hides empty
+categories, and parks a branch's authored cycle when excluded descendants could
+otherwise leak into it. Adding a candidate under an approved parent grants no
+approval to the candidate.
+
+**Experimental** replaces the displayed **Cymatics** tab name. It has independent
+world/form selectors and Start/Stop controls. Choose **Cymatics > Water - Resonance
+basin** for all existing Drive, Water basin, Style & bands, oscillator, band,
+monitoring and live tools. Choose **Experimental / unfinished** for the legacy
+transition study, Lodestone Field, Stormglass Network, or Folded Aurora. Basin
+uses its Drive Input selector; other experiments use the ordinary input/replay
+controls above. A blank Experimental form cycles its selected branch; there is
+no combined Basin/remake playback mode. Source/track/replay settings are shared
+with Build & preview; the two visual selections are remembered independently.
+
+**Library** retains the complete catalog, effects, techniques and stable IDs.
+Choosing a Library world opens its appropriate Main or Experimental tab and
+does not start preview. Effects & layers follows the active visual selection;
+**Back to preview** returns to its tab. Merely populating selectors or searching
+Library does not change project settings, layers, colors, or files.
+
+Saved v1-v3 projects keep their original visual IDs and settings. The `cymatics`
+catalog path and existing Cymatics controls remain; only the tab label changes.
+The previous format did not store notebook tab IDs. Old projects route by their
+stored visual path/state; new v3 saves additionally record `selection_scope` and
+`studio_selections` so both visual selections survive reopening. Invalid paths
+show a load error rather than silently selecting the first Main form. Loading
+does not rewrite the source project. The established saved-Cymatics muted/restart
+reset policy still applies.
+
+Keep this organization when extending Studio. The focused, offline guard is:
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 app\visuals\studio_test.py --organization-test
+```
+
+It uses a withdrawn Tk window, blocked child/GPU/device entry points and temporary
+saved-project fixtures. It does not run a live preview or certify audio quality.
 
 Choose a world and narrow the cascading selectors to isolate a form. Leaving
 the top selector blank selects Main Blend. A blank branch that has an authored
@@ -40,7 +86,7 @@ remain and final metrics may be incomplete.
 
 ### Cosmic Galaxy: Galaxy Odyssey review
 
-Galaxy is a candidate outside Main, awaiting Robert's artistic review. Launch
+Galaxy is approved for Main. Launch
 `run_development_studio.bat`, choose **Presets > Galaxy Odyssey > Galaxy scene**,
 then **Test track / Real time / Full track** (a track over 1:18 shows the first arrival).
 Synthetic preview and live system audio use the same journey. Close the current
@@ -96,8 +142,8 @@ other worlds require explicit selection.
 
 Main's existing 12-19 second minimum dwell and 6-11 second handoffs were checked.
 Forced six-second entry/exit GPU fixtures show musical warp streaks and a legible
-Galaxy reveal; these are compatibility evidence, not Main integration. Galaxy
-remains absent from Main's eligible worlds, and all three Envelopers remain off.
+Galaxy reveal; these historical fixtures are compatibility evidence. Galaxy now
+belongs to Main's canonical roster; all three Envelopers remain off by default.
 See `work/galaxy-journey-review/` and the
 [task evidence](docs/agent-notes/galaxy-stellar-aviary.md). Review the motion and
 music yourself; automated checks do not establish artistic acceptance.
@@ -399,7 +445,7 @@ superseded trios, itineraries, proposals, or test results.
 ## Cymatics Water review candidate
 
 Select Cymatics → Water, then Start preview. It runs in real time and starts muted.
-Use the Cymatics tab Input selector for oscillator, track or loopback; the general
+Use **Experimental > Cymatics > Water**, then its Drive Input selector for oscillator, track or loopback; the general
 Input/replay-speed controls are parked here. Input changes need Stop/Start.
 Sweep resonances (muted) starts a sweep through modeled basin resonances. Drive
 Hz and surface resonances are shown separately; audio bands are not water modes.

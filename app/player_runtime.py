@@ -27,7 +27,7 @@ RESTART_NOTICE = ('Capture could not restart. Close this ZeraWave player complet
 
 
 def command_summary(value):
-    return {k: value[k] for k in ('op', 'serial', 'source', 'owner', 'active') if k in value}
+    return {k: value[k] for k in ('op', 'serial', 'source', 'owner', 'active', 'mode') if k in value}
 
 
 def capture_controls(state):
@@ -189,6 +189,9 @@ class LiveSession:
         if completed and not self.playback.config['shuffle']:
             self.playback.index = -1
             self.playback.bonk_pending = True
+            # Internal queue restart is a normal boundary, independent of the
+            # user's session-only manual Bonk choice or any consumed request.
+            self.playback.bonk_pending_mode = 'normal'
         self.resuming = True
         self.resume_wait = False
         self.resume_after = time.perf_counter()
@@ -264,7 +267,9 @@ class LiveSession:
         elif op == 'release_focus':
             self.playback.release_focus(str(value.get('owner', 'panel'))[:32])
         elif op == 'bonk':
-            self.playback.bonk(self.renderer.director_target is not None)
+            self.playback.bonk(self.renderer.director_target is not None, value.get('mode'))
+        elif op == 'bonk_mode':
+            self.playback.set_bonk_mode(value['mode'])
         elif op == 'configure':
             self.playback.configure(value['config'], self.renderer.director_current)
         elif op in ('source', 'switch_source'):
@@ -433,8 +438,8 @@ class LiveSession:
     def snapshot(self):
         r = self.renderer
         return dict(self.playback.snapshot(), current=r.director_current,
-                    target=r.director_target, transition_id=r.director_recipe if r.director_target is not None else None,
-                    transition_progress=(max(0., min(1., (r.director_time-r.director_transition)/r.director_duration)) if r.director_target is not None else None),
+                    target=r.director_target, transition_id=r.director_recipe if r.transition_progress() is not None else None,
+                    transition_progress=r.transition_progress(), transition_complete=r.director_transition_complete,
                     scene_seconds=self.clock, analysis_frames=self.analysis_total + (self.stream.analyzed if self.stream else 0),
                     listening=self.playback.available, listen_requested=self.playback.running,
                     capture_state=self.capture_state, capture_detail=self.capture_detail,
@@ -509,6 +514,7 @@ def main():
     renderer = Renderer(title='ZeraWave')
     renderer.startup_callback = lambda phase: emit(startup=dict(phase=phase))
     session = LiveSession(renderer, config)
+    session.playback.set_bonk_mode(raw_config.get('bonk_mode', 'normal'))
     try:
         renderer.create()
         session.last_wall = time.perf_counter()

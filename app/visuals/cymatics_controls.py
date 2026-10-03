@@ -23,7 +23,7 @@ class CymaticsControls:
             var=tk.BooleanVar(value=value) if type(value) is bool else tk.StringVar(value=str(value));self.vars[key]=var
             widget=ttk.Checkbutton(frame,variable=var) if type(value) is bool else ttk.Combobox(frame,textvariable=var,values=options,state='readonly') if options else ttk.Entry(frame,textvariable=var,width=24)
             widget.grid(row=row,column=1,sticky='ew',pady=4);frame.columnconfigure(1,weight=1)
-        ttk.Label(drive,text='Choose Cymatics / Water, then Start preview.\nOscillator starts muted. Default basin frequencies are below hearing.').grid(row=0,column=0,columnspan=2,sticky='w',pady=6)
+        ttk.Label(drive,text='Experimental: choose Cymatics / Water, then Start preview.\nOscillator starts muted. Default basin frequencies are below hearing.').grid(row=0,column=0,columnspan=2,sticky='w',pady=6)
         c=defaults()
         field(drive,1,'source','Input (exclusive)',c['source'],('oscillator','track','loopback'))
         for row,(key,label) in enumerate((('frequency','Drive frequency (Hz)'),('amplitude','Canonical push amplitude (0–0.8)'),('waveform','Wave shape'),('phase','Phase offset (radians)'),('sweep_end','Sweep destination (Hz)'),('sweep_seconds','Sweep time (s; 0 = hold)'),('sweep_log','Logarithmic sweep')),2):field(drive,row,key,label,c['oscillator'][key],('sine','triangle','square','saw') if key=='waveform' else None)

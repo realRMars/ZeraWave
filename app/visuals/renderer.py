@@ -45,6 +45,7 @@ FOG_FORMS = (28, 29, 30)
 PLASMA_FORMS = (32, 33, 34)
 # Approved Galaxy shares the canonical live Main roster, not the fixture itinerary.
 LIVE_FORMS = BLEND_FORMS + AIR_FORMS + EARTH_FORMS + FOG_FORMS + PLASMA_FORMS + (36,)
+INSTANT_BONK_SECONDS = .35  # Manual handoff/tail target, never an automatic dwell.
 
 @lru_cache(maxsize=8)
 def blend_chapter(chapter):
@@ -265,6 +266,8 @@ class Renderer:
         self.director_since = 0.
         self.director_transition = 0.
         self.director_duration = 8.
+        self.director_transition_complete = False
+        self.director_bonk_expedited = False
         self.galaxy_main_since = 0.
         self.director_min_hold = 14.
         self.director_max_hold = 40.
@@ -339,6 +342,22 @@ class Renderer:
             rationale='musical fit, soft recency/pair penalty, coverage and visual contrast with bounded shuffled variation')
         return chosen['state']
 
+    def transition_progress(self):
+        if self.director_target is not None:
+            return min(1., max(0., (self.director_time-self.director_transition)/self.director_duration))
+        return 1. if self.director_transition_complete else None
+
+    def expedite_bonk(self):
+        """Retain the current recipe/arrival and progress; shorten only its tail."""
+        if self.director_target is None or self.director_bonk_expedited:
+            return
+        progress = self.transition_progress()
+        remaining = (1.-progress)*self.director_duration
+        if remaining > INSTANT_BONK_SECONDS:
+            self.director_duration = INSTANT_BONK_SECONDS/(1.-progress)
+            self.director_transition = self.director_time-progress*self.director_duration
+        self.director_bonk_expedited = True
+
     def update_blend(self, seconds, delta, enabled=True):
         """Audio opportunities choose one complete handoff; never stack takeovers."""
         if self.transition_sequence:
@@ -348,6 +367,10 @@ class Renderer:
             return
         if self.player is not None and not self.player.available and self.director_current is not None:
             return  # Capture recovery holds world/transition ownership while scene motion gently idles.
+        if self.player is not None and self.player.bonk_expedite:
+            self.player.bonk_expedite = False
+            if self.player.running and not self.player.paused:
+                self.expedite_bonk()
         dt=max(0.,delta)
         if self.player is not None and (not self.player.running or (self.player.held and self.director_target is None)):
             dt=0.
@@ -377,6 +400,7 @@ class Renderer:
             if progress>=1.:
                 self.director_last_seen[self.director_current]=now
                 self.director_current=self.director_target;self.director_target=None
+                self.director_transition_complete = True
                 self.director_since=now
                 self.director_min_hold=self.director_rng.uniform(12.,19.)
                 self.director_max_hold=self.director_rng.uniform(32.,48.)
@@ -421,6 +445,8 @@ class Renderer:
             if self.player.running and self.player.bonk_pending:
                 reason='Bonk';self.director_pending=None
         if reason:
+            instant_bonk = (reason == 'Bonk' and self.player is not None
+                            and self.player.bonk_pending_mode == 'instant')
             choice=lambda pool:self.choose_world(energy if release else max(energy,self.director_fast),lift)
             self.director_target=self.choose_world(energy if release else max(energy,self.director_fast),lift) if self.player is None else self.player.next(self.director_current,choice)
             if self.player is not None and self.director_target in (None,self.director_current):
@@ -441,6 +467,11 @@ class Renderer:
             self.director_recent_styles=(self.director_recent_styles+[self.director_style])[-12:]
             self.director_transition=now
             self.director_duration=self.director_rng.uniform(6.,9.) if reason!='release' else self.director_rng.uniform(8.,11.)
+            # Keep the normal RNG draw/recipe route exactly; shorten only this
+            # explicit manual handoff. Automatic cycles never inherit the mode.
+            if instant_bonk: self.director_duration = INSTANT_BONK_SECONDS
+            self.director_transition_complete = False
+            self.director_bonk_expedited = instant_bonk
             self.planet_visits+=int(self.director_target==5)
             self.director_last_seen[self.director_target]=now
             self.director_history.append(dict(seconds=seconds,state=self.director_target,reason=reason,source=self.director_current,selection=self.director_choice,transition=self.director_style,transition_id=self.director_recipe,reprise=self.director_reprise,transition_reason=transition_reason,eligible_transition_ids=eligible,layout=self.director_layout))

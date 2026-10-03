@@ -60,6 +60,38 @@ WORLD_TREE = {
     }),
 }
 
+def studio_trees(roster, tree=None):
+    """Independent selector views of the full catalog, gated at each leaf.
+
+    Callers supply renderer.LIVE_FORMS, the canonical Main approval source.
+    A parent's approval never grants approval to its variants. If a branch is
+    pruned, park its authored cycle: that cycle could still visit excluded forms.
+    Stable catalog keys/labels and the shared Library inventory remain untouched.
+    """
+    source = WORLD_TREE if tree is None else tree
+    approved = set(roster)
+
+    def project(children, main):
+        result = {}
+        for key, node in children.items():
+            if 'children' in node:
+                kept = project(node['children'], main)
+                if not kept:
+                    continue
+                copy = dict(node, children=kept)
+                if kept != node['children']:
+                    copy.pop('cycle', None)
+            else:
+                state = LIVE_STATES.get(node.get('state'))
+                if state is None or (state in approved) != main:
+                    continue
+                copy = dict(node)
+            result[key] = copy
+        return result
+
+    return {'main': project(source, True), 'experimental': project(source, False)}
+
+
 def main_entries(roster):
     rows = {}
     def visit(children, labels):

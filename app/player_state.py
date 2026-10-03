@@ -2,6 +2,7 @@
 import copy
 
 QUEUE_LIMIT = 50
+BONK_MODES = ('normal', 'instant')
 
 
 def defaults(roster):
@@ -47,6 +48,9 @@ class Playback:
         self.paused = False
         self.holds = set()
         self.bonk_pending = False
+        self.bonk_mode = 'normal'  # Session-only; never part of saved config.
+        self.bonk_pending_mode = 'normal'
+        self.bonk_expedite = False
         self.index = -1
         self.resume_fresh = False
         self.end_reason = ''
@@ -63,12 +67,16 @@ class Playback:
 
     def stop(self, reason='Stopped · current world is settling'):
         self.running = self.paused = self.bonk_pending = False
+        self.bonk_pending_mode = 'normal'
+        self.bonk_expedite = False
         self.end_reason = reason
 
     def pause(self):
         if self.running:
             self.paused = not self.paused
             self.bonk_pending = False
+            self.bonk_pending_mode = 'normal'
+            self.bonk_expedite = False
             if not self.paused:
                 self.resume_fresh = True
 
@@ -81,9 +89,26 @@ class Playback:
     def release_focus(self, owner):
         self.holds = {x for x in self.holds if not x.startswith(owner)}
 
-    def bonk(self, transitioning=False):
-        if self.running and not self.paused and not transitioning:
+    def set_bonk_mode(self, mode):
+        if mode not in BONK_MODES:
+            raise ValueError('Choose Normal or Instant Bonk.')
+        self.bonk_mode = mode
+
+    def bonk(self, transitioning=False, mode=None):
+        if mode is not None:
+            self.set_bonk_mode(mode)
+        if not self.running or self.paused:
+            return
+        if transitioning:
+            # One bounded speed-up request for the current arrival, never a
+            # second queued world. Normal retains its active-handoff behavior.
+            if self.bonk_mode == 'instant' and self.available:
+                self.bonk_expedite = True
+        elif not self.bonk_pending:
+            if self.bonk_mode == 'instant' and not self.available:
+                return
             self.bonk_pending = True
+            self.bonk_pending_mode = self.bonk_mode
 
     def configure(self, value, current=None):
         config = validate_config(value, self.roster)
@@ -100,6 +125,8 @@ class Playback:
 
     def next(self, current, choose):
         self.bonk_pending = False
+        self.bonk_pending_mode = 'normal'
+        self.bonk_expedite = False
         if self.pending_config is not None:
             self.config = self.pending_config
             self.pending_config = None
@@ -119,5 +146,6 @@ class Playback:
 
     def snapshot(self):
         return dict(running=self.running, available=self.available, paused=self.paused, held=self.held,
+                    bonk_mode=self.bonk_mode,
                     queue_index=self.index, config=copy.deepcopy(self.config),
                     pending_config=self.pending_config is not None, reason=self.end_reason)

@@ -255,5 +255,299 @@ def ui_tests():
     print('PASS: actual Tk widgets/mocked source chooser, missing source, settings migration/reload, invalid queue, focused key debounce/text exemption/focus loss, shared taxonomy')
 
 
+def bonk_restart_tests():
+    """Actual Start/command/tick/director route with fake PCM and no device/UI/GL."""
+    from contextlib import ExitStack
+    import json
+    results = []
+    with ExitStack() as guards:
+        for target in ('renderer.Renderer.create', 'capture.AudioCapture.__init__',
+                       'player_runtime.DeviceWatch.__init__', 'player.subprocess.Popen'):
+            guards.enter_context(patch(target, side_effect=AssertionError('Offline test attempted '+target)))
+        for restart_mode in ('normal', 'instant'):
+            renderer = Renderer(seed=6)
+            source = dict(kind='loopback', id='offline-restart', name='Offline restart fixture')
+            session = LiveSession(renderer, config([26, 7], shuffle=False, loop=False, source=source))
+            wall = [0.]
+            def render(clock):
+                before = renderer.last_render_time
+                renderer.update_blend(clock, 0. if before is None else clock-before)
+                renderer.last_render_time = clock
+            renderer.render = render; renderer.swap_buffers = lambda: None
+            def fake_capture(now):
+                session.playback.available = True
+                frame = AudioFrame(.3, .2, .1, 0, 0, 0, flux=.1)
+                return [(now, (np.zeros((2048, 2)), frame))]
+            def pump(delta):
+                wall[0] += delta; session.tick(wall[0])
+            with patch.object(session, 'retry'), patch.object(session, 'service_capture', side_effect=fake_capture), \
+                 patch('player_runtime.time.perf_counter', side_effect=lambda: wall[0]):
+                # Exact reported route: non-looping ordered queue -> Instant ->
+                # finish queue -> choose Normal (or keep Instant) -> Start.
+                session.command(dict(op='start')); pump(0.)
+                assert renderer.director_current == 26 and session.playback.index == 0
+                session.command(dict(op='bonk', mode='instant')); pump(.01)
+                assert renderer.director_target == 7 and renderer.director_duration == .35
+                pump(.36)
+                assert renderer.director_current == 7 and session.snapshot()['transition_progress'] == 1.
+                renderer.director_min_hold = renderer.director_max_hold = 0.
+                pump(.01)
+                assert not session.playback.running and session.playback.index == 2
+                assert renderer.director_target is None and renderer.director_current == 7
+                session.command(dict(op='bonk_mode', mode=restart_mode))
+                session.command(dict(op='start')); pump(.01)
+                duration = renderer.director_duration
+                print('Restart case:', json.dumps(dict(selected_mode=restart_mode, restart_duration=duration,
+                                                      current=renderer.director_current, target=renderer.director_target)))
+                assert renderer.director_target == 26 and 6. <= duration <= 9., 'Internal queue restart inherited stale Instant mode'
+                assert session.playback.bonk_mode == restart_mode
+                assert not session.playback.bonk_pending and session.playback.bonk_pending_mode == 'normal'
+                pump(duration+.01)
+                assert renderer.director_current == 26 and session.playback.index == 0
+                session.command(dict(op='hold', owner='test', active=True))
+                for _ in range(100): session.command(dict(op='bonk', mode='instant'))
+                pump(.01)
+                assert renderer.director_target == 7 and renderer.director_duration == .35
+                assert session.playback.bonk_pending_mode == 'normal' and not session.playback.bonk_pending
+                progress = [session.snapshot()['transition_progress']]
+                for _ in range(18):
+                    session.command(dict(op='bonk')); pump(.02)
+                    progress.append(session.snapshot()['transition_progress'])
+                assert progress == sorted(progress) and progress[-1] == 1.
+                assert renderer.director_current == 7 and renderer.director_target is None
+                assert session.playback.index == 1 and session.playback.held
+                pump(1.); assert renderer.director_current == 7 and renderer.director_target is None
+                session.command(dict(op='bonk')); assert session.playback.bonk_pending_mode == 'instant'
+                session.command(dict(op='pause'))
+                assert not session.playback.bonk_pending and session.playback.bonk_pending_mode == 'normal'
+                session.command(dict(op='bonk')); session.command(dict(op='pause')); pump(.01)
+                assert renderer.director_target is None  # no Resume backlog
+                session.command(dict(op='bonk')); session.command(dict(op='stop'))
+                assert not session.playback.bonk_pending and session.playback.bonk_pending_mode == 'normal'
+                assert not session.playback.bonk_expedite and session.playback.bonk_mode == 'instant'
+                results.append(dict(restart_mode=restart_mode, internal_restart_duration=duration,
+                                    subsequent_manual_duration=.35, manual_progress=progress))
+        # Consuming a same-world/solo request also cleans transient mode state.
+        p = Playback(config([26], shuffle=False), LIVE_FORMS); p.start(); p.initial(lambda q:q[0])
+        p.bonk(mode='instant'); assert p.next(26, lambda q:q[0]) == 26
+        assert p.bonk_pending_mode == 'normal' and not p.bonk_pending and p.bonk_mode == 'instant'
+    print('PASS: exact ordered non-looping queue restart Normal for either selected mode; subsequent manual Instant .35; '
+          'handled/canceled transient mode reset, coalescing/progress100, held arrival/Pause/Stop/order/solo. Actual runtime/director, mocked capture; no UI/GPU/device.')
+    return results
+
+
+def instant_bonk_tests():
+    """Controlled director clocks and withdrawn/mocked UI; no real GL or audio."""
+    import json
+    import runpy
+    from contextlib import ExitStack
+    from renderer import INSTANT_BONK_SECONDS
+    from transition_catalog import compatible
+
+    def scene(queue=(26, 7, 14), mode='normal', held=False):
+        r = Renderer(seed=6)
+        p = Playback(config(list(queue), shuffle=False, loop=True), LIVE_FORMS)
+        r.player = p; p.start(); p.set_bonk_mode(mode)
+        r.update_blend(0., 0.)
+        p.hold('panel.button', held)
+        return r, p
+
+    def step(r, delta):
+        r.update_blend(r.director_time+delta, delta)
+
+    # Byte-bound pre-delta renderer proves the Normal route, timings, RNG and
+    # actual blend uniforms match, rather than just checking a duration range.
+    baseline = player.ROOT/'work/studio-organization-01/instant-bonk-delta/baseline/app/visuals/renderer.py'
+    if baseline.is_file():
+        Before = runpy.run_path(str(baseline))['Renderer']
+        old = Before(seed=6); old.player = Playback(config([26, 7, 14], shuffle=False), LIVE_FORMS)
+        old.player.start(); old.update_blend(0., 0.)
+        normal, p = scene()
+        old.player.bonk(); p.bonk()
+        elapsed = 0.
+        for delta in (0., .01, .1, .5, 1., 2., 3., 8., 20., 35., 40.):
+            elapsed += delta
+            old.update_blend(elapsed, delta); normal.update_blend(elapsed, delta)
+            assert old.blend_values == normal.blend_values
+            for field in ('director_current', 'director_target', 'director_duration', 'director_transition',
+                          'director_since', 'director_min_hold', 'director_max_hold', 'director_history'):
+                assert getattr(old, field) == getattr(normal, field), field
+            assert old.director_rng.getstate() == normal.director_rng.getstate()
+    normal, p = scene(); p.bonk(); step(normal, 0.)
+    assert 6. <= normal.director_duration <= 9.
+    p.bonk(True); assert not p.bonk_pending and not p.bonk_expedite
+
+    instant, p = scene(mode='instant', held=True)
+    for _ in range(100): p.bonk()
+    step(instant, 0.)
+    assert instant.director_target == 7 and instant.director_duration == INSTANT_BONK_SECONDS
+    assert compatible(instant.director_recipe, 26, 7) and p.held
+    assert instant.director_pending is None and instant.director_time == 0.
+    progress = [instant.transition_progress()]
+    for _ in range(18):
+        p.bonk(instant.director_target is not None)
+        step(instant, .02); progress.append(instant.transition_progress())
+    assert progress == sorted(progress) and progress[-1] == 1.
+    assert instant.director_current == 7 and instant.director_target is None
+    assert p.index == 1 and len(instant.director_history) == 2 and p.held
+    # The repeat on the final active tick is consumed, never a hidden next-world
+    # request. Held arrival remains the existing world with frozen director time.
+    held_time = instant.director_time; step(instant, 20.)
+    assert instant.director_time == held_time and instant.director_current == 7
+    p.hold('panel.button', False)
+    instant.director_min_hold = instant.director_max_hold = 0.
+    step(instant, .01)
+    assert instant.director_target == 14 and 6. <= instant.director_duration <= 9.
+    assert not instant.director_bonk_expedited  # Instant selection never changes automatic timing.
+    step(instant, 10.); p.bonk(mode='normal'); step(instant, 0.)
+    assert instant.director_target == 26 and 6. <= instant.director_duration <= 9.
+
+    active, p = scene(); p.bonk(); step(active, 0.)
+    step(active, active.director_duration*.4)
+    before = active.transition_progress(), dict(active.blend_values), active.director_recipe, active.director_target
+    for _ in range(100): p.bonk(True, mode='instant')
+    step(active, 0.)
+    assert abs(active.transition_progress()-before[0]) < 1e-12
+    for key, value in before[1].items(): assert np.allclose(active.blend_values[key], value, atol=1e-12)
+    assert active.director_recipe == before[2] and active.director_target == before[3]
+    assert abs((1.-active.transition_progress())*active.director_duration-INSTANT_BONK_SECONDS) < 1e-12
+    retimed = active.director_duration, active.director_transition
+    samples = [active.transition_progress()]
+    for _ in range(18):
+        p.bonk(True)
+        step(active, .02); samples.append(active.transition_progress())
+        assert (active.director_duration, active.director_transition) == retimed
+    assert samples == sorted(samples) and samples[-1] == 1.
+    assert active.director_current == 7 and p.index == 1 and len(active.director_history) == 2
+    assert not p.bonk_pending and not p.bonk_expedite
+    tail, p = scene(); p.bonk(); step(tail, 0.); step(tail, tail.director_duration*.99)
+    unchanged = tail.director_duration, tail.director_transition
+    p.bonk(True, mode='instant'); step(tail, 0.)
+    assert (tail.director_duration, tail.director_transition) == unchanged  # never lengthen a short tail
+
+    paused, p = scene(held=True, mode='instant'); p.bonk(); p.pause()
+    assert not p.bonk_pending and not p.bonk_expedite
+    p.bonk(); p.pause(); step(paused, 0.)
+    assert paused.director_target is None and paused.director_current == 26
+    p.bonk(); step(paused, 0.); duration = paused.director_duration
+    p.bonk(True); p.pause(); assert not p.bonk_expedite
+    p.pause(); step(paused, 0.); assert paused.director_duration == duration
+    p.stop(); p.bonk(True)
+    frozen = paused.director_current, paused.director_target, dict(paused.blend_values), paused.transition_progress()
+    step(paused, 10.)
+    assert (paused.director_current, paused.director_target, paused.blend_values, paused.transition_progress()) == frozen
+    assert not p.bonk_pending and not p.bonk_expedite
+
+    solo, p = scene(queue=(26,), mode='instant'); p.bonk(); step(solo, 0.)
+    assert solo.director_target is None and solo.director_current == 26 and p.running
+    duplicate, p = scene(queue=(26, 26, 7), mode='instant')
+    p.bonk(); step(duplicate, 0.); assert duplicate.director_target is None and p.index == 1
+    p.bonk(); step(duplicate, 0.); assert duplicate.director_target == 7 and p.index == 2
+    p.configure(config([14, 5], shuffle=False), 26)
+    p.bonk(True); step(duplicate, .36)
+    assert duplicate.director_current == 7 and p.pending_config is not None
+    p.bonk(); step(duplicate, 0.); assert duplicate.director_target == 14 and p.pending_config is None
+    shuffle = Renderer(seed=8); p = Playback(config([7, 26, 36]), LIVE_FORMS)
+    shuffle.player = p; p.start(); p.set_bonk_mode('instant'); step(shuffle, 0.)
+    for _ in range(12):
+        p.bonk(); step(shuffle, 0.); step(shuffle, .36)
+        assert shuffle.director_current in {7, 26, 36} and len(shuffle.director_history) <= 64
+    galaxy, p = scene(queue=(36, 7), mode='instant')
+    galaxy.director_min_hold = galaxy.director_max_hold = 0.
+    step(galaxy, 73.9); assert galaxy.director_current == 36 and galaxy.director_target is None
+    step(galaxy, .2); assert galaxy.director_target == 7 and 6. <= galaxy.director_duration <= 9.
+    unavailable, p = scene(mode='instant'); p.available = False; p.bonk()
+    assert not p.bonk_pending; step(unavailable, 50.)
+    assert unavailable.director_current == 26 and unavailable.director_target is None
+
+    # Test the real runtime command/snapshot surface without service_capture.
+    r = Renderer(seed=6); s = LiveSession(r, config([26, 7], shuffle=False))
+    s.playback.available = True; s.playback.start(); step(r, 0.)
+    s.command(dict(op='bonk_mode', mode='instant')); s.command(dict(op='bonk')); step(r, 0.)
+    assert s.snapshot()['bonk_mode'] == 'instant' and s.snapshot()['transition_progress'] == 0.
+    step(r, .36)
+    completed = s.snapshot()
+    assert completed['transition_complete'] and completed['transition_progress'] == 1. and completed['current'] == 7
+    assert 'bonk_mode' not in s.playback.config
+    callbacks = {}
+    with patch('glfw.set_key_callback', side_effect=lambda window, fn: callbacks.update(key=fn)), \
+         patch('glfw.set_window_focus_callback', side_effect=lambda window, fn: callbacks.update(focus=fn)):
+        install_keys(r, s)
+    with patch.object(s.playback, 'bonk', wraps=s.playback.bonk) as bonk:
+        callbacks['key'](None, glfw.KEY_SPACE, 0, glfw.PRESS, 0)
+        callbacks['key'](None, glfw.KEY_SPACE, 0, glfw.REPEAT, 0)
+        callbacks['key'](None, glfw.KEY_SPACE, 0, glfw.PRESS, 0)
+        assert bonk.call_count == 1
+    s.playback.pause(); assert not s.playback.bonk_pending and not s.playback.bonk_expedite
+
+    with ExitStack() as guard, tempfile.TemporaryDirectory() as temporary:
+        for target in ('renderer.Renderer.create', 'capture.AudioCapture.__init__',
+                       'capture.list_sources', 'capture.SourceEnumerator.request', 'player.subprocess.Popen'):
+            guard.enter_context(patch(target, side_effect=AssertionError('Offline check attempted '+target)))
+        guard.enter_context(patch.object(player.Player, 'refresh'))
+        root = tk.Tk(); root.withdraw(); app = player.Player(root, Path(temporary))
+        try:
+            root.update(); assert root.state() == 'withdrawn' and app.bonk_mode.get() == 'Normal'
+            assert tuple(app.bonk_mode_box['values']) == ('Normal', 'Instant')
+            source = dict(kind='loopback', id='offline-fixture', name='Offline fixture')
+            app.receive_sources([source]); app.set_selected_source(source)
+            app.bonk_mode.set('Instant')
+            with patch('player.subprocess.Popen'), patch('player.threading.Thread'):
+                app.start()
+                initial = app.outgoing.get_nowait()
+                assert initial['bonk_mode'] == 'instant' and initial['source'] == source
+                assert 'bonk_mode' not in app.settings
+                assert str(app.bonk_mode_box['state']) == 'disabled'
+            app.process = None; app.outgoing = None; app.initializing = False
+            app.bonk_mode.set('Normal')
+            app.process = SimpleNamespace()  # marks UI ready; no child exists
+            state = dict(completed, target=26, current=7, transition_complete=False,
+                         transition_progress=.4, transition_id=r.director_recipe)
+            app.receive(dict(state=state)); assert str(app.bonk_button['state']) == 'disabled'
+            settings_before = dict(app.settings)
+            with patch.object(app, 'send') as send:
+                app.bonk_mode.set('Instant'); app.change_bonk_mode()
+                assert send.call_args.args == ('bonk_mode',) and send.call_args.kwargs['mode'] == 'instant'
+                assert str(app.bonk_button['state']) == 'normal'
+                app.bonk_button.invoke()
+                assert send.call_args.args == ('bonk',) and send.call_args.kwargs['mode'] == 'instant'
+                app.text_focus = lambda: False
+                event = SimpleNamespace(keysym='space', state=0)
+                send.reset_mock(); app.key_press(event); app.key_press(event)
+                assert send.call_count == 1 and send.call_args.kwargs['mode'] == 'instant'
+                app.key_release(event); app.text_focus = lambda: True; app.key_press(event)
+                assert send.call_count == 1
+                with patch.object(root, 'focus_displayof', return_value=None): app.focus_check()
+                assert send.call_args.args == ('release_focus',)
+            assert app.settings == settings_before and 'bonk_mode' not in player.load_settings(Path(temporary)/'settings.json')
+            app.receive(dict(state=dict(state, transition_progress=.9999)))
+            assert '99%' in app.phase.get() and '100%' not in app.phase.get()
+            app.receive(dict(state=completed)); assert '100%' in app.phase.get()
+            app.receive(dict(state=dict(completed, paused=True))); assert str(app.bonk_button['state']) == 'disabled'
+            app.receive(dict(state=dict(completed, running=False))); assert str(app.bonk_button['state']) == 'disabled'
+            app.initializing = True; app.update_controls()
+            assert str(app.bonk_button['state']) == str(app.bonk_mode_box['state']) == 'disabled'
+            assert root.state() == 'withdrawn'
+        finally:
+            app.process = None; app.close()
+    baseline_label = 'Normal baseline/RNG/recipe/uniform equality' if baseline.is_file() else 'Normal duration range (baseline file absent)'
+    print('PASS: '+baseline_label+'; Instant .35s; active retiming without progress jump; '
+          'monotonic completion100, bounded repeats, held arrival/Pause/Stop, solo/duplicate/subset/queue, '
+          'automatic/Galaxy74 preserved, runtime/output/panel controls, session-only mode. No real GPU/audio/UI/device use.')
+    return dict(evidence_class='controlled-clock/director and withdrawn/mocked UI',
+                baseline_compared=baseline.is_file(), instant_target_seconds=INSTANT_BONK_SECONDS,
+                new_handoff_progress=progress, expedited_handoff_progress=samples,
+                expedite_start_progress=before[0], retimed_duration=retimed[0], retimed_origin=retimed[1],
+                remaining_tail_target_seconds=INSTANT_BONK_SECONDS,
+                completed_progress=completed['transition_progress'], completion_indicator='100%',
+                shader_readiness_tested=False, actual_gpu_audio_tested=False)
+
+
 if __name__ == '__main__':
-    model_tests();runtime_tests();capture_tests();ui_tests()
+    import sys
+    if '--bonk-restart-test' in sys.argv:
+        bonk_restart_tests()
+    elif '--instant-bonk-test' in sys.argv:
+        instant_bonk_tests()
+    else:
+        model_tests();runtime_tests();capture_tests();ui_tests()

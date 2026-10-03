@@ -34,8 +34,22 @@ DEFAULTS = dict(state='water', source='Test track', track='', speed='12×',
 
 # Stable keys are session IDs; labels can evolve independently. Add descendants
 # here at any depth. A cycle names an existing authored meld for a whole branch.
-from world_catalog import WORLD_TREE
+from world_catalog import WORLD_TREE, studio_trees
+from renderer import LIVE_FORMS
+STUDIO_TREES = studio_trees(LIVE_FORMS)
 DEFAULT_SELECTION = ['elements', 'water']
+DEFAULT_EXPERIMENTAL_SELECTION = ['cymatics', 'water']
+
+
+def selection_scope(selection):
+    """Route stable saved/Library paths; never substitute another visual."""
+    for scope in ('main', 'experimental'):
+        try:
+            selected_node(selection, STUDIO_TREES[scope])
+        except ValueError:
+            continue
+        return scope
+    raise ValueError('This visual selection no longer exists. Choose a current world.')
 
 
 def selected_node(selection, tree=None):
@@ -52,6 +66,8 @@ def selected_node(selection, tree=None):
 
 
 def selection_states(selection, tree=None):
+    if tree is None:
+        tree = STUDIO_TREES[selection_scope(selection)]
     node = selected_node(selection, tree)
     if not selection:
         return ['blend']
@@ -117,7 +133,6 @@ def validate_session(data):
     if selection == ['transition']:selection=['experimental','transition_study']
     if selection == ['cosmic', 'geometry']:
         selection = ['cosmic', 'canvas']
-    states = selection_states(selection)
     values['transitions']=validate_settings(data.get('transitions'))
     values['layers'] = validate_layers(data.get('layers', {}) if data['version'] == 3 else {})
     if data.get('material_isolation'):
@@ -129,7 +144,26 @@ def validate_session(data):
         if clean_colors: values['color_overrides'] = clean_colors
     values['cymatics']=validate_cymatics(data.get('cymatics'),stored=True)
     preview_profiles(values)
+    selected_node(selection)  # Validate the stored path before changing controls.
     values['selection'] = list(selection)
+    scope = data.get('selection_scope', selection_scope(selection))
+    # Legacy storage keys remain catalog paths (including cymatics); tab labels
+    # are presentation only. New saves can also remember each view independently.
+    if scope == 'cymatics': scope = 'experimental'
+    if not isinstance(scope, str) or scope not in STUDIO_TREES or (scope == 'experimental' and not selection):
+        raise ValueError('Invalid Studio selection scope.')
+    states = selection_states(selection, STUDIO_TREES[scope])
+    values['selection_scope'] = scope
+    if 'studio_selections' in data:
+        saved = data['studio_selections']
+        if not isinstance(saved, dict) or set(saved) != set(STUDIO_TREES):
+            raise ValueError('Invalid saved Studio selections.')
+        for name, path in saved.items():
+            if name == 'experimental' and not path:
+                raise ValueError('Choose an Experimental category.')
+            selection_states(path, STUDIO_TREES[name])
+        values['studio_selections'] = deepcopy(saved)
+        values['studio_selections'][scope] = list(selection)
     values['state'] = states[0]
     if not isinstance(values['planet_palette'], str) or values['planet_palette'] not in PLANET_PALETTES:
         raise ValueError('Unknown Planet Canvas palette.')
@@ -184,7 +218,7 @@ def preview_profiles(values):
 
 def comparison_runs(values):
     """Frozen sequential replay pair; no mutation of the user's session."""
-    if selection_states(values['selection']) != ['canvas']:
+    if session_states(values) != ['canvas']:
         raise ValueError('Hold Cosmic / Planet canvas before comparing palettes.')
     if values['source'] != 'Test track':
         raise ValueError('Select Test track in Build & preview. Matched A/B uses decoded replay, never live input.')
@@ -210,7 +244,8 @@ def color_scope_for_states(states):
 
 def command(values, output):
     selection = values['selection'] if 'selection' in values else path_for_state(values['state'])
-    states = selection_states(selection)
+    scope = values.get('selection_scope', selection_scope(selection))
+    states = selection_states(selection, STUDIO_TREES[scope])
     cfg=validate_settings(values.get('transitions'))
     if cfg['pair']:
         states=[next(k for k,v in LIVE_STATES.items() if v==state) for state in cfg['pair']]
@@ -261,6 +296,11 @@ def command(values, output):
     if values['captures']:
         args += ['--capture-dir', str(output), '--capture-interval', '15']
     return args
+
+
+def session_states(values):
+    return selection_states(values['selection'], STUDIO_TREES[
+        values.get('selection_scope', selection_scope(values['selection']))])
 
 
 def replay_identity(path):
@@ -358,13 +398,16 @@ class Studio:
         self.layers_tab = ttk.Frame(self.tabs, padding=20)
         self.tabs.add(self.layers_tab, text='Effects & layers')
         self.tabs.add(self.results, text='Review')
-        ttk.Label(self.preview, text='Explore a world before blending it into ZeraWave',
+        ttk.Label(self.preview, text='Build & preview — approved Main worlds',
                   font=('Segoe UI', 15)).grid(row=0, column=0, columnspan=3, sticky='w', pady=(0,12))
         def field(row, label, key, options):
             ttk.Label(self.preview, text=label).grid(row=row,column=0,sticky='w',padx=(0,18),pady=8)
             widget = ttk.Combobox(self.preview,textvariable=self.vars[key],values=options,state='readonly')
             widget.grid(row=row,column=1,columnspan=2,sticky='ew')
             return widget
+        self.selection_scope = 'main'
+        self.studio_selections = {'main': list(DEFAULT_SELECTION),
+                                  'experimental': list(DEFAULT_EXPERIMENTAL_SELECTION)}
         self.selection = list(DEFAULT_SELECTION)
         self.selector_rows = []
         selector_shell = ttk.Frame(self.preview)
@@ -409,12 +452,57 @@ class Studio:
         self.build_layers()
         self.refresh_layers()
         self.build_library()
-        self.menus()
         root.protocol('WM_DELETE_WINDOW',self.close)
+        # Keep this widget/legacy catalog identity; only its displayed tab name
+        # changes. All oscillator, basin, style, band and live tools survive.
         self.cymatics_tab=ttk.Frame(self.tabs,padding=12)
-        self.tabs.add(self.cymatics_tab,text='Cymatics')
-        self.cymatics_panel=CymaticsControls(self,self.cymatics_tab)
+        self.tabs.add(self.cymatics_tab,text='Experimental')
+        self.build_experimental()
+        self.menus()
+        self.tabs.bind('<<NotebookTabChanged>>', self.change_visual_tab)
         root.after(200,self.poll)
+
+    def build_experimental(self):
+        ttk.Label(self.cymatics_tab, text='Experimental worlds & forms',
+                  font=('Segoe UI', 15)).pack(anchor='w')
+        ttk.Label(self.cymatics_tab, text='Working candidates outside Main. Library retains the complete inventory.',
+                  wraplength=610).pack(anchor='w', pady=(4, 8))
+        self.experimental_selector_frame = ttk.Frame(self.cymatics_tab)
+        self.experimental_selector_frame.pack(fill='x')
+        self.experimental_hint = tk.StringVar()
+        ttk.Label(self.cymatics_tab, textvariable=self.experimental_hint, wraplength=610).pack(fill='x', pady=4)
+        inputs = ttk.Frame(self.cymatics_tab)
+        inputs.pack(fill='x')
+        self.experimental_inputs = {}
+        for row, (label, key, options) in enumerate((
+                ('Input', 'source', SOURCES), ('Test track', 'track', self.track_box['values']),
+                ('Replay speed', 'speed', tuple(SPEEDS)),
+                ('Test duration', 'duration', ('Full track', '30 seconds', '60 seconds')))):
+            ttk.Label(inputs, text=label).grid(row=row, column=0, sticky='w', padx=(0, 18), pady=3)
+            box = ttk.Combobox(inputs, textvariable=self.vars[key], values=options, state='readonly')
+            box.grid(row=row, column=1, sticky='ew', pady=3)
+            self.experimental_inputs[key] = box
+        inputs.columnconfigure(1, weight=1)
+        ttk.Checkbutton(inputs, text='Save frames and audio measurements',
+                        variable=self.vars['captures']).grid(row=4, column=1, sticky='w')
+        actions = ttk.Frame(self.cymatics_tab)
+        actions.pack(fill='x', pady=8)
+        self.experimental_start_button = ttk.Button(actions, text='Start preview', command=self.start)
+        self.experimental_start_button.pack(side='left')
+        self.experimental_stop_button = ttk.Button(actions, text='Stop preview', command=self.stop, state='disabled')
+        self.experimental_stop_button.pack(side='left', padx=8)
+        ttk.Button(actions, text='Effects & layers', command=lambda:self.tabs.select(self.layers_tab)).pack(side='left')
+        self.cymatics_tools = ttk.Frame(self.cymatics_tab)
+        self.cymatics_tools.pack(fill='both', expand=True)
+        self.cymatics_panel=CymaticsControls(self,self.cymatics_tools)
+        self.rebuild_selectors()
+        self.refresh_palette()
+
+    def change_visual_tab(self, event=None):
+        tab = self.tabs.select()
+        scope = 'main' if tab == str(self.preview) else 'experimental' if tab == str(self.cymatics_tab) else None
+        if scope and scope != self.selection_scope:
+            self.select(self.studio_selections[scope], scope=scope, show=False)
 
     def build_library(self):
         self.library_tab = ttk.Frame(self.tabs, padding=20)
@@ -500,12 +588,13 @@ class Studio:
             self.sections.select(self.section_frames[effect_section(key)]);return
         if row and 'selection' in row:
             self.select(row['selection'])
-            self.tabs.select(self.preview)
             self.status.set('World selected. Your layer settings are preserved. Start preview when ready.')
 
     def values(self):
         values = {k:v.get() for k,v in self.vars.items()}
-        values.update(selection=list(self.selection), state=selection_states(self.selection)[0],
+        values.update(selection=list(self.selection), state=self.selected_states()[0],
+                      selection_scope=self.selection_scope,
+                      studio_selections=deepcopy(self.studio_selections),
                       layers=validate_layers(self.layer_profiles))
         if self.material_isolation: values['material_isolation'] = dict(self.material_isolation)
         if self.color_overrides: values['color_overrides'] = validate_colors(self.color_overrides)
@@ -513,60 +602,90 @@ class Studio:
         values['cymatics']=self.cymatics_panel.settings(stored=True) if hasattr(self,'cymatics_panel') else cymatics_defaults()
         return values
 
-    def select(self, selection):
-        selection_states(selection)  # Validate before changing any controls.
+    def selected_states(self):
+        return selection_states(self.selection, STUDIO_TREES[self.selection_scope])
+
+    def show_visual_tab(self):
+        self.tabs.select(self.preview if self.selection_scope == 'main' else self.cymatics_tab)
+
+    def select(self, selection, scope=None, show=True):
+        scope = scope or selection_scope(selection)
+        if not isinstance(scope, str) or scope not in STUDIO_TREES or (scope == 'experimental' and not selection):
+            raise ValueError('Choose an Experimental category.')
+        states = selection_states(selection, STUDIO_TREES[scope])  # Validate before changing controls.
+        self.selection_scope = scope
+        self.studio_selections[scope] = list(selection)
         self.selection = list(selection)
-        self.vars['state'].set(selection_states(selection)[0])
+        self.vars['state'].set(states[0])
         self.rebuild_selectors()
         self.refresh_palette()
         self.refresh_layers()
+        if show:
+            self.tabs.select(self.preview if scope == 'main' else self.cymatics_tab)
 
     def rebuild_selectors(self):
-        for child in self.selector_frame.winfo_children(): child.destroy()
-        self.selector_rows = []
-        children = WORLD_TREE
+        # Widget population is presentation only. No selection callbacks run,
+        # no settings are saved, and the two remembered paths stay independent.
+        self.selector_rows = self.populate_selectors(self.selector_frame, 'main', self.selection_hint)
+        if hasattr(self, 'experimental_selector_frame'):
+            self.experimental_selector_rows = self.populate_selectors(
+                self.experimental_selector_frame, 'experimental', self.experimental_hint)
+
+    def populate_selectors(self, frame, scope, hint_var):
+        for child in frame.winfo_children(): child.destroy()
+        rows = []
+        selection = self.studio_selections[scope]
+        tree = STUDIO_TREES[scope]
+        children = tree
         depth = 0
         while children:
             keys = list(children)
             labels = [children[key]['label'] for key in keys]
-            value = tk.StringVar(value=children[self.selection[depth]]['label'] if depth<len(self.selection) else '')
-            label = ('World', 'Category' if self.selection[:1] == ['elements'] else 'Form', 'Form')[depth] if depth<3 else f'Detail {depth-2}'
-            ttk.Label(self.selector_frame,text=label).grid(row=depth,column=0,sticky='w',padx=(0,18),pady=8)
-            box = ttk.Combobox(self.selector_frame,textvariable=value,values=['',*labels],state='readonly',height=12)
+            value = tk.StringVar(value=children[selection[depth]]['label'] if depth<len(selection) else '')
+            label = ('World', 'Category' if selection[:1] == ['elements'] else 'Form', 'Form')[depth] if depth<3 else f'Detail {depth-2}'
+            ttk.Label(frame,text=label).grid(row=depth,column=0,sticky='w',padx=(0,18),pady=4)
+            options = labels if scope == 'experimental' and depth == 0 else ['', *labels]
+            box = ttk.Combobox(frame,textvariable=value,values=options,state='readonly',height=12)
             box.grid(row=depth,column=1,sticky='ew',pady=8)
             def changed(event=None, level=depth, var=value, ids=keys, names=labels):
                 selected = var.get()
-                self.select(self.selection[:level]+([ids[names.index(selected)]] if selected else []))
+                self.select(self.studio_selections[scope][:level]+([ids[names.index(selected)]] if selected else []), scope=scope)
             box.bind('<<ComboboxSelected>>',changed)
-            self.selector_rows.append((value,box,changed))
-            if depth>=len(self.selection): break
-            children=children[self.selection[depth]].get('children',{})
+            rows.append((value,box,changed))
+            if depth>=len(selection): break
+            children=children[selection[depth]].get('children',{})
             depth+=1
-        self.selector_frame.columnconfigure(1,weight=1)
-        node=selected_node(self.selection)
-        states=selection_states(self.selection)
-        if not self.selection:
+        frame.columnconfigure(1,weight=1)
+        node=selected_node(selection, tree)
+        states=selection_states(selection, tree)
+        if not selection:
             hint='Blank world: main blend. Select a world to isolate its branch.'
         elif node.get('children'):
             mode='authored cycle' if len(states)==1 else '28-second sequential preview holds'
-            hint=selection_title(self.selection)+' / All — '+mode+'. Blank = cycle this branch.'
+            hint=selection_title(selection)+' / All - '+mode+'. Blank = cycle this branch.'
         else:
-            hint=selection_title(self.selection)+' — isolated. Clear a level to cycle its parent.'
-        if self.color_scene():
+            hint=selection_title(selection)+' - isolated. Clear a level to cycle its parent.'
+        if targets_for(color_scope_for_states(states)):
             hint += '\nLive colors: Effects & layers > Palettes > Open live color inspector.'
         else:
             hint += ('\nPalette prototype: Planet Canvas only; independent of material.' if states == ['canvas'] else
                      '\nPalette prototype inactive. Select Cosmic / Planet canvas to review it.')
-        if states==['cymatics']:hint+='\nCymatics uses the Cymatics tab Input selector and runs in real time, initially muted.'
-        self.selection_hint.set(hint)
+        if states==['cymatics']:hint+='\nUse the basin Drive Input below; runs in real time, initially muted.'
+        hint_var.set(hint)
+        return rows
 
     def refresh_palette(self):
-        cymatics=selection_states(self.selection)==['cymatics']
-        self.source_box.configure(state='disabled' if cymatics else 'readonly')
-        self.speed_box.configure(state='disabled' if cymatics else 'readonly')
-        if selection_states(self.selection)==['galaxy']:self.galaxy_controls.pack(fill='x')
+        cymatics=selection_states(self.studio_selections['experimental'], STUDIO_TREES['experimental'])==['cymatics']
+        self.source_box.configure(state='readonly')
+        self.speed_box.configure(state='readonly')
+        if hasattr(self, 'experimental_inputs'):
+            for key in ('source', 'speed'):
+                self.experimental_inputs[key].configure(state='disabled' if cymatics else 'readonly')
+            if cymatics: self.cymatics_tools.pack(fill='both', expand=True)
+            else: self.cymatics_tools.pack_forget()
+        if self.selected_states()==['galaxy']:self.galaxy_controls.pack(fill='x')
         else:self.galaxy_controls.pack_forget()
-        active = selection_states(self.selection) == ['canvas']
+        active = self.selected_states() == ['canvas']
         self.palette_choice.set(PLANET_PALETTES[self.vars['planet_palette'].get()] if active else 'Authored')
         self.palette_box.configure(state='readonly' if active else 'disabled')
         self.palette_note.set(('Hold ' + PLANET_PALETTES[self.vars['planet_palette'].get()] + ' on next preview. Palette Authored is separate from list Authored.')
@@ -589,7 +708,7 @@ class Studio:
         if self.color_editor: self.color_editor.refresh()
 
     def change_palette(self, event=None):
-        if selection_states(self.selection) != ['canvas']: return
+        if self.selected_states() != ['canvas']: return
         self.vars['planet_palette'].set(next(key for key, label in PLANET_PALETTES.items()
                                               if label == self.palette_choice.get()))
         self.refresh_palette()
@@ -717,10 +836,10 @@ class Studio:
         self.layer_table.bind('<<TreeviewSelect>>',self.show_treatment_amount)
         self.layer_note = tk.StringVar()
         ttk.Label(panel, textvariable=self.layer_note, wraplength=600).pack(anchor='w')
-        ttk.Button(panel, text='Back to preview', command=lambda:self.tabs.select(self.preview)).pack(anchor='w', pady=(4, 0))
+        ttk.Button(panel, text='Back to preview', command=self.show_visual_tab).pack(anchor='w', pady=(4, 0))
 
     def layer_world(self):
-        return world_for_state(LIVE_STATES[selection_states(self.selection)[0]])
+        return world_for_state(LIVE_STATES[self.selected_states()[0]])
 
     def refresh_effect_picker(self):
         world = self.layer_world()
@@ -771,7 +890,7 @@ class Studio:
         key=rows[0] if rows and rows[0] in RECIPES else next((k for k in RECIPES if RECIPES[k][0]==self.effect_choice.get()),None)
         if key is None:self.status.set('Select a transition in the saved list or picker.');return
         if key=='tr_study':
-            self.transition_pair.set(False);self.select(['experimental','transition_study']);self.tabs.select(self.preview);return
+            self.transition_pair.set(False);self.select(['experimental','transition_study']);return
         if key=='tr_material':
             profile=self.layer_profiles.setdefault(self.layer_world(),default_profile(self.layer_world()))
             if not any(row['enabled'] and row['id'] in MATERIALS for row in profile['items']):profile['items'][:0]=[dict(id=k,enabled=True) for k in MATERIALS]
@@ -787,7 +906,7 @@ class Studio:
         self.transition_note.set('Saved transition list restored; compatible recipes follow list playback.')
 
     def leave_transition_pair(self):
-        self.transition_pair.set(False);self.tabs.select(self.preview)
+        self.transition_pair.set(False);self.show_visual_tab()
         self.status.set('Chosen pair parked. Start resumes the selected scene, family or Main.')
 
     def isolate_material(self):
@@ -901,6 +1020,7 @@ class Studio:
         bar.add_cascade(label='Edit',menu=edit)
         view=tk.Menu(bar,tearoff=False)
         view.add_command(label='Build & preview',command=lambda:self.tabs.select(self.preview))
+        view.add_command(label='Experimental',command=lambda:self.tabs.select(self.cymatics_tab))
         view.add_command(label='Effects & layers',command=lambda:self.tabs.select(self.layers_tab))
         view.add_command(label='Library',command=lambda:self.tabs.select(self.library_tab))
         view.add_command(label='Review',command=lambda:self.tabs.select(self.results))
@@ -932,7 +1052,10 @@ class Studio:
                     menu.add_cascade(label=node['label'],menu=nested)
                 else:
                     menu.add_command(label=node['label'],command=lambda p=selection:self.select(p))
-        add_presets(presets,WORLD_TREE,[])
+        add_presets(presets,STUDIO_TREES['main'],[])
+        experimental=tk.Menu(presets,tearoff=False)
+        add_presets(experimental,STUDIO_TREES['experimental'],[])
+        presets.add_cascade(label='Experimental',menu=experimental)
         bar.add_cascade(label='Presets',menu=presets)
         transfer=tk.Menu(bar,tearoff=False)
         transfer.add_command(label='Import session…',command=self.load)
@@ -963,6 +1086,8 @@ class Studio:
         self.color_overrides={}
         self.transition_isolation={};self.transition_pair.set(False)
         self.transition_hold.set('12');self.transition_duration.set('6')
+        self.studio_selections = {'main': list(DEFAULT_SELECTION),
+                                  'experimental': list(DEFAULT_EXPERIMENTAL_SELECTION)}
         self.select(DEFAULT_SELECTION)
         self.status.set('New session. Any running preview keeps its current settings.')
 
@@ -971,6 +1096,7 @@ class Studio:
         if path:
             self.vars['track'].set(path)
             self.track_box.configure(values=sorted(set(self.track_box['values']) | {path}))
+            self.experimental_inputs['track'].configure(values=self.track_box['values'])
 
     def load(self):
         path=filedialog.askopenfilename(filetypes=[('ZeraWave session','*.json')])
@@ -987,7 +1113,9 @@ class Studio:
             self.layer_profiles=values['layers']
             self.material_isolation=values.get('material_isolation', {})
             self.color_overrides=values.get('color_overrides', {})
-            self.select(values['selection'])
+            if 'studio_selections' in values:
+                self.studio_selections = deepcopy(values['studio_selections'])
+            self.select(values['selection'], scope=values['selection_scope'])
             self.schedule_colors()
             self.session_path=Path(path)
             self.status.set('Session loaded. Start preview to use these settings.')
@@ -1006,7 +1134,7 @@ class Studio:
         except OSError as exc:messagebox.showerror('Cannot save session',str(exc))
 
     def color_scene(self):
-        states=selection_states(self.selection)
+        states=self.selected_states()
         scope='blend' if self.transition_pair.get() else color_scope_for_states(states)
         return scope if targets_for(scope) else None
 
@@ -1052,7 +1180,7 @@ class Studio:
         if label:
             args += ['--seed', '7301', '--comparison-label', label]
             self.comparison_label = label
-        selected_states=selection_states(values['selection'])
+        selected_states=session_states(values)
         live_scene='blend' if values.get('transitions',{}).get('pair') else color_scope_for_states(selected_states)
         live_scene = live_scene if targets_for(live_scene) and not label else None
         if live_scene: args += ['--studio-color-input']
@@ -1076,8 +1204,10 @@ class Studio:
         self.output = self.comparison_folder if label else output
         self.start_button.configure(state='disabled')
         self.stop_button.configure(state='normal')
+        self.experimental_start_button.configure(state='disabled')
+        self.experimental_stop_button.configure(state='normal')
         self.refresh_palette()
-        palette = PLANET_PALETTES[values['planet_palette']] if selection_states(values['selection']) == ['canvas'] else 'Authored (prototype inactive)'
+        palette = PLANET_PALETTES[values['planet_palette']] if selected_states == ['canvas'] else 'Authored (prototype inactive)'
         self.active_preview.set(('Active matched ' + label if label else 'Active preview') + ' — ' + palette)
         if live_scene: self.active_preview.set('Active color preview — compatible colors editable live; layers/input apply next preview.')
         self.status.set(('Matched ' + label + ' — ' if label else 'Running — ') + palette +
@@ -1086,7 +1216,7 @@ class Studio:
         if live_scene: self.status.set('Running color preview. Open Palettes > live color inspector; colors apply live, other settings apply next preview.')
         if live_scene=='cymatics':
             self.active_preview.set('Cymatics Water - '+values['cymatics']['source']+' input; starts muted.')
-            self.status.set('Water: Input, basin and live controls are in the Cymatics tab. Colors use Palettes. Source changes require Stop/Start.')
+            self.status.set('Water: Input, basin and live controls are in Experimental. Colors use Palettes. Source changes require Stop/Start.')
 
     def start(self):
         if self.process is not None: return
@@ -1152,6 +1282,8 @@ class Studio:
         self.active_preview.set('No preview running.')
         self.start_button.configure(state='normal')
         self.stop_button.configure(state='disabled')
+        self.experimental_start_button.configure(state='normal')
+        self.experimental_stop_button.configure(state='disabled')
         self.refresh_palette()
 
     def poll(self):

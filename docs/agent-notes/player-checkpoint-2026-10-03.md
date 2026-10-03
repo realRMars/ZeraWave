@@ -29,8 +29,40 @@ world/transition ownership; it does not automatically advance the queue.
 Hold is momentary: animation/audio response continue, an active transition can
 finish, and the arrival stays held. Release/focus loss clears the owning Hold.
 Bonk requests one compatible next-world transition and overrides Hold once;
-it is ignored during Pause, Stop or an active transition. Repeats do not queue
+Normal ignores requests during Pause, Stop or an active transition. Repeats do not queue
 a Resume backlog. Current/target world and taxonomy appear only in the panel.
+
+## Normal / Instant Bonk delta — awaiting fresh review
+
+The small selector beside the existing Bonk button defaults to **Normal**.
+**Instant** applies only to manual Bonk (button or focused Space in either panel
+or output). It is a session-only choice: reopening the player returns to Normal;
+queue, source and saved preferences do not gain a new setting.
+
+Normal retains its compatible 6–9-second handoff. Instant starts the same
+compatible recipe with a **0.35-second director-time target**. During an active
+handoff, Instant expedites that current arrival to at most 0.35 seconds remaining
+without restarting the recipe or jumping progress. Repeats coalesce; they do not
+queue additional worlds or keep retiming the same arrival. A shorter remaining
+tail is left alone. Hold is overridden once and then holds the arrival if still
+pressed. Pause/Stop discard pending Bonk requests; Instant also waits for existing
+availability safeguards rather than queuing a request while capture is unavailable.
+
+The panel percentage is elapsed **transition progress**, separate from shader
+startup. Active progress displays 0–99%; confirmed completion shows **100%** and
+retains that last completed indicator until another handoff begins. Automatic
+world dwell/cycling, recipe selection, normal transition timings and Galaxy's
+74-second automatic route remain unchanged. Selecting Instant does not speed up
+scene clocks or every transition.
+
+Instant does not remove shader compilation, resource preparation, driver work or
+frame scheduling. Existing readiness/first-draw paths are preserved; a cold or
+slow frame can take longer than the target. This delta was checked with controlled
+director clocks and withdrawn/mocked UI, including the committed audio modules
+in memory with uncommitted DSP imports blocked. It has no new rendered/live/audio
+quality or physical-device certification. The source/diff-bound delta is
+`work/studio-organization-01/instant-bonk-delta/review-index.json`; earlier accepted
+player/capture evidence and its historical limits below remain unchanged.
 
 ## Queue and keys
 
