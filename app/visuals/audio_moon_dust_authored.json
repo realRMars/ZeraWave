@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "target": "planet.moon_dust",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "sparkle_strength": 1.509090909090909,
+    "flux_strength": 1.7136363636363636
+  }
+}

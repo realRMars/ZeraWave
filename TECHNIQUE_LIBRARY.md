@@ -27,6 +27,9 @@ Python and GLSL definitions; no result is not proof of absence.
 | Shader worlds/materials | `app/visuals/shaders/dream.frag` | Preserve unaffected callers; new scenes may define their own coordinates, geometry and composition. |
 | Final-image Envelopers | `app/visuals/envelopers.py`, `shaders/envelopers.frag` | Existing additional-pass/resource pattern; off in Main pending artistic redesign. |
 | Audio features/mapping | `app/audio/` and `app/visuals/parameter_mapper.py` | Keep analysis separate from visual interpretation. |
+| Audio Tuning declarations and routing | `app/visuals/audio_controls.py`, `audio_scope.py`, `form_audio_tuning.py`, `studio_audio.py` | Independent form/target/role consumers; run/session/revision ownership. |
+| Audio Tuning UI, profiles and monitor | `app/visuals/starfield_tuning.py`, `star_tuning_profiles.py`, `planet_mapping_monitor.py` | Reuse the existing dialog and pipes; explicit authored saves and CPU telemetry. |
+| Matched pair audition | `app/visuals/studio_audition.py`, `replay_test.py` | Same preview process; decoded source restoration and explicit shared-history resets. |
 | Player and portable builder | `app/player.py`, `build_portable.py` | Player is the product entry; builder creates new output only. |
 
 ## Review contracts
@@ -77,6 +80,37 @@ The current Cosmic/Elemental boundaries and concrete evidence paths are in
 [maintenance contracts](docs/MAINTENANCE_CONTRACTS.md); detailed accepted
 records remain in [dated history](docs/history/README.md).
 
+## Main Audio Tuning ownership and reuse
+
+The accepted development rollout covers all 27 canonical Main forms; Experimental/Cymatics
+remain excluded. `audio_controls.py` declares actual consumer code, input,
+bounds and role meaning for each form/target; `form_audio_tuning.py` owns
+independent settings and packed inputs. Shared techniques get form-owned
+instances, not copies of saved Planet numbers. Planet retains its star,
+artifact and `planet_audio_tuning.py` adapters and authored destinations.
+
+`studio_audio.py` resolves endpoint ownership, availability and submissions
+through the existing renderer. Consumers include dream/Original Loop and
+surface shaders, renderer clocks/director, Echo and Enveloper stages. Declared
+gains or selected-bin substitutions reach those consumers; quiet bases,
+pigments, time-only lifecycles and documented coupled carriers keep their owners.
+Existing FFT output feeds `form_audio_tuning.py` and `app/audio/spectral_listening.py`;
+selected windows add no second FFT or capture pipeline.
+
+`audio_scope.py` and `studio_color_link.py` bind commands/ACKs to
+run/session/form/target/revision. `starfield_tuning.py` extends the existing
+dialog with Follow/Pin and parked editing; `star_tuning_profiles.py` owns
+target-local profiles and explicit atomic authored saves. The Mapping monitor
+reports analyzer input, CPU submissions and labelled display proxies, not
+measured shader pixels. `studio_audition.py` preserves CPU/source state and
+resets shared GPU history on Repeat/Return instead of copying GPU resources.
+
+See [operating controls](DEVELOPMENT_STUDIO.md#main-audio-tuning-and-mapping-monitor),
+[current checkpoint and limits](ZERAWAVE_HANDOFF.md#current-main-audio-tuning-checkpoint)
+and the [consumer inventory](work/studio-audio-rollout-01/consumer-inventory.json).
+The 595 inventory rows are selectable targets, not independent GPU-certified
+sliders. Reuse these owners and expose only controls with actual consumers.
+
 ## Verification entry points
 
 Use the production scripts under `app/visuals/` with the project `.venv`:
@@ -123,8 +157,8 @@ meaningful artistic roles from the beginning.
   held forms, authored family cycles, sequential preview holds and Main by
   stable source ID. Shader hooks retain source masks; Roots/Membrane shade their
   separate forms through the authored form blend, including directed Main.
-  Galaxy currently routes only its own structure target and remains held-only;
-  a future compatible-effect extension must update that routing deliberately.
+  Galaxy routes its structure/solar targets plus compatible comet/star pigments;
+  Main includes those targets. Extend compatible-effect routing deliberately.
 - `studio_color_link.py` uses existing child stdin/stdout pipes: newline JSON,
   monotonically numbered complete snapshots, a 16 KiB bound, one pending update
   and one acknowledgement record. Tk coalesces at a bounded 75 ms cadence (continuous dragging still sends); background threads handle
@@ -162,8 +196,8 @@ an independent pigment inherit their material colors.
 `color_controls.py:PALETTE_FAMILIES` and `family_setup` currently provide named,
 target-specific role sets for the nine treatments. Family size must match the
 target's declared roles. This is an extension point, not universal palette sharing
-already implemented. Galaxy currently has four editable roles and no named family
-entry; adding that support belongs to its active creative brief.
+already implemented. Galaxy has six structure roles, eight solar-material roles
+and named target-specific families, described below.
 
 Extend existing Hold/Cycle, stored setup and manual-edit precedence for new
 applicable targets. For cross-world reuse, define meaningful role mapping and
@@ -203,8 +237,10 @@ roles use authored values; manual assignments and Hold/Cycle take precedence ove
 transient defaults. Local drift/rotation/generated regional distributions provide
 visible evolution without synchronized automatic palette cycles.
 
-The eight ten-second nursery events remain renderer-owned. Main weight packing
-supports a forced Galaxy handoff with musical warp depth, but eligibility and
-Envelopers defaults remain unchanged. No Main approval is implied. Evidence:
-[task notes](docs/agent-notes/galaxy-stellar-aviary.md),
-[Studio instructions](DEVELOPMENT_STUDIO.md), `work/galaxy-journey-review/`.
+The eight ten-second nursery events remain renderer-owned. Galaxy36 is accepted
+and included in canonical Main. Each Main entry/return begins its full 74-second
+route and becomes releasable at the route boundary; weight packing supports
+compatible handoffs. The three Envelopers remain off by default.
+Current integration evidence is in the [Main lineup](work/main-lineup-01/review-index.json)
+and [handoff](ZERAWAVE_HANDOFF.md). Earlier held/forced-handoff evidence remains in
+[task notes](docs/agent-notes/galaxy-stellar-aviary.md) and `work/galaxy-journey-review/`.

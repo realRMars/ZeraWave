@@ -80,9 +80,81 @@ Each preview creates a unique `work/studio/<timestamp>-<suffix>/` folder. It
 always contains `preview.json` and `run.log`; track replays also write
 `metrics.csv`, and enabled captures add frames at 15-song-second intervals and
 `captures.json`. Only one Studio child runs at a time. Most settings apply
-to the next run; declared color controls can update the running preview. Close the visual window for a normal finish and complete
+to the next run; declared color controls, scoped Audio Tuning and compatible
+pair audition can update the running preview. Close the visual window for a normal finish and complete
 metrics. **Stop preview** terminates only Studio's child; partial logs/captures
 remain and final metrics may be incomplete.
+
+### Main Audio Tuning and Mapping monitor
+
+1. In **Build & preview**, leave the top World selector blank for Main Blend,
+   or hold an approved form. Choose **Test track** and an existing decoded WAV
+   for repeatable review, then **Start preview**. Audio Tuning supports the 27
+   canonical Main forms, including Galaxy, and their declared targets.
+   Experimental/Cymatics remain excluded until promoted.
+2. Open **View > Audio tuning…**. With **Pin editing destination** off, the
+   dialog follows actual playback in Main, held forms and supported sequences/
+   family cycles. Its Playback line identifies outgoing/incoming forms during
+   a transition. Choosing another form automatically pins that editing
+   destination; playback keeps going. Uncheck Pin to resume following.
+3. Choose a target in the second selector, then adjust its named response gains
+   or enable its available listening ranges and move their start/end Hz sliders.
+   Controls apply to actual declared consumers; labels explain quiet bases,
+   timers and shared dependencies. Different targets expose different controls.
+   Edits enable **Live override** and apply after a matching acknowledgement.
+   Scroll the control area below the spectrum to reach the remaining roles.
+4. The full spectrum is measured shared analyzer input. Colored range overlays
+   show enabled/configured windows from the existing FFT; displayed bin spacing
+   limits frequency resolution. Range OFF retains the original signal.
+   Inactive or stale targets do not show consumer activity. A selected range is
+   not an instrument classifier, and a shared spectrum is not evidence that an
+   inactive effect is drawing.
+5. **Back to authored**, or turning Live override off, restores the selected
+   target's saved authored baseline. It does not reset other forms, targets or
+   colors. **Save profile** stores a named target profile; **Load profile…**
+   applies a temporary override without rewriting authored settings.
+   **Save Authored: form / target** explicitly promotes only that named
+   destination. Wait for its current acknowledgement and matching values;
+   stale, pending or unsent edits cannot be saved. The status names the file
+   and confirms the running-preview acknowledgement. Audio profiles/authored
+   files are separate from Color Inspector presets and **File > Save session**.
+6. Pin **Transitions**, then select **World warp** to configure it even while
+   another recipe plays. The row is marked inactive/queued; its configuration
+   can be acknowledged without claiming active consumer output. Form, target
+   and role settings remain independent, including shared-technique instances.
+   Switching destination cancels a held key or pending gesture and parks unsent
+   edits at their original owner. On returning, submit the retained values
+   (adjust a control) and wait for their acknowledgement before saving.
+7. Open **View > Mapping monitor…** alongside Audio Tuning. It follows the
+   selected editing scope and shows source identity, endpoint/recipe progress,
+   analyzer bands, actual CPU inputs/gain submissions and director state.
+   Display-formula proxies and selection weights are labelled separately.
+   These are CPU telemetry, not GPU readback, pixel brightness or a performance
+   certificate. **Live monitoring (read only)** pauses the monitor display.
+
+#### Compatible decoded pair audition: Repeat and Return
+
+With a running Main-scope **Test track** preview, open **Effects & layers >
+Transitions**. Enable **Chosen scene pair** and choose two different compatible
+Main forms; a validated example
+is **Root blossoms → Planet Canvas** with **Planet Canvas pull / absorb**
+(`tr_planet`). Add/select that transition row and use **Isolate selected
+transition** so the intended recipe is chosen. Set **Rest (seconds)** and
+**Handoff (seconds)**, then click **Preview pair**.
+
+For **Repeat**, click **Preview pair** again with the same settings: it resets
+the same decoded passage, seed and numerical analysis history in the existing
+preview process. There is no separate Repeat button. **Return to selected
+scene / Main** restores the parked source position and CPU scene/RNG state.
+Shared Echo/Enveloper GPU history restarts at this ownership boundary; Return
+does not restore its previous pixels/history exactly. Matched live-input
+audition is rejected because live input cannot replay the same passage; the
+live preview is retained. Decoded review is silent.
+
+Robert accepts these implemented controls as a development checkpoint with
+caveats. A transition hitch remains to investigate; a 12× preview is not proof
+of real-time smoothness. See the [handoff](ZERAWAVE_HANDOFF.md#current-main-audio-tuning-checkpoint)
+for evidence, preservation and remaining artistic/listening/performance limits.
 
 ### Cosmic Galaxy: Galaxy Odyssey review
 
@@ -150,7 +222,7 @@ music yourself; automated checks do not establish artistic acceptance.
 
 ### Effects & layers
 
-The existing tab has five sections. These organize controls, not independent
+The existing tab has six sections. These organize controls, not independent
 rendering passes or playback engines:
 
 - **Materials**: Living artifacts, Liquid Alloy, Prismatic Lattice, Echo
@@ -163,6 +235,8 @@ rendering passes or playback engines:
   comes from the existing catalog; shared does not mean every world or form.
 - **World details**: rings, moons, blossoms, rain and world-specific features.
   The catalog filters by world; individual forms may use only some details.
+- **Transitions**: compatible scene relationships, chosen-pair audition,
+  recipe isolation and Return to the parked preview.
 - **Envelopers**: Prism Assembly, Digital Bloom and Chromatic Memory transform
   the completed image, including visible world details. Multiple enabled
   Envelopers take turns; the final pass uses one at a time.
@@ -252,7 +326,7 @@ it does not change a running preview.
    (suggested folder: `work/color-presets/`). **Load color preset…** applies a
    copy without rewriting the source file. Main can import a held-form preset
    while keeping other target assignments; a Main preset can hold every
-   target used in Main; Galaxy structure stays parked there. **File > Save session**
+   target used in Main, including Galaxy structure. **File > Save session**
    stores the full Studio setup, including colors, materials, layers and the
    separate Planet palette choice. Unsaved edits stay in this Studio session.
 10. To review an edited held form in Main, save the session, clear the top
@@ -283,7 +357,9 @@ not a final-screen filter.
 Switching Studio selection does not retarget an already running visual child.
 The inspector can edit and save targets for another selection; those assignments
 are parked until that source appears in the running Main/sequence or a later
-preview. Non-color controls still apply on the next preview. Layer-playback
+preview. Effect lists, row amounts, material isolation and the Planet palette
+selector still apply on the next preview. Scoped Audio Tuning and explicit
+compatible pair audition use the running preview as described above. Layer-playback
 **Authored** and color **Reset scene to Authored** are separate. The Planet
 **Soft Dream** palette is an independent opt-in; explicit surface, ring and moon
 colors are interpreted after it when both are selected.

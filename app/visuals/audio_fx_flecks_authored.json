@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "target": "planet.fx.flecks",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "sparkle_presence": 1.3545454545454545,
+    "flux_presence": 1.5363636363636364,
+    "sparkle_light": 1.3181818181818181,
+    "bass_cells": 1.6318181818181818,
+    "impact_size": 1.8272727272727274,
+    "sparkle_shape": 1.2636363636363637,
+    "flux_drift": 1.5454545454545454
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "target": "planet.enveloper.digital_bloom",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "audio_amount": 1.231818181818182,
+    "audio_blocks": 0.8909090909090909
+  }
+}

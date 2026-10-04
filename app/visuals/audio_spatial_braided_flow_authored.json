@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "target": "planet.spatial.braided_flow",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "bass_drive": 0.7045454545454546,
+    "flux_drive": 0.5681818181818182
+  }
+}

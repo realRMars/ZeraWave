@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "target": "planet.spatial.elastic_lenses",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "bass_drive": 1.7,
+    "flux_drive": 1.4318181818181819
+  }
+}

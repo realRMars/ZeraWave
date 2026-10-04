@@ -2977,6 +2977,16 @@ def main(debug_state=0, states=None, layers=None, palette="authored", colors=Non
         renderer.debug_sequence = tuple(STATES[name] for name in (states or ()))
         renderer.layer_profiles = validate_layers(layers or {})
         configure_colors(renderer, colors, color_input)
+        renderer.configure_transitions(transitions)
+        if color_input:
+            from starfield_tuning import configure
+            from analyzer import AudioAnalyzer
+            configure(renderer,AudioAnalyzer(),normal=True)
+            owner=getattr(renderer,'studio_audio',None)
+            if owner is not None:
+                owner.source_mode='SYNTHETIC';owner.source_identity='Existing shader preview signals; no PCM spectrum'
+                renderer.planet_star_attack_pilot=False
+                owner.audition.register_source(lambda action,snapshot=None:None)
 
         while not renderer.should_close():
             current_time = renderer.get_time()

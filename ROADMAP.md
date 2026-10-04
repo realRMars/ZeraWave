@@ -1,6 +1,6 @@
 # ZeraWave development plan
 
-Updated: 2026-10-03 (accepted player checkpoint).
+Updated: 2026-10-04 (accepted Main Audio Tuning development checkpoint).
 This is the sole prioritized plan. The user's latest assignment sets scope;
 code establishes implementation and user review establishes artistic acceptance.
 Historical plans remain in [history](docs/history/README.md). The accepted visual
@@ -10,8 +10,14 @@ baseline is 2bcb03f; the player checkpoint builds on that baseline.
 
 The reviewed visual batch and current Main/Galaxy preview are user-accepted.
 The player interface and bounded device-loss cleanup are implemented and accepted.
-Startup/native performance, then standalone DSP, remain next in the agreed sequence;
-each requires its own approved assignment. Complete one scope before starting another.
+Studio organization and Normal/Instant Bonk are committed at 0342e51. Main Audio
+Tuning is implemented across all 27 canonical Main forms, with bounded engineering
+validation complete. Robert accepted Planet range/gain tuning on October 4 at
+06:48 UTC and subsequently accepted this rollout development checkpoint with
+caveats, authorizing one scoped commit and normal push with its accepted dependencies.
+He observed a transition hitch and requests a performance revisit. An earlier
+12× preview does not establish real-time smoothness. Startup/resource limits and
+remaining DSP questions stay open; new implementation needs a separate brief.
 Distinctive identity, meaningful musical response and sustained visual interest
 remain the creative standard; internal technical checks do not replace review.
 
@@ -47,33 +53,36 @@ Refresh recovery without closing the runtime, repeated normal Start/Stop, and
 not certify unattended recovery, audio quality, device diversity or the preserved
 startup/performance limits. No release build is part of this checkpoint.
 
-## Next authorized sequence
+## Accepted development checkpoint and remaining review
 
-1. **Player interface (completed):** branded startup and audio chooser, plus a separate
-   control panel with Bonk, Start, Stop, Hold, Pause and queue/shuffle/loop controls.
-   The now-showing ticker (current world/category/subcategory) belongs only in
-   that panel. Preserve the recorded device/lifecycle contracts and settled
-   control semantics. The [accepted player guide](docs/agent-notes/player-checkpoint-2026-10-03.md)
-   records current controls, exact source selection, quiet Refresh and recovery limits.
-2. **Startup and native performance:** a separate source-bound assignment for
-   cold/startup responsiveness and the remaining native pacing risks. Keep
-   cold/warm, GPU draw, caller/submission and presentation evidence separate;
-   preserve failed probes and full visual quality. No new optimization is
-   authorized by this checkpoint publication.
-3. **Standalone DSP:** follows player and startup/native performance. Its
-   implementation scope belongs in its own approved brief; preserve the shared
-   audio/visual boundaries. This plan does not add a DSP architecture or dependency.
+- **Player and Studio organization completed:** the accepted player retains its
+  recorded controls/device contracts. Main/Experimental navigation and
+  Normal/Instant Bonk, including the queue-restart correction, are committed and
+  pushed at 0342e51. See the [player guide](docs/agent-notes/player-checkpoint-2026-10-03.md)
+  and [Studio guide](DEVELOPMENT_STUDIO.md).
+- **Main Audio Tuning development checkpoint accepted with caveats:** all 27
+  canonical Main forms have scoped tuning, monitoring and compatible pair audition
+  in Studio. Experimental/Cymatics remain excluded until promoted. Robert's
+  acceptance authorizes the scoped publication; bounded CPU/native, GPU,
+  decoded-audition and scripted foreground evidence does not establish exhaustive
+  artistic, continuous-listening, real-time FPS or multi-hour certification.
+  See the [current handoff](ZERAWAVE_HANDOFF.md).
 
-### Later agreed milestones
+### Remaining work: priority not reassigned here
 
-- **Fractals world/forms and image import** follows all three phases above.
-  This is a planning milestone; no fractal, image-import or mobile implementation
-  is authorized here. Keep future imported imagery integrated with the visual
-  instrument rather than promoting every brainstorm into a feature.
-- **Studio cleanup:** Build & Preview should present the approved Main roster;
-  Experimental gets its own tab and selectors, preserving existing assets and
-  controls. This remains a distinct later UI task unless the next approved brief
-  explicitly includes it. The current Studio has not yet been reorganized.
+- **Startup and native performance:** Robert requests revisiting the observed
+  transition hitch. Real-time pacing, compilation/resource cost and native
+  performance remain unresolved; the earlier 12× preview is not a real-time
+  certificate. Preserve separate cold/warm, GPU draw, submission and presentation
+  evidence, failed probes and full visual quality. No optimization is part of publication.
+- **Standalone DSP:** this checkpoint includes its necessary accepted dependencies
+  and tests while preserving audio/visual boundaries. It does not declare every
+  DSP question complete or authorize another implementation.
+- **Next-brief ideas:** newly brainstormed Studio buttons, optional metrics overlay,
+  performance report and Open Latest Results await their next coherent brief.
+  None is implemented by this publication task.
+- **Fractals world/forms and image import:** retained later planning milestones.
+  No fractal, image-import or mobile implementation is authorized by this pass.
 
 ## Continuing creative and engineering direction
 
@@ -101,11 +110,14 @@ code/assets without rights review.
 
 ## Working checkpoint
 
-- Verified visual baseline:
-  `2bcb03fdd1ec03a49189b3b3c343dcb053fbc9b5`. The accepted player source and
-  earlier four-root reconciliation form the next authorized checkpoint. The
-  builder reports its actual commit hash and remote verification after publication.
-- Current source-bound review starts with
+- Verified visual baseline: `2bcb03fdd1ec03a49189b3b3c343dcb053fbc9b5`.
+  Publication parent: `0342e518a7bd2c521416e8027a7920668fc5ee51`, the published
+  Studio organization/Bonk checkpoint. The new development checkpoint includes
+  the reviewed rollout and accepted dependencies beyond the rollout-only patch.
+  Exact publication identity and preservation results are recorded in the
+  [publication receipt](work/publication-main-audio-20261004/review-index.json);
+  evidence chronology remains in [the handoff](ZERAWAVE_HANDOFF.md).
+- Earlier visual review evidence starts with
   [Main lineup](work/main-lineup-01/review-index.json) and the
   [entry/projection delta](work/robert-refinement-02/entry-projection-delta/review-index.json).
   Older candidate notes/hashes remain historical evidence, not current assignments.

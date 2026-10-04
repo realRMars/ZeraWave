@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "target": "planet.material.echo_weave",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "bass_advection": 1.2954545454545454,
+    "flux_advection": 1.8863636363636365,
+    "bass_injection": 1.6409090909090909,
+    "impact_injection": 1.2545454545454546
+  }
+}

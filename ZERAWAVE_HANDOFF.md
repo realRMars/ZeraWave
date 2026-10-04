@@ -1,9 +1,120 @@
 # ZeraWave handoff
 
-Updated: 2026-10-03 (accepted player checkpoint).
-[ROADMAP.md](ROADMAP.md) is the sole sequence/plan; [AGENTS.md](AGENTS.md) owns
-the working procedure. The accepted player checkpoint includes the earlier
-four-root reconciliation and narrow settled status updates.
+Updated: 2026-10-04 (accepted Main Audio Tuning development checkpoint).
+[ROADMAP.md](ROADMAP.md) is the sole plan; [AGENTS.md](AGENTS.md) owns the working
+procedure. Prior checkpoints and their limitations remain below.
+
+## Current Main Audio Tuning checkpoint
+
+- **User acceptance:** Robert accepted Planet range/gain tuning visually and
+  musically on October 4 at 06:48 UTC, then checked the rollout and accepted this
+  development checkpoint with caveats. That acceptance is distinct from exhaustive
+  artistic, listening, performance or multi-hour certification.
+- **User observation:** Robert observed a transition hitch and requests a
+  performance revisit. An earlier preview ran at 12×; that run cannot establish
+  real-time smoothness. Real-time transition/presentation behavior remains important
+  and unresolved. No optimization or new Studio controls are part of publication.
+- **Implementation:** normal Studio Audio Tuning covers all 27 canonical Main
+  forms, including Galaxy36, with independent form/target/role settings, Mapping
+  monitor and compatible pair audition. Experimental/Cymatics remain excluded
+  until promoted. The three Envelopers remain off in Main by default.
+- **Publication:** this checkpoint builds on
+  `0342e518a7bd2c521416e8027a7920668fc5ee51`, the published Studio organization
+  and Normal/Instant Bonk checkpoint. Robert authorizes one development commit and
+  normal GitHub push of the reviewed rollout, necessary accepted dependencies,
+  tests, repository-authored settings and documentation. The complete manifest,
+  full delta, checks and exact local/remote SHA verification belong in the
+  [publication receipt](work/publication-main-audio-20261004/review-index.json).
+  The rollout-only patch is not the whole publication delta. Local evidence,
+  private media/settings, research and the four undecided notes remain excluded;
+  the frozen portable is unchanged.
+
+### Dirty-source identity and evidence chronology
+
+The [rollout index](work/studio-audio-rollout-01/review-index.json) records the
+task delta, source hashes and preservation results against the dirty
+[checkpoint](work/studio-audio-rollout-01/checkpoint.json) and
+[resume baseline](work/studio-audio-rollout-01/resume-baseline.json).
+The earlier documentation audit matched all 28 source/note bindings, 92 local
+links and 236 preserved files. The latest
+[foreground index](work/studio-audio-rollout-01/foreground-review-index.json)
+still binds the unchanged application/test bytes. Publication adds only a dated
+current-status pointer to its task note; the original body and hashes remain
+historical evidence. Final status edits have their own publication delta and
+refreshed documentation checks. HEAD's full diff includes separate work and is
+not the rollout delta.
+
+- **CPU/native:** 15 recorded groups passed. The workflow continuation reran the
+  two changed integration/native tests and reused 13 unchanged test-source
+  results with provenance; it did not rerun every earlier group.
+- **GPU supplement:** [GPU index](work/studio-audio-rollout-01/gpu-review-index.json)
+  records 1,396 draws across all 27 forms and shared dream/surface/Original Loop,
+  Echo and Enveloper paths. Seven owned contexts closed without GL errors or
+  effect fallback. Its pair fixture used supplied controls and a no-op source
+  callback; it was not yet an integrated decoded audition.
+- **Decoded workflow:** [workflow index](work/studio-audio-rollout-01/workflow-review-index.json)
+  adds a successful 224-draw actual replay-owner trial: 64 repeated and 44 resumed
+  frames, saved source-position restoration, controlled error recovery,
+  cancellation and cleanup. Repeat endpoint/window priming and stale ACKs
+  overwriting parked unsent edits were corrected. Prior failed trials remain
+  evidence; later successes do not retroactively change their results.
+- **Foreground continuation:** nine scripted visible Studio observations used
+  actual transport and decoded replay for Follow, Pin/unpin, inactive editing,
+  held-key/gesture cancellation and the real Save Authored callback redirected
+  to a temporary file. This is visible scripted validation, not manual user
+  acceptance. No application source changed in this continuation.
+- **Inventory:** 595 means selectable tuning target rows (571 generalized plus
+  24 Planet), including shared-technique instances and transitions. It does
+  not mean 595 independently GPU-verified sliders or visual subelements.
+
+Earlier GPU bindings intentionally predate the replay/UI fixes. The exact earlier
+CPU index and patch are preserved in
+[workflow-before](work/studio-audio-rollout-01/workflow-before/); renderer/shader
+consumer sources were unchanged for that reuse. The workflow source bindings
+match current application/test bytes; its task note was subsequently extended.
+One provenance discrepancy remains: the workflow index records patch SHA-256
+`b6894092eead612e27f9d01cf7c30a84f28bd97552b8275dfbe7ffeeacca3290`
+at the shared `task-only.patch` path, now replaced by the later patch
+`559041a41d4ab5994738d024277561082cb41566d3665217a9176dd7dc0336b2`.
+No exact intermediate patch copy was found in that evidence directory.
+The latest rollout/foreground indexes bind the current patch; historical
+manifests are preserved without rewriting their hashes or claims.
+
+### Preservation and limits
+
+All 22 backed-up authored settings and six standalone DSP files match their
+recorded hashes. The foreground evidence records removal of temporary saves,
+closure of owned Studio windows and graceful replay-child exit. Exact prior-focus
+restoration was unverified because the recorded window handle no longer existed;
+no unrelated application was reopened or terminated.
+
+The GPU supplement used an RTX 3070 Laptop GPU, driver 617.14, hidden 320x180
+targets, query/finish/readback instrumentation and no scanout measurement.
+First current-source compilation took 161.95 seconds (first creation 163.70 s).
+Intermittent readings observed a process working-set peak of about 13 GB, a
+lower bound rather than a continuous memory profile. Cached motion-arm creation
+was 0.37–0.57 s under those conditions; power/thermals/background load were
+uncontrolled. Startup/resource limitations remain unresolved. Planet neutral
+frames matched 240/240; Root matched 238/240, with a one-channel-level difference
+at one pixel in each other frame. No universal pixel-equivalence claim follows.
+The integrated decoded audition was also hidden 320x180 and accelerated;
+Return restores CPU/source state but restarts shared GPU history.
+
+Exhaustive per-form/control artistic review, continuous audiovisual listening,
+native-resolution/fullscreen FPS, resize regression and multi-hour behavior
+remain unverified despite development-checkpoint acceptance. Recorded engineering
+results are reused with their source/provenance limits; publication adds source,
+syntax, staged-content and documentation checks, not a new GPU or listening campaign.
+[Studio instructions](DEVELOPMENT_STUDIO.md#main-audio-tuning-and-mapping-monitor)
+describe the controls; the [rollout note](docs/agent-notes/studio-audio-rollout-01.md)
+now has a dated current-status pointer above its preserved CPU-checkpoint opening.
+
+The completed eight-file documentation pass retains its own baseline and delta in
+[documentation review index](work/documentation-reconciliation-20261004/review-index.json)
+and [task diff](work/documentation-reconciliation-20261004/task.diff).
+Pre-existing dirty documentation was part of that baseline. This later publication
+authorization adds narrow acceptance/status edits and the task-note pointer;
+it does not rewrite that earlier audit or its no-publication scope.
 
 ## Verified visual baseline and acceptance
 
@@ -109,9 +220,9 @@ No new GPU, native pacing, listening or long-session test is run for publication
 The original player pack retains its reproduced baseline Studio test failure at
 line566 and unverified physical output shortcuts; no test was removed to hide it.
 
-README/PLAYER retain unrelated old dirty Galaxy-status paragraphs outside this
-checkpoint. This handoff remains authoritative for current Main membership;
-README's player link points to the accepted guide.
+At that player checkpoint, README/PLAYER still retained older dirty Galaxy-status
+paragraphs. The October 4 documentation pass reconciles their current-source
+wording; frozen-portable history remains unchanged.
 
 ## Source-bound evidence and limitations to retain
 
@@ -169,15 +280,17 @@ or override the current brief.
 ## Preservation and read next
 
 Preserve unrelated dirty documents, research/brainstorm folders and the planning
-proposal. Publication adds the reviewed player source/tests and necessary docs;
-no new runtime or environment changes are made during publication.
+proposal. Publication includes only the explicit reviewed manifest. No code or
+authored values are retuned, and no environment or release changes are included.
+The three historical color notes and separate startup-performance note remain
+local pending an explicit inclusion decision.
 Keep `work/releases/ZeraWave-preview-final.zip` at d4992d0 unchanged; future
 portable/release work needs its own assigned output path and authorization.
 
-- [ROADMAP.md](ROADMAP.md): player completed; startup/native performance then standalone DSP;
-  later Fractals/image import and separately scoped Studio cleanup.
+- [ROADMAP.md](ROADMAP.md): completed player/Studio organization, implemented
+  accepted Main Audio Tuning development checkpoint, and unresolved transition/performance work.
 - [AGENTS.md](AGENTS.md): coordination, applicable skill loading and ownership.
 - [ZERAWAVE_VISUAL_IDENTITY.md](ZERAWAVE_VISUAL_IDENTITY.md): creative/product direction.
-- [DEVELOPMENT_STUDIO.md](DEVELOPMENT_STUDIO.md): existing controls, not the future tab redesign.
+- [DEVELOPMENT_STUDIO.md](DEVELOPMENT_STUDIO.md): current Main/Experimental controls, Audio Tuning and Mapping monitor.
 - [TECHNIQUE_LIBRARY.md](TECHNIQUE_LIBRARY.md) and
   [maintenance contracts](docs/MAINTENANCE_CONTRACTS.md): reuse/preservation contracts.

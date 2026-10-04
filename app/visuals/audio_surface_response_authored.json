@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "target": "planet.surface_response",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "audio_chroma": 1.7272727272727273,
+    "audio_lift": 1.509090909090909,
+    "movement_clock": 1.6136363636363635,
+    "audio_clock": 1.3727272727272728,
+    "impact_clock": 1.7863636363636364
+  }
+}

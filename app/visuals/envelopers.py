@@ -41,7 +41,7 @@ class EnveloperStage:
         for target in self.targets:target.clear()
         self.valid=False;self.resets+=1;self.index=0
 
-    def draw(self,scene_program,scene_vao,size,seconds,state,weights,audio,colors):
+    def draw(self,scene_program,scene_vao,size,seconds,state,weights,audio,colors,audio_gains=None):
         self.resize(size)
         dt=0. if self.last_time is None else seconds-self.last_time
         if dt<0. or dt>.5 or self.last_state not in (None,state):self.reset()
@@ -58,6 +58,9 @@ class EnveloperStage:
         mode=max(range(3),key=lambda i:weights[i])
         p['mode'].value=mode+1;p['strength'].value=min(.85,max(weights))
         p['energy'].value=max(0.,min(1.,.45*audio.scale+.35*audio.flux+.20*audio.sparkle))
+        gains=audio_gains[mode] if audio_gains is not None else (1.,1.)
+        gains=tuple(gains)+(1.,1.)
+        p['audio_tuning_on'].value=int(any(g!=1. for g in gains[:2]));p['audio_gains'].value=gains[:2]
         p['history_valid'].value=int(self.valid and 0.<dt<=.5)
         for name,value in colors.items():
             if name in p:p[name].value=value

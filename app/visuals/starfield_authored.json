@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "target": "planet.starfield",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "mode": "window",
+    "start_hz": 80.0,
+    "end_hz": 130.0,
+    "weight": 1.5,
+    "sensitivity": 2.0
+  }
+}

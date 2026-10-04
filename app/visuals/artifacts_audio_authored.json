@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "target": "planet.material.artifacts",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "flux_range_enabled": false,
+    "sparkle_range_enabled": false,
+    "flux_stretch": 1.2227272727272727,
+    "impact_facets": 1.4090909090909092,
+    "sparkle_light": 1.5,
+    "bass_cells": 1.490909090909091,
+    "bass_radial": 1.2454545454545454,
+    "sparkle_presence": 1.5454545454545454,
+    "flux_start_hz": 0.0,
+    "flux_end_hz": 12109.090909090908,
+    "sparkle_start_hz": 7909.090909090909,
+    "sparkle_end_hz": 21109.090909090908
+  }
+}

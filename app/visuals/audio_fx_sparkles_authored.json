@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "target": "planet.fx.sparkles",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "sparkle_light": 1.5954545454545455
+  }
+}

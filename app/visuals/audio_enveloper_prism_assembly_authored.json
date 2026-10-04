@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "target": "planet.enveloper.prism_assembly",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "audio_motion": 1.509090909090909
+  }
+}

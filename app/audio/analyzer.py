@@ -47,3 +47,15 @@ class AudioAnalyzer:
         self.previous_magnitudes = magnitudes
 
         return flux
+
+    def describe_samples(self, samples, samplerate=48000, source_id=None):
+        """Opt-in standalone descriptors; leaves all legacy analysis state alone."""
+        if not hasattr(self, '_descriptors'):
+            from musical_descriptors import DescriptorAnalysis
+            self._descriptors = DescriptorAnalysis()
+        return self._descriptors.process(samples, samplerate, source_id)
+
+    def reset_descriptors(self):
+        """End/seek/restart only the opt-in measurements, never legacy state."""
+        if hasattr(self, '_descriptors'):
+            self._descriptors.reset()

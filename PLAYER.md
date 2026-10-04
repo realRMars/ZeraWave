@@ -1,9 +1,17 @@
 # ZeraWave Windows preview
 
-## Play
+## Current checkout
 
-In this checkout, open **run_zerawave.bat**. In the portable ZIP, extract the
-entire folder and open **Start ZeraWave.cmd**. Select the output your music is
+Open **run_zerawave.bat** and follow the
+[current player guide](docs/agent-notes/player-checkpoint-2026-10-03.md) for exact
+source selection, Refresh, Start/Stop/Pause, Hold, Normal/Instant Bonk and queue
+controls. Current implementation and validation limits are in the
+[handoff](ZERAWAVE_HANDOFF.md). The frozen ZIP retains the older behavior below.
+
+## Frozen portable: Play
+
+In the retained portable ZIP, extract the entire folder and open
+**Start ZeraWave.cmd**. Select the output your music is
 playing through and choose **Start visuals**. Close the visual window to return.
 System default follows the current default output at each start.
 
@@ -21,7 +29,9 @@ unsigned portable preview, not an installer or a claim of compatibility with
 untested PCs. Python is included in the ZIP. No administrator access is needed.
 The checkout's player runs Main Blend with the seven-material authored show.
 The three Envelopers are currently disabled by default pending visual redesign;
-The retained portable below has its older behavior.
+Galaxy Odyssey is accepted and included in the checkout's 27 canonical Main
+forms. The retained portable below has its older behavior and has not gained
+the current player, Studio or Audio Tuning features.
 Studio remains the project's development environment, not a consumer product.
 No test music is distributed.
 

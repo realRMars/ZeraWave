@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "target": "planet.rings",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "sparkle_reflection": 1.7727272727272727
+  }
+}

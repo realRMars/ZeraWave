@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "target": "planet.material.alloy",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "bass_shape": 1.3954545454545455,
+    "flux_deform": 1.4181818181818182,
+    "sparkle_glint": 1.7954545454545454,
+    "impact_sheen": 1.5318181818181817
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "target": "planet.spatial.fractal",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "flux_presence": 1.4636363636363636,
+    "bass_presence": 1.231818181818182,
+    "flux_fold": 1.3272727272727274,
+    "bass_fold": 1.0
+  }
+}

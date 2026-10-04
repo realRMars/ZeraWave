@@ -8,6 +8,9 @@ uniform int u_prism_colors_on, u_digital_colors_on, u_memory_colors_on;
 uniform vec3 u_prism_colors[2];
 uniform vec3 u_digital_colors[2];
 uniform vec3 u_memory_colors[3];
+uniform int audio_tuning_on;
+uniform vec2 audio_gains;
+float tuned(float v,int role){float gain=audio_gains[role];if(audio_tuning_on==0)return v;if(gain<=-1.)return clamp(-1.-gain,0.,1.);return gain==1. ? v : clamp(v*gain,0.,1.);}
 out vec4 fragColor;
 vec3 current(vec2 uv){return texture(scene,clamp(uv,vec2(0.),vec2(1.))).rgb;}
 float seed(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
@@ -15,7 +18,7 @@ void main(){
     vec2 uv=gl_FragCoord.xy/resolution;
     vec3 base=current(uv),color=base;
     if(mode==0){fragColor=vec4(base,1.);return;}
-    float amount=strength*(.28+.62*energy);
+    float amount=strength*(.28+.62*tuned(energy,0));
     if(mode==1){
         vec2 grid=vec2(12.,8.),cell=floor(uv*grid),local=fract(uv*grid)-.5;
         float id=seed(cell),turn=sin(clock*.23+id*6.283)*amount*.35;
@@ -30,7 +33,7 @@ void main(){
     }else if(mode==2){
         float wave=.5+.5*sin(uv.x*8.+uv.y*5.-clock*.34);
         float region=smoothstep(.45,.72,wave);
-        float block=mix(1.,12.+energy*16.,region*amount);
+        float block=mix(1.,12.+tuned(energy,1)*16.,region*amount);
         vec2 snapped=(floor(gl_FragCoord.xy/block)+.5)*block/resolution;
         vec3 source=current(snapped);
         // Ordered 4x4 pattern; fixed screen positions avoid temporal noise.
@@ -46,7 +49,7 @@ void main(){
         float scan=1.-.10*amount*step(.5,fract(gl_FragCoord.y*.25));
         color=mix(base,quantized*scan,region*strength);
     }else if(mode==3 && history_valid==1){
-        vec2 drift=vec2(sin(clock*.17),cos(clock*.13))*delta*.023*amount;
+        vec2 drift=vec2(sin(clock*.17),cos(clock*.13))*delta*.023*(audio_tuning_on==0 ? amount : strength*(.28+.62*tuned(energy,1)));
         vec3 tintR=u_memory_colors_on==1?u_memory_colors[0]:vec3(1.,.83,.75);
         vec3 tintG=u_memory_colors_on==1?u_memory_colors[1]:vec3(.76,1.,.87);
         vec3 tintB=u_memory_colors_on==1?u_memory_colors[2]:vec3(.80,.84,1.);

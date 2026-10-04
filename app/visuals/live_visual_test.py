@@ -31,8 +31,11 @@ def make_bar(value, width=30):
     return "█" * filled + "░" * (width - filled)
 
 
-def analyze_samples(samples, analyzer, processor, conditioner, detectors):
+def analyze_samples(samples, analyzer, processor, conditioner, detectors,
+                    descriptors=False, source_id=None, star_attack=False):
     """Shared live/replay analysis; detect events before visual slew limiting."""
+    if descriptors:
+        descriptor_snapshot = analyzer.describe_samples(samples, 48000, source_id).to_dict()
     if samples.ndim > 1:
         samples = samples.mean(axis=1)
 
@@ -136,10 +139,22 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors):
     frame.band12 = analyzer.frequency_bands.summarize(frequencies, magnitudes, len(samples))
     frame.spectrum_frequencies = frequencies
     frame.spectrum_magnitudes = magnitudes
+    listening=getattr(analyzer,'_artifact_listening',None)
+    if listening is not None:frame.artifacts_listening=listening.process(frequencies,magnitudes,len(samples),source_id)
+    listening=getattr(analyzer,'_planet_listening',None)
+    if listening is not None:frame.planet_listening=listening.process(frequencies,magnitudes,len(samples),source_id)
+    listening=getattr(analyzer,'_form_listening',None)
+    if listening is not None:frame.form_listening=listening.process(frequencies,magnitudes,len(samples),source_id)
+    if descriptors:
+        frame.descriptors = descriptor_snapshot
+    if star_attack:
+        from planet_star_attack import attach_bass_attack
+        attach_bass_attack(frame, analyzer, len(samples), source_id, bass)
     return frame
 
 
-def main(state="blend", states=None, layers=None, device=None, quiet=False, palette="authored", colors=None, color_input=False, seed=None, galaxy_visit=0, galaxy_short=False, transitions=None):
+def main(state="blend", states=None, layers=None, device=None, quiet=False, palette="authored", colors=None, color_input=False, seed=None, galaxy_visit=0, galaxy_short=False, transitions=None, planet_dsp_pilot=False, planet_star_attack_pilot=False):
+    import json
     capture = AudioCapture(device_name=device)
     analyzer = AudioAnalyzer()
     processor = SignalProcessor(smoothing=0.5)
@@ -155,6 +170,10 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
     renderer.debug_sequence = tuple(LIVE_STATES[name] for name in (states or ()))
     renderer.layer_profiles = validate_layers(layers or {})
     renderer.configure_transitions(transitions)
+    renderer.planet_dsp_pilot = planet_dsp_pilot
+    pilot = renderer.planet_dsp_eligible()
+    renderer.planet_star_attack_pilot = planet_star_attack_pilot
+    star_pilot = bool(planet_star_attack_pilot and renderer.planet_star_attack_eligible())
     configure_colors(renderer, colors, color_input)
 
     detectors = {
@@ -175,6 +194,16 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
     print("Finding audio loopback device...")
 
     device = capture.find_device()
+    if color_input:
+        from planet_mapping_monitor import configure
+        configure(renderer, 'LIVE', json.dumps(capture.resolved, sort_keys=True))
+    if color_input or star_pilot or renderer.debug_state==5:
+        from starfield_tuning import configure as configure_star_tuning,observe_spectrum
+        configure_star_tuning(renderer,analyzer,normal=color_input)
+        if getattr(renderer,'studio_audio',None) is not None:star_pilot=True
+        if getattr(renderer,'studio_audio',None) is not None:
+            renderer.studio_audio.source_mode='LIVE';renderer.studio_audio.source_identity=json.dumps(capture.resolved,sort_keys=True)
+    if getattr(renderer,'studio_audio',None) is not None and renderer.planet_dsp_pilot:pilot=True
 
     print(f"Using: {device}")
     print(f"Live state: {state}. Play music through your default audio output.")
@@ -184,12 +213,26 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
     try:
         renderer.create()
         from capture_stream import CaptureStream
-        stream=CaptureStream(capture,lambda samples:(samples,analyze_samples(samples,analyzer,processor,conditioner,detectors)))
+        if pilot or star_pilot:
+            stream=CaptureStream(capture,lambda samples:(samples,analyze_samples(
+                samples,analyzer,processor,conditioner,detectors,
+                descriptors=pilot,source_id='planet-preview',star_attack=star_pilot)))
+        else:
+            stream=CaptureStream(capture,lambda samples:(samples,analyze_samples(samples,analyzer,processor,conditioner,detectors)))
         stream.start();next_present=time.perf_counter();next_console=0.
 
         while not renderer.should_close():
             incoming=stream.drain();impact=0.;tick=False
             for stamp,(samples,frame) in incoming:
+                artifact=getattr(renderer,'artifact_tuning',None)
+                if artifact is not None:artifact.observe(getattr(frame,'artifacts_listening',None))
+                if getattr(renderer,'star_spectrum',None) is not None:observe_spectrum(renderer,frame,len(samples),stamp)
+                if getattr(renderer,'planet_audio_tuning',None) is not None:renderer.planet_audio_tuning.observe(getattr(frame,'planet_listening',None))
+                if getattr(renderer,'studio_audio',None) is not None:renderer.studio_audio.model.observe(getattr(frame,'form_listening',None))
+                if pilot: renderer.accept_planet_audio(frame, 'planet-preview')
+                if star_pilot: renderer.accept_planet_star_audio(frame, 'planet-preview')
+                if getattr(renderer, 'planet_monitor', None) is not None:
+                    renderer.planet_monitor.observe(frame, len(samples), stamp)
                 renderer.consume_pcm(samples)
                 result=mapper.map_frame(frame)
                 impact=max(impact,result['impact']);tick=tick or frame.beat_tick
@@ -242,6 +285,14 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
         try:
             if 'stream' in locals():stream.stop()
         finally:
+            if pilot:
+                # Worker owns analyzer writes. Clear it only after confirmed
+                # stop; renderer state can always be cleared by its owner.
+                if 'stream' not in locals() or stream.worker is None or not stream.worker.is_alive():
+                    analyzer.reset_descriptors()
+                renderer.reset_planet_dsp()
+            if star_pilot:
+                renderer.reset_planet_star_attack()
             renderer.close()
 
     print("\nTest complete.")
@@ -267,5 +318,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed',type=int,default=None,help='Repeatable Galaxy destinations.')
     parser.add_argument('--galaxy-visit',type=int,default=0)
     parser.add_argument('--galaxy-short',action='store_true')
+    parser.add_argument('--planet-dsp-pilot',action='store_true',help='Opt-in two-treatment DSP pilot; held Planet Canvas only.')
+    parser.add_argument('--planet-star-attack-pilot',action='store_true',help='Opt-in bass-attack background flight; held Planet Canvas only.')
     args = parser.parse_args()
-    main(args.state, args.states, args.layers, args.device, args.quiet, args.palette, args.colors, args.studio_color_input, args.seed,args.galaxy_visit,args.galaxy_short, args.transitions)
+    main(args.state, args.states, args.layers, args.device, args.quiet, args.palette, args.colors, args.studio_color_input, args.seed,args.galaxy_visit,args.galaxy_short, args.transitions,args.planet_dsp_pilot,args.planet_star_attack_pilot)

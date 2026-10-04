@@ -75,11 +75,13 @@ See the [Cosmic snapshot](history/2026-09-28-cosmic-development.md),
 [Elemental snapshot](history/2026-09-28-elemental-development.md) and
 [history index](history/README.md) for dated acceptance and evidence.
 
-## Held Galaxy / Galaxy Odyssey
+## Galaxy Odyssey: held and canonical Main
 
-- State 36 remains outside `LIVE_FORMS` and Main material auto-discovery. Forced
-  `world_uniforms({36: weight, ...})` fixtures exercise compatibility without
-  enabling it. At zero weight, unaffected scenes remain byte-identical.
+- Accepted Galaxy36 belongs to `LIVE_FORMS` and canonical Main. Preserve its
+  74-second route on Main entry/return and route-boundary release. Earlier forced
+  `world_uniforms({36: weight, ...})` fixtures are historical compatibility
+  evidence, not an exclusion policy. Zero Galaxy weight must preserve unaffected
+  scene contributions.
 - Galaxy's visit clock progresses during visibility, parks elsewhere and resets
   on rewind. The musical star clock drives local orbital/material motion.
 - `procedural_cosmos` uses versioned hierarchical identities and at most twelve
@@ -100,6 +102,36 @@ See the [Cosmic snapshot](history/2026-09-28-cosmic-development.md),
 - Inspect short visits, scale bridges, planetary transfers and destination
   arrivals in motion. A previous quiet-camera pixel-speed ceiling does not define
   the new route; test continuous joins and bounded frame-change spikes instead.
-- Evidence: `work/galaxy-journey-review/` and
-  [task notes](agent-notes/galaxy-stellar-aviary.md). GPU/decoded/controlled-live
-  checks do not substitute for natural live listening or artistic acceptance.
+- Main integration evidence: [Main lineup](../work/main-lineup-01/review-index.json)
+  and [current handoff](../ZERAWAVE_HANDOFF.md). Earlier held evidence remains at
+  `work/galaxy-journey-review/` and in [task notes](agent-notes/galaxy-stellar-aviary.md).
+  Technical checks and the recorded user acceptance retain their own scope.
+
+## Main Audio Tuning preservation
+
+- Preserve authored values on load, preview, target switches and temporary profile
+  changes. Only an explicit Save Authored promotes the acknowledged values to the
+  named destination. Keep the backed-up Planet stores and separate DSP work intact.
+- Keep form/target/role settings independent. Shared-technique instances retain
+  their form owner; selected listening windows reuse existing FFT data and do not
+  retune global normalization, pigments or unrelated clocks.
+- Route commands, telemetry and saves by run/session/form/target/revision.
+  Reject stale identities/revisions. A save requires a fresh matching ACK and
+  settings digest; active listening ranges also require valid current input.
+  Configuration ACKs for inactive targets do not imply visible contribution.
+- Switching form/target or Follow/Pin cancels held keys, drag/debounce work and
+  pending paint. Park unsent values at their original owner; an older ACK must
+  not overwrite them or make them saveable before their own acknowledgement.
+- Preserve outgoing/incoming endpoint ownership and distinguish director timing
+  from visual transition inputs. Pair auditions require compatible Main forms
+  and a repeatable source; reject matched live input before mutating playback.
+  Repeat resets the same decoded passage and numerical FFT history; Return
+  restores the parked source/CPU scene/RNG state. Shared Echo/Enveloper GPU
+  history resets at the boundary rather than claiming pixel-identical recovery.
+- Keep inactive/mode-inactive telemetry unavailable, and label CPU submissions,
+  analyzer spectrum, proxies and selection weights separately from GPU pixels.
+  Do not infer slider-by-slider visual coverage from the 595 target-row inventory.
+
+See [Studio operation](../DEVELOPMENT_STUDIO.md#main-audio-tuning-and-mapping-monitor)
+and [the rollout handoff](../ZERAWAVE_HANDOFF.md#current-main-audio-tuning-checkpoint)
+for source identity, bounded evidence and remaining limits.

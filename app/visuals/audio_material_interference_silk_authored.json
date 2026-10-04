@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "target": "planet.material.interference_silk",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "bass_light": 1.6545454545454545,
+    "sparkle_light": 1.8545454545454545
+  }
+}

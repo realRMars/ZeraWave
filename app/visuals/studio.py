@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import uuid
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
@@ -128,6 +129,14 @@ def validate_session(data):
     if not isinstance(data, dict) or data.get('version') not in (1, 2, 3):
         raise ValueError('This is not a supported ZeraWave development session.')
     values = {key: data.get(key, value) for key, value in DEFAULTS.items()}
+    pilot = data.get('planet_dsp_pilot', False)
+    if type(pilot) is not bool:
+        raise ValueError('Planet DSP pilot must be true or false.')
+    if pilot: values['planet_dsp_pilot'] = True
+    star_pilot = data.get('planet_star_attack_pilot', False)
+    if type(star_pilot) is not bool:
+        raise ValueError('Planet star-attack pilot must be true or false.')
+    if star_pilot: values['planet_star_attack_pilot'] = True
     selection = (path_for_state(values['state']) if data['version'] == 1
                  else data.get('selection'))
     if selection == ['transition']:selection=['experimental','transition_study']
@@ -273,6 +282,14 @@ def command(values, output):
         if values.get('galaxy_entry')=='Short return':state_args+=['--galaxy-short']
     # Park the saved experiment choice outside this single held form.
     if states == ['canvas']: state_args += ['--palette', palette]
+    if (values.get('planet_dsp_pilot', False) is True and (states == ['canvas'] or scope=='main')):
+        if values['source'] == 'Synthetic preview':
+            raise ValueError('Planet DSP pilot needs Test track or Live system audio; synthetic preview has no PCM descriptors.')
+        state_args += ['--planet-dsp-pilot']
+    if (values.get('planet_star_attack_pilot', False) is True and (states == ['canvas'] or scope=='main')):
+        if values['source'] == 'Synthetic preview':
+            raise ValueError('Planet star-attack pilot needs Test track or Live system audio.')
+        state_args += ['--planet-star-attack-pilot']
     colors = validate_colors(values.get('color_overrides', {}))
     color_scope = color_scope_for_states(states)
     if targets_for(color_scope):
@@ -333,6 +350,8 @@ class Studio:
         self.session_path = None
         self.layer_profiles = {}
         self.material_isolation = {}
+        self.planet_dsp_pilot = False
+        self.planet_star_attack_pilot = False
         self.transition_isolation={}
         self.transition_pair=tk.BooleanVar(value=False)
         self.transition_from=tk.StringVar(value=SCENES[26])
@@ -342,6 +361,9 @@ class Studio:
         self.color_overrides = {}
         self.color_editor = None
         self.color_link = None
+        self.mapping_monitor = None
+        self.monitor_enabled = False
+        self.star_tuning_window=None;self.star_tuning_poll_after=None;self.tuning_enabled=False
         self.active_color_scene = None
         self.preview_start_colors = {}
         self.color_send_after = None
@@ -592,6 +614,8 @@ class Studio:
 
     def values(self):
         values = {k:v.get() for k,v in self.vars.items()}
+        if self.planet_dsp_pilot: values['planet_dsp_pilot'] = True
+        if self.planet_star_attack_pilot: values['planet_star_attack_pilot'] = True
         values.update(selection=list(self.selection), state=self.selected_states()[0],
                       selection_scope=self.selection_scope,
                       studio_selections=deepcopy(self.studio_selections),
@@ -882,8 +906,27 @@ class Studio:
         return validate_settings(dict(pair=pair,isolate=dict(self.transition_isolation),hold=float(self.transition_hold.get()),duration=float(self.transition_duration.get())))
 
     def preview_transition_pair(self):
-        if not self.transition_pair.get() and self.layer_world() in self.transition_isolation:self.transition_isolation['pair']=self.transition_isolation[self.layer_world()]
-        self.transition_pair.set(True);self.tabs.select(self.preview);self.start()
+        try:
+            if self.selection_scope!='main':raise ValueError('Choose Main forms before auditioning a pair. Experimental forms keep their own preview.')
+            original=self.values();cfg=self.transition_values()
+            cfg['pair']=[next(k for k,v in SCENES.items() if v==var.get()) for var in (self.transition_from,self.transition_to)]
+            chosen=cfg['isolate'].get('pair') or cfg['isolate'].get(self.layer_world()) or cfg['isolate'].get('blend') or 'tr_fade'
+            if not compatible(chosen,*cfg['pair']):raise ValueError(RECIPES[chosen][0]+': '+transition_description(chosen))
+            cfg['isolate']['pair']=chosen;cfg=validate_settings(cfg)
+            if self.process is None:
+                if original['source']=='Live system audio':raise ValueError('Matched audition needs a Test track or synthetic preview. Live input cannot repeat the same passage.')
+                original['transitions']['pair']=[]
+                self.launch(original,self.run_folder())
+            if not self.color_link or not self.color_link.audio_run:raise ValueError('The running preview has no normal Main audio channel.')
+            latest=self.color_link.get_audio()
+            if latest and not latest[0].get('audition',{}).get('available'):raise ValueError('This source cannot repeat a passage. Keep the live preview running; use a decoded Test track for matched audition.')
+            if getattr(self,'audition_color_scene',None) is None:self.audition_color_scene=self.active_color_scene
+            self.active_color_scene='blend'
+            self.last_color_revision=self.color_link.submit(scene_colors(self.color_overrides,'blend'))
+            self.pending_audition_request=self.color_link.submit_audition('start',cfg)
+            self.transition_pair.set(True);self.tabs.select(self.preview)
+            self.status.set('Pair audition requested: '+SCENES[cfg['pair'][0]]+' -> '+SCENES[cfg['pair'][1]]+' / '+RECIPES[chosen][0]+'. Same decoded passage and settings on repeat; Return resumes the parked preview.')
+        except (ValueError,OSError) as exc:messagebox.showerror('Cannot audition pair',str(exc))
 
     def isolate_transition(self):
         rows=self.layer_table.selection()
@@ -906,8 +949,10 @@ class Studio:
         self.transition_note.set('Saved transition list restored; compatible recipes follow list playback.')
 
     def leave_transition_pair(self):
+        if self.color_link and self.color_link.audio_run:
+            self.pending_audition_request=self.color_link.submit_audition('return')
+            self.status.set('Return requested; waiting for the owned preview to restore its source and scene state.')
         self.transition_pair.set(False);self.show_visual_tab()
-        self.status.set('Chosen pair parked. Start resumes the selected scene, family or Main.')
 
     def isolate_material(self):
         world = self.layer_world()
@@ -1024,6 +1069,8 @@ class Studio:
         view.add_command(label='Effects & layers',command=lambda:self.tabs.select(self.layers_tab))
         view.add_command(label='Library',command=lambda:self.tabs.select(self.library_tab))
         view.add_command(label='Review',command=lambda:self.tabs.select(self.results))
+        view.add_command(label='Mapping monitor…',command=self.open_mapping_monitor)
+        view.add_command(label='Audio tuning…',command=self.open_star_tuning)
         view.add_command(label='Latest results folder',command=self.open_results)
         bar.add_cascade(label='View',menu=view)
         presets=tk.Menu(bar,tearoff=False)
@@ -1083,6 +1130,8 @@ class Studio:
         self.session_path=None
         self.layer_profiles={}
         self.material_isolation={}
+        self.planet_dsp_pilot=False
+        self.planet_star_attack_pilot=False
         self.color_overrides={}
         self.transition_isolation={};self.transition_pair.set(False)
         self.transition_hold.set('12');self.transition_duration.set('6')
@@ -1112,6 +1161,8 @@ class Studio:
             self.transition_hold.set(str(cfg['hold']));self.transition_duration.set(str(cfg['duration']))
             self.layer_profiles=values['layers']
             self.material_isolation=values.get('material_isolation', {})
+            self.planet_dsp_pilot=values.get('planet_dsp_pilot', False)
+            self.planet_star_attack_pilot=values.get('planet_star_attack_pilot', False)
             self.color_overrides=values.get('color_overrides', {})
             if 'studio_selections' in values:
                 self.studio_selections = deepcopy(values['studio_selections'])
@@ -1187,20 +1238,35 @@ class Studio:
         output.mkdir(parents=True)
         (output/'preview.json').write_text(json.dumps(dict(version=3, **values), indent=2), encoding='utf-8')
         self.log = (output/'run.log').open('w', encoding='utf-8')
+        normal_audio=bool(live_scene and values.get('selection_scope',selection_scope(values.get('selection',path_for_state(values['state']))))=='main')
+        audio_run=uuid.uuid4().hex if normal_audio else None
+        audio_session=getattr(self,'audio_session',None)
+        if normal_audio and audio_session is None:self.audio_session=audio_session=uuid.uuid4().hex
+        child_env=os.environ.copy()
+        if normal_audio:child_env.update(ZERAWAVE_AUDIO_RUN=audio_run,ZERAWAVE_AUDIO_SESSION=audio_session)
+        else:
+            child_env.pop('ZERAWAVE_AUDIO_RUN',None);child_env.pop('ZERAWAVE_AUDIO_SESSION',None)
         try:
             self.process = subprocess.Popen(args, cwd=ROOT, stdout=subprocess.PIPE if live_scene else self.log,
                 stdin=subprocess.PIPE if live_scene else None, stderr=subprocess.STDOUT, bufsize=0,
-                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),env=child_env)
         except OSError:
             self.log.close(); self.log = None
             raise
+        self.running_values=deepcopy(values)
         self.active_color_scene=live_scene
         self.preview_start_colors=deepcopy(values.get('color_overrides', {})) if live_scene else {}
         self.last_color_ack=None
         if live_scene:
-            self.color_link=ColorLink(self.process,self.log)
+            self.color_link=ColorLink(self.process,self.log,run=audio_run,session=audio_session)
             self.last_color_revision=self.color_link.submit(scene_colors(self.preview_start_colors,live_scene))
             self.color_status.set('Starting color preview; waiting for acknowledgement.')
+            if normal_audio and self.monitor_enabled:self.show_star_tuning(False)
+            elif live_scene == 'canvas':self.color_link.submit_monitor(self.monitor_enabled)
+            if self.star_tuning_window is not None and self.star_tuning_window.alive():
+                self.star_tuning_window.preview_started()
+                if normal_audio:self.show_star_tuning(True)
+                elif live_scene=='canvas':self.color_link.submit_star_view(True)
         self.output = self.comparison_folder if label else output
         self.start_button.configure(state='disabled')
         self.stop_button.configure(state='normal')
@@ -1278,6 +1344,7 @@ class Studio:
             self.color_link.close();self.color_link=None;self.log=None
         if self.log: self.log.close(); self.log = None
         self.active_color_scene=None
+        self.audition_color_scene=None;self.pending_audition_request=None
         self.process = None
         self.active_preview.set('No preview running.')
         self.start_button.configure(state='normal')
@@ -1288,6 +1355,20 @@ class Studio:
 
     def poll(self):
         self.cymatics_panel.refresh()
+        if self.color_link and self.color_link.audio_run and getattr(self,'pending_audition_request',None) is not None:
+            latest=self.color_link.get_audio()
+            audition=(latest[0].get('audition') or {}) if latest else {}
+            if audition.get('revision',-1)>=self.pending_audition_request:
+                self.pending_audition_request=None
+                if audition.get('error'):self.status.set('Audition rejected: '+audition['error'])
+                else:self.status.set('Matched pair audition active; Repeat restarts the same decoded passage.' if audition.get('active') else 'Original source and scene state restored; shared GPU history restarts at this ownership boundary.')
+                if not audition.get('active') and getattr(self,'audition_color_scene',None) is not None:
+                    self.active_color_scene=self.audition_color_scene;self.audition_color_scene=None
+                    self.last_color_revision=self.color_link.submit(scene_colors(self.color_overrides,self.active_color_scene))
+                    self.transition_pair.set(False)
+        if self.mapping_monitor is not None and self.mapping_monitor.alive():
+            self.mapping_monitor.refresh(self.color_link.get_audio() if self.color_link and self.color_link.audio_run else None,
+                                         self.process is not None and self.process.poll() is None)
         if self.color_link:
             status=self.color_link.get_status()
             startup=status.get('startup', {})
@@ -1325,6 +1406,52 @@ class Studio:
                 self.status.set(('Matched A/B complete: A Authored, B Soft Dream. Same input/timing verified; session unchanged.' if paired else
                     'Preview completed. Review the saved results.') if code == 0 else 'Preview cancelled during startup.' if code == 125 else f'Preview failed (code {code}). Read run.log.')
         self.root.after(200, self.poll)
+
+    def toggle_mapping_monitor(self, enabled):
+        self.monitor_enabled = enabled
+        if self.color_link and self.color_link.audio_run:self.show_star_tuning(self.tuning_enabled)
+
+    def open_mapping_monitor(self):
+        if self.mapping_monitor is not None and self.mapping_monitor.alive():
+            self.mapping_monitor.window.lift()
+            return
+        from planet_mapping_monitor import MonitorWindow
+        self.mapping_monitor = MonitorWindow(self.root, self.toggle_mapping_monitor,normal=True)
+        self.toggle_mapping_monitor(True)
+
+    def submit_star_tuning(self,settings,authored=None,target='planet.starfield',form=5):
+        if self.color_link and self.color_link.audio_run:return self.color_link.submit_audio(form,target,settings,authored)
+        if self.color_link and self.active_color_scene=='canvas':
+            if target=='planet.material.artifacts':return self.color_link.submit_artifact_tuning(settings,authored)
+            if target!='planet.starfield':return self.color_link.submit_planet_tuning(target,settings,authored)
+            return self.color_link.submit_star_tuning(settings,authored)
+        return None
+
+    def show_star_tuning(self,enabled,form=None,target=None,pin=None):
+        self.tuning_enabled=enabled
+        if self.color_link and self.color_link.audio_run:
+            view=self.star_tuning_window
+            self.color_link.submit_audio_view(form if form is not None else view.form if view else 5,
+                target or (view.target.target_id if view else 'planet.starfield'),
+                pin=view.pin.get() if pin is None and view else bool(pin),enabled=bool(enabled or self.monitor_enabled));return
+        if self.color_link and self.active_color_scene=='canvas':self.color_link.submit_star_view(enabled)
+
+    def open_star_tuning(self):
+        if self.star_tuning_window is not None and self.star_tuning_window.alive():
+            self.star_tuning_window.window.lift();return
+        from starfield_tuning import StarfieldTuningWindow
+        self.star_tuning_window=StarfieldTuningWindow(self.root,self.submit_star_tuning,self.show_star_tuning,normal=True)
+        self.show_star_tuning(True)
+        if self.star_tuning_poll_after is not None:
+            self.root.after_cancel(self.star_tuning_poll_after);self.star_tuning_poll_after=None
+        self.poll_star_tuning()
+
+    def poll_star_tuning(self):
+        self.star_tuning_poll_after=None
+        if self.star_tuning_window is None or not self.star_tuning_window.alive():return
+        self.star_tuning_window.refresh(self.color_link.get_audio() if self.color_link and self.color_link.audio_run else None,
+                                       self.process is not None and self.process.poll() is None)
+        self.star_tuning_poll_after=self.root.after(50,self.poll_star_tuning)
 
     def open_results(self):
         folder=self.output or ROOT/'work/studio'

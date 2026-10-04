@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "target": "planet.spatial.tunnel",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "flux_presence": 1.4045454545454545,
+    "bass_presence": 1.5818181818181818
+  }
+}

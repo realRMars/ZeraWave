@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "target": "planet.material.lattice",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "bass_shape": 1.6818181818181819,
+    "flux_tilt": 1.5454545454545454,
+    "sparkle_light": 1.8545454545454545,
+    "impact_light": 1.45
+  }
+}

@@ -2,6 +2,9 @@
 uniform sampler2D history;
 uniform float clock;
 uniform vec4 audio;
+uniform int audio_tuning_on;
+uniform vec4 audio_gains;
+float tuned(float v,int role){float gain=audio_gains[role];if(audio_tuning_on==0)return v;if(gain<=-1.)return clamp(-1.-gain,0.,1.);return gain==1. ? v : clamp(v*gain,0.,1.);}
 out vec4 field;
 const float dt=1./60.;
 void main(){
@@ -15,7 +18,7 @@ void main(){
         velocity+=vec2(-d.y,d.x)*(.025+.008*n)/(dot(d,d)+.10)*(mod(n,2.)*2.-1.);
     }
     velocity+=.025*vec2(sin(p.y*7.+clock*.17),cos(p.x*6.-clock*.13));
-    float rate=.4+audio.x*1.5+audio.y*1.2;
+    float rate=.4+tuned(audio.x,0)*1.5+tuned(audio.y,1)*1.2;
     vec2 source=uv-velocity*dt*rate;
     vec4 old=texture(history,source);
     vec2 texel=vec2(1./512.,0.);
@@ -32,7 +35,7 @@ void main(){
         float along=dot(d,axis), across=dot(d,vec2(-axis.y,axis.x));
         float seed=exp(-across*across/ .00025-along*along/.032);
         float pulse=.35+.65*pow(.5+.5*sin(clock*.5+n*2.),2.);
-        ink+=dt*seed*pulse*(.8+audio.x*1.2+audio.w*2.)*vec2(.65+.35*sin(n*2.),.65+.35*cos(n*3.));
+        ink+=dt*seed*pulse*(.8+tuned(audio.x,2)*1.2+tuned(audio.w,3)*2.)*vec2(.65+.35*sin(n*2.),.65+.35*cos(n*3.));
     }
     float edge=smoothstep(0.,.07,uv.x)*smoothstep(0.,.07,uv.y)*smoothstep(0.,.07,1.-uv.x)*smoothstep(0.,.07,1.-uv.y);
     field=vec4(clamp(ink,0.,1.)*edge,0.,1.);

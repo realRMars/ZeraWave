@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "target": "planet.material.ink_archipelago",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "bass_veins": 1.5727272727272728,
+    "sparkle_light": 1.3272727272727274,
+    "flux_light": 1.75
+  }
+}

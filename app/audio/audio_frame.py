@@ -17,6 +17,7 @@ class AudioFrame:
         highs_onset,
         silence_threshold=0.02,
         flux=0.0,
+        descriptors=None,
     ):
         self.bass = bass
         self.mids = mids
@@ -39,3 +40,6 @@ class AudioFrame:
         self.band12 = None
         self.spectrum_frequencies = None
         self.spectrum_magnitudes = None
+        # Opt-in sample-clock measurements. Existing live/replay callers leave
+        # this unset; rhythmic_activity above retains its legacy onset meaning.
+        self.descriptors = descriptors

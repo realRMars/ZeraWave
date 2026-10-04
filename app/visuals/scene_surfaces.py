@@ -305,7 +305,8 @@ class SurfaceStage:
   for name,present in (('cavern',cavern),('citadel',citadel)):
    if not present:continue
    if name=='cavern':
-    self.prepare_cavern(travel);eye=np.array((cavern_axis(travel),.1,travel));forward=norm((cavern_path(travel)[1],.03,1));right=norm(np.cross((0,1,0),forward));up=np.cross(forward,right);focal=1.45;bank=.045*cavern_path(travel)[1]*(1+renderer.parameters.flux*1.6);limits=(.04,55.);origin=self.cavern_origin*2.8
+    flux=renderer.audio_input(26,'camera','flux',renderer.parameters.flux) if getattr(renderer,'studio_audio',None) is not None else renderer.parameters.flux
+    self.prepare_cavern(travel);eye=np.array((cavern_axis(travel),.1,travel));forward=norm((cavern_path(travel)[1],.03,1));right=norm(np.cross((0,1,0),forward));up=np.cross(forward,right);focal=1.45;bank=.045*cavern_path(travel)[1]*(1+flux*1.6);limits=(.04,55.);origin=self.cavern_origin*2.8
    else:
     orbit=.35+time*.015+clock*.0035;approach=2.8+.20*math.sin(clock*.055);eye=np.array((approach*math.sin(orbit),1.35+.08*math.sin((time*.22+clock*.025)*.23),-approach*math.cos(orbit)));forward=norm(np.array((0,.54,0))-eye);right=norm(np.cross(forward,(0,1,0)));up=np.cross(right,forward);focal=citadel_focal(eye,forward,up);renderer.program['u_citadel_focal'].value=focal;bank=0.;limits=(1.2,4.9);origin=0.
    for k,v in {'u_eye':tuple(eye),'u_forward':tuple(forward),'u_right':tuple(right),'u_up':tuple(up),'u_focal':focal,'u_bank':bank,'u_range':limits,'u_scene':float(name=='citadel'),'u_origin':origin}.items():p[k].value=v

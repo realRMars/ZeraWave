@@ -138,13 +138,16 @@ class OriginalLoopStage:
         source=(Path(__file__).parent/'shaders/dream.frag').read_text(encoding='utf-8')
         functions=source[source.index('vec3 plasma_view('):source.index('float plasma_sphere(')]
         functions+=source[source.index('vec3 magnetic_core_position('):source.index('vec3 experimental_plasma_scene(')]
-        fragment='#version 330\nuniform float u_time,u_scale,u_flux,u_impact;\nout vec4 position;\n'+functions+'\nvec3 projected(float f,float row){vec3 q=plasma_view(plasma_loop(f,row));return vec3(q.xy/q.z*1.35,1./q.z);}\nvoid main(){int j=int(gl_FragCoord.x);float row=floor(gl_FragCoord.y);\n if(j<41){position=vec4(projected(float(j)/40.,row),1.);return;}\n vec2 low=vec2(100.),high=vec2(-100.);\n for(int i=0;i<=40;i++){vec2 q=projected(float(i)/40.,row).xy;low=min(low,q);high=max(high,q);}\n position=vec4(low,high);\n}\n'
+        audio_helpers=source[source.index('uniform ivec2 u_audio_forms;'):source.index('uniform float u_debug_state;')]
+        fragment='#version 330\nuniform float u_time,u_star_time,u_scale,u_flux,u_impact;\nout vec4 position;\n'+audio_helpers+functions+'\nvec3 projected(float f,float row){vec3 q=plasma_view(plasma_loop(f,row));return vec3(q.xy/q.z*1.35,1./q.z);}\nvoid main(){int j=int(gl_FragCoord.x);float row=floor(gl_FragCoord.y);\n if(j<41){position=vec4(projected(float(j)/40.,row),1.);return;}\n vec2 low=vec2(100.),high=vec2(-100.);\n for(int i=0;i<=40;i++){vec2 q=projected(float(i)/40.,row).xy;low=min(low,q);high=max(high,q);}\n position=vec4(low,high);\n}\n'
         self.ctx=ctx;self.program=ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=fragment)
         self.texture=ctx.texture((42,8),4,dtype='f4');self.texture.filter=(moderngl.NEAREST,moderngl.NEAREST)
         self.texture.repeat_x=self.texture.repeat_y=False;self.fbo=ctx.framebuffer(color_attachments=(self.texture,))
         self.vao=ctx.vertex_array(self.program,[(vertices,'2f','in_position')])
     def draw(self,program,size,values):
         for name,value in zip(('u_time','u_scale','u_flux','u_impact'),values):self.program[name].value=value
+        for name in ('u_audio_forms','u_form_audio_a','u_form_audio_b'):
+            if name in program and name in self.program:self.program[name].value=program[name].value[:getattr(self.program[name],'array_length',32)] if name.startswith('u_form_audio_') else program[name].value
         self.fbo.use();self.ctx.viewport=(0,0,42,8);self.vao.render(mode=moderngl.TRIANGLE_STRIP)
         self.ctx.screen.use();self.ctx.viewport=(0,0,*size);self.texture.use(13);program['u_original_paths'].value=13
     def release(self):
@@ -247,6 +250,13 @@ class Renderer:
         self.layer_profiles = {}
         # Development-only color choice; independent of materials and sessions.
         self.preview_palette = "authored"
+        self.planet_dsp_pilot = False
+        self.planet_dsp = None
+        self.planet_star_attack_pilot = False
+        self.planet_star_flight = None
+        self.planet_monitor = None
+        self.star_tuning=None;self.star_tuning_visible=False
+        self.artifact_tuning=None;self.planet_audio_tuning=None;self.planet_audio_active=False
         self.color_overrides = {}
         self.color_inbox = None
         self._color_dirty = True
@@ -376,18 +386,18 @@ class Renderer:
             dt=0.
         self.director_time+=dt
         now=self.director_time
-        energy=max(0.,min(1.,.45*self.parameters.scale
-            +.35*self.parameters.movement+.20*self.parameters.flux))
+        energy=max(0.,min(1.,.45*self.audio_input(0,'director','bass',self.parameters.scale)
+            +.35*self.audio_input(0,'director','movement',self.parameters.movement)+.20*self.audio_input(0,'director','flux',self.parameters.flux)))
         if self.director_fast is None:
             self.director_fast=self.director_slow=energy
         self.director_fast+=(energy-self.director_fast)*(1.-math.exp(-dt/.7))
         self.director_slow+=(energy-self.director_slow)*(1.-math.exp(-dt/8.))
-        impact=max(0.,min(1.,self.parameters.impact))
-        hit=impact>.35 and self.director_armed
+        impact=max(0.,min(1.,self.audio_input(0,'director','raw_impact',self.parameters.impact)))
+        hit=impact>self.transition_setting('director','hit_threshold',.35) and self.director_armed
         if impact<.12:self.director_armed=True
         elif hit:self.director_armed=False
-        lift=self.director_fast-self.director_slow>.12
-        release=self.director_slow-self.director_fast>.12
+        lift=self.director_fast-self.director_slow>self.transition_setting('director','energy_difference',.12)
+        release=self.director_slow-self.director_fast>self.transition_setting('director','energy_difference',.12)
         if self.director_current is None:
             self.director_current=self.choose_world(energy) if self.player is None else self.player.initial(lambda pool:self.choose_world(energy))
             self.director_since=now
@@ -421,11 +431,11 @@ class Renderer:
         # world/reprise budgets remain unchanged; Galaxy becomes releasable at its
         # existing route boundary (including incoming transition time).
         route_complete=self.director_current!=36 or now-self.galaxy_main_since>=PERIOD
-        if age>=self.director_min_hold and route_complete:
+        if age>=self.director_min_hold*self.transition_setting('director','min_hold_scale',1.) and route_complete:
             if lift:reason='energy lift'
             elif release:reason='release'
             elif hit and self.director_fast>.45:reason='strong hit'
-            elif age>=self.director_max_hold:reason='breathing interval'
+            elif age>=self.director_max_hold*self.transition_setting('director','max_hold_scale',1.):reason='breathing interval'
         # Only quantize an already justified opportunity. Uncertain rhythm keeps
         # the original director, and a bounded deadline prevents waiting forever.
         confidence = self.parameters.beat_confidence
@@ -436,8 +446,8 @@ class Renderer:
                 self.director_pending = None
             else:
                 reason = None
-        elif reason and confidence >= .65 and not self.parameters.beat_tick:
-            self.director_pending = (reason, now + .8)
+        elif reason and confidence >= self.transition_setting('director','beat_confidence',.65) and not self.parameters.beat_tick:
+            self.director_pending = (reason, now + self.transition_setting('director','beat_wait',.8))
             reason = None
         if self.player is not None:
             if not self.player.running or self.player.held:
@@ -467,6 +477,7 @@ class Renderer:
             self.director_recent_styles=(self.director_recent_styles+[self.director_style])[-12:]
             self.director_transition=now
             self.director_duration=self.director_rng.uniform(6.,9.) if reason!='release' else self.director_rng.uniform(8.,11.)
+            self.director_duration*=self.transition_setting(self.director_recipe,'duration_scale',1.)
             # Keep the normal RNG draw/recipe route exactly; shorten only this
             # explicit manual handoff. Automatic cycles never inherit the mode.
             if instant_bonk: self.director_duration = INSTANT_BONK_SECONDS
@@ -478,10 +489,19 @@ class Renderer:
             self.director_history=self.director_history[-64:]
         self.blend_values=world_uniforms({self.director_current:1.})
 
+    def transition_setting(self,target,key,default):
+        owner=getattr(self,'studio_audio',None)
+        return owner.model.effective('transition.'+target).get(key,default) if owner is not None else default
+
+    def audio_input(self,form,group,source,value):
+        owner=getattr(self,'studio_audio',None)
+        if owner is None:return value
+        return owner.model.value(form,'transition.'+group if form==0 else 'form.'+str(form)+'.'+group,source+'_response',value)
+
     def update_firescape_travel(self, delta_time):
         """Keep scenery moving through sustained music and short band dips."""
-        energy = max(0., min(1., max(self.parameters.scale,
-            self.parameters.movement, self.parameters.sparkle*.65)))
+        energy = max(0., min(1., max(self.audio_input(17,'travel','bass',self.parameters.scale),
+            self.audio_input(17,'travel','movement',self.parameters.movement), self.audio_input(17,'travel','sparkle',self.parameters.sparkle)*.65)))
         target = self.FLOW_FLOOR + 3.*energy*energy
         tau = .25 if target>self.firescape_rate else 3.
         ease = 1.-math.exp(-max(0.,delta_time)/tau)
@@ -497,7 +517,7 @@ class Renderer:
         self.blast_retire={e[1]:self.blast_retire[e[1]] for e in self.blast_events if e[1] in self.blast_retire}
         visible = self.state_at(seconds)==18 or (self.blend_values['u_directed']
             and self.blend_values['u_world_mix'][3]*self.blend_values['u_fire_mix'][3]>.15)
-        impact=max(0.,min(1.,self.parameters.impact))
+        impact=max(0.,min(1.,self.audio_input(18,'births','raw_impact',self.parameters.impact)))
         if impact<.08:self.blast_armed=True
         if not visible:
             self.blast_hits=0
@@ -530,7 +550,8 @@ class Renderer:
         """Remember strong-hit rings; no audio analysis or second simulation."""
         self.shockwaves = [event for event in self.shockwaves
                            if 0. <= seconds - event[0] < 8.]
-        impact = max(0., min(1., self.parameters.impact))
+        impact = max(0., min(1., self.audio_input(18,'births','raw_impact',self.parameters.impact)))
+
         if impact < .14:
             self.shockwave_armed = True
         if ((self.state_at(seconds) == 18 or (self.blend_values['u_directed']
@@ -704,6 +725,10 @@ class Renderer:
             program['history'].value = 0
             program['audio'].value = (self.parameters.scale, self.parameters.flux,
                                       self.parameters.sparkle, self.parameters.impact)
+            tuning=getattr(self,'planet_audio_tuning',None)
+            owner=getattr(self,'studio_audio',None)
+            gains=owner.shared_gains('material.echo_weave') if owner is not None else tuning.packed_gains('planet.material.echo_weave',getattr(self,'planet_audio_active',False)) if tuning is not None else (1.,)*4
+            program['audio_tuning_on'].value=int(any(g!=1. for g in gains));program['audio_gains'].value=gains
             while self.echo_remainder >= 1./60.-1e-9:
                 self.echo_clock += 1./60.
                 program['clock'].value = self.echo_clock
@@ -766,6 +791,67 @@ class Renderer:
         if pcm.ndim>1:pcm=pcm.mean(axis=1)
         for start in range(0,len(pcm),2048):self.cymatics.advance(pcm[start:start+2048])
 
+    def planet_dsp_eligible(self):
+        if not self.planet_dsp_pilot:
+            return False
+        owner=getattr(self,'studio_audio',None)
+        if owner is not None:return 5 in owner.endpoint['active']
+        from planet_canvas_dsp import held_planet
+        return held_planet(self.planet_dsp_pilot, self.debug_state,
+                          self.debug_sequence, self.transition_sequence,
+                          self.transition_settings)
+
+    def reset_planet_dsp(self):
+        if self.planet_dsp is not None:
+            self.planet_dsp.reset()
+
+    def accept_planet_audio(self, frame, source_id=None):
+        # Called once per incoming analysis frame, never by render polling.
+        if not self.planet_dsp_eligible():
+            self.reset_planet_dsp()
+            return
+        if self.planet_dsp is None:
+            from planet_canvas_dsp import PlanetCanvasDSP
+            self.planet_dsp = PlanetCanvasDSP()
+        self.planet_dsp.observe(frame.descriptors, source_id)
+
+    def planet_spatial_amounts(self, base, rewound=False):
+        if rewound or not self.planet_dsp_eligible():
+            self.reset_planet_dsp()
+            return base
+        return self.planet_dsp.apply(base) if self.planet_dsp is not None else base
+
+    def planet_star_attack_eligible(self):
+        if not self.planet_star_attack_pilot:
+            return False
+        owner=getattr(self,'studio_audio',None)
+        if owner is not None:return 5 in owner.endpoint['active']
+        from planet_star_attack import held_planet
+        return held_planet(self.planet_star_attack_pilot, self.debug_state,
+                          self.debug_sequence, self.transition_sequence,
+                          self.transition_settings)
+
+    def reset_planet_star_attack(self):
+        if self.planet_star_flight is not None:
+            self.planet_star_flight.reset()
+
+    def accept_planet_star_audio(self, frame, source_id=None):
+        if not self.planet_star_attack_eligible():
+            self.reset_planet_star_attack()
+            return
+        if self.planet_star_flight is None:
+            from planet_star_attack import PlanetStarFlight
+            self.planet_star_flight = PlanetStarFlight()
+        self.planet_star_flight.observe(getattr(frame, 'planet_star_audio', None), source_id)
+
+    def planet_star_motion(self, delta_time, rewound=False):
+        if not self.planet_star_attack_eligible():
+            self.reset_planet_star_attack()
+            return (0.,self.star_time,0.)
+        if self.planet_star_flight is None:
+            return (0.,self.star_time,0.)
+        return self.planet_star_flight.advance(delta_time,getattr(self,'_planet_star_time',self.star_time),rewound)
+
     def render(self, elapsed_time=None):
         if self.window is None:
             raise RuntimeError("Renderer has not been created")
@@ -782,6 +868,8 @@ class Renderer:
             time.perf_counter() - self.start_time
             if elapsed_time is None else elapsed_time
         )
+        normal_owner=getattr(self,'studio_audio',None)
+        if normal_owner is not None and elapsed_time is None:current_time=normal_owner.audition.poll(current_time)
         rewound = self.last_render_time is not None and current_time < self.last_render_time
         if self.last_render_time is None:
             delta_time = 0.0
@@ -797,17 +885,57 @@ class Renderer:
         # River Flow: movement sets a target current speed within a
         # bounded range, eased toward, then integrated over time.
         # Saturated movement is the strongest current, not a runaway clock.
+        from planet_canvas_dsp import held_planet
+        planet_active=held_planet(True,self.debug_state,self.debug_sequence,self.transition_sequence,self.transition_settings)
+        studio_audio=getattr(self,'studio_audio',None)
+        if studio_audio is not None:
+            mode=layers_at(self.layer_profiles,self.state_at(current_time),current_time)[0]
+            self.update_blend(current_time,delta_time,self.state_at(current_time)==0 and mode!=0)
+            studio_audio.prepare(current_time)
+            studio_audio.guard_history(rewound)
+            planet_active=5 in studio_audio.endpoint['active']
+        planet_tuning=getattr(self,'planet_audio_tuning',None)
+        self.planet_audio_active=planet_active
+        if planet_tuning is not None and self.color_inbox:
+            for pending in self.color_inbox.take_planet_tuning():planet_tuning.submit(*pending)
+        star_settings={}
+        tuning=getattr(self,'star_tuning',None)
+        if tuning is not None:
+            if not self.planet_star_attack_eligible():tuning.apply_without_detector()
+            from band_attack_tuning import effective
+            with tuning.lock:star_settings=dict(effective(tuning.settings,tuning.authored))
+        from planet_audio_tuning import UNIFORM_ROWS
+        audio_inputs=dict(bass=self.parameters.scale,movement=self.parameters.movement,flux=self.parameters.flux,
+                          sparkle=self.parameters.sparkle,impact=self.impact_envelope,raw_impact=self.parameters.impact)
+        audio_mode=layers_at(self.layer_profiles,self.state_at(current_time),current_time)[0]
+        if studio_audio is not None:
+            ids,rows_a,rows_b=studio_audio.resolve(audio_inputs,delta_time,rewound,audio_mode)
+            self.program['u_audio_forms'].value=ids
+            self.program['u_audio_primary'].value=studio_audio.endpoint['primary'] or 0
+            self.program['u_transition_audio'].value=(self.audio_input(0,'tr_warp','bass',self.parameters.scale),self.audio_input(0,'tr_warp','flux',self.parameters.flux),1.,0.)
+            self.program['u_form_audio_a'].value=rows_a[:getattr(self.program['u_form_audio_a'],'array_length',32)];self.program['u_form_audio_b'].value=rows_b[:getattr(self.program['u_form_audio_b'],'array_length',32)]
+        planet_audio_on,planet_audio_rows=planet_tuning.resolve(planet_active,star_settings,audio_inputs,delta_time,audio_mode,rewound) if planet_tuning is not None else (0,[(1.,1.,1.,1.)]*UNIFORM_ROWS)
+        flow_local=planet_tuning.local_sources('planet.surface_response',audio_inputs) if planet_tuning is not None else audio_inputs
+        star_local=planet_tuning.local_sources('planet.starfield',audio_inputs) if planet_tuning is not None else audio_inputs
+        clock_flux_gain=star_settings.get('flux_clock',1.) if planet_active else 1.
+        clock_sparkle_gain=star_settings.get('sparkle_clock',1.) if planet_active else 1.
         movement = max(0.0, min(1.0, self.parameters.movement))
+        flow_gains=planet_tuning.gains('planet.surface_response',planet_active)[2:] if planet_tuning is not None else (1.,1.,1.)
+        clock_movement_source=flow_local['movement'] if planet_tuning is not None and planet_tuning.listening_details['planet.surface_response']['movement']['enabled'] else movement
+        clock_movement=max(0.,min(1.,clock_movement_source*flow_gains[0]))
         target_rate = (
             self.FLOW_FLOOR
-            + (self.FLOW_CEILING - self.FLOW_FLOOR) * movement
+            + (self.FLOW_CEILING - self.FLOW_FLOOR) * clock_movement
         )
 
         # Strong passages have headroom beyond the old 1.15 ceiling. Integrate
         # speed, never multiply accumulated time by an instantaneous signal.
         drive = max(0.,min(1.,.45*movement+.35*self.parameters.flux+.20*self.parameters.scale))
+        if planet_tuning is not None and any(planet_tuning.listening_details['planet.surface_response'].get(name,{}).get('enabled') for name in ('movement','flux','bass')):drive=flow_local['flow_drive']
+        drive=max(0.,min(1.,drive*flow_gains[1]))
         target_rate *= 1.+2.2*drive*drive
-        target_rate = min(4.,target_rate + self.impact_envelope*.45)
+        clock_impact=flow_local['impact'] if flow_gains[2]==1. else max(0.,min(1.,flow_local['impact']*flow_gains[2]))
+        target_rate = min(4.,target_rate + clock_impact*.45)
         smoothing = .20 if target_rate>self.flow_rate else self.FLOW_SMOOTHING_SECONDS
         if delta_time <= 0.0:
             ease = 1.0
@@ -816,6 +944,20 @@ class Renderer:
                 -delta_time / smoothing
             )
 
+        if studio_audio is not None:
+            if planet_active and (not getattr(self,'_planet_clock_present',False) or rewound):
+                self._planet_flow_time=self.flow_time;self._planet_flow_rate=self.flow_rate
+            if planet_active:
+                planet_tau=.20 if target_rate>self._planet_flow_rate else self.FLOW_SMOOTHING_SECONDS
+                planet_ease=1. if delta_time<=0. else 1.-math.exp(-delta_time/planet_tau)
+                self._planet_flow_rate+=(target_rate-self._planet_flow_rate)*planet_ease
+                self._planet_flow_time+=delta_time*self._planet_flow_rate
+            # Other forms keep the original shared clock, independent of Planet gains.
+            legacy_drive=max(0.,min(1.,.45*movement+.35*self.parameters.flux+.20*self.parameters.scale))
+            target_rate=(self.FLOW_FLOOR+(self.FLOW_CEILING-self.FLOW_FLOOR)*movement)*(1.+2.2*legacy_drive*legacy_drive)
+            target_rate=min(4.,target_rate+self.impact_envelope*.45)
+            smoothing=.20 if target_rate>self.flow_rate else self.FLOW_SMOOTHING_SECONDS
+            ease=1. if delta_time<=0. else 1.-math.exp(-delta_time/smoothing)
         self.flow_rate += (target_rate - self.flow_rate) * ease
         self.flow_time += delta_time * self.flow_rate
         self.update_firescape_travel(delta_time)
@@ -824,9 +966,20 @@ class Renderer:
         # Star motion has its own positive, eased clock. Chorus energy can
         # accelerate it, but never reverse or teleport the accumulated angle.
         star_drive = (
-            0.70 * max(0.0, min(1.0, self.parameters.flux))
-            + 0.30 * max(0.0, min(1.0, self.parameters.sparkle))
+            0.70 * max(0.0, min(1.0, star_local['flux']*clock_flux_gain))
+            + 0.30 * max(0.0, min(1.0, star_local['sparkle']*clock_sparkle_gain))
         )
+        if studio_audio is not None:
+            if planet_active and (not getattr(self,'_planet_clock_present',False) or rewound):
+                self._planet_star_time=self.star_time;self._planet_star_rate=self.star_rate
+            if planet_active:
+                planet_chorus=max(0.,min(1.,(star_drive-.72)/.24));planet_chorus=planet_chorus*planet_chorus*(3.-2.*planet_chorus)
+                planet_rate=1.+.75*planet_chorus
+                planet_ease=1. if delta_time<=0. else 1.-math.exp(-delta_time/.8)
+                self._planet_star_rate+=(planet_rate-self._planet_star_rate)*planet_ease
+                self._planet_star_time+=delta_time*self._planet_star_rate
+            self._planet_clock_present=planet_active
+            star_drive=.70*max(0.,min(1.,self.parameters.flux))+.30*max(0.,min(1.,self.parameters.sparkle))
         if self.state_at(current_time) == 36 or self.blend_values.get('u_galaxy_weight',0.)>0.:
             # Galaxy uses normalized visual movement/bass for positive orbital
             # flow; raw flux alone rarely reaches the shared chorus threshold.
@@ -846,8 +999,8 @@ class Renderer:
             self.galaxy_peak = 0.
             self.galaxy_release = 0.
         if self.state_at(current_time) == 36 or self.blend_values.get('u_galaxy_weight',0.)>0.:
-            level = max(0., min(1., .40*self.parameters.scale
-                + .35*self.parameters.flux + .25*self.parameters.sparkle))
+            level = max(0., min(1., .40*self.audio_input(36,'events','bass',self.parameters.scale)
+                + .35*self.audio_input(36,'events','flux',self.parameters.flux) + .25*self.audio_input(36,'events','sparkle',self.parameters.sparkle)))
             if self.last_render_time is not None and delta_time > 0.:
                 self.galaxy_peak = max(level, self.galaxy_peak * math.exp(-delta_time / 12.))
                 gap = max(0., min(1., (self.galaxy_peak-level-.10)/.45))
@@ -870,15 +1023,15 @@ class Renderer:
             if rewound:self.stellar_event_id=0
         else:
             self.stellar_events=[event for event in self.stellar_events if current_time-event[0]<10.]
-            if self.parameters.impact<.08:self.stellar_armed=True
-            transient=self.parameters.impact>.20 and self.stellar_armed
+            if self.audio_input(36,'events','raw_impact',self.parameters.impact)<.08:self.stellar_armed=True
+            transient=self.audio_input(36,'events','raw_impact',self.parameters.impact)>.20 and self.stellar_armed
             # Sustained nonpercussive music can germinate a nursery too; this
             # uses existing scale/flux, without claiming phrase recognition.
             sustained=level>.52 and current_time-self.stellar_last_event>9.
             if (transient or sustained) and current_time-self.stellar_last_event>.32:
                 self.stellar_event_id+=1
                 self.stellar_events.append((current_time,self.stellar_event_id*2.399963,
-                    (self.stellar_event_id%3)/2.,min(1.,.35+level*.40+self.parameters.impact*.65)))
+                    (self.stellar_event_id%3)/2.,min(1.,.35+level*.40+self.audio_input(36,'events','raw_impact',self.parameters.impact)*.65)))
                 self.stellar_events=self.stellar_events[-8:]
                 self.stellar_last_event=current_time
                 if transient:self.stellar_armed=False
@@ -887,8 +1040,12 @@ class Renderer:
         self.program['u_stellar_layers'].value=stellar_layers_at(self.layer_profiles,state,current_time)
 
         self.program["u_time"].value = visual_time
+        self.program['u_planet_time'].value=getattr(self,'_planet_flow_time',visual_time) if studio_audio is not None and planet_active else visual_time
+        self.program['u_planet_star_time'].value=getattr(self,'_planet_star_time',self.star_time) if studio_audio is not None and planet_active else self.star_time
         self.program["u_firescape_travel"].value = self.firescape_travel
         self.program["u_star_time"].value = self.star_time
+        star_flight = self.planet_star_motion(delta_time,rewound)
+        self.program['u_planet_star_flight'].value = star_flight
         self.program["u_drift_time"].value = current_time
         self.program["u_resolution"].value = (
             float(width),
@@ -915,6 +1072,23 @@ class Renderer:
         self.program['u_air_afterglow'].value = self.air_afterglow
         self.program['u_air_trails'].value = self.air_trails + [(0.,0.)] * (3-len(self.air_trails))
         self.program["u_flux"].value = self.parameters.flux
+        self.program['u_planet_audio_on'].value=planet_audio_on
+        self.program['u_planet_audio'].value=planet_audio_rows
+        artifact=getattr(self,'artifact_tuning',None)
+        if artifact is not None:
+            artifact_update=self.color_inbox.take_artifact_tuning() if self.color_inbox else None
+            if artifact_update is not None:artifact.submit(*artifact_update)
+        from planet_canvas_dsp import held_planet
+        artifact_active=held_planet(True,self.debug_state,self.debug_sequence,
+            self.transition_sequence,self.transition_settings)
+        if studio_audio is not None:artifact_active=planet_active
+        artifact_on,artifact_gains=artifact.resolve(artifact_active,audio_inputs,delta_time,rewound) if artifact is not None else (0,(1.,1.,1.))
+        self.program['u_artifacts_tuning_on'].value=artifact_on
+        self.program['u_artifacts_audio'].value=artifact_gains
+        self.program['u_artifacts_shape_audio'].value=artifact.shape_gains(artifact_active) if artifact is not None else (1.,1.,1.)
+        artifact_listening_on,artifact_listening_inputs=artifact.listening(artifact_active) if artifact is not None else ((0,0,0,0),(0.,0.,0.,0.))
+        self.program['u_artifacts_listening_on'].value=artifact_listening_on
+        self.program['u_artifacts_listening_inputs'].value=artifact_listening_inputs
         self.program["u_debug_state"].value = float(state-6 if state in (38,39,40) else state)
         self.program['u_plasma_experimental'].value=int(state in (38,39,40))
         if self.state_at(current_time)==37:
@@ -934,19 +1108,27 @@ class Renderer:
         self.program['u_layer_mask'].value = mask
         self.program['u_daddy_long_legs'].value = daddy_long_legs_at(
             self.layer_profiles, self.state_at(current_time), current_time)
-        self.program['u_shooting_stars'].value = shooting_stars_at(
+        shooting_stars = shooting_stars_at(
             self.layer_profiles, self.state_at(current_time), current_time)
+        self.program['u_shooting_stars'].value = shooting_stars
         self.program['u_fog_details'].value = fog_details_at(
             self.layer_profiles, self.state_at(current_time), current_time)
         self.program['u_plasma_details'].value = plasma_details_at(
             self.layer_profiles, self.state_at(current_time), current_time)
         self.program['u_earth_details'].value = earth_details_at(
             self.layer_profiles, self.state_at(current_time), current_time)
-        self.program['u_spatial_treatments'].value = treatment_weights(self.layer_profiles, self.state_at(current_time), current_time, SPATIAL_TREATMENTS)
-        self.program['u_new_materials'].value = material_weights(self.layer_profiles, self.state_at(current_time), current_time)[4:]
-        self.program['u_material_mix'].value = materials_at(
+        spatial_amounts = treatment_weights(self.layer_profiles, self.state_at(current_time), current_time, SPATIAL_TREATMENTS)
+        spatial_base=spatial_amounts
+        if self.planet_dsp_pilot or self.planet_dsp is not None:
+            spatial_amounts = self.planet_spatial_amounts(spatial_amounts, rewound)
+        self.program['u_planet_spatials'].value=spatial_amounts
+        self.program['u_spatial_treatments'].value = spatial_base if studio_audio is not None else spatial_amounts
+        new_materials = material_weights(self.layer_profiles, self.state_at(current_time), current_time)[4:]
+        self.program['u_new_materials'].value = new_materials
+        material_mix = materials_at(
             self.layer_profiles, self.state_at(current_time), current_time)
-        self.update_blend(current_time, delta_time, self.state_at(current_time) == 0 and mode != 0)
+        self.program['u_material_mix'].value = material_mix
+        if studio_audio is None:self.update_blend(current_time, delta_time, self.state_at(current_time) == 0 and mode != 0)
         present=state==36 or self.blend_values.get('u_galaxy_weight',0.)>0.
         self.update_galaxy_visit(present,delta_time,state==36,rewound)
         if present:
@@ -960,8 +1142,8 @@ class Renderer:
         earth_present=state in (24,25,26,27) or self.blend_values.get('u_earth_weight',0.)>0.
         if state==0 and not cavern_present:mineral_amount=0.
         travel=(visual_time*3.+current_time*.035)*1.35
-        motion=self.mineral_response.advance(current_time,delta_time,self.parameters.scale,
-            self.parameters.movement,self.parameters.sparkle,self.parameters.impact,travel,
+        motion=self.mineral_response.advance(current_time,delta_time,self.audio_input(26,'resonance','bass',self.parameters.scale),
+            self.audio_input(26,'resonance','movement',self.parameters.movement),self.audio_input(26,'resonance','sparkle',self.parameters.sparkle),self.audio_input(26,'resonance','raw_impact',self.parameters.impact),travel,
             earth_present and mineral_amount>0.)
         mineral_surface=(motion[0],motion[1],motion[2]*mineral_amount,motion[3]*mineral_amount)
         self.program['u_mineral_motion'].value=mineral_surface
@@ -983,8 +1165,8 @@ class Renderer:
         from preview_layers import tower_cadence_at
         citadel_present=(state==22 or (state==23 and current_time%144.>=95.4)) or (self.blend_values.get('u_air_weight',0.)>0. and self.blend_values['u_air_mix'][3]>0.)
         tower_amount=tower_cadence_at(self.layer_profiles,state,current_time)
-        tower=self.tower_cadence.advance(current_time,delta_time,self.parameters.scale,self.parameters.movement,
-            self.parameters.sparkle,self.parameters.impact,citadel_present and tower_amount>0.)
+        tower=self.tower_cadence.advance(current_time,delta_time,self.audio_input(22,'cadence','bass',self.parameters.scale),self.audio_input(22,'cadence','movement',self.parameters.movement),
+            self.audio_input(22,'cadence','sparkle',self.parameters.sparkle),self.audio_input(22,'cadence','raw_impact',self.parameters.impact),citadel_present and tower_amount>0.)
         self.program['u_tower_motion'].value=tower
         self.program['u_tower_events'].value=self.tower_cadence.fronts()
         self.program['u_tower_visit'].value=float(self.tower_cadence.visit)
@@ -1051,7 +1233,7 @@ class Renderer:
         marsh_present=(state==29 or (state==31 and 26.6<=current_time%114.<76.)) or (self.blend_values.get('u_fog_weight',0.)>0. and self.blend_values.get('u_fog_mix',(0.,0.,0.))[1]>0.)
         marsh_amount=ghostlight_memory_at(self.layer_profiles,state,current_time)
         marsh_travel=visual_time*3.2+current_time*.04
-        marsh=self.marsh_response.advance(current_time,delta_time,self.parameters.scale,self.parameters.movement,self.parameters.sparkle,self.parameters.flux,self.parameters.impact,marsh_travel,marsh_present and marsh_amount>0.)
+        marsh=self.marsh_response.advance(current_time,delta_time,self.audio_input(29,'memory','bass',self.parameters.scale),self.audio_input(29,'memory','movement',self.parameters.movement),self.audio_input(29,'memory','sparkle',self.parameters.sparkle),self.audio_input(29,'memory','flux',self.parameters.flux),self.audio_input(29,'memory','raw_impact',self.parameters.impact),marsh_travel,marsh_present and marsh_amount>0.)
         self.program['u_marsh_cached'].value=int(marsh_present)
         self.program['u_marsh_motion'].value=(marsh[0]*marsh_amount,marsh[1]*marsh_amount,marsh[2],marsh[3]*marsh_amount)
         if marsh_present:
@@ -1063,7 +1245,7 @@ class Renderer:
         molten_present=(state==15 or (state==16 and 19.<=current_time%84.<56.)) or (self.blend_values.get('u_world_mix',(0.,0.,0.,0.))[3]>0. and self.blend_values.get('u_fire_mix',(0.,0.,0.,0.))[1]>0.)
         molten_amount=current_memory_at(self.layer_profiles,state,current_time)
         began_molten=time.perf_counter()
-        molten=self.molten_memory.advance(current_time,delta_time,self.parameters.scale,self.parameters.movement,self.parameters.sparkle,self.parameters.flux,self.parameters.impact,molten_present and molten_amount>0.)
+        molten=self.molten_memory.advance(current_time,delta_time,self.audio_input(15,'memory','bass',self.parameters.scale),self.audio_input(15,'memory','movement',self.parameters.movement),self.audio_input(15,'memory','sparkle',self.parameters.sparkle),self.audio_input(15,'memory','flux',self.parameters.flux),self.audio_input(15,'memory','raw_impact',self.parameters.impact),molten_present and molten_amount>0.)
         self.program['u_molten_motion'].value=tuple(v*molten_amount for v in molten)
         self.program['u_molten_phase'].value=self.molten_memory.phase
         self.program['u_molten_growth'].value=self.molten_memory.development
@@ -1086,7 +1268,21 @@ class Renderer:
         self.update_echo(current_time, echo_weave_at(self.layer_profiles, self.state_at(current_time), current_time),
                          echo_selected(self.layer_profiles, self.state_at(current_time)))
         update = self.color_inbox.take() if self.color_inbox else None
-        if update is not None: self.set_colors(update[1])
+        if self.planet_monitor is not None and self.color_inbox:
+            monitor_update = self.color_inbox.take_monitor()
+            if monitor_update is not None:self.planet_monitor.enable(monitor_update)
+        if self.star_tuning is not None and self.color_inbox:
+            tuning_update=self.color_inbox.take_star_tuning()
+            if tuning_update is not None:self.star_tuning.submit(*tuning_update)
+            view_update=self.color_inbox.take_star_view()
+            if view_update is not None:
+                self.star_tuning_visible=view_update
+                spectrum=getattr(self,'star_spectrum',None)
+                if spectrum is not None:spectrum.enable(view_update)
+                if view_update:self.star_tuning.reset_view(self.planet_star_flight.event_count if self.planet_star_flight else 0)
+        if update is not None:
+            self.set_colors(update[1])
+            self._color_applied_revision=update[0]
         state = self.state_at(current_time)
         active = tuple(target.id for target in targets_for(STATE_COLOR_SCENE[state]))
         if present and state!=36:active=tuple(dict.fromkeys(active+tuple(t.id for t in targets_for('galaxy'))))
@@ -1138,7 +1334,8 @@ class Renderer:
                 if self.enveloper_stage is None:
                     self.enveloper_stage=EnveloperStage(self.ctx,self.vertices,VERTEX_SHADER)
                 self.enveloper_stage.draw(self.program,self.vao,(width,height),current_time,state,weights,
-                    self.parameters,color_uniforms(self.color_overrides,active,current_time))
+                    self.parameters,color_uniforms(self.color_overrides,active,current_time),
+                    audio_gains=tuple(studio_audio.shared_gains('enveloper.'+key) if studio_audio is not None else planet_tuning.packed_gains('planet.enveloper.'+key,planet_active) if planet_tuning is not None else (1.,1.) for key in ('prism_assembly','digital_bloom','chromatic_memory')))
             except Exception as exc:
                 if self.enveloper_stage:self.enveloper_stage.release();self.enveloper_stage=None
                 self.enveloper_failed=True
@@ -1157,6 +1354,65 @@ class Renderer:
             self.galaxy_last_status=current_time
         if update is not None:
             self.color_inbox.applied(update[0], current_time, self.echo_clock)
+        if self.planet_monitor is not None and self.planet_monitor.enabled:
+            # Exact CPU submission values above; no uniform getters / GPU readback.
+            from planet_mapping_monitor import PREFIX
+            packet = self.planet_monitor.packet(current_time,
+                dict(u_scale=self.parameters.scale,u_sparkle=self.parameters.sparkle,
+                     u_impact=self.impact_envelope,u_flux=self.parameters.flux,
+                     u_star_time=self.star_time,u_planet_star_flight=star_flight,
+                     background_star_rate=self.planet_star_flight.rate if star_flight[0] else self.star_rate,
+                     u_shooting_stars=shooting_stars,u_spatial_treatments=spatial_amounts,
+                     u_material_mix=material_mix,u_new_materials=new_materials,
+                     u_echo_weave=self.echo_weight,envelopers=weights,
+                     enveloper_failed=self.enveloper_failed),
+                dict(surface_pilot=self.planet_dsp_eligible(),star_pilot=self.planet_star_attack_eligible(),
+                     spatial_base=treatment_weights(self.layer_profiles,state,current_time,SPATIAL_TREATMENTS),
+                     color_revision=getattr(self,'_color_applied_revision',None)))
+            if packet is not None:print(PREFIX+packet,flush=True)
+        if self.star_tuning is not None and self.star_tuning_visible:
+            from starfield_tuning import PREFIX as STAR_PREFIX,MAX_PACKET as STAR_MAX_PACKET
+            flight=self.planet_star_flight
+            data=self.star_tuning.status(flight.event_count if flight else 0,flight.phase if flight else None)
+            if data is not None:
+                spectrum=getattr(self,'star_spectrum',None)
+                data.update(spectrum=spectrum.snapshot() if spectrum is not None else None,
+                            spectrum_error=spectrum.error if spectrum is not None else None)
+                data.update(version=1,pilot_active=self.planet_star_attack_eligible(),
+                            presentation_active=planet_active,rendered_wall=time.perf_counter(),
+                            render_sample_seconds=flight.last_audio_time if flight else None,
+                            last_accepted_sample=flight.last_attack if flight and math.isfinite(flight.last_attack) else None)
+                if not data['pilot_active']:data['state']='presentation gains applied; attack detector inactive'
+                artifact=getattr(self,'artifact_tuning',None)
+                if artifact is not None:
+                    from planet_canvas_dsp import held_planet
+                    active=held_planet(True,self.debug_state,self.debug_sequence,self.transition_sequence,self.transition_settings)
+                    inputs=tuple(max(0.,min(1.,v)) for v in (self.parameters.flux,self.impact_envelope,self.parameters.sparkle))
+                    data['artifact_tuning']=artifact.status(active,inputs,current_time,
+                        spectrum is not None and spectrum.meta is not None,bass=getattr(self.parameters,'scale',0.))
+                if planet_tuning is not None:
+                    data['listening']=planet_tuning.listening['planet.starfield'].details(planet_tuning.star_settings,('flux','sparkle','impact'),planet_active)
+                    from planet_audio_tuning import contribution_state
+                    data['planet_tuning']=planet_tuning.status(planet_active,
+                        dict(bass=self.parameters.scale,movement=self.parameters.movement,flux=self.parameters.flux,sparkle=self.parameters.sparkle,impact=self.impact_envelope,raw_impact=self.parameters.impact),
+                        mode,contribution_state(mode,mask,material_mix,new_materials,self.echo_weight,spatial_amounts,weights,shooting_stars,self.enveloper_failed))
+                packet=json.dumps(data,separators=(',',':'),allow_nan=False)
+                if len(packet.encode())>STAR_MAX_PACKET:
+                    data.update(spectrum=None,spectrum_error='Spectrum packet exceeded the bounded transport limit')
+                    packet=json.dumps(data,separators=(',',':'),allow_nan=False)
+                print(STAR_PREFIX+packet,flush=True)
+        if studio_audio is not None:
+            from studio_audio import PREFIX as AUDIO_PREFIX,MAX_PACKET as AUDIO_MAX_PACKET
+            from preview_layers import BITS
+            studio_audio.availability(mode,mask,material_mix,new_materials,self.echo_weight,spatial_amounts,weights,shooting_stars,self.enveloper_failed,
+                {'roots.blossoms':mode==0 or bool(mask & BITS['blossoms']),
+                 'form.26.resonance':mineral_amount>0.,'form.22.cadence':tower_amount>0.,
+                 'form.15.memory':molten_amount>0.,'form.29.memory':marsh_amount>0.,
+                 'form.29.lamps':marsh_amount<=0.})
+            packet=studio_audio.snapshot(current_time)
+            if packet is not None:
+                raw=json.dumps(packet,separators=(',',':'),allow_nan=False)
+                if len(raw.encode('utf8'))<=AUDIO_MAX_PACKET:print(AUDIO_PREFIX+raw,flush=True)
 
     def should_close(self):
         return glfw.window_should_close(self.window)

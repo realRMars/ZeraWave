@@ -1,6 +1,6 @@
 # ZeraWave engineering and creative working agreement
 
-Version: 1.2 - 2026-10-02 (checkpoint and coordination reconciliation)
+Version: 1.3 - 2026-10-04 (settled assignment route)
 Project: ZeraWave
 Root: `C:\ZeraWave`
 
@@ -211,21 +211,30 @@ derive tiers/LOD from measurement. No assumed FPS/device minimum.
 
 ### Approved assignment and review route
 
-1. Establish the user's scope, preservation boundaries and review gate.
-2. The designated Prompter prepares the assignment brief; Bob approves it before
-   dispatch to the sole implementation builder.
-3. The builder completes and internally refines the authorized work, then returns
-   actual results with source/diff identity, evidence and remaining limitations.
-4. The designated Prompter prepares the actual-results review brief; Bob approves
-   it before dispatch to the critic.
-5. The critic performs the bounded, source-bound review. Corrections stay within
-   the approved findings and brief; a new scope returns through Prompter and Bob.
-6. Robert owns user acceptance. Review scores, technical checks and user
-   acceptance remain separate; no indefinite automatic fix/rescore loop.
+1. Robert brainstorms until he signals readiness to prepare an assignment.
+   Discussion is not implementation authorization.
+2. Bob organizes the requirements, intended result, preservation boundaries and
+   open questions without silently narrowing the requested experience.
+3. The visible, persistent Prompter prepares a coherent brief from those
+   requirements; do not substitute an undisclosed worker or dispatch a builder.
+4. Bob and Robert review the brief for completeness, contradictions and scope.
+   Resolve missing requirements before the coherent, authorized prompt is sent
+   to the sole Builder. Read-only analysis and prompt preparation do not grant
+   implementation, shared-document ownership or dispatch authority.
+5. The Builder completes and internally refines that authorized scope, then
+   returns actual results with source/diff identity, evidence and limitations.
+6. The Prompter prepares the actual-results review brief; Bob approves it before
+   an authorized critic dispatch. A completed build does not itself dispatch one.
+7. The critic performs the bounded, source-bound review. Corrections stay within
+   approved findings and scope; a new scope returns through Prompter and Bob.
+8. Robert owns user acceptance. Technical checks, critic scores and artistic
+   acceptance stay separate; no indefinite automatic fix/rescore loop.
 
-Do not add workers, dispatch a critic, or start the next phase merely because a
-skill was read. Internal implementation steps do not each require another user
-approval. Follow the current assignment's actual handoff and review boundary.
+Do not add workers, dispatch a critic, or start a phase merely because a skill
+was read or a prompt was drafted. Existing explicit user authorization governs
+the assigned scope; this route does not require repeated approval for internal
+implementation steps or reopen an already approved brief. Follow the current
+handoff/review boundary and section 16 document ownership.
 
 ### Project skills: explicitly load the applicable file
 

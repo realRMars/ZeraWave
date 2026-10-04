@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "target": "planet.spatial.nested_windows",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "bass_drive": 0.7045454545454546,
+    "flux_drive": 1.2
+  }
+}

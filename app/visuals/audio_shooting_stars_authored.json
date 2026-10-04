@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "target": "planet.shooting_stars",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "sparkle_light": 1.8363636363636364,
+    "impact_light": 1.6954545454545455
+  }
+}

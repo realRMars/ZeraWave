@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "target": "planet.material.cellular_mosaic",
+  "kind": "authored",
+  "name": "Authored",
+  "values": {
+    "bass_body": 1.75,
+    "sparkle_seams": 0.7272727272727273,
+    "flux_seams": 1.3227272727272728
+  }
+}

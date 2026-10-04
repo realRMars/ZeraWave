@@ -30,7 +30,7 @@ from signal_processor import SignalProcessor, VisualSignalConditioner
 
 
 def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
-           capture_dir=None, capture_interval=15.0, states=None, layers=None, seed=None, palette="authored", comparison_label=None, colors=None, color_input=False, galaxy_visit=0, galaxy_short=False, transitions=None):
+           capture_dir=None, capture_interval=15.0, states=None, layers=None, seed=None, palette="authored", comparison_label=None, colors=None, color_input=False, galaxy_visit=0, galaxy_short=False, transitions=None, planet_dsp_pilot=False, planet_star_attack_pilot=False):
     if palette not in ("authored", "soft-dream"):
         raise ValueError("Unknown preview palette")
     if not math.isfinite(speed) or speed < 0:
@@ -64,7 +64,19 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
         renderer.debug_sequence = tuple(LIVE_STATES[name] for name in (states or ()))
         renderer.layer_profiles = validate_layers(layers or {})
         renderer.configure_transitions(transitions)
+        renderer.planet_dsp_pilot = planet_dsp_pilot
+        pilot = renderer.planet_dsp_eligible()
+        renderer.planet_star_attack_pilot = planet_star_attack_pilot
+        star_pilot = bool(planet_star_attack_pilot and renderer.planet_star_attack_eligible())
         configure_colors(renderer, colors, color_input)
+        if color_input:
+            from planet_mapping_monitor import configure
+            configure(renderer, 'REPLAY', str(Path(path).resolve()))
+        if color_input or star_pilot or renderer.debug_state==5:
+            from starfield_tuning import configure as configure_star_tuning,observe_spectrum
+            configure_star_tuning(renderer,analyzer,normal=color_input)
+            if getattr(renderer,'studio_audio',None) is not None:star_pilot=True
+            if getattr(renderer,'studio_audio',None) is not None and renderer.planet_dsp_pilot:pilot=True
         rows = []
         chunk = 2048
         song_time = 0.0
@@ -75,10 +87,54 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                 import glfw
                 glfw.set_window_attrib(renderer.window, glfw.RESIZABLE, glfw.FALSE)
             replay_start = time.perf_counter();read_to=0.;next_present=0.;frame=None;result=None;rendered_frames=0;analyzed_frames=0
-            while not renderer.should_close() and song_time < (max_seconds or float("inf")):
+            owner=getattr(renderer,'studio_audio',None)
+            if owner is not None:
+                owner.source_mode='REPLAY';owner.source_identity=str(Path(path).resolve())
+                from copy import deepcopy
+                from planet_listening import ListeningState
+                from studio_audition import listening_history
+                excluded={'_planet_star_tuning','_planet_listening','_artifact_listening','_form_listening'}
+                def decoded_audition_source(action,snapshot=None):
+                    nonlocal song_time,read_to,replay_start,next_present,frame,result
+                    if action=='save':
+                        return dict(position=audio.tell(),song_time=song_time,read_to=read_to,next_present=next_present,frame=deepcopy(frame),result=deepcopy(result),
+                            analyzer=deepcopy({k:v for k,v in vars(analyzer).items() if k not in excluded}),processor=deepcopy(vars(processor)),conditioner=deepcopy(vars(conditioner)),detectors=deepcopy(detectors),mapper=deepcopy(vars(mapper)),
+                            active=set(owner.model.active),listening=deepcopy(owner.model.listening),processors=deepcopy(owner.model.processors),endpoint=deepcopy(owner.endpoint),
+                            target_history=listening_history(renderer,analyzer,'save'))
+                    if action=='reset':
+                        audio.rewind();song_time=read_to=next_present=0.;frame=result=None
+                        for key in tuple(vars(analyzer)):
+                            if key not in excluded:delattr(analyzer,key)
+                        vars(analyzer).update(vars(AudioAnalyzer()))
+                        vars(processor).clear();vars(processor).update(vars(SignalProcessor(smoothing=.5)))
+                        vars(conditioner).clear();vars(conditioner).update(vars(VisualSignalConditioner(quiet_threshold=.06)))
+                        detectors.clear();detectors.update({k:OnsetDetector(threshold=.2) for k in ('bass','mids','highs')})
+                        vars(mapper).clear();vars(mapper).update(vars(VisualParameterMapper()))
+                        # The prior audition may end on a different form. Prime
+                        # both trials from the same empty endpoint history so
+                        # their first decoded block cannot inherit that owner.
+                        owner.model.active.clear();owner.model.selected.clear();owner.model.packed.clear()
+                        owner.model.processors.clear();owner.model.listening={target:ListeningState() for target in owner.model.state}
+                        listening_history(renderer,analyzer,'reset')
+                    elif action=='restore':
+                        audio.setpos(snapshot['position']);song_time=snapshot['song_time'];read_to=snapshot['read_to'];next_present=snapshot['next_present'];frame=snapshot['frame'];result=snapshot['result']
+                        for key in tuple(vars(analyzer)):
+                            if key not in excluded:delattr(analyzer,key)
+                        vars(analyzer).update(snapshot['analyzer'])
+                        for obj,key in ((processor,'processor'),(conditioner,'conditioner'),(mapper,'mapper')):vars(obj).clear();vars(obj).update(snapshot[key])
+                        detectors.clear();detectors.update(snapshot['detectors'])
+                        owner.model.active=snapshot['active'];owner.model.listening=snapshot['listening'];owner.model.processors=snapshot['processors'];owner.endpoint=snapshot['endpoint']
+                        listening_history(renderer,analyzer,'restore',snapshot['target_history'])
+                    else:raise ValueError('Unknown decoded-source audition action')
+                    replay_start=time.perf_counter()-song_time
+                owner.audition.register_source(decoded_audition_source)
+            while not renderer.should_close():
+                if owner is not None:owner.audition.poll(time.perf_counter())
+                audition=owner is not None and owner.audition.active
+                if not audition and song_time >= (max_seconds or float('inf')):break
                 realtime=speed==1.
                 song_time=time.perf_counter()-replay_start if realtime else read_to
-                if max_seconds is not None and song_time>=max_seconds:break
+                if not audition and max_seconds is not None and song_time>=max_seconds:break
                 new_input=False;eof=False;impact=0.;tick=False
                 while frame is None or read_to<=song_time:
                     raw = audio.readframes(chunk)
@@ -86,12 +142,25 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                     samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
                     if channels > 1:samples = samples.reshape(-1, channels)
                     renderer.consume_pcm(samples)
-                    frame = analyze_samples(samples, analyzer, processor, conditioner, detectors)
+                    frame = (analyze_samples(samples, analyzer, processor, conditioner, detectors,
+                                            descriptors=pilot, source_id=str(path), star_attack=star_pilot) if pilot or star_pilot else
+                             analyze_samples(samples, analyzer, processor, conditioner, detectors))
+                    if pilot: renderer.accept_planet_audio(frame, str(path))
+                    if getattr(renderer,'planet_audio_tuning',None) is not None:renderer.planet_audio_tuning.observe(getattr(frame,'planet_listening',None))
+                    if getattr(renderer,'studio_audio',None) is not None:renderer.studio_audio.model.observe(getattr(frame,'form_listening',None))
+                    artifact=getattr(renderer,'artifact_tuning',None)
+                    if artifact is not None:artifact.observe(getattr(frame,'artifacts_listening',None))
+                    if star_pilot: renderer.accept_planet_star_audio(frame, str(path))
+                    if getattr(renderer,'star_spectrum',None) is not None:observe_spectrum(renderer,frame,len(samples))
+                    if getattr(renderer, 'planet_monitor', None) is not None:
+                        renderer.planet_monitor.observe(frame, len(samples))
                     result = mapper.map_frame(frame)
                     impact=max(impact,result['impact']);tick=tick or frame.beat_tick
                     read_to+=len(samples)/rate;analyzed_frames+=1;new_input=True
                     if not realtime:break
-                if eof:break
+                if eof:
+                    if audition:owner.audition.return_live(time.perf_counter());continue
+                    break
                 renderer.parameters.scale = result["scale"]
                 renderer.parameters.movement = result["movement"]
                 renderer.parameters.sparkle = result["sparkle"]
@@ -99,7 +168,8 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                 renderer.parameters.flux = frame.flux
                 renderer.parameters.beat_confidence = frame.beat_confidence
                 renderer.parameters.beat_tick = tick
-                active_state = states[int(song_time // 28.) % len(states)] if states else state
+                actual_state=renderer.state_at(song_time)
+                active_state=next((name for name,value in LIVE_STATES.items() if value==actual_state),state)
                 layer_mode, layer_mask = layers_at(renderer.layer_profiles, LIVE_STATES[active_state], song_time)
                 renderer.render(elapsed_time=song_time);rendered_frames+=1
                 if capture_dir is not None and song_time >= next_capture:
@@ -114,11 +184,26 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                         contrast=float(pixels.astype(float).std(axis=(0, 1)).mean()),
                         dark_fraction=float((pixels.max(axis=2) < 35).mean()),
                         clipped_fraction=float((pixels.max(axis=2) >= 250).mean())))
+                    if pilot:
+                        captures[-1].update(descriptors=frame.descriptors,
+                                            spatial_amounts=list(renderer.program['u_spatial_treatments'].value))
                     next_capture += capture_interval
                 renderer.swap_buffers()
                 renderer.poll_events()
                 if new_input:rows.append({"seconds": song_time, "beat_confidence": frame.beat_confidence, "tempo": frame.tempo, "echo_weight": renderer.echo_weight, "state": active_state, "shockwave_count": len(renderer.shockwaves), "blast_count": len(renderer.blast_events), "planet_visits": renderer.planet_visits, "flow_rate": renderer.flow_rate, "layer_mode": layer_mode, "layer_mask": layer_mask, "bass": frame.bass, "mids": frame.mids,
                              "highs": frame.highs, "flux": frame.flux, **result})
+                if new_input and pilot:
+                    rows[-1].update(descriptor_valid=frame.descriptors['valid'],
+                                    descriptor_sample_seconds=frame.descriptors['analyzed_seconds'],
+                                    spectral_spread=frame.descriptors['spectral_spread'],
+                                    fullness=frame.descriptors['fullness'],
+                                    signal_confidence=frame.descriptors['signal_confidence'],
+                                    elastic_amount=renderer.program['u_spatial_treatments'].value[0],
+                                    braided_amount=renderer.program['u_spatial_treatments'].value[1])
+                if new_input and star_pilot:
+                    rows[-1].update(bass_attack=frame.planet_star_audio['bass_attack'],
+                                    star_flight_phase=renderer.program['u_planet_star_flight'].value[1],
+                                    star_attack_envelope=renderer.program['u_planet_star_flight'].value[2])
                 if realtime:
                     next_present=max(next_present+1./60.,time.perf_counter()-replay_start)
                     delay=replay_start+next_present-time.perf_counter()
@@ -126,6 +211,11 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                     song_time=read_to;delay=replay_start+song_time/speed-time.perf_counter() if speed>0 else 0.
                 if delay>0:time.sleep(delay)
         finally:
+            if pilot:
+                analyzer.reset_descriptors()
+                renderer.reset_planet_dsp()
+            if star_pilot:
+                renderer.reset_planet_star_attack()
             renderer.close()
 
     if metrics_path:
@@ -165,9 +255,11 @@ def main():
     parser.add_argument('--studio-color-input', action='store_true', help='Read bounded Studio color snapshots from stdin.')
     parser.add_argument('--galaxy-visit',type=int,default=0)
     parser.add_argument('--galaxy-short',action='store_true')
+    parser.add_argument('--planet-dsp-pilot',action='store_true',help='Opt-in two-treatment DSP pilot; held Planet Canvas only.')
+    parser.add_argument('--planet-star-attack-pilot',action='store_true',help='Opt-in bass-attack background flight; held Planet Canvas only.')
     args = parser.parse_args()
     seconds, rows = replay(args.wav, args.speed, args.max_seconds, args.metrics, args.state,
-                           args.capture_dir, args.capture_interval, args.states, args.layers, args.seed, args.palette, args.comparison_label, args.colors, args.studio_color_input, args.galaxy_visit,args.galaxy_short, args.transitions)
+                           args.capture_dir, args.capture_interval, args.states, args.layers, args.seed, args.palette, args.comparison_label, args.colors, args.studio_color_input, args.galaxy_visit,args.galaxy_short, args.transitions,args.planet_dsp_pilot,args.planet_star_attack_pilot)
     print(f"Replay complete: {seconds:.1f}s song time, {len(rows)} input snapshots")
 
 
