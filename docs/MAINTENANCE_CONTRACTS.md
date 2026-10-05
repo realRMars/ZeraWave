@@ -135,3 +135,38 @@ See the [Cosmic snapshot](history/2026-09-28-cosmic-development.md),
 See [Studio operation](../DEVELOPMENT_STUDIO.md#main-audio-tuning-and-mapping-monitor)
 and [the rollout handoff](../ZERAWAVE_HANDOFF.md#current-main-audio-tuning-checkpoint)
 for source identity, bounded evidence and remaining limits.
+
+
+## Audio presentation and measured performance fixes
+
+- Raw uniform inputs can resolve once per frame. Local GLSL aliases can include
+  spatial attenuation, authored floors or listening descriptors: retain the
+  local value and apply its resolved gain in the shader. Preserve gain==1,
+  clamp and [-2,-1] encoded-input semantics independently for both endpoints.
+- Initialize shared presentation clocks before a Fractal Main evaluator can
+  read them. Scene wrappers restore audio context and its resolved shared values.
+  Preserve Planet's independently owned clocks, histories and selected ranges.
+- Cache configuration-derived targets/windows, not evolving signals. Pending
+  edits and ACKs still apply when a target is inactive; monitor availability is
+  refreshed at its existing snapshot cadence. Revisions invalidate existing
+  selected-window processing through the established model.
+- Program uniforms pruned by the driver retain their declared CPU state for
+  auxiliary passes/audition restoration. Misspelled or undeclared names fail.
+  Cache active uniform handles; never scan the program on every upload.
+- Keep render targets lazy: one Cavern/Citadel target per contributing scene,
+  zero when neither contributes, release on resize/exit. Main previews that can
+  reach Cavern retain bounded row preparation to avoid a large entry rebuild;
+  unrelated held previews skip it. Two row futures, 24 GPU rows, 64 cached CPU
+  row recipes and the existing bounded ready window remain the limits.
+- Capture queues bound image memory, drop on backlog and drain accepted work on
+  normal shutdown. GL objects/readback remain on their graphics owner thread;
+  statistics/PNG encoding run on the owned worker. Report failures and drops.
+  Stream replay input telemetry to CSV; do not retain a track-length row list.
+- Full quality uses the actual framebuffer. Explicit preview scales reduce both
+  dimensions, upscale once and record internal/output dimensions. Do not silently
+  adopt a scale, reduce density, or claim GPU query time as presentation FPS.
+
+Relevant checks: `performance_fixes_test.py` (CPU or explicit GPU matrix),
+`studio_test.py`, `studio_audio_integration_test.py`,
+`fractal_main_integration_test.py`, and existing scope/session/transition checks.
+Use matched dimensions and the source-bound task evidence; no new test framework.

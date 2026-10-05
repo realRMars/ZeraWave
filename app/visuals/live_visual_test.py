@@ -223,6 +223,11 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
 
         while not renderer.should_close():
             incoming=stream.drain();impact=0.;tick=False
+            controls=getattr(renderer,'preview_playback',None)
+            if controls is not None:
+                if controls.playback.paused:
+                    renderer.poll_events();time.sleep(.016);continue
+                incoming=[p for p in incoming if p[0]>controls.resume_after]
             for stamp,(samples,frame) in incoming:
                 artifact=getattr(renderer,'artifact_tuning',None)
                 if artifact is not None:artifact.observe(getattr(frame,'artifacts_listening',None))

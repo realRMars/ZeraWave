@@ -30,6 +30,10 @@ Python and GLSL definitions; no result is not proof of absence.
 | Audio Tuning declarations and routing | `app/visuals/audio_controls.py`, `audio_scope.py`, `form_audio_tuning.py`, `studio_audio.py` | Independent form/target/role consumers; run/session/revision ownership. |
 | Audio Tuning UI, profiles and monitor | `app/visuals/starfield_tuning.py`, `star_tuning_profiles.py`, `planet_mapping_monitor.py` | Reuse the existing dialog and pipes; explicit authored saves and CPU telemetry. |
 | Matched pair audition | `app/visuals/studio_audition.py`, `replay_test.py` | Same preview process; decoded source restoration and explicit shared-history resets. |
+| Per-frame audio presentation | `app/visuals/resolved_audio.py:AudioUniformContract` | Resolve uniform-only inputs/encoded values on CPU; retain gains for spatially varying local inputs. Preserve endpoint and Planet ownership; hoist water ingredients outside intersection loops. |
+| Integrated program preparation | `app/visuals/prepared_program.py:PreparedProgram` | One program and VAO; cached active uniform handles, retained pruned declarations, NVIDIA measured compiler policy and first-use prewarm. No scene-entry family compilation. |
+| Capture/decoded telemetry | `app/visuals/preview_capture.py` | Bounded PNG/statistics worker; owner-thread readback; streamed CSV input rows, one pending mutable row. |
+| Explicit preview render scale | `app/visuals/render_scale.py:ScaledContext` | Full quality bypasses extra targets; opt-in 75%/50% RGBA16F final upscale. Existing renderer and stage ownership, resize/release, no adaptive switching. |
 | Player and portable builder | `app/player.py`, `build_portable.py` | Player is the product entry; builder creates new output only. |
 
 ## Review contracts
@@ -82,8 +86,9 @@ records remain in [dated history](docs/history/README.md).
 
 ## Main Audio Tuning ownership and reuse
 
-The accepted development rollout covers all 27 canonical Main forms; Experimental/Cymatics
-remain excluded. `audio_controls.py` declares actual consumer code, input,
+The published October 4 rollout covered 27 Main forms; the current accepted
+development checkpoint includes the 30-form roster and Fractal declarations.
+Unpromoted Experimental/Cymatics remain excluded. `audio_controls.py` declares actual consumer code, input,
 bounds and role meaning for each form/target; `form_audio_tuning.py` owns
 independent settings and packed inputs. Shared techniques get form-owned
 instances, not copies of saved Planet numbers. Planet retains its star,
@@ -244,3 +249,33 @@ compatible handoffs. The three Envelopers remain off by default.
 Current integration evidence is in the [Main lineup](work/main-lineup-01/review-index.json)
 and [handoff](ZERAWAVE_HANDOFF.md). Earlier held/forced-handoff evidence remains in
 [task notes](docs/agent-notes/galaxy-stellar-aviary.md) and `work/galaxy-journey-review/`.
+
+
+## Fractal ownership
+
+`app/visuals/fractals.py` owns bounded form clocks and scoped submissions;
+`app/visuals/shaders/fractals.frag` owns the three presentations. Renderer incorporates the original Fractal functions into the existing Main
+program through `integrated_shader`, with one endpoint evaluator and window/resource
+lifecycle. `submit_main` owns bounded per-form clock and material submission.
+`development_forms.py` retains inspection declarations; forms 41-43 now also belong
+to `LIVE_FORMS`, canonical playlists and player selection under Fractal.
+
+- **Mineral Lamellae** (`mineral_lamellae` / shader `lamellae`): contour etching
+  and fine glints, reused on landscape rock, recursive architecture and petals.
+  Three shared artistic pigments, per-form Flux/Sparkle gains and amount.
+- **Recursive Pulse** (`recursive_pulse`): three bounded local wave scales,
+  reused on all three forms; per-form Flux/Impact gains and amount. It inherits
+  material pigments and has no independent color-bearing output.
+
+Compatibility uses explicit treatment uniforms, preserving the existing 31 mask
+bits. Profile worlds and target/role IDs are additive. Manual colors never reset
+clocks/history; Main's authored targets and values are unaffected.
+
+
+Branching Iris (`tr_branch_iris`) and Flowing Fold (`tr_flow_fold`) extend
+`dream.frag::main_region` and `main_carry`. Stable recipes apply to any two distinct
+Main forms (including Fractal), use their existing endpoint geometry/pigments, and
+have independent Bass/Flux/Movement/Impact consumers in
+`u_structural_transition_audio`. Selected-band measurements pass through the existing
+scoped audio model; duration is a separately labelled CPU timer. No new pigment,
+persistent buffer, simulation or rendering engine is introduced by these transitions.

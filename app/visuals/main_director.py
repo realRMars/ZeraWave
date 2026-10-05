@@ -14,7 +14,8 @@ TRAITS={
  24:(.30,'earth','landscape',(.67,.43,.24)),25:(.65,'earth','landscape',(.63,.39,.41)),26:(.70,'earth','architecture',(.27,.55,.51)),
  28:(.40,'fog','organic',(.37,.30,.61)),29:(.25,'fog','landscape',(.25,.70,.49)),30:(.85,'fog','corridor',(.31,.41,.62)),
  32:(.65,'plasma','radial',(.65,.43,.32)),33:(.90,'plasma','branch',(.34,.55,.88)),34:(.35,'plasma','vertical',(.41,.78,.69)),
- 36:(.65,'cosmic','journey',(.36,.53,.92))}
+ 36:(.65,'cosmic','journey',(.36,.53,.92)),
+ 41:(.35,'fractal','landscape',(.45,.52,.68)),42:(.75,'fractal','architecture',(.28,.65,.76)),43:(.55,'fractal','radial',(.95,.65,.10))}
 PIGMENT_TARGETS={36:('galaxy.structure','arms'),15:('molten.palette','heat'),22:('citadel.lantern','beacon'),26:('cavern.land','crystals'),29:('marsh.palette','cool'),32:('magnetic.field','loops'),33:('arcs.charge','arcs'),34:('auroral.curtains','sheets')}
 TRANSITIONS={0:'Selective callback / dissolve',1:'River Carry',2:'Facet Relay',3:'Depth Aperture'}
 

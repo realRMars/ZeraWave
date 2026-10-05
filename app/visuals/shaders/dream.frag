@@ -37,6 +37,7 @@ uniform float u_flux;
 uniform ivec2 u_audio_forms;
 uniform int u_audio_primary;
 uniform vec4 u_transition_audio;
+uniform vec4 u_structural_transition_audio;
 int audio_context=0;
 uniform vec4 u_form_audio_a[32],u_form_audio_b[32];
 float form_audio(float value,int form,int slot) {
@@ -190,7 +191,18 @@ float main_region(vec2 p){
     vec2 q=vec2(dot(p,axis),dot(p,vec2(-axis.y,axis.x)));float field;
     if(style<1.5)field=.5+q.x/max(extent,.001)*.39+.065*sin(q.y*7.+u_main_layout.w*6.28)+.025*sin(q.y*13.-u_main_layout.w*3.);
     else if(style<2.5){vec2 cell=floor(p*5.);float seed=fract(sin(dot(cell,vec2(37.1,91.7))+u_main_layout.w*19.)*4375.3);field=.5+q.x/max(extent,.001)*.36+(seed-.5)*.18;}
-    else {vec2 center=u_main_layout.yz;float radius=length((p-center)*vec2(.82,1.));float far=length((vec2(aspect*.5,.5)+abs(center))*vec2(.82,1.));field=.08+.80*radius/max(far,.001);}
+    else if(style<3.5){vec2 center=u_main_layout.yz;float radius=length((p-center)*vec2(.82,1.));float far=length((vec2(aspect*.5,.5)+abs(center))*vec2(.82,1.));field=.08+.80*radius/max(far,.001);}
+    else if(style<4.5){
+        vec2 d=p-u_main_layout.yz;float radius=length(d),angle=atan(d.y,d.x)+u_main_layout.x;
+        float branch=abs(sin(angle*3.));float detail=0.;
+        for(int i=0;i<3;i++){detail+=abs(sin(angle*pow(2.,float(i))*6.+radius*(8.+u_structural_transition_audio.y*5.)))/pow(2.,float(i)+1.);}
+        float far=length(vec2(aspect*.5,.5)+abs(u_main_layout.yz));
+        field=.08+.70*radius/max(far,.001)+.16*branch+.08*detail-.03*u_structural_transition_audio.x;
+    }else{
+        float lane=floor(q.y*12.);float direction=mod(lane,2.)*2.-1.;
+        float ribbon=sin(q.x*4.+lane*.7+phase*5.+u_structural_transition_audio.z*2.);
+        field=.48+direction*q.x/max(extent,.001)*.32+.13*ribbon+.05*sin(q.y*27.+u_structural_transition_audio.y*3.);
+    }
     return smoothstep(clamp(field,.07,.93)-.028,clamp(field,.07,.93)+.028,phase);
 }
 void main_add_state(int state,float weight){
@@ -243,7 +255,17 @@ vec2 main_carry(vec2 p){
     vec2 axis=vec2(cos(u_main_layout.x),sin(u_main_layout.x));
     if(u_main_transition.x<1.5)return p+axis*.045*envelope*nearby+vec2(-axis.y,axis.x)*.018*sin(dot(p,axis)*7.+phase*4.)*envelope;
     if(u_main_transition.x<2.5){vec2 cell=floor(p*5.);float seed=fract(sin(dot(cell,vec2(37.1,91.7))+u_main_layout.w*19.)*4375.3);return p+axis*(seed-.5)*.10*envelope;}
-    vec2 d=p-u_main_layout.yz;return p-d/max(length(d),.08)*.045*envelope*nearby;
+    if(u_main_transition.x<3.5){vec2 d=p-u_main_layout.yz;return p-d/max(length(d),.08)*.045*envelope*nearby;}
+    if(u_main_transition.x<4.5){
+        vec2 d=p-u_main_layout.yz;float angle=atan(d.y,d.x);
+        float forks=sin(angle*6.+length(d)*12.)+.5*sin(angle*12.-phase*8.);
+        return p+normalize(d+vec2(.0001))*(forks*.07+.045*u_structural_transition_audio.w)*envelope
+            +vec2(-d.y,d.x)*.11*envelope*(.4+u_structural_transition_audio.z*.6);
+    }
+    float lane=floor(dot(p,vec2(-axis.y,axis.x))*12.);float direction=mod(lane,2.)*2.-1.;
+    float strength=(.07+.07*u_structural_transition_audio.x+.04*u_structural_transition_audio.w)*envelope;
+    return p+axis*direction*strength*sin(dot(p,axis)*8.+phase*8.)
+        +vec2(-axis.y,axis.x)*strength*.7*sin(dot(p,axis)*11.-phase*6.-u_structural_transition_audio.z*2.);
 }
 #define u_world_mix main_world_mix
 #define u_water_mix main_water_mix
@@ -6591,6 +6613,9 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
         color+=sibling_delta;
     }
 
+    // The organic substitution contributes exactly zero under a complete
+    // water takeover. Its source material was already evaluated above.
+    if (water_takeover < 1.0) {
     // Organic membrane: its own connected folds in the pre-scroll domain.
     // Slow deformation preserves the form while bass changes its physical
     // tension and highs reveal fine ridges. Other states keep their image.
@@ -6691,6 +6716,7 @@ vec3 geo_dream_color = geometric_dream_palette(geo_color_phase);
     // Authored mode keeps the accepted Organic substitution unchanged.
     if (u_layer_mode != 0)
         color += material_effects * (organic_weight / weight_sum) * (1.0-water_takeover);
+    }
 
 
     // Oil-paint tonemap: compress extreme brightness toward the

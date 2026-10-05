@@ -260,7 +260,7 @@ class MonitorWindow:
     def refresh_normal(self,latest,running):
         if not self.enabled.get():self.status.set('PAUSED - retained values.');return
         if not running or latest is None:
-            self.status.set('Stopped / unavailable - start a Main Studio preview.');return
+            self.status.set('Stopped / unavailable - start a Main or Fractals Studio preview.');return
         packet,received=latest;now=time.perf_counter()
         stale=now-received>STALE_SECONDS
         target=packet.get('editing_target');row=packet.get('audio_targets',{}).get(target,{})

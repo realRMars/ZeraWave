@@ -95,6 +95,9 @@ def capture(renderer):
     state={key:deepcopy(value) for key,value in vars(renderer).items() if key not in EXCLUDE and (key in FIELDS or key.startswith(PREFIXES)) and scalar_tree(value)}
     models={name:deepcopy(vars(getattr(renderer,name))) for name in MODELS if getattr(renderer,name,None) is not None}
     rng=renderer.director_rng.getstate() if hasattr(renderer,'director_rng') else None
+    if hasattr(renderer,'fractal_motions'):
+        models['fractal_motions']={form:deepcopy(vars(clock)) for form,clock in renderer.fractal_motions.items()}
+        models['fractal_visible']=tuple(renderer.fractal_visible)
     return state,models,rng
 
 def restore(renderer,snapshot):
@@ -107,6 +110,14 @@ def restore(renderer,snapshot):
         if name in models and model is not None:vars(model).clear();vars(model).update(deepcopy(models[name]))
         elif model is not None and hasattr(model,'reset'):model.reset()
     if rng is not None:renderer.director_rng.setstate(rng)
+    if 'fractal_motions' in models:
+        from fractals import FractalMotion
+        renderer.fractal_motions={form:FractalMotion() for form in models['fractal_motions']}
+        for form,values in models['fractal_motions'].items():vars(renderer.fractal_motions[form]).update(deepcopy(values))
+        renderer.fractal_visible=set(models['fractal_visible'])
+    elif hasattr(renderer,'fractal_motions'):
+        for clock in renderer.fractal_motions.values():clock.reset()
+        renderer.fractal_visible=set()
 
 class PreviewAudition:
     def __init__(self,renderer):
@@ -132,6 +143,7 @@ class PreviewAudition:
         return self.seconds
 
     def start(self,config,raw_seconds):
+        if getattr(self.renderer,'fractal_only',False):raise ValueError('Stop the Fractals preview and start a Main preview before auditioning a Main pair.')
         if self.source is None:raise ValueError('Matched pair audition requires a decoded Test track or synthetic preview; live capture remains running unchanged.')
         cfg=validate_settings(config);pair=cfg['pair'];key=cfg['isolate'].get('pair')
         if not pair or key not in RECIPES or not compatible(key,*pair):raise ValueError('Choose an explicit compatible recipe and two different Main forms.')

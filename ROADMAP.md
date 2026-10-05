@@ -1,6 +1,6 @@
 # ZeraWave development plan
 
-Updated: 2026-10-04 (accepted Main Audio Tuning development checkpoint).
+Updated: 2026-10-05 (accepted measured-performance development checkpoint).
 This is the sole prioritized plan. The user's latest assignment sets scope;
 code establishes implementation and user review establishes artistic acceptance.
 Historical plans remain in [history](docs/history/README.md). The accepted visual
@@ -10,14 +10,21 @@ baseline is 2bcb03f; the player checkpoint builds on that baseline.
 
 The reviewed visual batch and current Main/Galaxy preview are user-accepted.
 The player interface and bounded device-loss cleanup are implemented and accepted.
-Studio organization and Normal/Instant Bonk are committed at 0342e51. Main Audio
-Tuning is implemented across all 27 canonical Main forms, with bounded engineering
-validation complete. Robert accepted Planet range/gain tuning on October 4 at
-06:48 UTC and subsequently accepted this rollout development checkpoint with
-caveats, authorizing one scoped commit and normal push with its accepted dependencies.
-He observed a transition hitch and requests a performance revisit. An earlier
-12× preview does not establish real-time smoothness. Startup/resource limits and
-remaining DSP questions stay open; new implementation needs a separate brief.
+Studio organization and Normal/Instant Bonk are committed at 0342e51. The
+accepted Main Audio Tuning development checkpoint and its dependencies were
+published at [b2aacd1](https://github.com/realRMars/ZeraWave/commit/b2aacd11d7d3a8d39bb9d2f5592659fd3d2d999b).
+Robert's October 4 tuning acceptance and its caveats remain recorded below.
+The newer local roster is Main30, including Tidal Strata41, Recursive Atrium42
+and Honeycomb Garden43, with Branching Iris and Flowing Fold transitions.
+This reconciliation does not change existing Main30 artistic acceptance.
+
+Robert passed the measured-performance candidate for a development checkpoint
+on October 5 and authorized commit and normal GitHub push. Acceptance retains
+the documented numerical/appearance and engineering limitations. Water GPU cost, capture stalls and startup memory improved, while
+Cavern/Marsh/Planet and Fractal GPU cost regressed under the compiler policy.
+Full quality remains the default; real-time 60 FPS and cold-start usability are
+still unresolved. An earlier 12× preview is not real-time smoothness evidence.
+Other implementation follows its own assigned brief.
 Distinctive identity, meaningful musical response and sustained visual interest
 remain the creative standard; internal technical checks do not replace review.
 
@@ -40,7 +47,8 @@ Molten, Aftershock, director/transitions, bounded-resource and entry/projection
 refinements, and Galaxy's Main integration. Normal push to GitHub main was
 verified against the exact committed hash.
 
-Main has 27 eligible worlds, including Galaxy Odyssey36. Water Basin37 remains
+At the published visual baseline Main had 27 eligible worlds, including Galaxy
+Odyssey36; the newer local Main30 roster is described above. Water Basin37 remains
 parked; Experimental38-40 stay outside Main; the three Envelopers remain off.
 The accepted checkpoint does not certify every technical gate. Preserve the
 native fullscreen-surrogate/Aperture/Molten pacing, Aftershock7.4, startup,
@@ -53,14 +61,14 @@ Refresh recovery without closing the runtime, repeated normal Start/Stop, and
 not certify unattended recovery, audio quality, device diversity or the preserved
 startup/performance limits. No release build is part of this checkpoint.
 
-## Accepted development checkpoint and remaining review
+## Published development checkpoint and current review
 
 - **Player and Studio organization completed:** the accepted player retains its
   recorded controls/device contracts. Main/Experimental navigation and
   Normal/Instant Bonk, including the queue-restart correction, are committed and
   pushed at 0342e51. See the [player guide](docs/agent-notes/player-checkpoint-2026-10-03.md)
   and [Studio guide](DEVELOPMENT_STUDIO.md).
-- **Main Audio Tuning development checkpoint accepted with caveats:** all 27
+- **Published Main Audio Tuning checkpoint accepted with caveats:** its 27
   canonical Main forms have scoped tuning, monitoring and compatible pair audition
   in Studio. Experimental/Cymatics remain excluded until promoted. Robert's
   acceptance authorizes the scoped publication; bounded CPU/native, GPU,
@@ -68,21 +76,48 @@ startup/performance limits. No release build is part of this checkpoint.
   artistic, continuous-listening, real-time FPS or multi-hour certification.
   See the [current handoff](ZERAWAVE_HANDOFF.md).
 
+### Accepted measured-performance development checkpoint
+
+- **Implemented:** once-per-frame suitable audio resolution with derived aliases,
+  gain/clamp/encoded inputs and endpoint/Planet ownership preserved; captures off
+  for new previews with saved choices retained, a bounded capture worker and
+  streamed replay telemetry; cached preparation/monitor cadence and lazy surface
+  targets with bounded necessary Cavern prefetch.
+- **Startup and quality:** one integrated program retains a declared-uniform
+  contract, NVIDIA limited-inlining policy and bounded first-use prewarm. Full
+  remains Main's default. Explicit 75%/50% preview scales soften detail and need
+  artistic review for future refinement; they are not equivalent-workload gains.
+- **Measured on RTX 3070 Laptop, driver 617.14, hidden loud owner-active 720p:**
+  Dyes 80.24→16.23 ms, Waterfall 67.27→15.64 ms; Waterfall→corridor crossfade
+  81.27→30.12 ms. Cold program 195.76→110.04 s; observed peak working set
+  13.21→6.49 GiB. These are bounded GPU/startup measurements, not display FPS.
+- **Limitations retained after checkpoint acceptance:** compiler regressions and Marsh numerical variation,
+  expensive Full-quality scenes/transitions missing 60 FPS, long cold startup,
+  natural listening and multi-hour behavior. Visible silent decoded runs predate
+  the final CPU/Cavern/Fractal corrections; final hidden/focused results cover
+  those changes. Do not relabel the visible runs final-source FPS proof.
+- **Publication authorized:** Robert passed this checkpoint for commit and normal
+  push. Source/staged-content checks and exact remote verification are recorded
+  in the [publication receipt](work/publication-performance-20261005/review-index.json).
+  Refinement follows later feedback; no new implementation or critic is dispatched. See [actual results and review steps](docs/agent-notes/performance-fixes-20261004.md)
+  and [current source/evidence](ZERAWAVE_HANDOFF.md#current-measured-performance-candidate).
+
 ### Remaining work: priority not reassigned here
 
-- **Startup and native performance:** Robert requests revisiting the observed
-  transition hitch. Real-time pacing, compilation/resource cost and native
-  performance remain unresolved; the earlier 12× preview is not a real-time
-  certificate. Preserve separate cold/warm, GPU draw, submission and presentation
-  evidence, failed probes and full visual quality. No optimization is part of publication.
+- **Startup and native performance:** the requested performance fixes are now
+  reviewable as recorded above. Remaining cold-start cost, compiler GPU regressions,
+  real-time transition/presentation pacing and device/fullscreen qualification stay
+  open. Preserve cold/warm, GPU, CPU and presentation evidence separately; future
+  work should follow measured remaining risks and Robert's review.
 - **Standalone DSP:** this checkpoint includes its necessary accepted dependencies
   and tests while preserving audio/visual boundaries. It does not declare every
   DSP question complete or authorize another implementation.
 - **Next-brief ideas:** newly brainstormed Studio buttons, optional metrics overlay,
   performance report and Open Latest Results await their next coherent brief.
   None is implemented by this publication task.
-- **Fractals world/forms and image import:** retained later planning milestones.
-  No fractal, image-import or mobile implementation is authorized by this pass.
+- **Fractals and later import/platform work:** the three Fractal forms and two
+  structural transitions are implemented in local Main30; preserve their existing
+  review/acceptance status. Image import and mobile remain later milestones.
 
 ## Continuing creative and engineering direction
 
@@ -114,6 +149,9 @@ code/assets without rights review.
   Publication parent: `0342e518a7bd2c521416e8027a7920668fc5ee51`, the published
   Studio organization/Bonk checkpoint. The new development checkpoint includes
   the reviewed rollout and accepted dependencies beyond the rollout-only patch.
+  Published development HEAD is b2aacd11d7d3a8d39bb9d2f5592659fd3d2d999b.
+  This authorized checkpoint adds the reviewed local Main30/performance dependency
+  closure; its exact commit/remote identity belongs in the publication receipt above.
   Exact publication identity and preservation results are recorded in the
   [publication receipt](work/publication-main-audio-20261004/review-index.json);
   evidence chronology remains in [the handoff](ZERAWAVE_HANDOFF.md).

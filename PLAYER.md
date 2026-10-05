@@ -29,8 +29,8 @@ unsigned portable preview, not an installer or a claim of compatibility with
 untested PCs. Python is included in the ZIP. No administrator access is needed.
 The checkout's player runs Main Blend with the seven-material authored show.
 The three Envelopers are currently disabled by default pending visual redesign;
-Galaxy Odyssey is accepted and included in the checkout's 27 canonical Main
-forms. The retained portable below has its older behavior and has not gained
+Galaxy Odyssey is accepted and included in the checkout's 30 canonical Main
+forms, including Tidal Strata, Recursive Atrium and Honeycomb Garden. The retained portable below has its older behavior and has not gained
 the current player, Studio or Audio Tuning features.
 Studio remains the project's development environment, not a consumer product.
 No test music is distributed.

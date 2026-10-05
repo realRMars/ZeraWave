@@ -1,10 +1,125 @@
 # ZeraWave handoff
 
-Updated: 2026-10-04 (accepted Main Audio Tuning development checkpoint).
+Updated: 2026-10-05 (accepted measured-performance development checkpoint).
 [ROADMAP.md](ROADMAP.md) is the sole plan; [AGENTS.md](AGENTS.md) owns the working
 procedure. Prior checkpoints and their limitations remain below.
 
-## Current Main Audio Tuning checkpoint
+## Current measured-performance candidate
+
+**Status:** Robert passed this candidate for a development checkpoint on October 5
+and authorized commit and normal GitHub push. Existing Main30 artistic acceptance
+is unchanged. The roster has 30 eligible forms, including Fractal41–43, with
+Branching Iris and Flowing Fold. The limitations below remain; this acceptance
+is not exhaustive artistic, listening, performance or device certification.
+Exact scoped-file/source/staged checks and commit/remote identity are recorded
+in the [publication receipt](work/publication-performance-20261005/review-index.json).
+No new critic, implementation or release is dispatched; the frozen portable remains.
+Main's three Envelopers remain off, and Full quality remains the default.
+
+### Identity and implemented behavior
+
+HEAD remains `b2aacd11d7d3a8d39bb9d2f5592659fd3d2d999b`. The task baseline is the
+pre-task dirty tree, including Main30 and the startup correction, bound to
+`4ba8d42c82f12a2ca69dc553c8d29bc5652b6cfd9f0cf2554a3510e2f2144d88`.
+The final 170-file app identity is
+`765543e7a927c1b4837695c8cb1c3b0215819d326d20354064ac196b107bec0e`;
+the generated NVIDIA shader is
+`a1e9e84ccf3b87480a2744d0c732363c114803cdfe8310ace839a4596adf1998`.
+HEAD alone does not identify the dirty candidate. Exact task-only baseline diff,
+source bindings and evidence lineage are preserved in
+[task-diff.patch](work/performance-fixes-20261004/task-diff.patch),
+[final-source.json](work/performance-fixes-20261004/final-source.json) and
+[evidence-index.json](work/performance-fixes-20261004/evidence-index.json).
+This later two-document reconciliation is a separate delta, not a reseal of
+Builder's historical preservation statements.
+
+Suitable raw audio resolves once per frame, retaining local derived aliases,
+float32 gain/clamp/encoded-input semantics, endpoint ownership, Planet adapters
+and Fractal context. Water resolves exact weighted ingredients outside its loops.
+New previews default captures off while preserving saved choices; a bounded worker
+handles statistics/PNG work, and replay telemetry streams rather than retaining
+an unbounded track-length list. GL readback stays on its owner; backlog drops/errors
+are reported, and normal close drains accepted work.
+
+Preparation/monitor cadence is cached with live commands preserved. Surface
+formats are unchanged and targets allocate lazily; necessary Cavern prefetch
+remains bounded. One integrated program uses cached declared-uniform handles,
+NVIDIA limited inlining and bounded first-use prewarm. Family splitting was tried
+and not adopted. Other vendors retain their normal compiler policy. Explicit
+Full/75%/50% preview scales preserve counts/colors/clocks but lower scales soften
+detail. See [operating guide](DEVELOPMENT_STUDIO.md) and
+[actual results](docs/agent-notes/performance-fixes-20261004.md).
+
+### Measurements and remaining tradeoffs
+
+RTX 3070 Laptop, NVIDIA 617.14, GL 3.3; matched hidden loud owner-active synthetic
+1280×720 GPU queries, 15 warm + 40 measured frames per cell. Thermal/background
+conditions were uncontrolled. These numbers are GPU render cost, not visible FPS.
+
+| Case | Audit median ms | Final median ms |
+| --- | ---: | ---: |
+| Dyes | 80.24 | 16.23 |
+| Waterfall | 67.27 | 15.64 |
+| Sky Citadel | 26.88 | 22.85 |
+| Crystal Cavern | 18.97 | 21.09 |
+| Marsh | 31.00 | 35.47 |
+| Planet Canvas | 19.35 | 21.91 |
+| Waterfall→corridor optical crossfade | 81.27 | 30.12 |
+
+Compiler policy improves cold compilation/memory at the cost of GPU regressions
+in Cavern/Marsh/Planet and Fractals: Tidal rises from about 3.3 to 10.0 ms.
+Cold program 195.76→110.04 s (candidate create 111.29 s); observed working-set
+peak 13.21→6.49 GiB, private 13.91→6.98 GiB. Baseline guard peak is process-wide
+and includes a subsequent variant probe; cold timing uses its initial compilation.
+Cold startup remains long and vendor-specific; cold visible first presentation
+was not measured. Profiled CPU render 17.47→7.78 ms is not isolated unprofiled
+submission. Enabled capture copy/readback median 1.76 ms + submit 0.034 ms;
+worker completion about 150.5 ms remains separate and readback can still stall.
+
+430/635 fixed-input matrix frames are pixel-exact. Most other differences are one
+8-bit step; larger Marsh differences remain (worst mean 1.53/255, max 69).
+Common uniforms matched in the checked differing frames; compiler arithmetic
+amplification remains an inference. Paired synthetic Marsh motion was inspected,
+but Robert owns appearance acceptance. Full still misses 60 FPS in expensive
+scenes/transitions; scaled tiers are different workloads and are not FPS guarantees.
+
+### Evidence limits and review gate
+
+Builder records focused CPU/mock/decoded-owner checks, the full Studio regression
+including actual GPU routes and child restart/cleanup, final Fractal/Main GPU
+warp/Repeat/Return/resize, and normal-time Root→Tidal Iris/Fold scoped-frequency
+checks. The full Planet script retains its pre-existing historical inverse-SHA
+guard failure, reproduced with pre-task raw shader bytes; focused behavior checks
+pass. Failed experiments and logs remain preserved; no guard was removed.
+
+Visible silent decoded 720p Waterfall capture-off/on 24-second arms and ordinary
+Main 60-second Full/75% arms precede final CPU-cache/Cavern-preparation/Fractal-
+context corrections. Their source lineage is explicit in the index; final hidden
+source-bound checks cover the corrections. The Main arms also differ in diagnostics
+and sampling, so they do not isolate scale or prove final-source 60 FPS. 50% was
+GPU-tested without a visible decoded arm. User Escape stopped Computer Use and
+it was not restarted. Natural AV listening, multi-hour rendered soak, other
+vendors and true fullscreen remain unverified.
+
+Authored JSON, audio analysis, raw shaders, unrelated snapshot work and user
+settings were preserved by Builder. Original audit evidence remains unchanged;
+[AUDIT_INDEX_CORRECTION.md](work/performance-fixes-20261004/AUDIT_INDEX_CORRECTION.md)
+and [companion audit index](work/performance-fixes-20261004/audit-artifact-index.json)
+repair indexing without rewriting the original archive.
+
+For further refinement, follow [Builder's Studio review steps](docs/agent-notes/performance-fixes-20261004.md#exact-studio-review-and-next-decision)
+at 1280×720, real time, captures off and Full quality; review edited tuning/colors,
+Marsh, slower scenes and affected transitions, then optional softer scales.
+Robert has approved this development checkpoint for publication; later refinements
+follow his feedback and a separate assignment.
+
+<a id="current-main-audio-tuning-checkpoint"></a>
+
+## Published Main Audio Tuning checkpoint — October 4
+
+The following source-matching statements, inventory counts and measurements
+belong to that historical checkpoint and its recorded evidence. They are not
+claims about the later dirty Main30/performance candidate above.
 
 - **User acceptance:** Robert accepted Planet range/gain tuning visually and
   musically on October 4 at 06:48 UTC, then checked the rollout and accepted this
@@ -20,9 +135,10 @@ procedure. Prior checkpoints and their limitations remain below.
   until promoted. The three Envelopers remain off in Main by default.
 - **Publication:** this checkpoint builds on
   `0342e518a7bd2c521416e8027a7920668fc5ee51`, the published Studio organization
-  and Normal/Instant Bonk checkpoint. Robert authorizes one development commit and
-  normal GitHub push of the reviewed rollout, necessary accepted dependencies,
-  tests, repository-authored settings and documentation. The complete manifest,
+  and Normal/Instant Bonk checkpoint. The authorized development commit and normal
+  push completed at b2aacd11d7d3a8d39bb9d2f5592659fd3d2d999b; local and remote
+  main were verified equal at publication. It includes the reviewed rollout,
+  dependencies, tests, authored settings and documentation. The complete manifest,
   full delta, checks and exact local/remote SHA verification belong in the
   [publication receipt](work/publication-main-audio-20261004/review-index.json).
   The rollout-only patch is not the whole publication delta. Local evidence,
@@ -154,6 +270,7 @@ This is eligibility, not a fixed itinerary or frequency guarantee.
 | Fog | Nebula28, Marsh29, Pressure30 |
 | Original Plasma | Magnetic Bloom32, Arc Constellation33, Auroral Veil34 |
 | Galaxy | Galaxy Odyssey36 |
+| Fractal (newer local Main30) | Tidal Strata41, Recursive Atrium42, Honeycomb Garden43 |
 
 - `run_zerawave.bat` or `run_live_visualizer.bat` without arguments opens the
   accepted player. Choose an exact output loopback or input endpoint. Explicit
@@ -280,15 +397,17 @@ or override the current brief.
 ## Preservation and read next
 
 Preserve unrelated dirty documents, research/brainstorm folders and the planning
-proposal. Publication includes only the explicit reviewed manifest. No code or
-authored values are retuned, and no environment or release changes are included.
+proposal. Any future publication requires Robert's checkpoint approval and an
+explicit reviewed manifest that accounts for the earlier dirty Main30 dependencies
+as well as this performance delta. This documentation reconciliation changes no
+application source, authored values, environment or release outputs.
 The three historical color notes and separate startup-performance note remain
 local pending an explicit inclusion decision.
 Keep `work/releases/ZeraWave-preview-final.zip` at d4992d0 unchanged; future
 portable/release work needs its own assigned output path and authorization.
 
-- [ROADMAP.md](ROADMAP.md): completed player/Studio organization, implemented
-  accepted Main Audio Tuning development checkpoint, and unresolved transition/performance work.
+- [ROADMAP.md](ROADMAP.md): published player/Studio/tuning checkpoints, current
+  Main30/performance review and unresolved real-time/startup tradeoffs.
 - [AGENTS.md](AGENTS.md): coordination, applicable skill loading and ownership.
 - [ZERAWAVE_VISUAL_IDENTITY.md](ZERAWAVE_VISUAL_IDENTITY.md): creative/product direction.
 - [DEVELOPMENT_STUDIO.md](DEVELOPMENT_STUDIO.md): current Main/Experimental controls, Audio Tuning and Mapping monitor.

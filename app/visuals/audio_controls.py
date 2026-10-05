@@ -8,6 +8,7 @@ import math
 from spectral_listening import listening_defaults,listening_bounds,validate_listening
 from planet_listening import names_for_roles,titles as window_titles,INGREDIENTS
 from transition_catalog import SCENES,RECIPES
+from development_forms import INSPECTION_FORMS,FRACTAL_FORMS
 
 def validate_target(form,target,settings):
     if form==5:
@@ -53,7 +54,7 @@ def bounds(target):return dict({r['key']:r['bounds'] for r in TARGETS[target]['r
 def titles(target):return dict({r['key']:r['label'] for r in TARGETS[target]['roles']},**window_titles(windows(target)))
 def authored_path(target):return Path(__file__).with_name('audio_form_'+str(TARGETS[target]['form'])+'_'+target.replace('.','_')+'_authored.json')
 def validate(form,target,settings):
-    if target not in TARGETS or TARGETS[target]['form']!=form or form not in (*SCENES,0):raise ValueError('Unknown form audio target')
+    if target not in TARGETS or TARGETS[target]['form']!=form or form not in (*INSPECTION_FORMS,0):raise ValueError('Unknown form audio target')
     if not isinstance(settings,dict) or set(settings)!=set(defaults(target)):raise ValueError('Unknown form audio fields')
     if type(settings['enabled']) is not bool:raise ValueError('Invalid live override flag')
     validate_listening(settings,windows(target));clean=dict(settings)
@@ -79,7 +80,7 @@ SHARED_OFFSETS={};_slot=0
 for _planet,_roles in list(SHARED_SPECS.items())[:18]:
     SHARED_OFFSETS[_planet]=_slot;_slot+=len(_roles)
 for _form,_name in SCENES.items():
-    if _form==5:continue
+    if _form==5 or _form in FRACTAL_FORMS:continue
     for _planet,_roles in list(SHARED_SPECS.items())[:18]:
         _suffix=_planet.removeprefix('planet.');_key='form.'+str(_form)+'.'+_suffix
         _items=[]
@@ -188,3 +189,38 @@ for _i,(_recipe,(_label,_,_pair)) in enumerate(RECIPES.items()):
 TARGETS['transition.tr_warp']['roles'] += [
     dict(role('bass_response','Bass -> visual warp amplitude','bass','dream.frag::scene_frame warp','Existing Bass ingredient in bounded warp amplitude.'),slot=64),
     dict(role('flux_response','Flux -> visual warp amplitude','flux','dream.frag::scene_frame warp','Existing Flux ingredient in bounded warp amplitude.'),slot=65)]
+
+for _key in ('tr_branch_iris','tr_flow_fold'):
+    TARGETS['transition.'+_key].update(kind='CPU timer + shader inputs',
+        dependency='Any two different canonical Main forms; visual response only while this recipe is active. Configure/save while inactive. Duration applies at the next automatic opportunity; audition has its own explicit timer.',
+        scope='Independent recipe shape/deformation controls; endpoint shading/pigments/tuning remain independently owned.')
+    TARGETS['transition.'+_key]['roles'] += [
+        dict(role(source+'_response',label,source,'dream.frag::main_region/main_carry '+_key,
+                  'Bounded structural '+label+' contribution; resting pattern and pure duration stay separate.'),slot=80+i+4*(_key=='tr_flow_fold'))
+        for i,(source,label) in enumerate((('bass','Bass -> opening relief'),('flux','Flux -> branching/fold detail'),('movement','Movement -> spatial flow'),('impact','Impact -> structural pulse')))]
+
+# Experimental consumers have their own declarations, never Main eligibility.
+for _form,_label in FRACTAL_FORMS.items():
+    _group={41:'landscape',42:'recursion',43:'growth'}[_form]
+    _labels={41:('Bass -> ridge relief','Movement -> flowing contours','Flux -> ridge intricacy','Sparkle -> crest glints','Impact -> ridge pulse'),
+             42:('Bass -> portal aperture','Movement -> traversal','Flux -> recursive fold','Sparkle -> seam light','Impact -> portal wave'),
+             43:('Bass -> petal opening','Movement -> growth flow','Flux -> bud variation','Sparkle -> pollen shimmer','Impact -> opening wave')}[_form]
+    TARGETS['fractal.'+str(_form)+'.'+_group]=dict(form=_form,label=_label.removesuffix(' (Experimental)'),kind='shader input',scope='Form-owned structural and light contributions. Authored quiet shape remains; growth/traversal lifecycle is labelled separately.',roles=[
+        dict(role(_source+'_response',_title,_source,'fractals.frag::'+_group+' slot '+str(64+_i),'Bounded '+_title+' contribution; no musical classification.'),slot=64+_i) for _i,(_source,_title) in enumerate(zip(('bass','movement','flux','sparkle','impact'),_labels))])
+    TARGETS['form.'+str(_form)+'.material.lamellae']=dict(form=_form,label='Mineral Lamellae',kind='shader input',dependency='Enabled Mineral Lamellae treatment on this form.',scope='Fine layered mineral etching; detail and color preserve the form silhouette.',roles=[
+        dict(role('flux_etch','Flux -> etched strata','flux','fractals.frag::lamellae','Etch width modulation, authored fine relief remains.'),slot=72),
+        dict(role('sparkle_grain','Sparkle -> mineral grains','sparkle','fractals.frag::lamellae','Bounded grains on the existing local surface.'),slot=73)])
+    TARGETS['form.'+str(_form)+'.spatial.recursive_pulse']=dict(form=_form,label='Recursive Pulse',kind='shader input',dependency='Enabled Recursive Pulse treatment on this form.',scope='Nested local deformation, quiet flow retained; no global flash.',roles=[
+        dict(role('flux_fold','Flux -> nested fold','flux','fractals.frag::recursive_pulse','Bounded repeated local displacement.'),slot=74),
+        dict(role('impact_wave','Impact -> nested wave','impact','fractals.frag::recursive_pulse','Bounded transient rings; existing release envelope.'),slot=75)])
+
+# Traversal/growth are CPU-integrated uniform consumers; describe that path
+# explicitly instead of implying a direct shader read for every movement role.
+for _form in FRACTAL_FORMS:
+    _target='fractal.'+str(_form)+'.'+{41:'landscape',42:'recursion',43:'growth'}[_form]
+    for _r in TARGETS[_target]['roles']:
+        if _r['source']=='movement':
+            _r['consumer']='fractals.py::FractalMotion.advance slot 65 -> fractals.frag u_motion; '+('landscape contour amplitude' if _form==41 else 'atrium traversal' if _form==42 else 'garden growth')
+            _r['note']='Bounded eased travel/growth rate; authored quiet rate remains. Landscape also tunes its contour amplitude.'
+        elif _r['source']=='flux' and _form==43:
+            _r['consumer']='fractals.py::FractalMotion.advance slot 66 and fractals.frag::growth bud twist'

@@ -36,7 +36,7 @@ def run():
             assert len(r.director_history)<=64 and len(r.director_recent_pairs)<=12 and len(r.director_recent_styles)<=12 and len(r.director_last_seen)<=len(LIVE_FORMS)
             assert all(math.isfinite(v) for key,values in r.blend_values.items() for v in (values if isinstance(values,tuple) else (values,)))
             if r.director_pending:assert r.director_pending[1]-r.director_time<=.8+1e-9
-    assert sequences[0]==sequences[1] and seen==set(LIVE_FORMS) and styles=={0,1,2,3}
+    assert sequences[0]==sequences[1] and seen==set(LIVE_FORMS) and styles==set(range(6))
     normal=[Renderer() for _ in range(64)];openers=[]
     for r in normal:r.update_blend(0,0);openers.append(r.director_current)
     assert len(set(r.director_seed for r in normal))==64 and len(set(openers))>=12
@@ -47,7 +47,7 @@ def run():
     for version in (1,2,3):assert validate_session(dict(version=version,state='blend',selection=[],color_overrides={'molten.flow':{'heat':{'color':'#AABBDD'}}}))['state']=='blend'
     args=command(dict(DEFAULTS,state='blend',selection=[],source='Live system audio'),Path('unused-main-fixture-output'));assert '--seed' not in args
     rows=entries(WORLD_TREE);assert len({row['id'] for row in rows})==len(rows)
-    report={'simulation_seconds':14400,'identical_seed_trace':True,'choices':len(sequences[0]),'reachable_observed':sorted(seen),'styles_observed':sorted(styles),'history_bounds':[64,12,12,len(LIVE_FORMS)],'fresh_session_seeds':64,'fresh_openers':openers,'new_region_equations':'PASS exact endpoints/finite0..1/monotonic across3 aspects/styles/angles/grid','manual_and_sessions':'PASS held/manual override, legacyv1-v3/live colors and normal Studio no forcedseed','limits':'4h cheap director simulation and CPU equations, not rendered soak/GPU equivalence/AV listening.'}
+    report={'simulation_seconds':14400,'identical_seed_trace':True,'choices':len(sequences[0]),'reachable_observed':sorted(seen),'styles_observed':sorted(styles),'history_bounds':[64,12,12,len(LIVE_FORMS)],'fresh_session_seeds':64,'fresh_openers':openers,'legacy_region_equations':'PASS exact endpoints/finite0..1/monotonic across3 aspects/styles/angles/grid','manual_and_sessions':'PASS held/manual override, legacyv1-v3/live colors and normal Studio no forcedseed','limits':'4h cheap director simulation and CPU equations, not rendered soak/GPU equivalence/AV listening.'}
     print('PASS',json.dumps(report))
     return report
 if __name__=='__main__':run()

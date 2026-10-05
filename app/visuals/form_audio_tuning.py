@@ -12,6 +12,8 @@ class FormAudioTuning:
     def __init__(self,run,session,authored=None,clock=time.perf_counter):
         self.run,self.session,self.clock=run,session,clock;self.lock=threading.Lock()
         self.indices={form:slots(form) for form in {p['form'] for p in TARGETS.values()}}
+        self.targets_by_form={form:targets(form) for form in self.indices}
+        self.target_windows={target:windows(target) for target in TARGETS}
         self.frequencies=None
         self.mailbox=ScopeMailbox(run,session,validate);self.active=set();self.state={};self.selected={};self.packed={}
         self.listening={target:ListeningState(clock) for target in TARGETS}
@@ -23,7 +25,7 @@ class FormAudioTuning:
     def analysis_settings(self,target):
         with self.lock:
             p=self.state[target];c=p['settings'] if p['settings']['enabled'] else p['authored']
-            choices=listening_choices(c,windows(target))
+            choices=listening_choices(c,self.target_windows[target])
             if TARGETS[target]['form'] not in self.active:choices={name:(False,)+spec[1:] for name,spec in choices.items()}
             return p['revision'],choices
 
@@ -34,8 +36,8 @@ class FormAudioTuning:
         with self.lock:
             self.frequencies=tuple(float(v) for v in f);config={}
             for form in self.active:
-                for target in targets(form):
-                    p=self.state[target];c=p['settings'] if p['settings']['enabled'] else p['authored'];choices=listening_choices(c,windows(target))
+                for target in self.targets_by_form.get(form,()):
+                    p=self.state[target];c=p['settings'] if p['settings']['enabled'] else p['authored'];choices=listening_choices(c,self.target_windows[target])
                     if any(v[0] for v in choices.values()):config[target]=(p['revision'],choices)
         # Only enabled windows on contributing endpoints allocate histories.
         # OFF targets cost no per-window FFT scan; exit destroys their state.
@@ -52,7 +54,7 @@ class FormAudioTuning:
 
     def observe(self,payload):
         with self.lock:
-            for target in {t for form in self.active for t in targets(form)}:self.listening[target].observe((payload or {}).get(target))
+            for target in {t for form in self.active for t in self.targets_by_form.get(form,())}:self.listening[target].observe((payload or {}).get(target))
 
     def submit(self,message):
         with self.lock:return self.mailbox.accept(message)
@@ -61,22 +63,22 @@ class FormAudioTuning:
         with self.lock:
             prior=self.active;self.active=set(active);self.mode=mode;legacy=derived(inputs)
             for form in prior-self.active:
-                for target in targets(form):self.listening[target]=ListeningState(self.clock);self.selected.pop(target,None);self.packed.pop(target,None)
+                for target in self.targets_by_form.get(form,()):self.listening[target]=ListeningState(self.clock);self.selected.pop(target,None);self.packed.pop(target,None)
             for scope,c,a in self.mailbox.take():
                 p=self.state[scope.target]
                 try:
-                    require_listening_bins(c,windows(scope.target),self.frequencies)
-                    if a is not None:require_listening_bins(a,windows(scope.target),self.frequencies)
+                    require_listening_bins(c,self.target_windows[scope.target],self.frequencies)
+                    if a is not None:require_listening_bins(a,self.target_windows[scope.target],self.frequencies)
                 except ValueError as exc:
                     p.update(error=str(exc),rejected_revision=scope.revision);continue
                 if a is not None:p['authored']=a
                 p.update(settings=c if c['enabled'] else dict(p['authored'],enabled=False),revision=scope.revision,error=None,rejected_revision=None)
             arrays={form:[1.]*128 for form in active}
-            for target in (t for form in self.active for t in targets(form)):
+            for target in (t for form in self.active for t in self.targets_by_form.get(form,())):
                 p=self.state[target]
                 form=TARGETS[target]['form'];on=form in self.active;c=p['settings'] if p['settings']['enabled'] else p['authored']
                 if rewound:self.listening[target].reset_impact()
-                local,details=self.listening[target].select(c,windows(target),legacy,on,delta)
+                local,details=self.listening[target].select(c,self.target_windows[target],legacy,on,delta)
                 self.selected[target]=local;packed=[]
                 for r in TARGETS[target]['roles']:
                     if r['source']=='timer':packed.append(c[r['key']]);continue

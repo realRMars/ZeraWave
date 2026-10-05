@@ -29,14 +29,17 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEEDS = {'Real time': 1., '2×': 2., '6×': 6., '12×': 12., 'Fastest': 0.}
 SOURCES = ('Test track', 'Synthetic preview', 'Live system audio')
 PLANET_PALETTES = {'authored': 'Authored', 'soft-dream': 'Soft Dream'}
+RENDER_SCALES={'Full quality (100%)':1.,'75% scale (softer detail)':.75,'50% scale (softer detail)':.5}
 DEFAULTS = dict(state='water', source='Test track', track='', speed='12×',
-                duration='Full track', captures=True, planet_palette='authored', galaxy_seed='7301', galaxy_visit='0', galaxy_entry='Full journey')
+                duration='Full track', captures=False, render_scale='Full quality (100%)', planet_palette='authored', galaxy_seed='7301', galaxy_visit='0', galaxy_entry='Full journey')
 
 
 # Stable keys are session IDs; labels can evolve independently. Add descendants
 # here at any depth. A cycle names an existing authored meld for a whole branch.
 from world_catalog import WORLD_TREE, studio_trees
 from renderer import LIVE_FORMS
+from development_forms import FRACTAL_FORMS,FRACTAL_STATES
+from preview_layers import FRACTAL_TREATMENTS
 STUDIO_TREES = studio_trees(LIVE_FORMS)
 DEFAULT_SELECTION = ['elements', 'water']
 DEFAULT_EXPERIMENTAL_SELECTION = ['cymatics', 'water']
@@ -159,14 +162,17 @@ def validate_session(data):
     # Legacy storage keys remain catalog paths (including cymatics); tab labels
     # are presentation only. New saves can also remember each view independently.
     if scope == 'cymatics': scope = 'experimental'
+    if scope=='experimental' and selection[:1]==['fractals']:scope='main'
     if not isinstance(scope, str) or scope not in STUDIO_TREES or (scope == 'experimental' and not selection):
         raise ValueError('Invalid Studio selection scope.')
     states = selection_states(selection, STUDIO_TREES[scope])
     values['selection_scope'] = scope
     if 'studio_selections' in data:
-        saved = data['studio_selections']
+        saved = deepcopy(data['studio_selections'])
         if not isinstance(saved, dict) or set(saved) != set(STUDIO_TREES):
             raise ValueError('Invalid saved Studio selections.')
+        if saved.get('experimental',[])[:1]==['fractals']:
+            saved['experimental']=list(DEFAULT_EXPERIMENTAL_SELECTION)
         for name, path in saved.items():
             if name == 'experimental' and not path:
                 raise ValueError('Choose an Experimental category.')
@@ -189,6 +195,7 @@ def validate_session(data):
         raise ValueError('Unknown speed or duration.')
     if not isinstance(values['track'], str) or type(values['captures']) is not bool:
         raise ValueError('Invalid track or capture setting.')
+    if values['render_scale'] not in RENDER_SCALES:raise ValueError('Unknown preview render scale.')
     return values
 
 
@@ -246,6 +253,8 @@ def comparison_runs(values):
 
 
 def color_scope_for_states(states):
+    if states and all(LIVE_STATES[state] in FRACTAL_FORMS for state in states):
+        return states[0] if len(states)==1 else 'fractals'
     if len(states)==1:return states[0]
     experimental={'lodestone_experimental','stormglass_experimental','folded_aurora_experimental','transition'}
     return 'experimental' if states and set(states)<=experimental else 'blend'
@@ -410,6 +419,9 @@ class Studio:
             self.vars['track'].set(str(available[0]))
         self.active_preview = tk.StringVar(value='No preview running.')
         self.status = tk.StringVar(value='Ready. Choose a world and a source, then start a preview.')
+        self.preview_state={};self.preview_run=None;self.playback_keys=set()
+        self.bonk_mode=tk.StringVar(value='Normal');self.diagnostics=tk.BooleanVar(value=False)
+        self.performance_line=tk.StringVar(value='Diagnostics off. Session frame timing is saved in Latest Results.')
         self.footer = ttk.Frame(root)
         self.footer.pack(side='bottom', fill='x')
         self.tabs = ttk.Notebook(root)
@@ -449,16 +461,27 @@ class Studio:
         self.track_box = field(3, 'Test track', 'track', [str(p) for p in available])
         self.speed_box=field(4, 'Replay speed', 'speed', tuple(SPEEDS))
         field(5, 'Test duration', 'duration', ('Full track','30 seconds','60 seconds'))
+        field(6, 'Preview quality', 'render_scale', tuple(RENDER_SCALES))
         ttk.Checkbutton(self.preview,text='Save frames and audio measurements',
                         variable=self.vars['captures']).grid(row=7,column=1,columnspan=2,sticky='w',pady=8)
         ttk.Label(self.preview,textvariable=self.selection_hint,wraplength=610).grid(row=8,column=0,columnspan=3,sticky='w',pady=(4,8))
         ttk.Label(self.preview,text='Track replay is silent. Live input listens to your system audio.\n'
                   'Speed, duration and captures apply to test tracks. Declared colors can edit live; other changes apply next run.',
                   wraplength=610).grid(row=9,column=0,columnspan=3,sticky='w',pady=10)
-        self.start_button = ttk.Button(self.preview,text='Start preview',command=self.start)
-        self.start_button.grid(row=10,column=1,sticky='ew',pady=12,padx=(0,8))
-        self.stop_button = ttk.Button(self.preview,text='Stop preview',command=self.stop,state='disabled')
-        self.stop_button.grid(row=10,column=2,sticky='ew',pady=12)
+        self.preview_controls=ttk.Frame(self.tabs)
+        self.preview_controls.grid(in_=self.preview,row=10,column=0,columnspan=3,sticky='ew',pady=10)
+        controls=ttk.Frame(self.preview_controls);controls.pack(anchor='w')
+        self.start_button=ttk.Button(controls,text='Start',command=self.start);self.start_button.pack(side='left')
+        self.pause_button=ttk.Button(controls,text='Pause',command=self.pause_preview,state='disabled');self.pause_button.pack(side='left',padx=3)
+        self.stop_button=ttk.Button(controls,text='Stop',command=self.stop,state='disabled');self.stop_button.pack(side='left')
+        self.hold_button=ttk.Button(controls,text='Hold',state='disabled');self.hold_button.pack(side='left',padx=3)
+        self.hold_button.bind('<ButtonPress-1>',lambda e:self.hold_preview('studio.mouse',True))
+        self.hold_button.bind('<ButtonRelease-1>',lambda e:self.hold_preview('studio.mouse',False))
+        self.bonk_button=ttk.Button(controls,text='Bonk',command=self.bonk_preview,state='disabled');self.bonk_button.pack(side='left')
+        self.bonk_box=ttk.Combobox(controls,textvariable=self.bonk_mode,values=('Normal','Instant'),width=7,state='readonly');self.bonk_box.pack(side='left',padx=3)
+        self.bonk_box.bind('<<ComboboxSelected>>',lambda e:self.preview_command('mode',mode=self.bonk_mode.get().lower()))
+        ttk.Checkbutton(self.preview_controls,text='Development diagnostics (1 s resource sampling)',variable=self.diagnostics,command=self.toggle_diagnostics).pack(anchor='w',pady=(6,0))
+        ttk.Label(self.preview_controls,textvariable=self.performance_line,wraplength=610).pack(anchor='w',pady=4)
         self.preview.columnconfigure(1,weight=1)
         self.preview.columnconfigure(2,weight=1)
         ttk.Label(self.results,text='Review before integration',font=('Segoe UI',16)).pack(anchor='w')
@@ -481,6 +504,7 @@ class Studio:
         self.tabs.add(self.cymatics_tab,text='Experimental')
         self.build_experimental()
         self.menus()
+        self.install_playback_shortcuts()
         self.tabs.bind('<<NotebookTabChanged>>', self.change_visual_tab)
         root.after(200,self.poll)
 
@@ -509,10 +533,11 @@ class Studio:
                         variable=self.vars['captures']).grid(row=4, column=1, sticky='w')
         actions = ttk.Frame(self.cymatics_tab)
         actions.pack(fill='x', pady=8)
-        self.experimental_start_button = ttk.Button(actions, text='Start preview', command=self.start)
-        self.experimental_start_button.pack(side='left')
-        self.experimental_stop_button = ttk.Button(actions, text='Stop preview', command=self.stop, state='disabled')
-        self.experimental_stop_button.pack(side='left', padx=8)
+        # One shared control set moves between the existing preview areas.
+        self.experimental_controls=ttk.Frame(self.cymatics_tab)
+        self.experimental_controls.pack(before=actions,fill='x')
+        self.experimental_start_button=self.start_button
+        self.experimental_stop_button=self.stop_button
         ttk.Button(actions, text='Effects & layers', command=lambda:self.tabs.select(self.layers_tab)).pack(side='left')
         self.cymatics_tools = ttk.Frame(self.cymatics_tab)
         self.cymatics_tools.pack(fill='both', expand=True)
@@ -633,11 +658,16 @@ class Studio:
         self.tabs.select(self.preview if self.selection_scope == 'main' else self.cymatics_tab)
 
     def select(self, selection, scope=None, show=True):
+        if hasattr(self,'playback_keys'):self.release_preview_holds()
         scope = scope or selection_scope(selection)
         if not isinstance(scope, str) or scope not in STUDIO_TREES or (scope == 'experimental' and not selection):
             raise ValueError('Choose an Experimental category.')
         states = selection_states(selection, STUDIO_TREES[scope])  # Validate before changing controls.
         self.selection_scope = scope
+        if hasattr(self,'experimental_controls'):
+            self.preview_controls.grid_forget();self.preview_controls.pack_forget()
+            if scope=='main':self.preview_controls.grid(in_=self.preview,row=10,column=0,columnspan=3,sticky='ew',pady=10)
+            else:self.preview_controls.pack(in_=self.experimental_controls,fill='x')
         self.studio_selections[scope] = list(selection)
         self.selection = list(selection)
         self.vars['state'].set(states[0])
@@ -906,8 +936,10 @@ class Studio:
         return validate_settings(dict(pair=pair,isolate=dict(self.transition_isolation),hold=float(self.transition_hold.get()),duration=float(self.transition_duration.get())))
 
     def preview_transition_pair(self):
+        self.release_preview_holds()
         try:
             if self.selection_scope!='main':raise ValueError('Choose Main forms before auditioning a pair. Experimental forms keep their own preview.')
+            if self.process is not None and self.running_values.get('selection_scope')=='experimental':raise ValueError('Stop the Experimental preview and start a Main preview before auditioning a pair.')
             original=self.values();cfg=self.transition_values()
             cfg['pair']=[next(k for k,v in SCENES.items() if v==var.get()) for var in (self.transition_from,self.transition_to)]
             chosen=cfg['isolate'].get('pair') or cfg['isolate'].get(self.layer_world()) or cfg['isolate'].get('blend') or 'tr_fade'
@@ -949,6 +981,7 @@ class Studio:
         self.transition_note.set('Saved transition list restored; compatible recipes follow list playback.')
 
     def leave_transition_pair(self):
+        self.release_preview_holds()
         if self.color_link and self.color_link.audio_run:
             self.pending_audition_request=self.color_link.submit_audition('return')
             self.status.set('Return requested; waiting for the owned preview to restore its source and scene state.')
@@ -1015,7 +1048,7 @@ class Studio:
 
     def change_treatment_amount(self):
         selected=self.layer_table.selection()
-        if not selected or selected[0] not in SPATIAL_TREATMENTS+ENVELOPERS+STELLAR_LAYERS+ORBITAL_LAYERS+MINERAL_TREATMENTS+TOWER_TREATMENTS+MAGNETIC_TREATMENTS+ARC_TREATMENTS+VEIL_TREATMENTS+MARSH_TREATMENTS+MOLTEN_TREATMENTS:
+        if not selected or selected[0] not in SPATIAL_TREATMENTS+ENVELOPERS+STELLAR_LAYERS+ORBITAL_LAYERS+MINERAL_TREATMENTS+TOWER_TREATMENTS+MAGNETIC_TREATMENTS+ARC_TREATMENTS+VEIL_TREATMENTS+MARSH_TREATMENTS+MOLTEN_TREATMENTS+FRACTAL_TREATMENTS:
             self.status.set('Select a spatial effect, Stellar layer or Enveloper row to change its amount.');return
         from copy import deepcopy
         world=self.layer_world();profile=deepcopy(self.layer_profiles.get(world,default_profile(world)))
@@ -1238,11 +1271,15 @@ class Studio:
         output.mkdir(parents=True)
         (output/'preview.json').write_text(json.dumps(dict(version=3, **values), indent=2), encoding='utf-8')
         self.log = (output/'run.log').open('w', encoding='utf-8')
-        normal_audio=bool(live_scene and values.get('selection_scope',selection_scope(values.get('selection',path_for_state(values['state']))))=='main')
+        normal_audio=bool(live_scene and (values.get('selection_scope',selection_scope(values.get('selection',path_for_state(values['state']))))=='main' or all(LIVE_STATES[s] in FRACTAL_FORMS for s in selected_states)))
         audio_run=uuid.uuid4().hex if normal_audio else None
         audio_session=getattr(self,'audio_session',None)
         if normal_audio and audio_session is None:self.audio_session=audio_session=uuid.uuid4().hex
         child_env=os.environ.copy()
+        child_env['ZERAWAVE_RENDER_SCALE']=str(RENDER_SCALES[values['render_scale']])
+        self.preview_run=uuid.uuid4().hex if live_scene else None
+        if live_scene:
+            child_env.update(ZERAWAVE_PREVIEW_RUN=self.preview_run,ZERAWAVE_PERFORMANCE_DIR=str(output.resolve()),ZERAWAVE_DIAGNOSTICS='1' if self.diagnostics.get() else '0')
         if normal_audio:child_env.update(ZERAWAVE_AUDIO_RUN=audio_run,ZERAWAVE_AUDIO_SESSION=audio_session)
         else:
             child_env.pop('ZERAWAVE_AUDIO_RUN',None);child_env.pop('ZERAWAVE_AUDIO_SESSION',None)
@@ -1258,7 +1295,8 @@ class Studio:
         self.preview_start_colors=deepcopy(values.get('color_overrides', {})) if live_scene else {}
         self.last_color_ack=None
         if live_scene:
-            self.color_link=ColorLink(self.process,self.log,run=audio_run,session=audio_session)
+            self.color_link=ColorLink(self.process,self.log,run=audio_run,session=audio_session,preview_run=self.preview_run)
+            self.preview_state={};self.preview_command('mode',mode=self.bonk_mode.get().lower())
             self.last_color_revision=self.color_link.submit(scene_colors(self.preview_start_colors,live_scene))
             self.color_status.set('Starting color preview; waiting for acknowledgement.')
             if normal_audio and self.monitor_enabled:self.show_star_tuning(False)
@@ -1288,6 +1326,81 @@ class Studio:
         if self.process is not None: return
         try: self.launch(self.values(), self.run_folder())
         except (OSError, ValueError) as exc: messagebox.showerror('Cannot start preview', str(exc))
+
+    def preview_command(self,op,**values):
+        if self.color_link:return self.color_link.submit_control(op,**values)
+
+    def pause_preview(self):
+        if self.preview_state.get('ready'):
+            self.release_preview_holds()
+            self.preview_command('pause',active=not self.preview_state.get('paused',False))
+
+    def hold_preview(self,owner,active):
+        self.preview_command('hold',owner=owner,active=bool(active))
+        return 'break'
+
+    def bonk_preview(self):
+        if self.preview_state.get('can_bonk'):self.preview_command('bonk',mode=self.bonk_mode.get().lower())
+
+    def release_preview_holds(self):
+        self.playback_keys.clear();self.preview_command('release')
+
+    def toggle_diagnostics(self):
+        self.preview_command('diagnostics',active=self.diagnostics.get())
+
+    def install_playback_shortcuts(self):
+        tag='ZeraWaveStudioPlayback'+str(self.root.winfo_id())
+        self.root.bind_class(tag,'<KeyPress>',self.playback_key_press)
+        self.root.bind_class(tag,'<KeyRelease>',self.playback_key_release)
+        def attach(widget):
+            if tag not in widget.bindtags():widget.bindtags((tag,*widget.bindtags()))
+            for child in widget.winfo_children():attach(child)
+        attach(self.root)
+        self.root.bind('<Map>',lambda e:attach(e.widget) if e.widget.winfo_toplevel()==self.root else None,add='+')
+        self.root.bind('<FocusOut>',lambda e:self.root.after_idle(self.playback_focus_check),add='+')
+        self.root.bind('<ButtonRelease-1>',lambda e:self.hold_preview('studio.mouse',False),add='+')
+
+    def playback_key_press(self,event):
+        key=event.keysym;ctrl=bool(event.state&4);shift=bool(event.state&1)
+        # Session actions keep their names and work while a text field is focused.
+        if ctrl and key.lower()=='s':
+            if key in self.playback_keys:return 'break'
+            self.playback_keys.add(key)
+            self.stop() if shift else self.save()
+            return 'break'
+        if ctrl and key.lower() in ('n','o'):
+            self.new() if key.lower()=='n' else self.load();return 'break'
+        if event.widget.winfo_toplevel()!=self.root or event.widget.winfo_class() in ('Entry','TEntry','Text','TCombobox','TSpinbox','Scale','TScale'):
+            return
+        handled=key in ('Shift_L','Shift_R','space') or ctrl and (key=='Return' or key.lower()=='p')
+        if not handled:return
+        if key in self.playback_keys:return 'break'
+        self.playback_keys.add(key)
+        if key in ('Shift_L','Shift_R'):self.hold_preview('studio.'+key,True)
+        elif key=='space':self.bonk_preview()
+        elif key=='Return':self.start()
+        else:self.pause_preview()
+        return 'break'
+
+    def playback_key_release(self,event):
+        self.playback_keys.discard(event.keysym)
+        if event.keysym in ('Shift_L','Shift_R'):return self.hold_preview('studio.'+event.keysym,False)
+
+    def playback_focus_check(self):
+        focus=self.root.focus_displayof()
+        if focus is None or focus.winfo_toplevel()!=self.root or focus.winfo_class() in ('Entry','TEntry','Text','TCombobox','TSpinbox','Scale','TScale'):self.release_preview_holds()
+
+    def refresh_playback_controls(self):
+        latest=self.color_link.get_preview() if self.color_link else None
+        fresh=latest is not None and time.perf_counter()-latest[1]<1.5
+        self.preview_state=latest[0] if fresh else {}
+        ready=bool(self.preview_state.get('ready') and self.preview_state.get('running'))
+        self.pause_button.configure(state='normal' if ready else 'disabled',text='Resume' if self.preview_state.get('paused') else 'Pause')
+        self.hold_button.configure(state='normal' if ready and not self.preview_state.get('paused') else 'disabled',text='Holding' if self.preview_state.get('held') else 'Hold')
+        self.bonk_button.configure(state='normal' if ready and self.preview_state.get('can_bonk') else 'disabled')
+        metrics=self.preview_state.get('performance')
+        if metrics:self.performance_line.set(metrics.get('display','Measurements unavailable'))
+        elif self.diagnostics.get():self.performance_line.set('Measurements unavailable: no responsive preview.')
 
     def start_comparison(self):
         if self.process is not None: return
@@ -1324,8 +1437,13 @@ class Studio:
         self.comparison_queue = []
 
     def stop(self):
+        self.release_preview_holds()
         if self.process is not None and self.process.poll() is None:
-            if self.active_color_scene=='cymatics' and self.color_link:
+            if self.color_link and self.preview_run:
+                self.preview_command('stop')
+                try:self.process.wait(timeout=3)
+                except subprocess.TimeoutExpired:pass
+            elif self.active_color_scene=='cymatics' and self.color_link:
                 # EOF requests the owned Water loop to run its normal source/output cleanup.
                 self.color_link.close()
                 try:self.process.wait(timeout=3)
@@ -1338,6 +1456,8 @@ class Studio:
         self.finish()
 
     def finish(self):
+        self.release_preview_holds();self.preview_state={};self.preview_run=None
+        self.pause_button.configure(state='disabled',text='Pause');self.hold_button.configure(state='disabled',text='Hold');self.bonk_button.configure(state='disabled')
         if self.color_send_after is not None:
             self.root.after_cancel(self.color_send_after);self.color_send_after=None
         if self.color_link:
@@ -1354,6 +1474,7 @@ class Studio:
         self.refresh_palette()
 
     def poll(self):
+        self.refresh_playback_controls()
         self.cymatics_panel.refresh()
         if self.color_link and self.color_link.audio_run and getattr(self,'pending_audition_request',None) is not None:
             latest=self.color_link.get_audio()

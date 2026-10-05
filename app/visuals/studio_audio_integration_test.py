@@ -21,7 +21,7 @@ from preview_layers import validate_layers,layers_at
 from world_catalog import LIVE_STATES
 from studio_audio import decode
 
-def run():
+def run(recipe='tr_planet',pair=(12,5)):
     clock=[100.];renders=[];readers=[];wavefiles=[]
     # Keep the selected Flux above the existing quiet gate so a priming
     # discrepancy cannot pass merely because both trials report zero.
@@ -77,8 +77,8 @@ def run():
         def poll_events(self):
             self.polls+=1;clock[0]+=2048/48000.
             if audition[0] and self.polls in (20,84,148):
-                start=self.polls!=148;target='transition.tr_planet' if start else 'transition.director'
-                cfg=validate_settings(dict(pair=[12,5],isolate={'pair':'tr_planet'},hold=1.,duration=1.)) if start else None
+                start=self.polls!=148;target='transition.'+recipe if start else 'transition.director'
+                cfg=validate_settings(dict(pair=list(pair),isolate={'pair':recipe},hold=1.,duration=1.)) if start else None
                 self.color_inbox.accept(json.dumps(dict(kind='audio-audition',scope=Scope('run','session',0,target,self.polls).packet(),action='start' if start else 'return',config=cfg)))
         def close(self):self.color_inbox.close()
     def configure_colors(renderer,*args):
@@ -87,7 +87,7 @@ def run():
     env=dict(Path=Path,np=np,math=__import__('math'),time=SimpleNamespace(perf_counter=lambda:clock[0],sleep=lambda t:None),wave=SimpleNamespace(open=lambda *a:PCMFile()),Renderer=CPUReplay,
         AudioAnalyzer=AudioAnalyzer,SignalProcessor=SignalProcessor,VisualSignalConditioner=VisualSignalConditioner,OnsetDetector=OnsetDetector,VisualParameterMapper=VisualParameterMapper,
         analyze_samples=audio_env(ROOT/'app/visuals/live_visual_test.py'),LIVE_STATES=LIVE_STATES,validate_layers=validate_layers,layers_at=layers_at,configure_colors=configure_colors)
-    replay=functions(ROOT/'app/visuals/replay_test.py',['replay'],env)['replay']
+    replay=functions(ROOT/'app/visuals/replay_test.py',['optional_uniform_vector','replay'],env)['replay']
     try:
         with patch.dict(os.environ,{'ZERAWAVE_AUDIO_RUN':'run','ZERAWAVE_AUDIO_SESSION':'session'}),redirect_stdout(io.StringIO()):
             replay(Path('supplied-PCM.wav'),speed=0.,state='roots',color_input=True)
@@ -104,7 +104,7 @@ def run():
         assert len(renders)==2 and len(wavefiles)==2
         assert any(x['seconds']>=2. for x in first),'Repeat must include the other endpoint'
         assert any((x['selected'] or {}).get('flux',0.)>0. for x in first),'Selected-window repeat requires a nonzero test signal'
-        return dict(evidence='Exact decoded replay loop; supplied 48kHz PCM, actual analyzer/scoped pipes, mocked graphics; no capture/device/GPU',repeat_frames=64,resumed_frames_equal_baseline=44,independent_source_and_FFT_history_restored=True,repeat_after_other_endpoint=True,live_authored_revision_preserved=True,single_renderer_per_run=True)
+        return dict(recipe=recipe,pair=pair,evidence='Exact decoded replay loop; supplied 48kHz PCM, actual analyzer/scoped pipes, mocked graphics; no capture/device/GPU',repeat_frames=64,resumed_frames_equal_baseline=44,independent_source_and_FFT_history_restored=True,repeat_after_other_endpoint=True,live_authored_revision_preserved=True,single_renderer_per_run=True)
     finally:
         for fd in readers:
             try:os.close(fd)
@@ -112,4 +112,4 @@ def run():
         for r in renders:
             if getattr(r,'color_inbox',None):r.color_inbox.close()
 
-if __name__=='__main__':print(json.dumps(run(),indent=2));print('Studio Audio decoded owner CPU checks PASS')
+if __name__=='__main__':print(json.dumps([run(),run('tr_branch_iris',(12,41)),run('tr_flow_fold',(12,43))],indent=2));print('Studio Audio decoded owner CPU checks PASS')

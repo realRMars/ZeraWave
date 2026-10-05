@@ -15,7 +15,10 @@ def main():
     env={}
     for n in ast.parse((ROOT/'app/visuals/renderer.py').read_text()).body:
         if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id in ('BLEND_FORMS','AIR_FORMS','EARTH_FORMS','FOG_FORMS','PLASMA_FORMS','LIVE_FORMS') for t in n.targets):exec(compile(ast.Module(body=[n],type_ignores=[]),'canonical-roster','exec'),env)
-    assert len(FORMS)==27 and set(FORMS)==set(env['LIVE_FORMS'])
+    from development_forms import FRACTAL_FORMS
+    assert len(env['LIVE_FORMS'])==30
+    assert set(FORMS)==set(env['LIVE_FORMS'])|set(FRACTAL_FORMS)
+    assert set(FRACTAL_FORMS)<=set(env['LIVE_FORMS']) and not set((37,38,39,40))&set(env['LIVE_FORMS'])
     validate=lambda form,target,c:dict(c) if target in ('planet.starfield','roots.growth') else (_ for _ in ()).throw(ValueError('Unknown target'))
     box=ScopeMailbox('runA','sessionA',validate);scopes=[Scope('runA','sessionA',f,t,1) for f,t in ((5,'planet.starfield'),(12,'roots.growth'))]
     for s in scopes:assert box.accept(dict(scope=s.packet(),settings=dict(enabled=True,gain=1.)))
@@ -48,7 +51,7 @@ def main():
     pair=SimpleNamespace(state_at=lambda t:5 if t<12 else 0,transition_sequence=True,transition_settings=dict(hold=12.,duration=6.),debug_sequence=(5,12),director_recipe='tr_planet')
     assert endpoints(pair,3.)['active']==[5] and endpoints(pair,15.)['active']==[5,12]
     assert endpoints(SimpleNamespace(state_at=lambda t:37),0.)['active']==[]
-    result=dict(evidence_class='CPU identity/transport-state/delayed-save and actual canonical roster checks; no rendering or capture',canonical_forms=27,endpoint_cases=len(cases),old_run_session_rejected=True,target_revision_isolation=True,coalesced_author_retained=True,delayed_save_destination_rejected=True,stale_ACK_rejected=True,experimental_excluded=True)
+    result=dict(evidence_class='CPU identity/transport-state/delayed-save and actual canonical roster checks; no rendering or capture',canonical_forms=30,endpoint_cases=len(cases),old_run_session_rejected=True,target_revision_isolation=True,coalesced_author_retained=True,delayed_save_destination_rejected=True,stale_ACK_rejected=True,unapproved_forms_excluded_from_Main=True,inspection_fractals_supported=True)
     assert not any(n in sys.modules for n in ('glfw','moderngl','capture','soundcard','tkinter'))
     if args.output:args.output.write_text(json.dumps(result,indent=2)+'\n',encoding='utf8')
     print(json.dumps(result,indent=2));print('Audio scope CPU checks PASS')

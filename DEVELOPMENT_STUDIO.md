@@ -21,8 +21,8 @@ alone does not verify motion or stateful effects.
 
 ### Organization contract
 
-**Build & preview** presents only canonical Main-approved forms, currently 27
-including Galaxy. Approval comes from `renderer.LIVE_FORMS`, also used by the
+**Build & preview** presents only canonical Main-approved forms, currently 30
+including Galaxy and the three Fractal forms. Approval comes from `renderer.LIVE_FORMS`, also used by the
 player, rather than catalog membership or an internal review score. The existing
 top-level taxonomy is **Organic**, **Geometric**, **Cosmic**, and **Elements**;
 Elements has its own categories. Filtering happens at every leaf, hides empty
@@ -89,8 +89,8 @@ remain and final metrics may be incomplete.
 
 1. In **Build & preview**, leave the top World selector blank for Main Blend,
    or hold an approved form. Choose **Test track** and an existing decoded WAV
-   for repeatable review, then **Start preview**. Audio Tuning supports the 27
-   canonical Main forms, including Galaxy, and their declared targets.
+   for repeatable review, then **Start preview**. Audio Tuning supports the 30
+   canonical Main forms, including Galaxy and Fractals, and their declared targets.
    Experimental/Cymatics remain excluded until promoted.
 2. Open **View > Audio tuning…**. With **Pin editing destination** off, the
    dialog follows actual playback in Main, held forms and supported sequences/
@@ -558,3 +558,147 @@ sets an audible but off-resonant driver and stays muted until explicit enable.
 The backend was checked with zero-only buffers; subjective listening remains unverified. Water remains outside Main pending review.
 
 [Model/controls/checkpoint evidence](docs/agent-notes/cymatics-water.md)
+
+
+## Development playback controls and Fractal
+
+The single Start / Pause / Stop / Hold / Bonk control set appears in the existing
+preview area for both Main and Experimental. Pause freezes drawing and replay
+clocks; Resume drops stale live packets and transient replay input. Hold is
+momentary: it parks selection while musical/material motion continues. Releasing
+the mouse or Shift, losing editing focus, changing scope, and closing a preview
+release Hold. A single held form has no next destination: Bonk stays disabled.
+Normal and Instant use the existing Player transition semantics; a development
+sequence uses its existing selection/transition route.
+
+Studio keeps Ctrl+S for Save session. Ctrl+Shift+S stops the owned preview,
+Ctrl+Enter starts, Ctrl+P pauses/resumes, Shift holds, and Space Bonks. Playback
+keys leave text, combobox, slider and spinbox editing alone. Session Save/New/Open
+retain their shortcuts. Space is consumed before a focused button's default
+binding. The output window uses the same playback bindings; Escape closes it.
+
+Enable Development diagnostics for asynchronous nominal 1-second resource
+sampling. Presentation intervals/FPS are swap-return/caller intervals, not scanout.
+CPU process is percent of one logical core (can exceed 100%); system CPU covers
+the machine. RAM process means working set. GPU utilization and VRAM belong to
+NVIDIA device 0; process VRAM and lightweight GPU draw timing are unavailable.
+Missing/stale readings say unavailable. Actual timestamps and instrumentation
+limits are retained in the report. Background load, thermals and power are not
+controlled. This display gives no FPS guarantee.
+
+Graceful Stop or normal completion writes `session-performance.json` into that preview's
+results directory. **Open Latest Results** opens the directory. Reports bind source,
+run, source/audio hash, speed, seed, relevant settings, actual dimensions,
+frame-time distributions, capped hitches and resource history. Private audio is
+not copied. GPU query timings require the separate scoped measurement harness.
+
+In Main choose **Fractal** → **Tidal Strata**, **Recursive Atrium**, or
+**Honeycomb Garden**. All three now belong to the 30-form Main lineup, playlists and random selection.
+Test track replay is silent; choose Real time for normal-time review. Synthetic
+preview supports visual tuning but has no PCM/selected-bin measurements. Live
+system audio uses the existing source/capture path. Use View → Audio tuning and
+Mapping monitor, and Palettes, for the same scoped inspection/save workflow.
+Explicit saves, run/session/form/target/revision guards and parked edits remain.
+
+Mineral Lamellae and Recursive Pulse are compatible with all three Fractals.
+Their amounts are in Effects & layers; authored amounts differ per form. Each
+has independent form-owned Audio Tuning. Lamellae's source pigments are shared
+across the three forms. Landscape/atrium gradients and garden honey/petals have
+named authored families. Unedited targets evolve slowly; explicit edits and
+Hold park a target's authored palette evolution. Color edits retain growth,
+travel and audio history. Reset colors resumes the existing authored clock.
+Form entry/rewind resets the bounded growth/travel clocks; there is no
+reaction-diffusion simulation or neural model. Low-rate recovery advances at most .25 s
+per draw, so it cannot queue an unbounded catch-up. Pause does not advance it.
+
+A running Experimental preview cannot audition a Main pair. Stop it and start a
+Main preview first; this preserves the owned shader/resources and Return contract.
+A forced termination during a blocked startup may have only `run.log`, rather
+than a completed performance report.
+
+Frozen A/B comparison presents every decoded analysis chunk at its requested real-time pacing.
+It can run longer under overload; it does not drop rows to catch up. Ordinary real-time preview
+retains its existing wall-time catch-up. A/B keeps its existing comparison manifest/metrics;
+its paused/live-inspector actions remain unavailable during the owned comparison run.
+
+Session Performance Reports distinguish **launch settings** from subsequent live
+edits. `launch_settings_sha256` covers the launch selection, layers, source and
+speed, color overrides, palette/isolation choices, Galaxy entry/seed/visit and
+Planet pilot options. It is a launch-only identity, not a hash of the whole evolving
+session. `applied_edit_trace` records successfully applied Audio Tuning and color
+revisions with run/session/form/target ownership, song time, wall time and settings
+snapshots. Pending, rejected and stale edits do not count as applied. The trace
+retains the latest 256 events; its total count, dropped count and cumulative chain
+hash preserve that limit explicitly. Open Latest Results opens the owned run folder.
+
+Decoded Fractal reports retain actual analysis values while marking
+unimplemented Planet-flight telemetry and material-mix capture metadata unavailable.
+An unavailable shader uniform is never presented as a measured zero. Captures use
+the current framebuffer size and an owned readback target, released on resize/exit.
+
+
+### Fractal integration and structural transitions
+
+Main includes Tidal Strata (41), Recursive Atrium (42) and Honeycomb Garden (43)
+under **Fractal**. Stable `fractals` paths, role IDs and separate authored profiles
+remain. Earlier sessions selecting these under Experimental migrate that selection
+to Main while preserving colors, layers and audio settings. Other experiments remain
+outside Main. One shared renderer program handles Main/Fractal entry, exit and pairs.
+
+In the existing transition controls select two Main forms and isolate **Branching
+Iris** (`tr_branch_iris`) or **Flowing Fold** (`tr_flow_fold`). Iris opens recursive
+radial forks; Fold carries endpoint geometry through alternating flowing ribbons.
+Both support any two different Main forms, including Fractal. Audition/Repeat uses
+the existing decoded or synthetic source; Return restores the parked preview.
+Each recipe has independent Audio Tuning for Bass, Flux, Movement and Impact,
+including selected-frequency ranges. Duration scale is a separate CPU timer control;
+its effect applies on the next ordinary Main transition, whereas explicit audition
+keeps its requested duration. Inactive recipe edits are retained without claiming
+current contribution. Both transitions inherit endpoint pigments: their spatial
+transport adds no independent color-bearing overlay. Save session remains explicit.
+
+Before the measured performance fixes below, the first observed compile of the revised combined shader took about 181 seconds
+and the following warm creation about 0.36 seconds on this laptop. Cache state was
+not controlled: this is no demonstrated cold-start improvement or FPS guarantee.
+Task-bound evidence and expanded-lineup measurements are in
+`work/fractal-main-transitions-04/`; artistic acceptance remains Robert's.
+
+Pre-fix first-source compile evidence also reproduced about 190 seconds and 13.2 GiB peak process working set; warm runs were about 0.32 seconds for program compilation. The tested uniform-bound loop did not improve this and was rejected. These are historical baseline results; the measured performance results below supersede the current-cost claim.
+
+
+### Measured performance controls — October 4 fixes
+
+New previews default **Captures** off. Existing sessions retain their saved
+capture choice. Enabled captures keep GL readback on the graphics thread and
+send statistics/PNG work to one bounded writer (two waiting frames). A full
+queue drops the new capture; `captures.json` reports drops/errors. Closing a
+preview normally drains its accepted captures. Stop during a blocked native
+operation can still leave partial evidence.
+
+**Build & preview → Preview quality** applies to the next launched preview:
+**Full quality (100%)** is the default and retains the full framebuffer workload.
+**75% scale (softer detail)** and **50% scale (softer detail)** reduce each render
+dimension and linearly upscale the final image. At 1280×720 they render 960×540
+and 640×360 respectively. These are explicit appearance tradeoffs, with no
+adaptive switching or scene-density reduction. The report records the scale,
+actual internal size and shader resolution. Main keeps full quality unless an
+explicit environment override is provided; no lower tier was adopted as its default.
+
+For review, run `run_development_studio.bat`, choose a held **Waterfall**, **Liquid dyes**,
+**Ghostlight Marsh**, or **Crystal Cavern**, select a Test track and **Real time**, choose
+**60 seconds**, leave Captures off, then Start preview. Compare Full/75%/50%
+using the same track prefix, seed and settings. **Main blend** checks ordinary
+director behavior. Transition controls can isolate Citadel ↔ Crystal Cavern,
+Waterfall ↔ Geometric corridor, and Root blossoms ↔ Tidal Strata with Optical
+crossfade, Branching Iris or Flowing Fold. Audio Tuning and Palettes remain live;
+Return/repeat retain their existing ownership and history rules.
+
+The existing responsive loading notice remains through first presentation.
+The shader is still one integrated program; all Main families are compiled
+before playback. On the measured NVIDIA driver, a limited-inlining policy cuts
+cold compiler memory/time. Other vendors retain their compiler policy. Cached
+startup is much faster than cold startup. Full-quality expensive scenes and
+crossfades still miss 60 FPS; GPU time and silent replay are not scanout or
+continuous listening evidence. See
+[the task results](docs/agent-notes/performance-fixes-20261004.md) for measured
+conditions, numerical image differences and known limits.

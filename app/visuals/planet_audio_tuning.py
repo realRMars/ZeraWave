@@ -173,6 +173,15 @@ class PlanetAudioTuning:
                 self.state[target].update(revision=revision,settings=c)
                 if a is not None:self.state[target]['authored']=a
             self.pending.clear();rows=[];legacy=derived(inputs or {})
+            if not active:
+                # Inactive adapters still apply pending edits/ACK revisions.
+                # Listening and gain preparation resumes only when Planet owns
+                # an endpoint; its selected histories are unavailable meanwhile.
+                self.selected.clear();self.packed.clear();self.listening_details={}
+                for target in TARGETS+(STAR_TARGET,):
+                    self.listening[target].reset_impact()
+                self.star_settings=dict(listening_defaults(STAR_WINDOWS),**(star or {}))
+                return 0,[(1.,1.,1.,1.)]*UNIFORM_ROWS
             for target in TARGETS:
                 p=self.state[target];c=p['settings'] if p['settings']['enabled'] else p['authored']
                 local,details=self.listening[target].select(c,WINDOWS[target],legacy,active,delta)

@@ -23,9 +23,11 @@ A scene assignment covers the assets, movement, reusable techniques and palettes
 needed for the complete experience. Historical plans, research-stage restrictions
 and completed task notes do not narrow the user's current brief.
 
-Galaxy Odyssey is accepted and included in the 27-form Main roster. Color
+Galaxy Odyssey is accepted and included in the 30-form Main roster, alongside
+Tidal Strata, Recursive Atrium and Honeycomb Garden. Color
 Inspector and Studio organization are implemented; the three Envelopers remain
 off by default. Robert accepts the implemented Main Audio Tuning development
-checkpoint with caveats. Bounded engineering validation is complete; real-time
-transition performance remains unresolved. See [Studio controls](DEVELOPMENT_STUDIO.md#main-audio-tuning-and-mapping-monitor)
+checkpoint with caveats and passed the measured-performance development
+checkpoint for publication on October 5. Water/capture/startup improvements,
+compiler tradeoffs and remaining real-time limits are recorded in the handoff. See [Studio controls](DEVELOPMENT_STUDIO.md#main-audio-tuning-and-mapping-monitor)
 and the [current checkpoint and limits](ZERAWAVE_HANDOFF.md).

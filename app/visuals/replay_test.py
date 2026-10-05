@@ -29,6 +29,11 @@ from preview_layers import parse_layers, validate_layers, layers_at
 from signal_processor import SignalProcessor, VisualSignalConditioner
 
 
+def optional_uniform_vector(program,name):
+    """Absent program-specific presentation metadata is unavailable, never zero."""
+    return tuple(program[name].value) if name in program else None
+
+
 def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
            capture_dir=None, capture_interval=15.0, states=None, layers=None, seed=None, palette="authored", comparison_label=None, colors=None, color_input=False, galaxy_visit=0, galaxy_short=False, transitions=None, planet_dsp_pilot=False, planet_star_attack_pilot=False):
     if palette not in ("authored", "soft-dream"):
@@ -40,9 +45,11 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
     if capture_dir is not None:
         if capture_interval <= 0:
             raise ValueError("Capture interval must be positive")
-        from shader_test import save_png
         capture_dir.mkdir(parents=True, exist_ok=True)
     captures = []
+    from preview_capture import CaptureWriter,ReplayTelemetry
+    capture_writer=None
+    capture_target = None
     next_capture = 0.0
     debug_state = LIVE_STATES[state]
     with wave.open(str(path), "rb") as audio:
@@ -77,16 +84,19 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
             configure_star_tuning(renderer,analyzer,normal=color_input)
             if getattr(renderer,'studio_audio',None) is not None:star_pilot=True
             if getattr(renderer,'studio_audio',None) is not None and renderer.planet_dsp_pilot:pilot=True
-        rows = []
+        rows = ReplayTelemetry(metrics_path)
         chunk = 2048
         song_time = 0.0
 
         try:
+            capture_writer=CaptureWriter(capture_dir) if capture_dir is not None else None
             renderer.create()
             if comparison_label:
                 import glfw
                 glfw.set_window_attrib(renderer.window, glfw.RESIZABLE, glfw.FALSE)
-            replay_start = time.perf_counter();read_to=0.;next_present=0.;frame=None;result=None;rendered_frames=0;analyzed_frames=0
+            controls=getattr(renderer,'preview_playback',None)
+            def playback_wall():return controls.drawing_time() if controls is not None else time.perf_counter()
+            replay_start = playback_wall();read_to=0.;next_present=0.;frame=None;result=None;rendered_frames=0;analyzed_frames=0
             owner=getattr(renderer,'studio_audio',None)
             if owner is not None:
                 owner.source_mode='REPLAY';owner.source_identity=str(Path(path).resolve())
@@ -126,14 +136,20 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                         owner.model.active=snapshot['active'];owner.model.listening=snapshot['listening'];owner.model.processors=snapshot['processors'];owner.endpoint=snapshot['endpoint']
                         listening_history(renderer,analyzer,'restore',snapshot['target_history'])
                     else:raise ValueError('Unknown decoded-source audition action')
-                    replay_start=time.perf_counter()-song_time
+                    replay_start=playback_wall()-song_time
                 owner.audition.register_source(decoded_audition_source)
             while not renderer.should_close():
-                if owner is not None:owner.audition.poll(time.perf_counter())
+                if controls is not None and controls.playback.paused:
+                    renderer.poll_events();time.sleep(.016);continue
+                if controls is not None and controls.playback.resume_fresh and result is not None:
+                    result['impact']=0.
+                if owner is not None:owner.audition.poll(playback_wall())
                 audition=owner is not None and owner.audition.active
                 if not audition and song_time >= (max_seconds or float('inf')):break
-                realtime=speed==1.
-                song_time=time.perf_counter()-replay_start if realtime else read_to
+                # Frozen A/B comparisons must present every decoded chunk so
+                # both trials retain identical analysis history and sample times.
+                realtime=speed==1. and not comparison_label
+                song_time=playback_wall()-replay_start if realtime else read_to
                 if not audition and max_seconds is not None and song_time>=max_seconds:break
                 new_input=False;eof=False;impact=0.;tick=False
                 while frame is None or read_to<=song_time:
@@ -173,21 +189,23 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                 layer_mode, layer_mask = layers_at(renderer.layer_profiles, LIVE_STATES[active_state], song_time)
                 renderer.render(elapsed_time=song_time);rendered_frames+=1
                 if capture_dir is not None and song_time >= next_capture:
-                    width, height = renderer.ctx.screen.size
-                    pixels = np.frombuffer(renderer.ctx.screen.read(components=3, alignment=1),
-                        dtype=np.uint8).reshape(height, width, 3)
+                    import glfw
+                    width,height=glfw.get_framebuffer_size(renderer.window)
+                    if capture_target is None or capture_target.size!=(width,height):
+                        if capture_target is not None:capture_target.release()
+                        capture_target=renderer.ctx.simple_framebuffer((width,height),components=3)
+                    renderer.ctx.copy_framebuffer(capture_target,renderer.ctx.screen)
+                    pixels = capture_target.read(components=3, alignment=1)
                     filename = f"frame-{song_time:08.3f}.png"
-                    save_png(capture_dir / filename, pixels[::-1])
-                    captures.append(dict(file=filename, seconds=song_time,
-                        state=active_state, flow_rate=renderer.flow_rate, planet_visits=renderer.planet_visits, blast_events=list(renderer.blast_events), world_mix=renderer.blend_values, echo_weight=renderer.echo_weight, beat_confidence=frame.beat_confidence, tempo=frame.tempo, material_mix=list(renderer.program["u_material_mix"].value), shockwaves=list(renderer.shockwaves), layer_mode=layer_mode, layer_mask=layer_mask, bass=frame.bass, mids=frame.mids, highs=frame.highs,
-                        flux=frame.flux, **result,
-                        contrast=float(pixels.astype(float).std(axis=(0, 1)).mean()),
-                        dark_fraction=float((pixels.max(axis=2) < 35).mean()),
-                        clipped_fraction=float((pixels.max(axis=2) >= 250).mean())))
+                    metadata=dict(file=filename, seconds=song_time,
+                        state=active_state, flow_rate=renderer.flow_rate, planet_visits=renderer.planet_visits, blast_events=list(renderer.blast_events), world_mix=renderer.blend_values, echo_weight=renderer.echo_weight, beat_confidence=frame.beat_confidence, tempo=frame.tempo, material_mix=optional_uniform_vector(renderer.program,"u_material_mix") if actual_state not in (41,42,43) else None, shockwaves=list(renderer.shockwaves), layer_mode=layer_mode, layer_mask=layer_mask, bass=frame.bass, mids=frame.mids, highs=frame.highs,
+                        flux=frame.flux, **result)
                     if pilot:
-                        captures[-1].update(descriptors=frame.descriptors,
-                                            spatial_amounts=list(renderer.program['u_spatial_treatments'].value))
-                    next_capture += capture_interval
+                        metadata.update(descriptors=frame.descriptors,
+                                            spatial_amounts=optional_uniform_vector(renderer.program,'u_spatial_treatments'))
+                    capture_writer.submit(pixels,(width,height),metadata)
+                    # A delayed frame does not enqueue a burst of old captures.
+                    next_capture = song_time + capture_interval
                 renderer.swap_buffers()
                 renderer.poll_events()
                 if new_input:rows.append({"seconds": song_time, "beat_confidence": frame.beat_confidence, "tempo": frame.tempo, "echo_weight": renderer.echo_weight, "state": active_state, "shockwave_count": len(renderer.shockwaves), "blast_count": len(renderer.blast_events), "planet_visits": renderer.planet_visits, "flow_rate": renderer.flow_rate, "layer_mode": layer_mode, "layer_mask": layer_mask, "bass": frame.bass, "mids": frame.mids,
@@ -198,17 +216,19 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                                     spectral_spread=frame.descriptors['spectral_spread'],
                                     fullness=frame.descriptors['fullness'],
                                     signal_confidence=frame.descriptors['signal_confidence'],
-                                    elastic_amount=renderer.program['u_spatial_treatments'].value[0],
-                                    braided_amount=renderer.program['u_spatial_treatments'].value[1])
+                                    elastic_amount=(optional_uniform_vector(renderer.program,'u_spatial_treatments') or (None,None))[0],
+                                    braided_amount=(optional_uniform_vector(renderer.program,'u_spatial_treatments') or (None,None))[1])
                 if new_input and star_pilot:
+                    flight=optional_uniform_vector(renderer.program,'u_planet_star_flight') if renderer.planet_star_attack_eligible() else None
                     rows[-1].update(bass_attack=frame.planet_star_audio['bass_attack'],
-                                    star_flight_phase=renderer.program['u_planet_star_flight'].value[1],
-                                    star_attack_envelope=renderer.program['u_planet_star_flight'].value[2])
+                                    star_flight_phase=flight[1] if flight else None,
+                                    star_attack_envelope=flight[2] if flight else None,
+                                    star_flight_available=flight is not None)
                 if realtime:
-                    next_present=max(next_present+1./60.,time.perf_counter()-replay_start)
-                    delay=replay_start+next_present-time.perf_counter()
+                    next_present=max(next_present+1./60.,playback_wall()-replay_start)
+                    delay=replay_start+next_present-playback_wall()
                 else:
-                    song_time=read_to;delay=replay_start+song_time/speed-time.perf_counter() if speed>0 else 0.
+                    song_time=read_to;delay=replay_start+song_time/speed-playback_wall() if speed>0 else 0.
                 if delay>0:time.sleep(delay)
         finally:
             if pilot:
@@ -216,19 +236,16 @@ def replay(path, speed=12.0, max_seconds=None, metrics_path=None, state="blend",
                 renderer.reset_planet_dsp()
             if star_pilot:
                 renderer.reset_planet_star_attack()
+            if capture_target is not None:capture_target.release()
+            if capture_writer is not None:capture_writer.close();captures=capture_writer.records
+            rows.close()
             renderer.close()
 
-    if metrics_path:
-        metrics_path.parent.mkdir(parents=True, exist_ok=True)
-        with metrics_path.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=rows[0].keys()) if rows else None
-            if writer:
-                writer.writeheader()
-                writer.writerows(rows)
     if capture_dir is not None:
         (capture_dir / "captures.json").write_text(json.dumps(dict(
             source=str(path), state=state, states=states, palette=palette, layers=renderer.layer_profiles, song_seconds=song_time,
             analyzed_frames=analyzed_frames, rendered_frames=rendered_frames, captures=captures,
+            capture_dropped=capture_writer.dropped,capture_errors=capture_writer.errors,
             director_seed=renderer.director_seed, director_history=renderer.director_history,
             note="Decoded music through the real analysis and GPU pipeline; no audible playback."),
             indent=2), encoding="utf-8")

@@ -337,12 +337,41 @@ TARGETS += (ColorTarget('cymatics.stone','Basin stone finish','cymatics','roles'
     (ColorSlot('base','Stone body',(.009,.012,.019)),ColorSlot('vein','Mineral veins',(.64,.71,.77))),
     'Original procedural obsidian/marble finish; preserves water, dye and excitation.'),)
 
+TARGETS += (
+    ColorTarget('fractal.landscape.terrain','Tidal Strata terrain gradient','fractal_landscape','staged_gradient','u_fractal_terrain',
+        _gradient(('deep','shadow','body','crest','pale'),('Valley ink','Distant strata','Living rock','Ridge mineral','Summit light'),
+                  ((.008,.027,.044),(.035,.17,.21),(.10,.43,.40),(.86,.49,.22),(.96,.85,.58))),
+        'Layered landscape gradient before distance haze. Editing or explicit Hold parks authored palette evolution; flowing ridges keep moving.'),
+    ColorTarget('fractal.landscape.sky','Tidal Strata sky','fractal_landscape','roles','u_fractal_sky',
+        (ColorSlot('deep','Sky ink',(.008,.012,.035)),ColorSlot('haze','Horizon haze',(.26,.31,.42)),ColorSlot('sun','Distant sun',(.95,.72,.40))),
+        'Atmosphere and distant light; preserves terrain and audio history.'),
+    ColorTarget('fractal.atrium.stone','Recursive Atrium mineral gradient','fractal_atrium','staged_gradient','u_fractal_stone',
+        _gradient(('deep','shadow','body','edge','light'),('Deep recess','Stone shadow','Architectural body','Copper edges','Inner light'),
+                  ((.007,.012,.023),(.027,.045,.073),(.12,.24,.30),(.71,.36,.19),(.93,.75,.48))),
+        'Recursive architectural shading gradient. Manual pigment/range edits preserve scale traversal and portal history.'),
+    ColorTarget('fractal.atrium.light','Recursive Atrium seam light','fractal_atrium','roles','u_fractal_light',
+        (ColorSlot('cool','Cool seams',(.17,.75,.84)),ColorSlot('warm','Copper seams',(.97,.43,.18)),ColorSlot('mist','Depth mist',(.05,.09,.16))),
+        'Distinct seam lights and depth mist; no global brightness override.'),
+    ColorTarget('fractal.bloom.honey','Honeycomb wax and gold','fractal_bloom','roles','u_fractal_honey',
+        (ColorSlot('black','Bumblebee ink',(.009,.007,.011)),ColorSlot('wax','Honey wax',(.95,.59,.025)),ColorSlot('gold','Gold rim',(1.,.86,.18))),
+        'Honeycomb and emerging seed centers remain honey gold/yellow with dark recesses. Changing pigments preserves cell-to-petal transformation.'),
+    ColorTarget('fractal.bloom.petals','Honeycomb Garden petal pigments','fractal_bloom','roles','u_fractal_petals',
+        tuple(ColorSlot(k,label,rgb) for k,label,rgb in (
+            ('coral','Coral petals',(.96,.14,.24)),('orchid','Orchid petals',(.68,.20,.87)),('cobalt','Cobalt petals',(.12,.39,.98)),
+            ('mint','Mint petals',(.18,.86,.54)),('sunflower','Sunflower petals',(1.,.71,.04)),('rose','Rose petals',(.98,.32,.66)))),
+        'Six spatial petal families, rather than a fullscreen hue wash. Independent pigments retain flower shapes, growth and pollen.'),
+    ColorTarget('fractal.material.lamellae','Mineral Lamellae pigments','fractal_shared','roles','u_lamellae_colors',
+        (ColorSlot('shadow','Etch shadow',(.012,.019,.027)),ColorSlot('vein','Mineral vein',(.51,.32,.15)),ColorSlot('glint','Mineral grain',(.95,.84,.55))),
+        'Shared mineral etching on all three experimental Fractals. Color edits retain geometry; amount zero bypasses this material.'),
+)
+
 STATE_COLOR_SCENE = ('blend','organic','geometric','cosmic','transition','canvas',
     'water','sea','dyes','rain','waterfall','membrane','roots','currents',
     'fire','molten','fire_cycle','firescape','aftershock',
     'windstreams','stormfront','vortex','citadel','air',
     'dunes','strata','cavern','earth','nebula','marsh','pressure','fog',
-    'magnetic','arcs','auroral','plasma','galaxy','cymatics','lodestone_experimental','stormglass_experimental','folded_aurora_experimental')
+    'magnetic','arcs','auroral','plasma','galaxy','cymatics','lodestone_experimental','stormglass_experimental','folded_aurora_experimental',
+    'fractal_landscape','fractal_atrium','fractal_bloom')
 
 _CYCLE_FORMS = {
     'organic': ('membrane','roots'), 'cosmic': ('canvas',), 'transition': ('canvas',),
@@ -375,7 +404,9 @@ _SHARED_COMPAT = {
 
 
 def targets_for(scene):
-    if scene == 'blend': return tuple(target for target in TARGETS if target.scene not in ('cymatics','lodestone_experimental','stormglass_experimental','folded_aurora_experimental'))
+    if scene in ('fractal_landscape','fractal_atrium','fractal_bloom','fractals'):
+        return tuple(t for t in TARGETS if t.scene=='fractal_shared' or t.scene==scene or scene=='fractals' and t.scene.startswith('fractal_'))
+    if scene == 'blend': return tuple(target for target in TARGETS if target.scene not in ('cymatics','lodestone_experimental','stormglass_experimental','folded_aurora_experimental','fractal_landscape','fractal_atrium','fractal_bloom','fractal_shared'))
     if scene == 'galaxy': return tuple(target for target in TARGETS if target.scene == 'galaxy' or target.id in ('stellar.sails','sky.stars'))
     forms = _CYCLE_FORMS.get(scene, (scene,))
     experimental={'lodestone_experimental':'magnetic','stormglass_experimental':'arcs','folded_aurora_experimental':'auroral'}
@@ -469,12 +500,14 @@ def scene_colors(data, scene):
     return {target.id:data[target.id] for target in targets_for(scene) if target.id in data}
 
 
-def color_uniforms(data, active, seconds=0.):
+def color_uniforms(data, active, seconds=0., only=None):
     # Boolean compatibility supports the original Roots-only shader fixture.
     active_ids = {target.id for target in targets_for('roots')} if active is True else (
         set() if active is False else set(active))
     result = {}
+    selected = None if only is None else set(only)
     for target in TARGETS:
+        if selected is not None and target.id not in selected:continue
         values=data.get(target.id,{})
         cycle=values.get('_cycle')
         cycling=bool(cycle and cycle['mode']=='cycle')
@@ -564,6 +597,35 @@ PALETTE_FAMILIES = {
  'enveloper.digital': {'Phosphor dusk': ('#759789','#D1CE92'), 'Blue copper': ('#758EB1','#DAB38F')},
  'enveloper.memory': {'After-rain': ('#D4B6CB','#A2D6BE','#ABC5ED'), 'Warm archive': ('#E5B297','#C3CD9B','#B1B1D8')},
 }
+
+
+PALETTE_FAMILIES.update({
+ 'fractal.landscape.terrain':{'Tidal Copper':('#02070B','#092B36','#1A6E66','#DB7D38','#F5D994'),
+    'Orchid Limestone':('#090918','#252758','#65577D','#BE8BA2','#F4DAC0'),'Lichen Dawn':('#06120E','#244E42','#62856B','#B7A46B','#F8E6B1')},
+ 'fractal.landscape.sky':{'Tidal Copper':('#020309','#424F6B','#F2B866'),'Orchid Limestone':('#0B0719','#785C80','#FFC7A0'),'Lichen Dawn':('#091A24','#83A89D','#F6DE96')},
+ 'fractal.atrium.stone':{'Copper Observatory':('#020306','#070C13','#1F3D4D','#B55C30','#EDBF7A'),
+    'Indigo Porcelain':('#050615','#111C38','#455A84','#80B9C9','#E8EDD8'),'Garnet Cathedral':('#10050B','#362033','#704557','#C48052','#FFE1A7')},
+ 'fractal.atrium.light':{'Copper Observatory':('#2BC0D6','#F76E2E','#0D1729'),'Indigo Porcelain':('#9FE6ED','#DE83C3','#17243C'),'Garnet Cathedral':('#FFAC6E','#8C78F4','#331E35')},
+ 'fractal.bloom.honey':{'Bumblebee Honey':('#020202','#F29806','#FFDB2E'),'Golden Nectar':('#080508','#DE841E','#FFE17D')},
+ 'fractal.bloom.petals':{'Pollinator Garden':('#F5233D','#AD33DE','#1F63FA','#2EDB8A','#FFB50A','#FA52A8'),
+    'Jewel Meadow':('#E65C31','#803FE0','#317DE2','#67B83F','#FFD75E','#E660AB'),'Sunflower Festival':('#F4511E','#C53686','#327FA8','#89C350','#FFCA08','#EF7D66')},
+ 'fractal.material.lamellae':{'Amber Etching':('#030507','#825226','#F2D68C'),'Opal Etching':('#090A15','#568AA3','#BDE7E0'),'Copper Etching':('#150905','#B0674F','#FFE1BA')},
+})
+
+
+def fractal_authored_colors(data,state,seconds):
+    if state not in (41,42,43):return data
+    scene=STATE_COLOR_SCENE[state];result=dict(data)
+    # Slow family drift belongs to unedited source targets, never session data.
+    phase=max(0.,seconds)/145.;amount=phase%1.;amount=amount*amount*(3.-2.*amount)
+    for target in targets_for(scene):
+        if target.id in data and data[target.id]:continue
+        palettes=tuple(PALETTE_FAMILIES[target.id].values())
+        if target.id=='fractal.bloom.honey':palettes=palettes[:1]
+        index=int(phase)%len(palettes)
+        a,b=palettes[index],palettes[(index+1)%len(palettes)]
+        result[target.id]={slot.id:dict(color=rgb_hex(tuple(x+(y-x)*amount for x,y in zip(hex_rgb(left),hex_rgb(right))))) for slot,left,right in zip(target.slots,a,b)}
+    return result
 
 
 def galaxy_authored_colors(data, state, seed=7301, index=0):

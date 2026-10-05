@@ -7,7 +7,10 @@ import json
 import math
 
 WORLDS = ('blend', 'organic', 'geometric', 'cosmic', 'transition', 'water', 'fire', 'air', 'earth', 'fog', 'plasma')
-PROFILE_WORLDS = WORLDS + ('galaxy','cymatics')
+FRACTAL_WORLDS=('fractal_landscape','fractal_atrium','fractal_bloom')
+FRACTAL_MATERIALS=('mineral_lamellae',)
+FRACTAL_TREATMENTS=FRACTAL_MATERIALS+('recursive_pulse',)
+PROFILE_WORLDS = WORLDS + ('galaxy','cymatics') + FRACTAL_WORLDS
 FIELD = ('blend', 'organic', 'geometric', 'cosmic', 'transition')
 EFFECTS = {
     'artifacts': ('Living artifacts', 'Material', WORLDS),
@@ -85,6 +88,8 @@ EFFECTS['mineral_resonance']=('Mineral Resonance','Surface motion',('blend','ear
 ORBITAL_LAYERS = ('gravity_well',)
 EFFECTS['gravity_well']=('Stellar Gravity Well','Spatial',('galaxy',))
 SKY_EFFECTS = ('shooting_stars',) + STELLAR_LAYERS
+EFFECTS['mineral_lamellae']=('Mineral Lamellae','Material',FRACTAL_WORLDS)
+EFFECTS['recursive_pulse']=('Recursive Pulse','Spatial',FRACTAL_WORLDS)
 EXPERIMENTS = ('daddy_long_legs',)
 EXPLICIT_MATERIALS = ('echo_weave',) + NEW_MATERIALS
 EARTH_DETAILS = ('earth_sediment', 'earth_veins', 'earth_dust', 'earth_worm')
@@ -92,8 +97,8 @@ FOG_DETAILS = ('fog_volume', 'fog_lights', 'fog_fronts')
 PLASMA_DETAILS = ('plasma_field', 'plasma_arcs', 'plasma_sparks')
 from transition_catalog import RECIPES as TRANSITION_RECIPES
 TRANSITION_IDS=tuple(TRANSITION_RECIPES)
-for key,info in TRANSITION_RECIPES.items():EFFECTS[key]=(info[0],'Transitions',tuple(w for w in WORLDS if w not in ('galaxy','cymatics')))
-BITS = {key: (0 if key in TRANSITION_IDS + EXPERIMENTS + EXPLICIT_MATERIALS + EARTH_DETAILS + FOG_DETAILS + PLASMA_DETAILS + SKY_EFFECTS + SPATIAL_TREATMENTS + ENVELOPERS + ORBITAL_LAYERS + MINERAL_TREATMENTS + TOWER_TREATMENTS + MAGNETIC_TREATMENTS + ARC_TREATMENTS + VEIL_TREATMENTS + MARSH_TREATMENTS + MOLTEN_TREATMENTS else 1 << i) for i, key in enumerate(EFFECTS)}
+for key,info in TRANSITION_RECIPES.items():EFFECTS[key]=(info[0],'Transitions',tuple(w for w in WORLDS if w not in ('galaxy','cymatics')) + (FRACTAL_WORLDS if key in ('tr_branch_iris','tr_flow_fold') else ()))
+BITS = {key: (0 if key in TRANSITION_IDS + EXPERIMENTS + EXPLICIT_MATERIALS + EARTH_DETAILS + FOG_DETAILS + PLASMA_DETAILS + SKY_EFFECTS + SPATIAL_TREATMENTS + ENVELOPERS + ORBITAL_LAYERS + MINERAL_TREATMENTS + TOWER_TREATMENTS + MAGNETIC_TREATMENTS + ARC_TREATMENTS + VEIL_TREATMENTS + MARSH_TREATMENTS + MOLTEN_TREATMENTS + FRACTAL_TREATMENTS else 1 << i) for i, key in enumerate(EFFECTS)}
 MODES = {'authored': 'Authored', 'together': 'Selected together', 'cycle': 'Cycle list', 'meld': 'Meld materials'}
 MATERIALS = ('artifacts', 'alloy', 'lattice', 'echo_weave') + NEW_MATERIALS
 
@@ -109,14 +114,21 @@ def default_profile(world=None):
 
 def profile_at(profiles,state):
     world=world_for_state(state)
-    profile=profiles.get(world,default_profile(world))
+    profile=profiles.get(world)
+    if profile is None or (world=='blend' and profile['mode']=='authored'):return _render_default_profile(world)
     items=[row for row in profile['items'] if row['id'] not in TRANSITION_IDS]
     # A scene relationship must not become a blank visual-effect cycle step.
     if len(items)!=len(profile['items']):
         profile=dict(profile,items=items)
-        if not items:return default_profile(world)
-    if world=='blend' and profile['mode']=='authored':return default_profile(world)
+        if not items:return _render_default_profile(world)
+    if world=='blend' and profile['mode']=='authored':return _render_default_profile(world)
     return profile
+
+
+# Render consumers only read these defaults. Public default_profile continues
+# to return an independently editable profile for Studio and saved sessions.
+from functools import lru_cache
+_render_default_profile=lru_cache(maxsize=32)(default_profile)
 
 
 
@@ -145,7 +157,7 @@ def validate_layers(data):
             row=dict(id=key, enabled=item['enabled'])
             if 'amount' in item:
                 amount=item['amount']
-                if key not in SPATIAL_TREATMENTS+ENVELOPERS+STELLAR_LAYERS+ORBITAL_LAYERS+MINERAL_TREATMENTS+TOWER_TREATMENTS+MAGNETIC_TREATMENTS+ARC_TREATMENTS+VEIL_TREATMENTS+MARSH_TREATMENTS+MOLTEN_TREATMENTS or type(amount) not in (int,float) or not math.isfinite(amount) or not 0<=amount<=1:
+                if key not in SPATIAL_TREATMENTS+ENVELOPERS+STELLAR_LAYERS+ORBITAL_LAYERS+MINERAL_TREATMENTS+TOWER_TREATMENTS+MAGNETIC_TREATMENTS+ARC_TREATMENTS+VEIL_TREATMENTS+MARSH_TREATMENTS+MOLTEN_TREATMENTS+FRACTAL_TREATMENTS or type(amount) not in (int,float) or not math.isfinite(amount) or not 0<=amount<=1:
                     raise ValueError('Treatment amount must be 0-1 on a new spatial effect or Enveloper.')
                 row['amount']=float(amount)
             clean.append(row)
@@ -158,6 +170,7 @@ def parse_layers(text):
 
 
 def world_for_state(state):
+    if state in (41,42,43):return FRACTAL_WORLDS[state-41]
     if 32 <= state <= 35 or state in (38,39,40): return 'plasma'
     if 28 <= state <= 31: return 'fog'
     if 24 <= state <= 27: return 'earth'
@@ -318,6 +331,13 @@ def treatment_weights(profiles,state,seconds,keys):
         strength=max(0.,strength);strength=strength*strength*(3.-2.*strength)
         return tuple(strength*amounts.get(key,1.) if key==current else 0. for key in keys)
     return tuple(float(key in selected)*amounts.get(key,1.) for key in keys)
+
+
+def fractal_treatments_at(profiles,state,seconds):
+    if state not in (41,42,43):return (0.,0.)
+    if profile_at(profiles,state)['mode']=='authored':
+        return {41:(.62,.38),42:(.45,.62),43:(.42,.35)}[state]
+    return treatment_weights(profiles,state,seconds,FRACTAL_TREATMENTS)
 
 
 def gravity_well_at(profiles,state,seconds):

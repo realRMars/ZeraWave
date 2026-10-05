@@ -8,7 +8,7 @@ import tkinter as tk
 
 from technique_library import entries, search, TECHNIQUES, SHADER, find_code
 from studio import (Studio, DEFAULTS, LIVE_STATES, WORLD_TREE, command, validate_session,
-                    ROOT, tracks, selection_states, path_for_state)
+                    ROOT, tracks, selection_states, path_for_state, STUDIO_TREES)
 from replay_test import replay
 from renderer import Renderer
 import glfw
@@ -284,7 +284,7 @@ def studio_comparison_test():
             for child in app.layers_tab.winfo_children():
                 assert child.winfo_ismapped(), child
                 assert child.winfo_y() + child.winfo_height() <= app.layers_tab.winfo_height(), (child, child.winfo_y(), child.winfo_height())
-        app.select([]);app.sections.select(app.section_frames['Palettes']);root.update()
+        app.select([]);app.tabs.select(app.layers_tab);app.sections.select(app.section_frames['Palettes']);root.update()
         for child in app.layers_tab.winfo_children():
             assert child.winfo_ismapped() and child.winfo_y()+child.winfo_height()<=app.layers_tab.winfo_height()
         app.open_color_inspector();editor=app.color_editor
@@ -498,7 +498,7 @@ def roots_colors_studio_test():
     class Stdin:
         def fileno(self):return read_fd
     class ControlledCapture:
-        def __init__(self,**kwargs):self.count=0
+        def __init__(self,**kwargs):self.count=0;self.resolved={'device':'Controlled samples for live color routing','evidence':'synthetic zero samples; no natural live listening'}
         def find_device(self):return 'Controlled samples for live color routing'
         def start(self):pass
         def stop(self):pass
@@ -553,12 +553,12 @@ def studio_organization_test():
     full_ids = [row['id'] for row in entries(WORLD_TREE)]
     main_forms = leaves(STUDIO_TREES['main'])
     experimental_forms = leaves(STUDIO_TREES['experimental'])
-    assert len(main_forms) == len(LIVE_FORMS) == 27
+    assert len(main_forms) == len(LIVE_FORMS) == 30
     assert set(main_forms.values()) == set(LIVE_FORMS) and 36 in main_forms.values()
     assert set(experimental_forms.values()) == {4, 37, 38, 39, 40}
     assert not set(main_forms.values()) & set(experimental_forms.values())
     assert {**main_forms, **experimental_forms} == leaves(WORLD_TREE)
-    assert list(STUDIO_TREES['main']) == ['organic', 'geometric', 'cosmic', 'elements']
+    assert list(STUDIO_TREES['main']) == ['fractals','organic', 'geometric', 'cosmic', 'elements']
     assert list(STUDIO_TREES['experimental']) == ['cymatics', 'experimental']
     assert 'world:cymatics/water' in full_ids and 'world:experimental/lodestone' in full_ids
     # Approval belongs to leaves; an approved family cannot leak a new variant
@@ -580,8 +580,8 @@ def studio_organization_test():
     baseline = ROOT/'work/studio-organization-01/baseline/app/visuals/world_catalog.py'
     if baseline.is_file():
         baseline_tree = runpy.run_path(str(baseline))['WORLD_TREE']
-        assert original == baseline_tree
-        assert full_ids == [row['id'] for row in entries(baseline_tree)]
+        assert {k:v for k,v in original.items() if k!='fractals'} == baseline_tree
+        assert [key for key in full_ids if not key.startswith('world:fractals')] == [row['id'] for row in entries(baseline_tree)]
 
     settings = __import__('cymatics_session').defaults()
     settings['oscillator'].update(frequency=5.7, amplitude=.3, waveform='triangle', sweep_end=7.2, sweep_seconds=12.)
@@ -644,7 +644,7 @@ def studio_organization_test():
             assert app.tabs.tab(app.cymatics_tab, 'text') == 'Experimental'
             assert [app.tabs.tab(tab, 'text') for tab in app.tabs.tabs()].count('Experimental') == 1
             assert 'Cymatics' not in [app.tabs.tab(tab, 'text') for tab in app.tabs.tabs()]
-            assert set(app.selector_rows[0][1]['values']) == {'', 'Organic', 'Geometric', 'Cosmic', 'Elements'}
+            assert set(app.selector_rows[0][1]['values']) == {'', 'Fractal', 'Organic', 'Geometric', 'Cosmic', 'Elements'}
             assert set(app.experimental_selector_rows[0][1]['values']) == {'Cymatics', 'Experimental / unfinished'}
             assert [app.cymatics_panel.pages.tab(tab, 'text') for tab in app.cymatics_panel.pages.tabs()] == ['Drive', 'Water basin', 'Style & bands']
             assert {'frequency', 'amplitude', 'waveform', 'edges', 'damping', 'camera_orbit', 'dye', 'monitor'} <= set(app.cymatics_panel.vars)
@@ -757,7 +757,7 @@ def studio_organization_test():
             assert root.state() == 'withdrawn'
         finally:
             app.close()
-    print(f'PASS: Main 27 incl Galaxy; Experimental 5 forms + all Cymatics tools; Library {len(full_ids)} unchanged IDs; '
+    print(f'PASS: Main 30 incl Galaxy; Experimental 5 forms + all Cymatics tools; Library {len(full_ids)} preserved IDs plus additions; '
           f'{legacy_count} legacy validations, saved Main/Experimental/Cymatics roundtrips, independent selectors, '
           'callbacks/population and mocked preview routing. Withdrawn Tk; no child/GPU/audio/device access.')
 
@@ -768,7 +768,7 @@ def main():
     assert any(r['symbol'] == 'water_surface' for r in found)  # finds use, not only definition
     assert any(r['symbol'] == 'Renderer.choose_world' for r in find_code('choose_world'))
     for row in found:
-        assert row['symbol'] in (ROOT / row['path']).read_text(encoding='utf-8').splitlines()[row['line'] - 1]
+        assert row['symbol'].rsplit('.',1)[-1] in (ROOT / row['path']).read_text(encoding='utf-8').splitlines()[row['line'] - 1]
     quartet={'blend':material_quartet_profile('blend')}
     for t in np.linspace(0.,300.,1001):
         weights=np.array(material_weights(quartet,0,t))
@@ -797,7 +797,11 @@ def main():
         if 'selection' in row: selection_states(row['selection'])
         for location in row['sources']: assert (ROOT / location.split(':')[0]).is_file(), location
     shader = (ROOT / SHADER).read_text(encoding='utf-8')
-    for _, _, symbol in TECHNIQUES: assert symbol + '(' in shader
+    for _, _, symbol in TECHNIQUES:
+        row=next(r for r in catalog if r['id']=='technique:'+symbol)
+        source=(ROOT/row['sources'][0].split(':')[0]).read_text(encoding='utf8')
+        anchor=row['sources'][0].split(':')[-1].rsplit('.',1)[-1]
+        assert anchor+'(' in source or '// '+anchor+':' in source,(symbol,row['sources'])
     assert search(catalog, 'STAR continuous', 'Techniques')
     assert not search(catalog, 'no-such-entry-xyz')
     assert all(row['kind'] == 'Experiments' for row in search(catalog, '', 'Experiments'))
@@ -817,7 +821,8 @@ def main():
     assert available, 'Decoded project tracks missing'
     values=dict(DEFAULTS,track=str(available[0]))
     migrated=validate_session(dict(version=1,**values))
-    assert migrated==dict(values,selection=['elements','water'],layers={})
+    from cymatics_session import defaults as basin_defaults
+    assert migrated==dict(values,selection=['elements','water'],layers={},selection_scope='main',transitions=dict(pair=[],isolate={},hold=12.,duration=6.),cymatics=basin_defaults())
     assert validate_session(dict(version=2,**migrated))==migrated
     assert validate_session(dict(version=3,**migrated))==migrated
     profile=dict(mode='cycle',seconds=4.,items=[dict(id='artifacts',enabled=True),
@@ -849,7 +854,7 @@ def main():
     assert materials_at({'water':reversed_profile},7,0.)==(0.,0.,1.)
     assert layers_at(trio,9,20.)[1]&BITS['water_rain']
     assert layers_at(trio,9,28.)[1]&BITS['water_rain']
-    assert selection_states(['elements'])==['magnetic','arcs','auroral','nebula','marsh','pressure','dunes','strata','cavern','windstreams','stormfront','vortex','citadel','sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock']
+    assert selection_states(['elements'],WORLD_TREE)==['magnetic','arcs','auroral','nebula','marsh','pressure','dunes','strata','cavern','windstreams','stormfront','vortex','citadel','sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock']
     assert selection_states(['elements','fog'])==['fog']
     assert selection_states(['elements','plasma'])==['plasma']
     assert selection_states(['elements','plasma','arcs'])==['arcs']
@@ -900,7 +905,7 @@ def main():
     assert selection_states([])==['blend']
     # A second future branch must not truncate Water's descendants to one hold.
     with patch.dict(WORLD_TREE['elements']['children'], {'test-other':dict(label='Test',state='organic')}):
-        assert selection_states(['elements'])==['magnetic','arcs','auroral','nebula','marsh','pressure','dunes','strata','cavern','windstreams','stormfront','vortex','citadel','sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock','organic']
+        assert selection_states(['elements'],WORLD_TREE)==['magnetic','arcs','auroral','nebula','marsh','pressure','dunes','strata','cavern','windstreams','stormfront','vortex','citadel','sea','dyes','rain','waterfall','currents','fire','molten','firescape','aftershock','organic']
     assert selection_states(['future'], {'future':dict(children={
         'a':dict(children={'b':dict(children={'c':dict(state='rain')})}),
         'd':dict(state='sea')})})==['rain','sea']
@@ -916,7 +921,8 @@ def main():
         folder=Path(temporary)
         for state in LIVE_STATES:
             args=command(dict(values,state=state),folder)
-            assert args[args.index('--state')+1]==('canvas' if state=='cosmic' else state)
+            if state=='cymatics':assert '--config' in args and any('cymatics_preview.py' in item for item in args)
+            else:assert args[args.index('--state')+1]==('canvas' if state=='cosmic' else state)
             legacy=validate_session(dict(version=1,**dict(values,state=state)))
             assert legacy['selection']==path_for_state(state)
         for source in ('Test track','Synthetic preview','Live system audio'):
@@ -946,12 +952,12 @@ def main():
             app.library_query.set('no-such-entry-xyz')
             root.update()
             assert not app.library_list.get_children()
-            assert str(app.library_choose['state']) == 'disabled'
+            assert app.library_choose.instate(['disabled'])
             app.library_query.set('daddy')
             app.library_kind.set('Experiments')
             root.update()
             assert app.library_list.get_children() == ('effect:daddy_long_legs',)
-            assert str(app.library_choose['state']) == 'disabled'
+            assert not app.library_choose.instate(['disabled']) and str(app.library_choose['text'])=='Add to scene'
             app.library_sources.set(True); app.show_library_entry()
             assert 'preview_layers.py' in app.library_detail.get('1.0', 'end')
             root.geometry('680x800'); root.update()
@@ -1077,12 +1083,14 @@ def main():
             app.select(['elements'])
             assert len(app.selector_rows)==2 and app.selector_rows[1][0].get()==''
             # A deeper branch generates another row without UI code changes.
-            with patch.dict(WORLD_TREE['elements']['children']['water']['children'],
+            with patch.dict(STUDIO_TREES['main']['elements']['children']['water']['children'],
+                            {'test-detail':dict(label='Test detail',children={'nested':dict(label='Nested',state='rain')})}), patch.dict(WORLD_TREE['elements']['children']['water']['children'],
                             {'test-detail':dict(label='Test detail',children={'nested':dict(label='Nested',state='rain')})}):
                 app.select(['elements','water','test-detail'])
                 assert len(app.selector_rows)==4
                 var,box,callback=app.selector_rows[3];var.set('Nested');callback()
                 assert app.values()['state']=='rain'
+                app.select(['elements','water'])  # Restore before removing the temporary branch.
             app.blend();assert app.vars['state'].get()=='blend'
             # Main defaults must be visible/editable without loading a preset.
             saved_profiles=app.layer_profiles
@@ -1111,7 +1119,12 @@ def main():
         _,real=replay(available[0],speed=1,max_seconds=1.0,state='water')
         duration=time.perf_counter()-began
         _,fast=replay(available[0],speed=0,max_seconds=1.0,state='water')
-        assert real==fast and len(real)==24
+        assert len(fast)==24 and 0<len(real)<=len(fast)
+        assert all(a['seconds']<b['seconds'] for a,b in zip(real,real[1:]))
+        # Real-time presentation can consume several decoded chunks per draw.
+        # The observed analyzer values must still come from the same decoded prefix.
+        ingredients=('bass','mids','highs','flux')
+        assert all(any(all(row[k]==other[k] for k in ingredients) for other in fast) for row in real)
         assert duration>=1.,duration
         _,layer_rows=replay(available[0],speed=0,max_seconds=9.,state='geometric',
             layers=profiles,capture_dir=folder/'layer-captures',capture_interval=4.)

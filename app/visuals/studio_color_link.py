@@ -31,6 +31,8 @@ class ColorInbox:
             from audio_controls import validate_target
             self.audio_mailbox=ScopeMailbox(run,session,validate_target)
         self.closed = False; self.eof=False
+        self.preview_run = os.environ.get('ZERAWAVE_PREVIEW_RUN')
+        self.pending_controls = {}
         self.thread = threading.Thread(target=self._read,daemon=True,name='Studio color input')
         self.thread.start()
 
@@ -59,6 +61,16 @@ class ColorInbox:
         message=None
         try:
             message = json.loads(line)
+            if isinstance(message,dict) and message.get('kind')=='preview-control':
+                if not self.preview_run or message.get('run')!=self.preview_run:raise ValueError('Wrong preview control owner')
+                op=message.get('op');serial=message.get('serial')
+                if op not in ('pause','hold','release','bonk','mode','stop','diagnostics') or type(serial) is not int or not 0<=serial<2**31:raise ValueError('Invalid preview control')
+                if op=='hold' and message.get('owner') not in ('studio.mouse','studio.Shift_L','studio.Shift_R','output.Shift_L','output.Shift_R'):raise ValueError('Invalid Hold owner')
+                key=(op,message.get('owner',''))
+                with self.lock:
+                    prior=self.pending_controls.get(key)
+                    if prior is None or serial>prior['serial']:self.pending_controls[key]=message
+                return
             if isinstance(message,dict) and message.get('kind')=='audio-audition':
                 from audio_scope import Scope
                 from transition_catalog import validate_settings,compatible
@@ -154,6 +166,12 @@ class ColorInbox:
             result,self.pending_scene=self.pending_scene,None
             return result
 
+    def take_controls(self):
+        with self.lock:
+            result=sorted(self.pending_controls.values(),key=lambda p:p['serial'])
+            self.pending_controls.clear()
+            return result
+
     def take_audio(self):
         with self.lock:return self.audio_mailbox.take() if self.audio_mailbox is not None else []
 
@@ -193,11 +211,13 @@ class ColorInbox:
             return result
 
     def applied(self, revision, seconds, echo_clock):
+        observer=getattr(self,'applied_observer',None)
+        if observer is not None:observer(revision,seconds,echo_clock)
         print(ACK_PREFIX+json.dumps(dict(applied=revision,seconds=seconds,echo_clock=echo_clock)),flush=True)
 
     def close(self):
         # The daemon blocks in raw OS read, never in Python buffered stdin cleanup.
-        with self.lock: self.closed=True; self.pending=None
+        with self.lock: self.closed=True; self.pending=None;self.applied_observer=None
 
     def take_audition(self):
         with self.lock:
@@ -208,11 +228,19 @@ def configure_colors(renderer, colors=None, live=False):
     renderer.set_colors(validate_colors(colors or {}))
     if live:
         renderer.color_inbox=ColorInbox(sys.stdin.fileno())
+        if os.environ.get('ZERAWAVE_PREVIEW_RUN'):
+            from preview_playback import PreviewPlayback
+            renderer.preview_playback=PreviewPlayback(renderer,os.environ['ZERAWAVE_PREVIEW_RUN'])
+            if renderer.window is not None:renderer.preview_playback.install_output_keys()
+            if os.environ.get('ZERAWAVE_PERFORMANCE_DIR'):
+                from session_performance import SessionPerformance
+                renderer.performance=SessionPerformance(renderer,os.environ['ZERAWAVE_PERFORMANCE_DIR'],os.environ['ZERAWAVE_PREVIEW_RUN'],os.environ.get('ZERAWAVE_DIAGNOSTICS')=='1')
+                renderer.color_inbox.applied_observer=renderer.performance.record_color_applied
 
 
 class ColorLink:
     """One pending snapshot, one status record; background IO never blocks Tk."""
-    def __init__(self, process, log,run=None,session=None):
+    def __init__(self, process, log,run=None,session=None,preview_run=None):
         self.process,self.log=process,log
         self.condition=threading.Condition()
         self.pending=None;self.pending_scene=None;self.scene_revision=0
@@ -228,6 +256,8 @@ class ColorLink:
         self.audio_run,self.audio_session=run,session;self.audio_latest=None
         self.pending_audio={};self.audio_revisions={};self.audio_authored={};self.pending_audio_view=None
         self.pending_audition=None;self.audition_revision=0
+        self.preview_run=preview_run;self.preview_serial=0
+        self.pending_controls={};self.preview_latest=None
         self.writer=threading.Thread(target=self._write,daemon=True,name='Studio color output')
         self.reader=threading.Thread(target=self._read,daemon=True,name='Studio preview log')
         self.writer.start(); self.reader.start()
@@ -276,6 +306,17 @@ class ColorLink:
 
     def get_audio(self):
         with self.condition:return deepcopy(self.audio_latest)
+
+    def submit_control(self,op,**values):
+        with self.condition:
+            if self.closed or not self.preview_run:return None
+            self.preview_serial+=1
+            packet=dict(kind='preview-control',run=self.preview_run,serial=self.preview_serial,op=op,**values)
+            self.pending_controls[(op,values.get('owner',''))]=packet
+            self.condition.notify();return self.preview_serial
+
+    def get_preview(self):
+        with self.condition:return deepcopy(self.preview_latest)
 
     def submit_scene(self,config):
         from cymatics_session import validate
@@ -346,9 +387,11 @@ class ColorLink:
         try:
             while True:
                 with self.condition:
-                    self.condition.wait_for(lambda:self.pending is not None or self.pending_scene is not None or self.pending_monitor is not None or self.pending_star_tuning is not None or self.pending_star_view is not None or self.pending_artifact_tuning is not None or self.pending_planet_tuning or self.pending_audio or self.pending_audio_view is not None or self.pending_audition is not None or self.closed)
+                    self.condition.wait_for(lambda:self.pending_controls or self.pending is not None or self.pending_scene is not None or self.pending_monitor is not None or self.pending_star_tuning is not None or self.pending_star_view is not None or self.pending_artifact_tuning is not None or self.pending_planet_tuning or self.pending_audio or self.pending_audio_view is not None or self.pending_audition is not None or self.closed)
                     if self.closed: break
-                    if self.pending is not None:message,self.pending=self.pending,None
+                    if self.pending_controls:
+                        key=min(self.pending_controls,key=lambda k:self.pending_controls[k]['serial']);message=self.pending_controls.pop(key)
+                    elif self.pending is not None:message,self.pending=self.pending,None
                     elif self.pending_scene is not None:message,self.pending_scene=self.pending_scene,None
                     elif self.pending_audio:message=self.pending_audio.pop(next(iter(self.pending_audio)))
                     elif self.pending_audio_view is not None:message,self.pending_audio_view=self.pending_audio_view,None
@@ -381,6 +424,13 @@ class ColorLink:
                 line=stream.readline(max(65536,STAR_MAX_PACKET+len(STAR_PREFIX)+2))
                 if not line: break
                 text=line.decode('utf-8',errors='replace')
+                from preview_playback import PREFIX as PREVIEW_PREFIX
+                if text.startswith(PREVIEW_PREFIX):
+                    try:packet=json.loads(text[len(PREVIEW_PREFIX):])
+                    except ValueError:continue
+                    if packet.get('run')==self.preview_run:
+                        with self.condition:self.preview_latest=(packet,time.perf_counter())
+                    continue
                 from studio_audio import PREFIX as AUDIO_PREFIX,decode as decode_audio
                 if text.startswith(AUDIO_PREFIX):
                     packet=decode_audio(text[len(AUDIO_PREFIX):],self.audio_run,self.audio_session)

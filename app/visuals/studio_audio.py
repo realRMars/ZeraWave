@@ -11,6 +11,8 @@ from form_audio_tuning import FormAudioTuning
 from star_tuning_profiles import TargetProfileStore,TARGET as STAR
 from artifacts_audio_tuning import TARGET as ART
 from planet_audio_tuning import SPECS
+from development_forms import INSPECTION_FORMS
+from transition_catalog import compatible
 
 PREFIX='ZERAWAVE_AUDIO '
 MAX_PACKET=131072
@@ -50,13 +52,27 @@ class StudioAudio:
         self.last_audition_ack=-1
         self.contributions={};self.dependency_notes={}
         self.source_mode='UNSPECIFIED';self.source_identity=''
+        self.report_pending={}
 
     def availability(self,mode,mask,materials,new_materials,echo,spatials,envelopers,shooting,failed,dependencies=None):
+        # Availability is monitor metadata. Recompute at its snapshot cadence,
+        # never at the render cadence; command processing/ACKs remain per frame.
         from planet_audio_tuning import contribution_state
         shared=contribution_state(mode,mask,materials,new_materials,echo,spatials,envelopers,shooting,failed)
         self.contributions={};self.dependency_notes={}
         for target,p in TARGETS.items():
             active=p['form'] in self.endpoint['active']
+            if p['form']==0:
+                current=self.renderer.state_at(getattr(self,'seconds',0.))==0
+                if target=='transition.director':
+                    active=current and not self.renderer.transition_sequence
+                else:
+                    recipe=self.renderer.director_recipe
+                    outgoing,incoming=self.endpoint['outgoing'],self.endpoint['incoming']
+                    # Main holds have no recipe; validate before forming its target ID.
+                    valid=(isinstance(recipe,str) and type(outgoing) is int and type(incoming) is int
+                           and compatible(recipe,outgoing,incoming))
+                    active=current and valid and target=='transition.'+recipe
             dependency=p.get('shared')
             if dependency:
                 active=active and shared[dependency]
@@ -87,14 +103,31 @@ class StudioAudio:
                 if s.form!=5:
                     message=dict(scope=s.packet(),settings=c)
                     if a is not None:message['authored']=a
-                    self.model.submit(message)
-                elif s.target==STAR:r.star_tuning.submit(s.revision,c,a)
-                elif s.target==ART:r.artifact_tuning.submit(s.revision,c,a)
-                else:r.planet_audio_tuning.submit(s.target,s.revision,c,a)
+                    accepted=self.model.submit(message)
+                elif s.target==STAR:accepted=r.star_tuning.submit(s.revision,c,a)
+                elif s.target==ART:accepted=r.artifact_tuning.submit(s.revision,c,a)
+                else:accepted=r.planet_audio_tuning.submit(s.target,s.revision,c,a)
+                if accepted is not False:self.report_pending[s.target]=s
             except ValueError as exc:self.rejections[(s.form,s.target)]=(s.revision,str(exc))
         if not self.pin and self.endpoint['primary'] is not None and self.endpoint['primary']!=self.view_form:
             self.view_form=self.endpoint['primary'];choices=form_targets(self.view_form)
             self.view_target=choices[0] if choices else None
+
+    def report_applied_edits(self,seconds):
+        performance=getattr(self.renderer,'performance',None)
+        if performance is None:return
+        r=self.renderer
+        for target,scope in list(self.report_pending.items()):
+            adapter=self.model if scope.form!=5 else r.star_tuning if target==STAR else r.artifact_tuning if target==ART else r.planet_audio_tuning
+            with adapter.lock:
+                state=adapter.state[target] if scope.form!=5 or target not in (STAR,ART) else vars(adapter)
+                state={key:deepcopy(state.get(key)) for key in ('revision','settings','authored','rejected_revision')}
+            revision=state['revision']
+            if revision==scope.revision:
+                performance.record_applied_edit('audio',scope.packet(),state['settings'],seconds,state['authored'])
+                del self.report_pending[target]
+            elif revision>scope.revision or state.get('rejected_revision')==scope.revision:
+                del self.report_pending[target]
 
     def resolve(self,inputs,delta,rewound,mode):
         self.inputs=dict(inputs);self.mode=mode
@@ -123,7 +156,7 @@ class StudioAudio:
             self.history_owner=owner
 
     def snapshot(self,seconds):
-        if (not self.visible and self.audition.revision==self.last_audition_ack) or self.clock()-self.last<.2:return None
+        if not self.snapshot_due():return None
         self.last_audition_ack=self.audition.revision
         self.last=self.clock();r=self.renderer;target=self.view_target;rows={}
         active=5 in self.endpoint['active']
@@ -167,3 +200,6 @@ class StudioAudio:
             shared_owner=self.history_owner,
             audition=self.audition.status(),
             evidence='Current analyzer spectrum + CPU consumer submissions. No GPU readback or pixel inference.')
+
+    def snapshot_due(self):
+        return (self.visible or self.audition.revision!=self.last_audition_ack) and self.clock()-self.last>=.2

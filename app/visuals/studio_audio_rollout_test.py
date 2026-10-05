@@ -32,7 +32,7 @@ def ownership():
         assert not mailbox.accept(dict(scope=s.packet(),settings=settings))
         for bad in (Scope('wrong','session',form,target,2),Scope('run','wrong',form,target,2),Scope('run','session',5,target,2)):
             reject(lambda:mailbox.accept(dict(scope=bad.packet(),settings=settings)))
-    assert len(mailbox.take())==26
+    assert len(mailbox.take())==len(SCENES)-1
     for t,p in TARGETS.items():
         c=defaults(t);validate(p['form'],t,c)
         key=next(iter(bounds(t)));bad=dict(c,**{key:float('nan')})

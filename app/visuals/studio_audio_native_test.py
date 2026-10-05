@@ -12,6 +12,7 @@ from star_tuning_profiles import StarProfileStore,TargetProfileStore,SHIPPED
 from planet_audio_tuning import SPECS,baseline,bounds
 from artifacts_audio_tuning import BASELINE as ART_BASE,BOUNDS as ART_BOUNDS
 from transition_catalog import SCENES
+from development_forms import INSPECTION_FORMS
 
 def run():
     import tkinter as tk
@@ -37,7 +38,7 @@ def run():
                 row=dict(scope=scope.packet(),settings=dict(c,enabled=False),effective=c,authored=c,revision=revision,active=active,available=True,rendered_wall=now,listening={},pilot_active=False)
                 return dict(identity=dict(run=run,session='session'),endpoints=dict(primary=12,outgoing=12,incoming=None,progress=0.,recipe=None),editing_form=form,editing_target=target,pin=True,audio_targets={target:row},spectrum=None),now
             v.pin.set(True)
-            for form in (*SCENES,0):
+            for form in (*INSPECTION_FORMS,0):
                 for choice in choices_for_form(form):
                     v.select_form(form=form,target=choice.target_id);v.refresh(ack(form,choice.target_id),True);v.window.update_idletasks()
                     expected=STAR_BOUNDS if choice.target_id==TARGET else ART_BOUNDS if choice.target_id==ART_TARGET else bounds(choice.target_id) if choice.target_id in SPECS else form_bounds(choice.target_id)
@@ -98,7 +99,7 @@ def run():
                 assert 'flux_branch input' not in [monitor.table.item(x)['text'] for x in monitor.table.get_children()]
                 assert monitor.window.host.state()=='withdrawn'
             finally:monitor.close();monitor.window.host.destroy()
-            return dict(evidence='Real withdrawn Tk controls; synthetic scoped ACKs; no GPU/capture/foreground focus',cases=cases,selectable_target_rows=cases,forms=27,transition_scope=True,single_widget_pool=True,delayed_ACK_rejected=True,held_key_and_drag_cancelled=True,unsent_original_owner_preserved=True,acknowledged_owner_unsent_preserved=True,old_run_revision_not_reused=True,authored_fixture_writes=0,general_mapping_monitor=True)
+            return dict(evidence='Real withdrawn Tk controls; synthetic scoped ACKs; no GPU/capture/foreground focus',cases=cases,selectable_target_rows=cases,canonical_forms=len(SCENES),inspection_forms=len(INSPECTION_FORMS),transition_scope=True,single_widget_pool=True,delayed_ACK_rejected=True,held_key_and_drag_cancelled=True,unsent_original_owner_preserved=True,acknowledged_owner_unsent_preserved=True,old_run_revision_not_reused=True,authored_fixture_writes=0,general_mapping_monitor=True)
         finally:
             if v:v.close();v.window.host.destroy()
             root.destroy()

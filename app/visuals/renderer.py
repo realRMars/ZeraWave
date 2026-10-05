@@ -7,6 +7,8 @@ import glfw
 import moderngl
 import json
 import math
+import sys
+import os
 
 from procedural_cosmos import uniforms as journey_uniforms, PERIOD
 from parameters import VisualParameters
@@ -44,7 +46,7 @@ EARTH_FORMS = (24, 25, 26)
 FOG_FORMS = (28, 29, 30)
 PLASMA_FORMS = (32, 33, 34)
 # Approved Galaxy shares the canonical live Main roster, not the fixture itinerary.
-LIVE_FORMS = BLEND_FORMS + AIR_FORMS + EARTH_FORMS + FOG_FORMS + PLASMA_FORMS + (36,)
+LIVE_FORMS = BLEND_FORMS + AIR_FORMS + EARTH_FORMS + FOG_FORMS + PLASMA_FORMS + (36,41,42,43)
 INSTANT_BONK_SECONDS = .35  # Manual handoff/tail target, never an automatic dwell.
 
 @lru_cache(maxsize=8)
@@ -314,6 +316,8 @@ class Renderer:
             select_recipe(random.Random(0),*pair,profile,isolated)
 
     def sequence_blend(self,seconds):
+        controls=getattr(self,'preview_playback',None)
+        if controls is not None:seconds=controls.route_time(seconds)
         cfg=self.transition_settings;span=cfg['hold']+cfg['duration'];index=int(max(0.,seconds)//span)
         source=self.debug_sequence[index%len(self.debug_sequence)];target=self.debug_sequence[(index+1)%len(self.debug_sequence)]
         age=max(0.,seconds)%span
@@ -330,6 +334,8 @@ class Renderer:
 
     def state_at(self, seconds):
         """Development-only holds; ordinary rendering keeps its existing state."""
+        controls=getattr(self,'preview_playback',None)
+        if controls is not None and self.debug_sequence:seconds=controls.route_time(seconds)
         if self.transition_sequence:
             span=self.transition_settings['hold']+self.transition_settings['duration']
             if max(0.,seconds)%span>=self.transition_settings['hold']:return 0
@@ -566,6 +572,9 @@ class Renderer:
             self.shockwave_armed = False
 
     def create(self):
+        from development_forms import FRACTAL_FORMS
+        forms=self.debug_sequence or (self.debug_state,)
+        self.fractal_only=False  # Main uses one program across all30 approved endpoints.
         if not glfw.init():
             raise RuntimeError("Failed to initialize GLFW")
 
@@ -604,24 +613,22 @@ class Renderer:
             glfw.make_context_current(self.window)
 
             self.ctx = moderngl.create_context()
+            from render_scale import ScaledContext
+            self.ctx=ScaledContext(self.ctx,float(os.environ.get('ZERAWAVE_RENDER_SCALE','1')))
             self._color_uploads={};self._color_dirty=True
 
-            shader_path = Path(__file__).parent / "shaders" / "dream.frag"
+            shader_path = Path(__file__).parent / "shaders" / ("fractals.frag" if self.fractal_only else "dream.frag")
             fragment_shader = shader_path.read_text(encoding="utf-8")
+            from fractals import integrated_shader
+            fragment_shader=integrated_shader(fragment_shader)
+            from resolved_audio import AudioUniformContract
+            self.audio_uniform_contract=AudioUniformContract(fragment_shader) if not self.fractal_only else None
+            if self.audio_uniform_contract is not None:fragment_shader=self.audio_uniform_contract.source
 
             if self.startup_callback is not None:self.startup_callback('compiling')
             if notice:
                 notice.phase('compiling')
             compile_start = time.perf_counter()
-            self.program = self.ctx.program(
-                vertex_shader=VERTEX_SHADER,
-                fragment_shader=fragment_shader,
-            )
-
-            self.startup_metrics['program_seconds'] = time.perf_counter() - compile_start
-            if self.startup_callback is not None:self.startup_callback('resources')
-            if notice:
-                notice.phase('resources')
             self.vertices = self.ctx.buffer(
                 data=(
                     b"\x00\x00\x80\xbf\x00\x00\x80\xbf"
@@ -631,16 +638,19 @@ class Renderer:
                 )
             )
 
-            self.vao = self.ctx.simple_vertex_array(
-                self.program,
-                self.vertices,
-                "in_position",
-            )
+            from prepared_program import PreparedProgram,PreparedVao
+            self.program=PreparedProgram(self.ctx,self.vertices,VERTEX_SHADER,fragment_shader)
+            self.vao=PreparedVao(self.program)
+            self.startup_metrics['program_seconds']=time.perf_counter()-compile_start
+            self.startup_metrics['program_preparation']=self.program.metrics
+            if self.startup_callback is not None:self.startup_callback('resources')
+            if notice:notice.phase('resources')
 
-            if self.debug_state in (0,22,26) or any(state in (22,26) for state in self.debug_sequence):
+            if not self.fractal_only and (self.debug_state in (0,22,26) or any(state in (22,26) for state in self.debug_sequence)):
                 from scene_surfaces import SurfaceStage
-                self.surface_stage=SurfaceStage(self.ctx);self.surface_stage.resize(glfw.get_framebuffer_size(self.window))
-            if self.debug_state in (0,32,35) or any(state==32 for state in self.debug_sequence):
+                self.cavern_prefetch=self.debug_state==26 or (self.debug_state==0 and (not self.debug_sequence or 26 in self.debug_sequence)) or 26 in self.debug_sequence
+                self.surface_stage=SurfaceStage(self.ctx,cavern=self.cavern_prefetch);self.surface_stage.resize(glfw.get_framebuffer_size(self.window))
+            if not self.fractal_only and (self.debug_state in (0,32,35) or any(state==32 for state in self.debug_sequence)):
                 self.original_loop_stage=OriginalLoopStage(self.ctx,self.vertices)
                 self.original_loop_stage.draw(self.program,glfw.get_framebuffer_size(self.window),(0.,0.,0.,0.))
                 self.ctx.finish()
@@ -660,6 +670,8 @@ class Renderer:
         # Visible window is revealed only after its first complete swap.
         # Animation begins after loading, independent of compile/notice time.
         self.start_time = time.perf_counter()
+        controls=getattr(self,'preview_playback',None)
+        if controls is not None:controls.install_output_keys()
 
     def install_cymatics_controls(self):
         glfw.set_window_title(self.window,'Water | Left drag orbit | Right/Shift drag pan | Wheel zoom | R reset | M mute')
@@ -855,21 +867,32 @@ class Renderer:
     def render(self, elapsed_time=None):
         if self.window is None:
             raise RuntimeError("Renderer has not been created")
+        controls=getattr(self,'preview_playback',None)
+        if controls is not None and controls.playback.paused:return
+        performance=getattr(self,'performance',None)
+        if performance is not None:performance.begin_render()
 
         width, height = glfw.get_framebuffer_size(self.window)
         if width <= 0 or height <= 0:
             self.poll_events()
             return
 
+        width,height=self.ctx.begin((width,height))
         self.ctx.viewport = (0, 0, width, height)
 
         # Replay advances in song time; live callers retain the wall clock.
         current_time = (
-            time.perf_counter() - self.start_time
+            self.get_time()
             if elapsed_time is None else elapsed_time
         )
         normal_owner=getattr(self,'studio_audio',None)
         if normal_owner is not None and elapsed_time is None:current_time=normal_owner.audition.poll(current_time)
+        if getattr(self,'fractal_only',False):
+            from fractals import render
+            render(self,current_time,(width,height))
+            self.ctx.present(self.vertices,VERTEX_SHADER)
+            if performance is not None:performance.end_render()
+            return
         rewound = self.last_render_time is not None and current_time < self.last_render_time
         if self.last_render_time is None:
             delta_time = 0.0
@@ -908,6 +931,7 @@ class Renderer:
         audio_inputs=dict(bass=self.parameters.scale,movement=self.parameters.movement,flux=self.parameters.flux,
                           sparkle=self.parameters.sparkle,impact=self.impact_envelope,raw_impact=self.parameters.impact)
         audio_mode=layers_at(self.layer_profiles,self.state_at(current_time),current_time)[0]
+        ids=(0,0);rows_a=rows_b=[(1.,1.,1.,1.)]*32
         if studio_audio is not None:
             ids,rows_a,rows_b=studio_audio.resolve(audio_inputs,delta_time,rewound,audio_mode)
             self.program['u_audio_forms'].value=ids
@@ -915,13 +939,14 @@ class Renderer:
             self.program['u_transition_audio'].value=(self.audio_input(0,'tr_warp','bass',self.parameters.scale),self.audio_input(0,'tr_warp','flux',self.parameters.flux),1.,0.)
             self.program['u_form_audio_a'].value=rows_a[:getattr(self.program['u_form_audio_a'],'array_length',32)];self.program['u_form_audio_b'].value=rows_b[:getattr(self.program['u_form_audio_b'],'array_length',32)]
         planet_audio_on,planet_audio_rows=planet_tuning.resolve(planet_active,star_settings,audio_inputs,delta_time,audio_mode,rewound) if planet_tuning is not None else (0,[(1.,1.,1.,1.)]*UNIFORM_ROWS)
+        self.audio_uniform_contract.upload(self,ids,rows_a,rows_b,planet_audio_on,planet_audio_rows)
         flow_local=planet_tuning.local_sources('planet.surface_response',audio_inputs) if planet_tuning is not None else audio_inputs
         star_local=planet_tuning.local_sources('planet.starfield',audio_inputs) if planet_tuning is not None else audio_inputs
         clock_flux_gain=star_settings.get('flux_clock',1.) if planet_active else 1.
         clock_sparkle_gain=star_settings.get('sparkle_clock',1.) if planet_active else 1.
         movement = max(0.0, min(1.0, self.parameters.movement))
         flow_gains=planet_tuning.gains('planet.surface_response',planet_active)[2:] if planet_tuning is not None else (1.,1.,1.)
-        clock_movement_source=flow_local['movement'] if planet_tuning is not None and planet_tuning.listening_details['planet.surface_response']['movement']['enabled'] else movement
+        clock_movement_source=flow_local['movement'] if planet_tuning is not None and planet_active and planet_tuning.listening_details['planet.surface_response']['movement']['enabled'] else movement
         clock_movement=max(0.,min(1.,clock_movement_source*flow_gains[0]))
         target_rate = (
             self.FLOW_FLOOR
@@ -931,7 +956,7 @@ class Renderer:
         # Strong passages have headroom beyond the old 1.15 ceiling. Integrate
         # speed, never multiply accumulated time by an instantaneous signal.
         drive = max(0.,min(1.,.45*movement+.35*self.parameters.flux+.20*self.parameters.scale))
-        if planet_tuning is not None and any(planet_tuning.listening_details['planet.surface_response'].get(name,{}).get('enabled') for name in ('movement','flux','bass')):drive=flow_local['flow_drive']
+        if planet_tuning is not None and planet_active and any(planet_tuning.listening_details['planet.surface_response'].get(name,{}).get('enabled') for name in ('movement','flux','bass')):drive=flow_local['flow_drive']
         drive=max(0.,min(1.,drive*flow_gains[1]))
         target_rate *= 1.+2.2*drive*drive
         clock_impact=flow_local['impact'] if flow_gains[2]==1. else max(0.,min(1.,flow_local['impact']*flow_gains[2]))
@@ -1314,7 +1339,7 @@ class Renderer:
                 if name in self.program and name in self.aurora_stage.program:self.aurora_stage.program[name].value=self.program[name].value
             self.aurora_stage.draw((width,height))
             self.ctx.screen.use();self.ctx.viewport=(0,0,width,height)
-        if self.surface_stage is not None:
+        if self.surface_stage is not None and (cavern_present or getattr(self,'cavern_prefetch',False)):
             self.surface_stage.warm_rows(travel)
             self.surface_stage.prepare_cavern(travel)
         self.program['u_cavern_surface_on'].value=0;self.program['u_citadel_surface_on'].value=0
@@ -1323,11 +1348,20 @@ class Renderer:
                 from scene_surfaces import SurfaceStage
                 self.surface_stage=SurfaceStage(self.ctx)
             self.surface_stage.draw(self,(width,height),cavern_present,citadel_present,(mineral_surface,tower,mineral_amount))
+        elif self.surface_stage is not None:self.surface_stage.park_targets()
         original_loops=state in (32,35) or (state==0 and self.blend_values.get('u_plasma_weight',0.)>0. and self.blend_values.get('u_plasma_mix',(0.,0.,0.))[0]>0.)
         self.program['u_original_path_on'].value=int(original_loops)
         if original_loops:
             if self.original_loop_stage is None:self.original_loop_stage=OriginalLoopStage(self.ctx,self.vertices)
             self.original_loop_stage.draw(self.program,(width,height),(visual_time,self.parameters.scale,self.parameters.flux,self.impact_envelope))
+        from fractals import submit_main
+        submit_main(self,current_time,delta_time,rewound)
+        recipe=self.director_recipe
+        transition_values=tuple(self.audio_input(0,recipe,source,value) for source,value in
+            (('bass',self.parameters.scale),('flux',self.parameters.flux),('movement',self.parameters.movement),('impact',self.impact_envelope))) if recipe in ('tr_branch_iris','tr_flow_fold') else (0.,0.,0.,0.)
+        self.program['u_structural_transition_audio'].value=transition_values
+        self.program.prewarm()
+        self.startup_metrics['program_prewarm_seconds']=self.program.prewarm_seconds
         weights=treatment_weights(self.layer_profiles,state,current_time,ENVELOPERS)
         if max(weights)>0. and width>0 and height>0 and not self.enveloper_failed:
             try:
@@ -1401,7 +1435,7 @@ class Renderer:
                     data.update(spectrum=None,spectrum_error='Spectrum packet exceeded the bounded transport limit')
                     packet=json.dumps(data,separators=(',',':'),allow_nan=False)
                 print(STAR_PREFIX+packet,flush=True)
-        if studio_audio is not None:
+        if studio_audio is not None and studio_audio.snapshot_due():
             from studio_audio import PREFIX as AUDIO_PREFIX,MAX_PACKET as AUDIO_MAX_PACKET
             from preview_layers import BITS
             studio_audio.availability(mode,mask,material_mix,new_materials,self.echo_weight,spatial_amounts,weights,shooting_stars,self.enveloper_failed,
@@ -1409,19 +1443,33 @@ class Renderer:
                  'form.26.resonance':mineral_amount>0.,'form.22.cadence':tower_amount>0.,
                  'form.15.memory':molten_amount>0.,'form.29.memory':marsh_amount>0.,
                  'form.29.lamps':marsh_amount<=0.})
+            for form,amounts in getattr(self,'fractal_amounts',{}).items():
+                studio_audio.contributions['form.'+str(form)+'.material.lamellae']=amounts[0]>0.
+                studio_audio.contributions['form.'+str(form)+'.spatial.recursive_pulse']=amounts[1]>0.
             packet=studio_audio.snapshot(current_time)
             if packet is not None:
                 raw=json.dumps(packet,separators=(',',':'),allow_nan=False)
                 if len(raw.encode('utf8'))<=AUDIO_MAX_PACKET:print(AUDIO_PREFIX+raw,flush=True)
+        if normal_owner is not None:normal_owner.report_applied_edits(current_time)
+        self.ctx.present(self.vertices,VERTEX_SHADER)
+        if performance is not None:performance.end_render()
 
     def should_close(self):
+        controls=getattr(self,'preview_playback',None)
+        if controls is not None and not controls.poll():return True
         return glfw.window_should_close(self.window)
 
     def poll_events(self):
         glfw.poll_events()
 
     def swap_buffers(self):
+        controls=getattr(self,'preview_playback',None)
+        if controls is not None and controls.playback.paused:return
+        swap_began=time.perf_counter()
         glfw.swap_buffers(self.window)
+        performance=getattr(self,'performance',None)
+        if performance is not None:performance.presented(time.perf_counter()-swap_began)
+        if controls is not None:controls.ready=True
         if self.startup_callback is not None:
             callback=self.startup_callback;self.startup_callback=None
             glfw.show_window(self.window);glfw.poll_events();callback("ready")
@@ -1440,9 +1488,17 @@ class Renderer:
         if self.start_time is None:
             return 0.0
 
-        return time.perf_counter() - self.start_time
+        controls=getattr(self,'preview_playback',None)
+        return (controls.drawing_time() if controls is not None else time.perf_counter()) - self.start_time
 
     def close(self):
+        controls=getattr(self,'preview_playback',None)
+        if controls is not None:controls.release()
+        performance=getattr(self,'performance',None)
+        if performance is not None:
+            try:performance.close()
+            except (OSError,ValueError,RuntimeError) as exc:print('Session Performance Report unavailable: '+str(exc),file=sys.stderr,flush=True)
+            self.performance=None
         if self.startup_notice is not None:
             self.startup_notice.close();self.startup_notice=None
         if self.cavern_texture is not None:

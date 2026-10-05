@@ -28,7 +28,7 @@ def fails(value):
 
 
 def model_tests():
-    assert len(LIVE_FORMS) == 27 and 36 in LIVE_FORMS
+    assert len(LIVE_FORMS) == 30 and {36,41,42,43}<=set(LIVE_FORMS)
     assert not set((37, 38, 39, 40)) & set(LIVE_FORMS)
     for q in ([], [37], [38], [True], [7]*51):
         fails(config(q))
@@ -237,7 +237,8 @@ def ui_tests():
                 with patch.object(app, 'start') as start:
                     app.receive(dict(action='start_request'))
                     start.assert_called_once()
-                assert len(player.WORLDS) == 27 and player.BY_ID[26]['subcategory'] == 'Earth'
+                assert len(player.WORLDS) == 30 and player.BY_ID[26]['subcategory'] == 'Earth'
+                assert all(player.BY_ID[f]['category']=='Fractal' for f in (41,42,43))
                 # The shortcut tag runs before ttk's Space-to-invoke binding.
                 root.deiconify();root.update();app.keys_down.clear()
                 with patch.object(app, 'send') as send, patch.object(app, 'start') as start:

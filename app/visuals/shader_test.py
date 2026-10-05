@@ -1,5 +1,6 @@
 from transition_catalog import parse_settings
 import math
+import time
 import argparse
 from preview_layers import echo_weave_at, parse_layers, validate_layers, layers_at, materials_at
 import hashlib
@@ -7,6 +8,9 @@ import json
 import struct
 import zlib
 from pathlib import Path
+import sys
+for _path in (Path(__file__).resolve().parents[1]/'audio',Path(__file__).resolve().parents[1]):
+    if str(_path) not in sys.path:sys.path.insert(0,str(_path))
 
 import numpy as np
 import glfw
@@ -17,6 +21,8 @@ from studio_color_link import configure_colors
 from color_controls import parse_colors
 
 STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3, "transition": 4, "canvas": 5, "water": 6, "sea": 7, "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35, "galaxy": 36,"lodestone_experimental":38,"stormglass_experimental":39,"folded_aurora_experimental":40}
+from development_forms import FRACTAL_STATES
+STATES.update({name:form for form,name in FRACTAL_STATES.items()})
 
 
 def save_png(path, pixels):
@@ -2970,14 +2976,14 @@ def main(debug_state=0, states=None, layers=None, palette="authored", colors=Non
     print(f"State preview active: {debug_state}", flush=True)
 
     try:
-        renderer.create()
-        renderer.set_galaxy_start(galaxy_visit,galaxy_short)
         renderer.preview_palette = palette
         renderer.debug_state = debug_state
         renderer.debug_sequence = tuple(STATES[name] for name in (states or ()))
         renderer.layer_profiles = validate_layers(layers or {})
         configure_colors(renderer, colors, color_input)
         renderer.configure_transitions(transitions)
+        renderer.create()
+        renderer.set_galaxy_start(galaxy_visit,galaxy_short)
         if color_input:
             from starfield_tuning import configure
             from analyzer import AudioAnalyzer
@@ -2989,6 +2995,9 @@ def main(debug_state=0, states=None, layers=None, palette="authored", colors=Non
                 owner.audition.register_source(lambda action,snapshot=None:None)
 
         while not renderer.should_close():
+            controls=getattr(renderer,'preview_playback',None)
+            if controls is not None and controls.playback.paused:
+                renderer.poll_events();time.sleep(.016);continue
             current_time = renderer.get_time()
 
             renderer.parameters.intensity = 1.0

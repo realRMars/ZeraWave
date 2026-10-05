@@ -18,7 +18,8 @@ from planet_listening import STYLES,titles as listening_titles
 from audio_controls import TARGETS as FORM_TARGETS,form_targets,validate_target,bounds as form_bounds,titles as form_titles,windows as form_windows
 from audio_scope import Scope,SaveTicket
 from transition_catalog import SCENES
-EDIT_FORMS={**SCENES,0:'Transitions'}
+from development_forms import INSPECTION_FORMS
+EDIT_FORMS={**INSPECTION_FORMS,0:'Transitions'}
 STAR_BOUNDS=dict(WINDOW_BOUNDS,**PRESENTATION_BOUNDS,**listening_bounds(STAR_WINDOWS))
 STAR_TITLES=dict(chorus_light='Chorus -> star light',chorus_presence='Chorus -> star presence',chorus_twinkle='Chorus -> steady star twinkle',legacy_wake='Chorus -> legacy wakes (pilot OFF)',flux_clock='Flux -> shared sky clock',sparkle_clock='Sparkle -> shared sky clock')
 MAPPED=(TARGET,ART_TARGET)+tuple(SPECS)
@@ -174,7 +175,7 @@ class StarfieldTuningWindow:
         ttk.Label(pinned,text='Audio tuning',font=('Segoe UI',15)).pack(anchor='w')
         self.pin=tk.BooleanVar(value=False);self.form_var=tk.StringVar(value=SCENES[5]);self.playback=tk.StringVar()
         if normal:
-            self.window.title('Audio tuning - Main forms')
+            self.window.title('Audio tuning - Main and development forms')
             form_row=ttk.Frame(pinned);form_row.pack(fill='x')
             self.form_selector=ttk.Combobox(form_row,textvariable=self.form_var,values=list(EDIT_FORMS.values()),state='readonly',width=30)
             self.form_selector.pack(side='left');self.form_selector.bind('<<ComboboxSelected>>',self.select_form)
@@ -742,11 +743,11 @@ class StarfieldTuningWindow:
             self.park_edits();self.identity=identity;self.revision=None;self.author_pending=None;self.profile_pending=None;self.last_applied_revision=None
         self.last_packet=deepcopy(full);self.received=received
         endpoint=full['endpoints'];primary=endpoint['primary']
-        playback=SCENES.get(primary,'Unavailable')
+        playback=INSPECTION_FORMS.get(primary,'Unavailable')
         if endpoint['incoming'] is not None:
             playback=SCENES[endpoint['outgoing']]+' -> '+SCENES[endpoint['incoming']]+' | '+str(endpoint.get('recipe'))+' | '+f"{endpoint['progress']*100:.0f}%"
         self.playback.set('Playback: '+playback+' | Editing: '+EDIT_FORMS[self.form]+(' [Pinned]' if self.pin.get() else ' [Following]'))
-        if not self.pin.get() and full.get('editing_form') in SCENES and full['editing_form']!=self.form:
+        if not self.pin.get() and full.get('editing_form') in INSPECTION_FORMS and full['editing_form']!=self.form:
             self.select_form(form=full['editing_form'],target=full.get('editing_target'))
             self.last_packet=deepcopy(full)
         p=self.target_packet()

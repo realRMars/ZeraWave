@@ -255,10 +255,11 @@ def surface_rows_worker():
   z=json.loads(line);a=cavern_row(z);sys.stdout.buffer.write((json.dumps([z,a.nbytes])+'\n').encode());sys.stdout.buffer.write(a.tobytes());sys.stdout.buffer.flush()
 
 class SurfaceStage:
- def __init__(self,ctx):
+ def __init__(self,ctx,cavern=True):
   self.ctx=ctx;self.program=ctx.program(vertex_shader=VERTEX,fragment_shader=FRAGMENT);self.targets={};self.size=None;self.cavern_origin=None;self.buffers={};self.vaos={};self.metrics={}
   self.pending={};self.ready=OrderedDict();self.row_buffers={};self.row_vaos={};self.row_counts={};self.worker=None
-  self.upload('citadel',citadel_mesh());self.prepare_cavern(0.);self.worker=SurfaceRows();self.warm_rows(0.)
+  self.upload('citadel',citadel_mesh())
+  if cavern:self.prepare_cavern(0.);self.warm_rows(0.)
  def upload(self,name,data):
   if name in self.vaos:self.vaos.pop(name).release();self.buffers.pop(name).release()
   buffer=self.ctx.buffer(data.tobytes());self.buffers[name]=buffer;self.vaos[name]=self.ctx.vertex_array(self.program,[(buffer,'3f 3f 4f 1f 1f','in_position','in_normal','in_motion','in_kind','in_tag')]);self.metrics[name+'_vertices']=len(data)
@@ -277,6 +278,7 @@ class SurfaceStage:
    self.row_buffers[z]=buffer;self.row_vaos[z]=vao;self.row_counts[z]=len(a)
   self.cavern_origin=origin;self.metrics['cavern_vertices']=sum(self.row_counts.values());self.metrics['cavern_gpu_rows']=len(self.row_buffers)
  def warm_rows(self,travel):
+  if self.worker is None:self.worker=SurfaceRows()
   origin=math.floor(travel/2.8)-2
   for z,future in list(self.pending.items()):
    if future.done():self.ready[z]=future.result();del self.pending[z]
@@ -290,11 +292,18 @@ class SurfaceStage:
   for items in self.targets.values():
    for item in items:item.release()
   self.targets={};self.size=size
-  for name in ('cavern','citadel'):
-   point=self.ctx.texture(size,4,dtype='f4');normal=self.ctx.texture(size,4,dtype='f2');depth=self.ctx.depth_renderbuffer(size)
+  self.metrics['surface_bytes']=0
+ def park_targets(self):
+  for items in self.targets.values():
+   for item in items:item.release()
+  self.targets={};self.metrics['surface_bytes']=0
+ def target(self,name):
+  if name not in self.targets:
+   size=self.size;point=self.ctx.texture(size,4,dtype='f4');normal=self.ctx.texture(size,4,dtype='f2');depth=self.ctx.depth_renderbuffer(size)
    for texture in (point,normal):texture.filter=(moderngl.NEAREST,moderngl.NEAREST);texture.repeat_x=texture.repeat_y=False
    fbo=self.ctx.framebuffer(color_attachments=(point,normal),depth_attachment=depth);self.targets[name]=(fbo,point,normal,depth)
-  self.metrics['surface_bytes']=size[0]*size[1]*28*2
+   self.metrics['surface_bytes']=size[0]*size[1]*28*len(self.targets)
+  return self.targets[name]
  def draw(self,renderer,size,cavern,citadel,inputs=None):
   self.resize(size);self.ctx.enable(moderngl.DEPTH_TEST);self.ctx.disable(moderngl.CULL_FACE|moderngl.BLEND)
   p=self.program;time=renderer.flow_time;clock=renderer.last_render_time;travel=(time*3+clock*.035)*1.35
@@ -303,21 +312,25 @@ class SurfaceStage:
   mineral,tower,amount=inputs if inputs is not None else (renderer.program['u_mineral_motion'].value,renderer.program['u_tower_motion'].value,renderer.program['u_mineral_amount'].value)
   p['u_size'].value=size;p['u_mineral'].value=mineral;p['u_tower'].value=tower;p['u_amount'].value=amount;p['u_time'].value=time
   for name,present in (('cavern',cavern),('citadel',citadel)):
-   if not present:continue
+   if not present:
+    for item in self.targets.pop(name,()):item.release()
+    continue
    if name=='cavern':
     flux=renderer.audio_input(26,'camera','flux',renderer.parameters.flux) if getattr(renderer,'studio_audio',None) is not None else renderer.parameters.flux
     self.prepare_cavern(travel);eye=np.array((cavern_axis(travel),.1,travel));forward=norm((cavern_path(travel)[1],.03,1));right=norm(np.cross((0,1,0),forward));up=np.cross(forward,right);focal=1.45;bank=.045*cavern_path(travel)[1]*(1+flux*1.6);limits=(.04,55.);origin=self.cavern_origin*2.8
    else:
     orbit=.35+time*.015+clock*.0035;approach=2.8+.20*math.sin(clock*.055);eye=np.array((approach*math.sin(orbit),1.35+.08*math.sin((time*.22+clock*.025)*.23),-approach*math.cos(orbit)));forward=norm(np.array((0,.54,0))-eye);right=norm(np.cross(forward,(0,1,0)));up=np.cross(right,forward);focal=citadel_focal(eye,forward,up);renderer.program['u_citadel_focal'].value=focal;bank=0.;limits=(1.2,4.9);origin=0.
    for k,v in {'u_eye':tuple(eye),'u_forward':tuple(forward),'u_right':tuple(right),'u_up':tuple(up),'u_focal':focal,'u_bank':bank,'u_range':limits,'u_scene':float(name=='citadel'),'u_origin':origin}.items():p[k].value=v
-   fbo,point,normal,depth=self.targets[name];fbo.use();fbo.clear(depth=1.);self.ctx.viewport=(0,0,*size)
+   fbo,point,normal,depth=self.target(name);fbo.use();fbo.clear(depth=1.);self.ctx.viewport=(0,0,*size)
    if name=='cavern':
     for z in range(self.cavern_origin,self.cavern_origin+24):p['u_origin'].value=z*2.8;self.row_vaos[z].render(moderngl.TRIANGLES,vertices=self.row_counts[z])
    else:self.vaos[name].render(moderngl.TRIANGLES)
   self.ctx.disable(moderngl.DEPTH_TEST);self.ctx.screen.use();self.ctx.viewport=(0,0,*size)
   for name,unit in (('cavern',9),('citadel',11)):
+   if name not in self.targets:continue
    _,point,normal,_=self.targets[name];point.use(unit);normal.use(unit+1);renderer.program['u_'+name+'_surface'].value=unit;renderer.program['u_'+name+'_normal'].value=unit+1
   renderer.program['u_cavern_surface_on'].value=int(cavern);renderer.program['u_citadel_surface_on'].value=int(citadel)
+  self.metrics['surface_bytes']=size[0]*size[1]*28*len(self.targets)
  def release(self):
   if self.worker is not None:self.worker.shutdown();self.worker=None
   self.pending={};self.ready=OrderedDict()

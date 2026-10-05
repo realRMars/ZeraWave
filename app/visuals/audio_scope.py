@@ -8,7 +8,8 @@ from copy import deepcopy
 import hashlib,json,math,time
 from transition_catalog import SCENES,RECIPES
 
-FORMS=tuple(SCENES)
+from development_forms import INSPECTION_FORMS
+FORMS=tuple(INSPECTION_FORMS)
 TRANSITION_FORM=0
 MAX_REVISION=2**31
 MAX_AGE_SECONDS=1.
@@ -88,6 +89,8 @@ def endpoints(renderer,seconds):
     """Actual director/pair endpoints; unavailable experimental forms stay absent."""
     state=renderer.state_at(seconds)
     if getattr(renderer,'transition_sequence',False):
+        controls=getattr(renderer,'preview_playback',None)
+        if controls is not None:seconds=controls.route_time(seconds)
         config=renderer.transition_settings;seq=renderer.debug_sequence;span=config['hold']+config['duration']
         index=int(max(0.,seconds)//span);age=max(0.,seconds)%span
         source=seq[index%len(seq)];target=seq[(index+1)%len(seq)]

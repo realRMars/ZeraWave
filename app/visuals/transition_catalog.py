@@ -2,6 +2,7 @@
 import json,math
 SCENES={11:'Membrane',12:'Root blossoms',2:'Geometric corridor',5:'Planet Canvas',7:'Sea',8:'Dyes',9:'Rain',10:'Waterfall',13:'Currents',14:'Fire',15:'Molten',17:'Firescape',18:'Aftershock',19:'Windstreams',20:'Stormfront',21:'Vortex',22:'Citadel',24:'Dunes',25:'Strata',26:'Crystal Cavern',28:'Nebula',29:'Marsh',30:'Pressure',32:'Magnetic Bloom',33:'Arc Constellation',34:'Auroral Veil',36:'Galaxy Odyssey'}
 FAMILIES=((11,12),(7,8,9,10,13),(14,15,17,18),(19,20,21,22),(24,25,26),(28,29,30),(32,33,34))
+SCENES.update({41:'Tidal Strata',42:'Recursive Atrium',43:'Honeycomb Garden'})
 # label, shader style, compatible source/target sets; None means all Main scenes.
 RECIPES={
  'tr_fade':('Optical crossfade',0,None),
@@ -14,6 +15,8 @@ RECIPES={
  'tr_river':('River Carry',1,None),
  'tr_facet':('Facet Relay',2,None),
  'tr_aperture':('Depth Aperture',3,None),
+ 'tr_branch_iris':('Branching Iris',4,None),
+ 'tr_flow_fold':('Flowing Fold',5,None),
 }
 for name,label,forms in zip(('organic','water','fire','air','earth','fog','plasma'),('Organic form meld','Water flow meld','Fire coverage meld','Sky territory meld','Earth territory meld','Fog front meld','Plasma charge meld'),FAMILIES):
     RECIPES['tr_'+name]=(label,0,(forms,forms))
@@ -34,7 +37,7 @@ def validate_settings(data=None):
     if not isinstance(data,dict):raise ValueError('Invalid transition settings.')
     pair=data.get('pair',[]); isolate=data.get('isolate',{})
     if not isinstance(pair,list) or (pair and (len(pair)!=2 or any(type(s) is not int or s not in SCENES for s in pair) or pair[0]==pair[1])):raise ValueError('Choose two different original scenes for the transition preview.')
-    if not isinstance(isolate,dict) or any(w not in ('pair','blend','organic','geometric','cosmic','water','fire','air','earth','fog','plasma','transition') or key not in RECIPES or key in ('tr_material','tr_study') for w,key in isolate.items()):raise ValueError('Unknown isolated scene transition.')
+    if not isinstance(isolate,dict) or any(w not in ('pair','blend','organic','geometric','cosmic','water','fire','air','earth','fog','plasma','transition','fractal_landscape','fractal_atrium','fractal_bloom') or key not in RECIPES or key in ('tr_material','tr_study') for w,key in isolate.items()):raise ValueError('Unknown isolated scene transition.')
     out=dict(pair=list(pair),isolate=dict(isolate))
     for key,default,lo,hi in (('hold',12.,1.,300.),('duration',6.,1.,20.)):
         value=data.get(key,default)

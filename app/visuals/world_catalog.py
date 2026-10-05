@@ -1,9 +1,14 @@
 """Shared authored taxonomy; player discovery filters canonical Main eligibility."""
 LIVE_STATES = {"blend": 0, "organic": 1, "geometric": 2, "cosmic": 3,
                "transition": 4, "canvas": 5, "water": 6, "sea": 7,
-               "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35, "galaxy": 36, "cymatics": 37, "lodestone_experimental":38, "stormglass_experimental":39, "folded_aurora_experimental":40}
+               "dyes": 8, "rain": 9, "waterfall": 10, "membrane": 11, "roots": 12, "currents": 13, "fire": 14, "molten": 15, "fire_cycle": 16, "firescape": 17, "aftershock": 18, "windstreams": 19, "stormfront": 20, "vortex": 21, "citadel": 22, "air": 23, "dunes": 24, "strata": 25, "cavern": 26, "earth": 27, "nebula": 28, "marsh": 29, "pressure": 30, "fog": 31, "magnetic": 32, "arcs": 33, "auroral": 34, "plasma": 35, "galaxy": 36, "cymatics": 37, "lodestone_experimental":38, "stormglass_experimental":39, "folded_aurora_experimental":40,
+               'fractal_landscape':41,'fractal_atrium':42,'fractal_bloom':43}
 
 WORLD_TREE = {
+    'fractals':dict(label='Fractal',children={
+        'landscape':dict(label='Tidal Strata',state='fractal_landscape'),
+        'atrium':dict(label='Recursive Atrium',state='fractal_atrium'),
+        'bloom':dict(label='Honeycomb Garden',state='fractal_bloom')}),
     'cymatics': dict(label='Cymatics',children={'water':dict(label='Water — Resonance basin',state='cymatics')}),
     'experimental': dict(label='Experimental / unfinished', children={
         'transition_study':dict(label='Legacy transition study (Demo)',state='transition'),

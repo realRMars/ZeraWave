@@ -14,6 +14,13 @@ from star_profiles_test import install_widgets,restore_widgets,rejects
 from spectrum_tuning_test import Widget,fft_frame
 
 def remove_coverage_shader(s):
+    # Reverse only this batch's explicit zero-contribution guard before the
+    # hash-bound historical inversion; both contexts must match exactly.
+    guard='    // The organic substitution contributes exactly zero under a complete\n    // water takeover. Its source material was already evaluated above.\n    if (water_takeover < 1.0) {\n'
+    tail='        color += material_effects * (organic_weight / weight_sum) * (1.0-water_takeover);\n    }\n'
+    if guard in s:
+        assert s.count(guard)==1 and s.count(tail)==1
+        s=s.replace(guard,'',1).replace(tail,tail.removesuffix('    }\n'),1)
     if 'uniform ivec2 u_audio_forms;' in s:
         from rollout_source_test_helpers import pre_rollout_source
         s=pre_rollout_source('app/visuals/shaders/dream.frag',s)
