@@ -1,0 +1,6 @@
+# Optional Qt Studio proof; install into the existing project .venv only.
+PySide6-QtAds==5.0.0.2
+PySide6-Essentials==6.11.1
+shiboken6==6.11.1
+# Session Waveform file decoding; output uses the existing SoundCard backend.
+SoundFile==0.13.1

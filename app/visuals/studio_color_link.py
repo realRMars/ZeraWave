@@ -64,7 +64,7 @@ class ColorInbox:
             if isinstance(message,dict) and message.get('kind')=='preview-control':
                 if not self.preview_run or message.get('run')!=self.preview_run:raise ValueError('Wrong preview control owner')
                 op=message.get('op');serial=message.get('serial')
-                if op not in ('pause','hold','release','bonk','mode','stop','diagnostics') or type(serial) is not int or not 0<=serial<2**31:raise ValueError('Invalid preview control')
+                if op not in ('pause','hold','release','bonk','mode','stop','diagnostics','load','attach','resources','resolution') or type(serial) is not int or not 0<=serial<2**31:raise ValueError('Invalid preview control')
                 if op=='hold' and message.get('owner') not in ('studio.mouse','studio.Shift_L','studio.Shift_R','output.Shift_L','output.Shift_R'):raise ValueError('Invalid Hold owner')
                 key=(op,message.get('owner',''))
                 with self.lock:
@@ -229,6 +229,11 @@ def configure_colors(renderer, colors=None, live=False):
     if live:
         renderer.color_inbox=ColorInbox(sys.stdin.fileno())
         if os.environ.get('ZERAWAVE_PREVIEW_RUN'):
+            if os.environ.get('ZERAWAVE_WORKSPACE_QT_FOREIGN')=='1':
+                began=time.perf_counter();run=os.environ['ZERAWAVE_PREVIEW_RUN']
+                def phase(value):
+                    print(ACK_PREFIX+json.dumps(dict(startup=dict(phase=value,run=run,seconds=time.perf_counter()-began))),flush=True)
+                renderer.startup_callback=phase
             from preview_playback import PreviewPlayback
             renderer.preview_playback=PreviewPlayback(renderer,os.environ['ZERAWAVE_PREVIEW_RUN'])
             if renderer.window is not None:renderer.preview_playback.install_output_keys()
@@ -257,7 +262,7 @@ class ColorLink:
         self.pending_audio={};self.audio_revisions={};self.audio_authored={};self.pending_audio_view=None
         self.pending_audition=None;self.audition_revision=0
         self.preview_run=preview_run;self.preview_serial=0
-        self.pending_controls={};self.preview_latest=None
+        self.pending_controls={};self.preview_latest=None;self.window_latest=None
         self.writer=threading.Thread(target=self._write,daemon=True,name='Studio color output')
         self.reader=threading.Thread(target=self._read,daemon=True,name='Studio preview log')
         self.writer.start(); self.reader.start()
@@ -424,6 +429,13 @@ class ColorLink:
                 line=stream.readline(max(65536,STAR_MAX_PACKET+len(STAR_PREFIX)+2))
                 if not line: break
                 text=line.decode('utf-8',errors='replace')
+                if text.startswith('ZERAWAVE_WINDOW '):
+                    try:packet=json.loads(text[len('ZERAWAVE_WINDOW '):])
+                    except ValueError:continue
+                    from window_host import owned_process
+                    if type(packet.get('pid')) is int and owned_process(packet['pid'],self.process.pid) and type(packet.get('hwnd')) is int and (not packet.get('run') or packet['run']==self.preview_run):
+                        with self.condition:self.window_latest=packet
+                    continue
                 from preview_playback import PREFIX as PREVIEW_PREFIX
                 if text.startswith(PREVIEW_PREFIX):
                     try:packet=json.loads(text[len(PREVIEW_PREFIX):])
@@ -462,6 +474,9 @@ class ColorLink:
 
     def get_status(self):
         with self.condition: return dict(self.status)
+
+    def get_window(self):
+        with self.condition:return deepcopy(self.window_latest)
 
     def get_monitor(self):
         with self.condition:return deepcopy(self.monitor_latest)

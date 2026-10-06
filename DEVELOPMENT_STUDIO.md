@@ -5,7 +5,82 @@ or a commitment to paid ZeraWave Studio 1.
 
 ## Launch and review
 
-Run `run_development_studio.bat` from the project root. Use **Library** to find
+For the current Qt candidate, double-click **`run_qt_studio.vbs`**. It retains the
+approved ADS docking layout, existing renderer and isolated control owner. The
+October 5 Studio additions are unpublished and await Robert's review; the prior
+full-size rendering limits still apply. The older unified Tk and diagnostic
+entry points below remain available.
+
+### Qt Library, startup, Resources and window header
+
+Selecting or expanding a World Library row only browses. **Start** commits that
+row's canonical eligible descendants as the playback scope. The scope and
+currently rendered form appear separately below the tree. Main, Fractal,
+Organic, Geometric, Cosmic, Elements and nested Plasma use their Main forms;
+Experimental forms remain separate. Normal and Instant BONK retain the existing
+director's random selection and transition behavior. A single-form scope disables
+BONK with an explanation; Space is a harmless no-op there. Unsupported categories
+report unavailable; load an individual Experimental leaf through its existing route.
+
+Double-click a playable leaf, or right-click it and choose **Load**, to invoke the
+same direct action. Category double-click still expands/collapses. Compatible
+Main loads replace the current form without a transition or source restart,
+including while paused or during an existing transition. A leaf within the
+committed category keeps that scope; otherwise its nearest playable parent in
+the same namespace becomes the scope. Loading the active leaf retains its source
+and history. Separate Experimental resource routes use owned Stop/Start and show
+their real loading state. Direct selection can still wait for driver work.
+Follow/Pin, destination drafts and explicit Save Authored retain their ownership.
+
+Qt startup appears inside the **Visualizer**, including owner connection,
+context, shader compilation, resource preparation, attachment and readiness.
+Progress is indeterminate. **Cancel** prevents late attachment and shows pending
+cleanup if driver work has not returned. **Retry** starts a fresh owned attempt.
+The renderer is created hidden, attached to the verified native host and shown
+after its first completed presentation. Standalone/legacy loading behavior is
+retained. Errors use inline status and Diagnostics, without repeated startup dialogs.
+
+**View → Resources** opens the dedicated read-only dock beside Mapping Monitor.
+It shows actual output/framebuffer/internal dimensions and preview scale,
+renderer swap returns per second and mean interval, process CPU/working sets,
+system CPU/RAM, and identified device-wide GPU/VRAM. Missing, stale, paused,
+stopped and warming values are labelled. Process CPU uses one logical core and
+can exceed 100%; a sum of distinct PID working sets is not unique physical RAM.
+Device utilization is not GPU draw time or application VRAM. Sampling runs
+asynchronously at nominal one-second cadence with bounded history; hidden docks
+skip painting. Enabled diagnostic reports share these owner samples instead of
+starting a second collector. Mapping Monitor's CPU submitted values remain
+audio mappings. Optional reduced preview quality remains a separate choice.
+
+The integrated header keeps **File/Edit/View/Help**, **Minimize**, **Maximize / Restore**
+and **Close** on the same native main window. Alt+Space opens the Windows system
+menu. Maximize is distinct from renderer fullscreen. Layout saves separately to
+`work/studio/qt-layout.json`; View restores hidden docks and Reset layout changes
+layout only. Normal source choices loaded from sessions survive startup, direct
+switching and docking; **View → Preview setup** exposes the existing controls.
+New control-owner sessions initially select Synthetic preview / Real time.
+
+Review: Stop, select Organic, Start, then BONK in both modes. Browse Cosmic
+without committing it, then Load Galaxy to adopt Cosmic directly. Pause and Load
+Roots, then Resume; inspect Follow/Pin destinations. Try Geometric's disabled BONK,
+then Elements → Plasma. Show/hide Resources, float/redock Visualizer, restore and
+maximize, and close/reopen with a task/session saved explicitly. Short API and OS
+input evidence is in `work/studio-additions-20261005/REPORT.txt`; physical drag,
+resize/snap, DPI, monitor changes and physical knobs need Robert's hands-on check.
+
+For the unified workspace prototype, double-click **`run_unified_studio.vbs`**
+from the project root. It uses the existing `.venv` and opens no console.
+The prototype is ready for Robert's organization/functional review; finishing
+polish, packaging and artistic acceptance are separate decisions.
+
+The diagnostic entry remains **`run_development_studio.bat`**, with its original
+separate-window Studio. To diagnose the unified shell itself, run
+`.venv\Scripts\python.exe -B -X utf8 app\visuals\studio_workspace.py` in PowerShell.
+Normal-launch startup errors go to `work/studio/workspace-startup.log` and a
+visible error dialog; **Help > Diagnostics & logs** opens the owned preview log.
+Existing test and player launch paths remain available.
+
+In the diagnostic Studio, use **Library** to find
 an existing world, effect, or technique; **Build & preview** to select a
 approved Main world/form and input; **Experimental** for unfinished worlds and
 the existing Cymatics tools; **Effects & layers** to inspect optional selections; and
@@ -16,6 +91,89 @@ passages. Review affected Main behavior when shared paths change or integration
 is assigned; a held-only candidate can be developed before joining Main. Track replay is silent but uses the shared
 analyzer, mapper, and renderer; it is not live audio validation. A still capture
 alone does not verify motion or stateful effects.
+
+## Unified workspace prototype
+
+The central **Visualizer** hosts the existing renderer. Drag a tab to another
+area, drag it outside the workspace to float, or use **⋮** for exact destinations
+and tab order. **↗** floats the current tab; **×** hides it. A floating window's
+**Panel** menu redocks it. Closing a panel hides it. **View** restores panels and
+reflects visibility even when a panel floats; **File > Exit** shuts down Studio
+and its owned preview. Drag the dividers to resize areas. Hiding all left-hand
+tabs collapses the left area; showing one restores it.
+
+The thirteen panels are Session & worlds, Visualizer, Color Inspector, Audio
+Tuning, Mapping Monitor, Transport & waveform, 12-band analyzer, Preview setup,
+Experimental, Effects & layers, Catalog & techniques, Results & review, and
+Diagnostics & logs. They retain one controller/body each. Layout changes retain
+the renderer's context, clocks and active editing state. Existing GPU feedback
+is resampled when its viewport changes rather than cleared solely for resizing.
+Normal scene/audition boundaries retain their established history semantics.
+
+**Session & worlds** uses the current Main/Experimental catalogs and actual
+selected session/track. **Open**, **Save** and **Setup** use the existing session
+workflow. The saved-session and color-preset lists show actual JSON files;
+double-clicking a listed file opens it for inspection, while **Open** or the
+inspector's **Load** imports it. Historical catalog entries remain searchable.
+Only available archived captures are thumbnails, with their path identified;
+other rows honestly have no assigned capture. No new thumbnail pipeline or
+future-scene inventory is implied.
+
+**Color Inspector** initially prefers the selected scene's source pigments.
+An explicit compatible shared target stays selected. Pigments, Palette timing,
+and Presets & reset retain the original hex/wheel/value, gradient blend positions,
+named setups, Hold/Cycle, scoped resets, revert and preset operations. Scroll
+within compact tools for the remaining controls. Invalid unsent field text stays
+at its target during docking and scope changes; the last valid colors keep
+rendering. Validation errors appear beside the editing controls. Source swatches
+describe pigments before shading, not measured output pixels.
+
+**Audio Tuning** retains Follow/Pin, actual form and target selectors, every gain,
+listening range, exact frequency value, profile operation and authored promotion.
+Controls contains the scrollable sliders, resets and Profiles & authored;
+Listening & FFT contains the original spectrum and detector views. A profile
+save is separate from **Save Authored**, which still requires the existing scoped
+acknowledgement and reports its actual destination. One-Hz positioning does not
+add FFT resolution. Question-mark help retains full explanations and dependencies.
+
+**Mapping Monitor** shows bounded history of actual analyzer bass and a labelled
+CPU submitted input. Full values retains all original scope, revision, gain,
+director, dependency and history-owner telemetry, with horizontal scrolling.
+These traces are not GPU pixel measurements or instrument classification.
+
+The bottom transport retains **Start, Pause/Resume, Stop, momentary Hold, BONK**
+and **Normal/Instant**. BONK availability follows the existing player; a held
+single-form preview can legitimately disable it. Source, quality and layer
+changes prepare the next launch. Compatible colors and tuning edits remain live.
+New workspace previews default to **Real time**. Loading an existing session
+restores its saved speed; the original diagnostic Studio retains its 12× default.
+
+The file waveform is a bounded min/max envelope of actual decoded 16-bit PCM.
+Its cursor follows the shared analyzer's PCM position; it does not seek. Test
+track replay remains silent. Live input shows bounded PCM snapshots with gaps
+between snapshots. Synthetic, stale or unavailable PCM is labelled unavailable.
+The analyzer shows exactly twelve existing FFT ranges, normalized mean magnitude,
+actual range edges and under-resolution marks; absent/stale spectra show N/A.
+
+Outside text fields, sliders and native widget activation, **Ctrl+Enter** starts,
+**Ctrl+P** pauses/resumes, **Ctrl+Shift+S** stops, **Space** BONKs and **Shift** holds
+while pressed. **Ctrl+S/O/N** are the existing session Save/Open/New actions.
+Typing, selection and tuning arrows keep their native editing behavior. Space
+on a focused button activates that button once. Focus loss, docking and shutdown
+release held controls and slider repeats. Tab/Shift+Tab reach controls and help.
+
+Layout saves separately to `work/studio/workspace-layout.json`: visibility,
+areas, tab order, selected tabs, dividers and floating geometry. Changed/missing
+monitor layouts clamp windows to an available monitor, including negative monitor
+origins. **View > Reset layout** changes layout only, preserving session, colors,
+profiles and tuning. Invalid layout files get an explicit status and can be reset.
+
+For review, start a real input or decoded track, detach/redock the Visualizer,
+float a tool and edit it, hide/restore panels through View, try Follow/Pin and
+Pause/Resume, then restart the shell to check layout. Review hierarchy and control
+access before approving finishing work. Source-bound measurements, screenshots,
+failed trials and validation limits are in
+[the prototype handoff](docs/agent-notes/unified-studio-prototype-20261005.md).
 
 ## Operating Studio
 
@@ -577,14 +735,29 @@ keys leave text, combobox, slider and spinbox editing alone. Session Save/New/Op
 retain their shortcuts. Space is consumed before a focused button's default
 binding. The output window uses the same playback bindings; Escape closes it.
 
+<a id="resource-telemetry-and-pending-qt-view"></a>
+
+### Resource telemetry
+
+The Qt **Resources** dock described above is implemented in the October 5 additions
+candidate. **Development diagnostics** also retains the legacy report route.
+Qt Diagnostics exposes logs/help. Mapping Monitor's **CPU submitted** values are
+audio mappings, not CPU usage.
+
 Enable Development diagnostics for asynchronous nominal 1-second resource
 sampling. Presentation intervals/FPS are swap-return/caller intervals, not scanout.
 CPU process is percent of one logical core (can exceed 100%); system CPU covers
 the machine. RAM process means working set. GPU utilization and VRAM belong to
-NVIDIA device 0; process VRAM and lightweight GPU draw timing are unavailable.
+the identified rendering adapter; process VRAM and lightweight GPU draw timing are unavailable.
 Missing/stale readings say unavailable. Actual timestamps and instrumentation
 limits are retained in the report. Background load, thermals and power are not
 controlled. This display gives no FPS guarantee.
+
+The Qt collector identifies renderer, GUI and control-owner roles by PID and
+deduplicates shared PIDs. Rendering-adapter name matching must be unique before
+device readings are shown; missing/ambiguous identification stays unavailable.
+Visible/hidden overhead evidence belongs to the additions report. GPU draw
+milliseconds still require a separate measurement; swap return is not scanout.
 
 Graceful Stop or normal completion writes `session-performance.json` into that preview's
 results directory. **Open Latest Results** opens the directory. Reports bind source,
@@ -702,3 +875,26 @@ crossfades still miss 60 FPS; GPU time and silent replay are not scanout or
 continuous listening evidence. See
 [the task results](docs/agent-notes/performance-fixes-20261004.md) for measured
 conditions, numerical image differences and known limits.
+
+## October 6 resolution controls and Audio Hub
+
+Qt Settings > Visualizer Resolution and the Visualizer context submenu share
+640×360, 1280×720, 1920×1080, Native and integer Custom choices. Existing Quality
+continues until an explicit resolution choice; fixed choices use aspect-fit bars,
+Native follows physical framebuffer pixels. A failed request retains the accepted
+policy. Resources offers Simple CPU/GPU/Mem/FPS and Detailed views; device GPU
+utilization is device-wide and swap-return FPS is not measured scanout.
+
+Settings > Audio and Session Waveform share Device Listening / Audio File source
+selection and import. Use Waveform Open/Play/Pause/Stop/Repeat/Mute for WAV/MP3
+files; visual Start/Pause/Resume/Hold/BONK remain separate. Device listening opens
+no output stream. Muted files continue analysis; file Pause freezes the audio
+playhead independently. Invalid import retains the working source. The waveform
+is a rolling PCM envelope, not a whole-file seekable timeline.
+
+SoundFile 0.13.1 is recorded in the optional Qt requirements; PCM WAV fallback
+remains available without it. Legacy Experimental routes retain separate audio
+semantics: stop shared audio before entering them; shared-audio changes while
+such a preview runs are rejected. Matched source-rewind audition is unavailable
+on this live PCM route. Read [resolution checks/limits](docs/agent-notes/studio-resolution-controls-20261005.md)
+and [Audio Hub checks/limits](docs/agent-notes/studio-audio-hub-20261006.md).

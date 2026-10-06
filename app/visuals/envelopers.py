@@ -16,6 +16,21 @@ class EnveloperStage:
         try:self.vao=ctx.simple_vertex_array(self.program,vertices,'in_position')
         except Exception:
             self.program.release();raise
+        # ModernGL's copy_framebuffer copies the shared extent without scaling.
+        # Sample normalized coordinates to retain the entire feedback image
+        # when docking changes the viewport dimensions.
+        self.resize_program=None
+        try:
+            self.resize_program=ctx.program(vertex_shader=vertex_shader,fragment_shader='''#version 330
+uniform sampler2D previous;
+uniform vec2 size;
+out vec4 color;
+void main(){color=texture(previous,gl_FragCoord.xy/size);}
+''')
+            self.resize_vao=ctx.simple_vertex_array(self.resize_program,vertices,'in_position')
+        except Exception:
+            if self.resize_program:self.resize_program.release()
+            self.vao.release();self.program.release();raise
 
     def release_targets(self):
         for resource in self.targets+self.textures:resource.release()
@@ -25,7 +40,9 @@ class EnveloperStage:
         scale=min(1.,math.sqrt(self.MAX_PIXELS/max(1,size[0]*size[1])))
         bounded=tuple(max(1,int(v*scale)) for v in size)
         if bounded==self.size:return
-        self.release_targets()
+        old_targets,old_textures=self.targets,self.textures
+        was_valid=self.valid;old_index=self.index
+        self.targets=[];self.textures=[]
         try:
             for _ in range(3):
                 texture=self.ctx.texture(bounded,4,dtype='f1')
@@ -34,8 +51,24 @@ class EnveloperStage:
                 texture.repeat_x=texture.repeat_y=False
                 self.targets.append(self.ctx.framebuffer(color_attachments=[texture]))
         except Exception:
-            self.release_targets();raise
-        self.size=bounded;self.allocations+=1;self.reset()
+            for resource in self.targets+self.textures:resource.release()
+            self.targets,self.textures=old_targets,old_textures
+            raise
+        try:
+            if was_valid:
+                self.resize_program['previous'].value=0
+                self.resize_program['size'].value=tuple(float(v) for v in bounded)
+                for destination,source in zip(self.targets,old_textures):
+                    destination.use();self.ctx.viewport=(0,0,*bounded)
+                    source.use(0);self.resize_vao.render(mode=moderngl.TRIANGLE_STRIP)
+            else:
+                for target in self.targets:target.clear()
+        except Exception:
+            for resource in self.targets+self.textures:resource.release()
+            self.targets,self.textures=old_targets,old_textures
+            raise
+        for resource in old_targets+old_textures:resource.release()
+        self.size=bounded;self.allocations+=1;self.valid=was_valid;self.index=old_index if was_valid else 0
 
     def reset(self):
         for target in self.targets:target.clear()
@@ -73,4 +106,4 @@ class EnveloperStage:
         scene_program['u_resolution'].value=tuple(float(v) for v in size)
 
     def release(self):
-        self.release_targets();self.vao.release();self.program.release()
+        self.release_targets();self.resize_vao.release();self.resize_program.release();self.vao.release();self.program.release()

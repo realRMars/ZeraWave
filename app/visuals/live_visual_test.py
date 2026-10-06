@@ -1,4 +1,5 @@
 import time
+import os
 from transition_catalog import parse_settings
 import argparse
 import sys
@@ -150,12 +151,22 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors,
     if star_attack:
         from planet_star_attack import attach_bass_attack
         attach_bass_attack(frame, analyzer, len(samples), source_id, bass)
+    waveform=getattr(analyzer,'preview_waveform',False)
+    if waveform() if callable(waveform) else bool(waveform):
+        # Display-only envelope of already decoded/captured PCM. No additional
+        # FFT, normalization or audio processing, and no retained sample buffer.
+        import numpy as np
+        block=np.asarray(samples,dtype=float)
+        if len(block) and len(block)<=2048 and np.isfinite(block).all():
+            frame.preview_waveform=[[float(group.min()),float(group.max())]
+                                    for group in np.array_split(block,min(32,len(block))) if len(group)]
     return frame
 
 
 def main(state="blend", states=None, layers=None, device=None, quiet=False, palette="authored", colors=None, color_input=False, seed=None, galaxy_visit=0, galaxy_short=False, transitions=None, planet_dsp_pilot=False, planet_star_attack_pilot=False):
     import json
-    capture = AudioCapture(device_name=device)
+    hub_environment=os.environ.get('ZERAWAVE_AUDIO_HUB')
+    capture = None if hub_environment else AudioCapture(device_name=device)
     analyzer = AudioAnalyzer()
     processor = SignalProcessor(smoothing=0.5)
     # Wider quiet dead-zone than the class default (0.03): gives the
@@ -191,29 +202,34 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
 
     print("ZeraWave Live Visual Test")
     print("--------------------------")
-    print("Finding audio loopback device...")
+    print('Connecting to Studio PCM...' if hub_environment else 'Finding audio loopback device...')
 
-    device = capture.find_device()
+    device = 'Studio audio owner' if hub_environment else capture.find_device()
     if color_input:
         from planet_mapping_monitor import configure
-        configure(renderer, 'LIVE', json.dumps(capture.resolved, sort_keys=True))
+        configure(renderer, 'STUDIO PCM' if hub_environment else 'LIVE', 'Studio audio owner' if hub_environment else json.dumps(capture.resolved, sort_keys=True))
     if color_input or star_pilot or renderer.debug_state==5:
         from starfield_tuning import configure as configure_star_tuning,observe_spectrum
         configure_star_tuning(renderer,analyzer,normal=color_input)
         if getattr(renderer,'studio_audio',None) is not None:star_pilot=True
         if getattr(renderer,'studio_audio',None) is not None:
-            renderer.studio_audio.source_mode='LIVE';renderer.studio_audio.source_identity=json.dumps(capture.resolved,sort_keys=True)
+            renderer.studio_audio.source_mode='STUDIO PCM' if hub_environment else 'LIVE';renderer.studio_audio.source_identity='Studio audio owner' if hub_environment else json.dumps(capture.resolved,sort_keys=True)
     if getattr(renderer,'studio_audio',None) is not None and renderer.planet_dsp_pilot:pilot=True
 
     print(f"Using: {device}")
-    print(f"Live state: {state}. Play music through your default audio output.")
+    print(f"Live state: {state}. "+('Audio is owned by Session Waveform.' if hub_environment else 'Play music through your default audio output.'))
     print("Listening until the window closes...")
     print()
 
     try:
         renderer.create()
         from capture_stream import CaptureStream
-        if pilot or star_pilot:
+        if hub_environment:
+            from studio_transport import HubStream
+            stream=HubStream(hub_environment,lambda samples:analyze_samples(
+                samples,analyzer,processor,conditioner,detectors,
+                descriptors=pilot,source_id='studio-audio-owner',star_attack=star_pilot))
+        elif pilot or star_pilot:
             stream=CaptureStream(capture,lambda samples:(samples,analyze_samples(
                 samples,analyzer,processor,conditioner,detectors,
                 descriptors=pilot,source_id='planet-preview',star_attack=star_pilot)))
@@ -229,6 +245,11 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
                     renderer.poll_events();time.sleep(.016);continue
                 incoming=[p for p in incoming if p[0]>controls.resume_after]
             for stamp,(samples,frame) in incoming:
+                if hub_environment and getattr(frame,'audio_source',None):
+                    source=frame.audio_source
+                    if getattr(renderer,'studio_audio',None) is not None:
+                        renderer.studio_audio.source_mode=source['mode']
+                        renderer.studio_audio.source_identity=source['path'] if source['mode']=='Audio File' else json.dumps(source['device'],sort_keys=True)
                 artifact=getattr(renderer,'artifact_tuning',None)
                 if artifact is not None:artifact.observe(getattr(frame,'artifacts_listening',None))
                 if getattr(renderer,'star_spectrum',None) is not None:observe_spectrum(renderer,frame,len(samples),stamp)
@@ -244,6 +265,12 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
                 for name,value in result.items():peaks[name]=max(peaks[name],value)
                 renderer.parameters.scale=result['scale'];renderer.parameters.movement=result['movement'];renderer.parameters.sparkle=result['sparkle'];renderer.parameters.impact=impact
                 renderer.parameters.flux=frame.flux;renderer.parameters.beat_confidence=frame.beat_confidence
+            if hub_environment and not incoming and not stream.latest.get('playing',False):
+                # Audio pause/stop freezes audio histories, not visual time.
+                # Decay continuous controls without fabricating captured PCM.
+                for name in ('scale','movement','sparkle','flux','beat_confidence'):
+                    setattr(renderer.parameters,name,getattr(renderer.parameters,name)*.98)
+                renderer.parameters.impact=0.
             renderer.parameters.beat_tick=tick
             renderer.render()
             renderer.swap_buffers()

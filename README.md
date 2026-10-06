@@ -11,8 +11,9 @@ development source; the portable preview is a preserved, older checkpoint.
 - [Current handoff](ZERAWAVE_HANDOFF.md)
 - [Historical record](docs/history/README.md)
 
-Use `run_zerawave.bat` to open the player or `run_development_studio.bat` for
-development review. Studio is a development tool, not a product offering;
+Use `run_zerawave.bat` to open the player, `run_qt_studio.vbs` for the current
+Qt development Studio, or `run_development_studio.bat` for the retained Tk tools.
+Qt setup requirements are in [requirements-qt-studio.txt](requirements-qt-studio.txt). Studio is a development tool, not a product offering;
 ZeraWave Studio 1 is only a future possibility.
 
 For agents: read [AGENTS.md](AGENTS.md), then the current handoff and roadmap.
@@ -31,3 +32,8 @@ checkpoint with caveats and passed the measured-performance development
 checkpoint for publication on October 5. Water/capture/startup improvements,
 compiler tradeoffs and remaining real-time limits are recorded in the handoff. See [Studio controls](DEVELOPMENT_STUDIO.md#main-audio-tuning-and-mapping-monitor)
 and the [current checkpoint and limits](ZERAWAVE_HANDOFF.md).
+
+The October 6 development checkpoint includes dockable Qt tools, Resources,
+category BONK/direct scene loading, resolution controls and the Audio Hub.
+Read the [Studio guide](DEVELOPMENT_STUDIO.md) and [current checkpoint](ZERAWAVE_HANDOFF.md#current-qtstudio-development-checkpoint)
+for operating instructions and remaining performance/input/listening limits.

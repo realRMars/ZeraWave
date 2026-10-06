@@ -44,6 +44,22 @@ benchmark framework or optimization authority.
    average away failures or infer a general FPS/device guarantee. Couple claimed
    gains to applicable preservation and visual evidence, not timing alone.
 
+## Boundary and coverage lessons
+
+- Compare source and wall clocks at equivalent event boundaries. Source sampled
+  before render versus wall time after swap includes endpoint latency changes;
+  inspect render-begin spans before calling this source-clock drift. Retain failed
+  literal thresholds separately rather than silently redefining them.
+- Keep ordinary real-time playback separate from fixed-clock/unpaced diagnostics
+  and query-instrumented arms. Include preparation, history steps and composition
+  in whole-pipeline GPU cost, with individual pass costs alongside it.
+- Separate sustained endpoint/overlap drawing from exceptional waits. Absolute
+  stall thresholds can count consistently expensive frames; call-boundary waits
+  may shift under instrumentation and do not identify their underlying owner.
+- Preserve individual runs, outliers, failures and interrupted checks. Mark other
+  scenes/transitions unmeasured; sampled parity or a fresh corroborating pair does
+  not establish all-world coverage or population tail non-regression.
+
 ## Finish
 
 Return the matched conditions, results, attribution supported by measurements,

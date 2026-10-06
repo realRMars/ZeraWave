@@ -165,8 +165,135 @@ for source identity, bounded evidence and remaining limits.
 - Full quality uses the actual framebuffer. Explicit preview scales reduce both
   dimensions, upscale once and record internal/output dimensions. Do not silently
   adopt a scale, reduce density, or claim GPU query time as presentation FPS.
+- Root branch preparation reuses the authored procedural equations in one fixed
+  31×4 RGBA32F target (normal and independently owned Planet clock variants).
+  Retain current Root gains, including encoded selected inputs, on every draw.
+  Prepared VAO captures can edit uniforms directly: refresh geometry at that draw
+  boundary and restore the exact caller framebuffer and viewport, including
+  feedback and explicit-scale targets. Raw shader tools keep the procedural
+  function. Renderer exit releases the fixed target; pixel resize does not
+  recreate it or clear any scene history.
+
+  Authored function structure is an extraction dependency: changing `root_network`
+  or its extracted equations requires procedural/prepared parity verification,
+  not just a successful shader compile. Preserve current uniform/gain semantics
+  (including encoded selected inputs), independently owned endpoint/Planet clocks
+  and refresh after direct uniform edits. Restore destination/viewport even when
+  preparation raises; Root owns texture unit 14, so check binding collisions when
+  adding stages. Release preparation resources before vertices/context/window.
+
+- Sky cloud planes may skip noise only where their authored mask is provably zero:
+  five noise octaves sum to at most 31/32, the smoothstep upper edge is at most
+  1.684375, and squared cloud radius greater than 2 leaves a margin even with
+  lobes down to -1/4. Balloon fabric skips only an exactly zero authored shell.
+  Keep all visible equations, plane counts/order and soft edges. Both guarded
+  bodies are derivative-free; adding implicit texture derivatives or changing
+  noise/mask bounds requires revisiting the proof and matched GPU preservation.
+  These guards add no resource, clock, gain, history or program-strategy owner.
+  The [Roots/Sky batch](agent-notes/roots-sky-full-size-20261005.md) retains Full
+  pixels and measured improvement; practical overlap and observed maximum-tail
+  gates remain failed. Do not describe it as a full-size performance certificate.
+
+October 5 independent review passed eight synthetic GPU Root contracts and sampled
+Full-pixel preservation; it reused Builder lifecycle evidence. This is bounded
+verification, not physical-control/save-load, all-world or continuous-motion proof.
+Optical overlap keeps both complete endpoints for 0<phase<1; do not omit outgoing
+work or reset history for speed. Include auxiliary passes in total GPU cost.
+See [review identity and limits](../ZERAWAVE_HANDOFF.md#current-unpublished-full-size-qtrendering-candidate).
 
 Relevant checks: `performance_fixes_test.py` (CPU or explicit GPU matrix),
+`root_branches_test.py --output <fresh-folder>` (focused GPU/direct-draw contracts),
 `studio_test.py`, `studio_audio_integration_test.py`,
 `fractal_main_integration_test.py`, and existing scope/session/transition checks.
 Use matched dimensions and the source-bound task evidence; no new test framework.
+
+## Unified Studio hosting and display ownership
+
+- `studio_workspace.py` extends the existing Studio, parameter/color/audio
+  transports, renderer and launch paths. Diagnostic Studio remains independent
+  of the opt-in workspace host. No second render engine or capture owner exists.
+- Each root-owned `DockWindow` retains its body/widgets/controller while Tk
+  manages/unmanages its floating wrapper. Detach the menubar before `wm forget`;
+  reuse one menu model and bounded protocol callbacks. Plain-frame native
+  reparenting across Tk toplevels loses text focus and is not this contract.
+- The renderer's HWND is hosted by `window_host.NativeSurface`; only parent,
+  native style and rectangle change. Validate native ownership, including the
+  Windows venv launcher ancestry. Retain the same GLFW window, OpenGL context,
+  programs, parameters and audio owner. Metadata is bounded and workspace-only.
+- Resizing Enveloper feedback retains its three histories, index, validity and
+  clocks using normalized texture resampling. `copy_framebuffer` alone copies
+  an extent and does not scale the complete image. Allocate bounded replacements
+  before releasing old targets; failure retains the old targets. Scene changes
+  and established discontinuity resets keep their existing semantics.
+- Tools keep unsent target drafts, pending submissions, scope/revision/ACK and
+  authored destinations through layout operations. Layout does not send artistic
+  resets or recreate controllers. Hidden/tabbed-out tools skip display work;
+  visible consumers share the existing audio-view subscription and transport.
+- Workspace display refresh is bounded at 200 ms; original command/ACK and
+  coalescing paths retain their own cadence. Twelve bands reuse existing FFT
+  data. PCM display copies at most 32 min/max pairs per existing analyzed block,
+  with no additional FFT, capture or normalization. Live history retains at most
+  192 pairs; file envelopes retain at most 2048 buckets and one worker/future plus
+  one coalesced pending track, with bounded read chunks and cancellation.
+- Layout v1 is separate from artistic session v1-v3. Bound file reads, clamp
+  geometry to actual monitors and reset only layout. Do not import stale layout
+  content into tuning, profile or palette storage. Close-panel means hide;
+  application shutdown releases holds, its worker and its owned preview.
+- Preserve text/native button bindings before application shortcuts; slider
+  arrows invoke one owned handler. Release holds/repeats on focus, layout and
+  teardown. Errors, save destinations and inactive scopes must remain reachable
+  in compact views; full explanation text belongs in accessible help.
+- `run_unified_studio.vbs` uses the existing pythonw environment; `.pyw` logs and
+  supplies a visible startup-error path. Keep the explicit console diagnostic
+  and all public standalone checks. Packaging remains a separately assigned task.
+
+Relevant checks: `studio_workspace_test.py`, `preview_playback_test.py`,
+`studio_audio_native_test.py`, `spectrum_ranges_test.py`, `studio_test.py`, and
+source-bound real-time/native-input/GPU resize evidence. Mocked callbacks do not
+establish native keyboard focus; short cycles do not certify multi-hour sessions.
+
+## Qt Studio additions ownership — October 5
+
+- `studio_scope.py` derives exact eligible descendants from the canonical catalog.
+  Browsed row, committed scope and current output are distinct. Main descriptors
+  never include Experimental IDs. The renderer validates the complete descriptor
+  before using the existing Player roster and random director. Single-form BONK
+  is disabled and its shortcut leaves clocks/history intact.
+- Leaf double-click and context-menu Load share one action. Main direct loads
+  retain source, pause, context and shared clocks; destination entry/history
+  ownership is applied by the existing adapter on the next draw. Same active
+  leaf does not restart. Separate Experimental resource routes remain isolated.
+  Retain an enclosing committed category or adopt the nearest playable parent
+  within that namespace; do not broaden to Main or promote Experimental forms.
+- Lifecycle work is serial and coalesces a latest pending request. Run and
+  destination revisions reject obsolete commands/replies and old color/numeric
+  gestures; Main editing waits for renderer destination ACK. Scope changes park
+  drafts, release holds, stop repeat/debounce work and retain explicit save rules.
+  Momentary focus-release notifications never wait behind a lifecycle ACK.
+- One active asynchronous resource collector lives in the control owner. Role
+  counters identify native renderer PID and deduplicate PIDs; CPU uses one core,
+  RAM means working set, and system/device counters have separate scope. Device
+  identity must match GL_RENDERER uniquely, rather than assume adapter zero.
+  Disabled/missing/stale values remain unavailable. Hidden display work stops;
+  enabled renderer diagnostic consumers receive bounded owner samples through
+  the existing run/serial pipe and retain history in Session Performance Reports.
+- Swap-return timing is independent of GUI polling. The rolling window is bounded
+  to 120 intervals. Optional `ZERAWAVE_SWAP_TRACE=1` retains at most 4096 CPU timing
+  records for task evidence and adds no GPU query/readback/synchronization.
+- Only Qt-hosted windows are created hidden. Observable stages remain run-bound;
+  native PID/ancestry and parent verification precede attach ACK and first show.
+  Cancellation rejects late attachment and reports pending cleanup truthfully.
+  Standalone/legacy notice behavior stays separate. Close/retry retains owned
+  cleanup and does not stop unrelated processes.
+- `studio_chrome.py` changes styles/hit testing on the existing Qt HWND. Keep
+  native thick-frame/system commands, accessible buttons, standard focused-button
+  keyboard activation, saved geometry clamping and ADS floating docks. Maximize
+  and fullscreen are separate. Chrome/layout must not recreate the GL context.
+  API geometry tests do not establish physical dragging/snapping or monitor/DPI
+  behavior; record those limits instead of claiming complete hardware coverage.
+
+Focused checks: `studio_scope_test.py`, `preview_playback_test.py`, existing
+`studio_qt_corrections_test.py`, plus task-owned serial native lifecycle, category,
+Experimental route and matched Resources overhead evidence in
+`work/studio-additions-20261005/`. Combined independent review remains separately
+assigned through Prompter/Bob; these checks do not grant user acceptance.

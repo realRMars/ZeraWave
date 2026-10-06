@@ -13,7 +13,11 @@ from color_controls import (targets_for, resolved_slots, rgb_hex, hex_rgb,
 class ColorInspector:
     def __init__(self, app, scene):
         self.app,self.scene=app,scene
-        self.window=tk.Toplevel(app.root)
+        if getattr(app.root,'workspace_owner',None):
+            from studio_panels import tool_window
+            self.window=tool_window(app.root)
+        else:self.window=tk.Toplevel(app.root)
+        self.compact=bool(getattr(app.root,'workspace_owner',None))
         self.window.title('ZeraWave — Live color inspector')
         self.window.geometry('720x740');self.window.minsize(670,700)
         self.window.configure(background='#141a28')
@@ -61,6 +65,7 @@ class ColorInspector:
         ttk.Label(palettes,textvariable=self.cycle_note,wraplength=610).grid(row=2,column=0,columnspan=3,sticky='w')
         self.fields=ttk.Frame(body);self.fields.pack(fill='x',pady=10)
         self.rows={}
+        self.drafts={};self.rows_target=None
         wheel_frame=ttk.Frame(body);wheel_frame.pack(fill='x')
         self.wheel=tk.Canvas(wheel_frame,width=190,height=190,background='#233047',highlightthickness=0)
         self.wheel.pack(side='left')
@@ -104,14 +109,34 @@ class ColorInspector:
         return next(target for target in self.targets if target.label==self.target_choice.get())
 
     def supported(self):
+        if self.compact:return bool(self.app.color_scene())
         return self.app.color_scene() == self.scene
 
     def can_revert(self):
+        if self.compact:return bool(self.app.active_color_scene)
         return self.app.active_color_scene in (self.scene,'blend')
 
-    def refresh(self):
+    def refresh(self,discard_drafts=False):
         if not self.window.winfo_exists(): return
+        discarded=(set(self.drafts)|{self.rows_target} if discard_drafts is True
+                   else set(discard_drafts or ()))
+        if self.compact and self.rows_target and self.rows_target not in discarded:
+            original=next((t for t in self.targets if t.id==self.rows_target),None)
+            if original:
+                draft={}
+                for slot,resolved in zip(original.slots,resolved_slots(original,self.app.color_overrides)):
+                    row=self.rows.get(slot.id)
+                    if row:
+                        values=[v.get() for v in row[:3]]
+                        expected=[rgb_hex(resolved[0]),'' if resolved[1] is None else f'{resolved[1]:g}','' if resolved[2] is None else f'{resolved[2]:g}']
+                        if values!=expected:draft[slot.id]=values
+                self.drafts[self.rows_target]=draft
+        for key in discarded:self.drafts.pop(key,None)
         self.refreshing=True
+        # A workspace may replace the compatible target list when selection
+        # changes. Rebind before any row refresh (including Stop/close).
+        if self.targets and self.target_choice.get() not in {t.label for t in self.targets}:
+            self.target_choice.set(self.targets[0].label)
         target=self.target()
         supported=self.supported()
         self.target_box.configure(state='readonly' if supported else 'disabled')
@@ -142,7 +167,7 @@ class ColorInspector:
         self.cycle_note.set(f"{target.label}: {cycle.get('mode','hold')}; {len(cycle.get('setups',[]))}/4 stored setups. Store at least two to cycle. Timing follows song time. Manual edits pause this target; reset clears its cycle.")
         for child in self.fields.winfo_children(): child.destroy()
         self.rows={}
-        labels=('Select color role','Swatch','Hex color','Blend starts','Full color at')
+        labels=() if self.compact else ('Select color role','Swatch','Hex color','Blend starts','Full color at')
         for col,label in enumerate(labels): ttk.Label(self.fields,text=label).grid(row=0,column=col,sticky='w',padx=4)
         for index,(slot,resolved) in enumerate(zip(target.slots,resolved_slots(target,self.app.color_overrides))):
             rgb,start,end=resolved
@@ -164,7 +189,23 @@ class ColorInspector:
                     widgets.append(position)
             for widget in widgets: widget.configure(state='normal' if supported else 'disabled')
             self.rows[slot.id]=(color,start_var,end_var,swatch)
+            for variable,text in zip((color,start_var,end_var),self.drafts.get(target.id,{}).get(slot.id,())):variable.set(text)
+            if self.compact:
+                row=index*3
+                radio.grid_configure(row=row,column=0,columnspan=3)
+                swatch.grid_configure(row=row+1,column=0)
+                entry.grid_configure(row=row+1,column=1,columnspan=2,sticky='ew')
+                # Existing entries retain Return/FocusOut validation. Gradient
+                # positions are distinct from pigments and remain editable.
+                for widget in widgets[2:]:
+                    col=int(widget.grid_info()['column'])
+                    widget.grid_configure(row=row+2,column=col-2,columnspan=1)
+                ttk.Label(self.fields,text='Blend start / full' if start is not None else 'Fixed pigment',wraplength=90).grid(row=row+2,column=0)
+                for widget in list(self.fields.winfo_children()):
+                    if isinstance(widget,ttk.Label) and widget.grid_info() and int(widget.grid_info()['column'])>=3:
+                        widget.grid_remove()
         if self.role.get() not in self.rows: self.role.set(target.slots[min(2,len(target.slots)-1)].id)
+        self.rows_target=target.id
         for button in self.buttons: button.configure(state='normal' if supported else 'disabled')
         self.buttons[2].configure(state='normal' if supported and self.can_revert() else 'disabled')
         self.value_scale.configure(state='normal' if supported else 'disabled')
@@ -204,6 +245,7 @@ class ColorInspector:
 
     def edit_hex(self,key):
         if self.refreshing or key not in self.rows: return
+        if self.compact and self.rows_target!=self.target().id:return
         text=self.rows[key][0].get().strip().upper()
         target=self.target();index=next(i for i,s in enumerate(target.slots) if s.id==key)
         if text==rgb_hex(resolved_slots(target,self.app.color_overrides)[index][0]): return
@@ -213,6 +255,7 @@ class ColorInspector:
 
     def edit_range(self,key):
         if self.refreshing or key not in self.rows: return
+        if self.compact and self.rows_target!=self.target().id:return
         try: start,end=(float(var.get()) for var in self.rows[key][1:3])
         except ValueError:
             self.app.color_status.set('Invalid gradient position; last valid colors retained.');return
@@ -243,7 +286,7 @@ class ColorInspector:
         data[key]=family_setup(key,self.family_choice.get())
         if cycle:
             cycle['mode']='hold';data[key]['_cycle']=cycle
-        self.app.set_color_setup(data);self.refresh()
+        self.app.set_color_setup(data);self.refresh(discard_drafts={key})
 
     def store_setup(self):
         if not self.supported():return
@@ -267,25 +310,31 @@ class ColorInspector:
 
     def reset_target(self):
         data=deepcopy(self.app.color_overrides);data.pop(self.target().id,None)
-        self.app.set_color_setup(data);self.refresh()
+        self.app.set_color_setup(data);self.refresh(discard_drafts={self.target().id})
 
     def reset_scene(self):
-        data={key:value for key,value in self.app.color_overrides.items() if key not in {target.id for target in self.targets}}
-        self.app.set_color_setup(data);self.refresh()
+        targets=targets_for(self.app.color_scene()) if self.compact else self.targets
+        data={key:value for key,value in self.app.color_overrides.items() if key not in {target.id for target in targets}}
+        self.app.set_color_setup(data);self.refresh(discard_drafts={target.id for target in targets})
 
     def revert(self):
         if self.can_revert():
-            data={key:value for key,value in self.app.color_overrides.items() if key not in {target.id for target in self.targets}}
-            data.update(scene_colors(self.app.preview_start_colors,self.scene))
-            self.app.set_color_setup(data);self.refresh()
+            scene=self.app.active_color_scene if self.compact else self.scene
+            data={key:value for key,value in self.app.color_overrides.items() if key not in {target.id for target in targets_for(scene)}}
+            data.update(scene_colors(self.app.preview_start_colors,scene))
+            self.app.set_color_setup(data);self.refresh(discard_drafts={target.id for target in targets_for(scene)})
 
     def save_preset(self):
-        name=simpledialog.askstring('Save color preset','Name this scene color setup:',parent=self.window)
+        parent=self.window
+        if self.compact:
+            from studio_panels import dialog_parent
+            parent=dialog_parent(self.window)
+        name=simpledialog.askstring('Save color preset','Name this scene color setup:',parent=parent)
         if name is None:return
         try:
-            data=color_preset(name,self.scene,self.app.color_overrides)
+            data=color_preset(name,self.app.color_scene() if self.compact else self.scene,self.app.color_overrides)
             folder=self.app.color_preset_folder();folder.mkdir(parents=True,exist_ok=True)
-            path=filedialog.asksaveasfilename(parent=self.window,initialdir=folder,
+            path=filedialog.asksaveasfilename(parent=parent,initialdir=folder,
                 initialfile=re.sub(r'[^\w -]','_',name)+'.json',defaultextension='.json',filetypes=[('Color preset','*.json')])
             if path:
                 from pathlib import Path
@@ -294,7 +343,11 @@ class ColorInspector:
         except (OSError,ValueError) as exc:messagebox.showerror('Cannot save preset',str(exc),parent=self.window)
 
     def load_preset(self):
-        path=filedialog.askopenfilename(parent=self.window,initialdir=self.app.color_preset_folder(),filetypes=[('Color preset','*.json')])
+        parent=self.window
+        if self.compact:
+            from studio_panels import dialog_parent
+            parent=dialog_parent(self.window)
+        path=filedialog.askopenfilename(parent=parent,initialdir=self.app.color_preset_folder(),filetypes=[('Color preset','*.json')])
         if not path:return
         try:
             from pathlib import Path
@@ -306,8 +359,11 @@ class ColorInspector:
             replaced=({target.id for target in self.targets} if preset['scene']==self.scene
                       else set(preset['targets']))
             data={key:value for key,value in self.app.color_overrides.items() if key not in replaced}
-            data.update(preset['targets']);self.app.set_color_setup(data);self.refresh()
+            data.update(preset['targets']);self.app.set_color_setup(data);self.refresh(discard_drafts=replaced)
         except (OSError,ValueError) as exc:messagebox.showerror('Cannot load preset',str(exc),parent=self.window)
 
     def close(self):
+        if getattr(self.window,'panel',None):
+            from studio_panels import hide_tool
+            if hide_tool(self.window):return
         self.app.color_editor=None;self.window.destroy()

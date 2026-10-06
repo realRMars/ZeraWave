@@ -3,6 +3,21 @@
 This document maps current code ownership and reuse boundaries. It is not a
 backlog; see [ROADMAP.md](ROADMAP.md) for priorities.
 
+## Dated rendering inventory reference
+
+[Full worldform rendering inventory, 2026-10-05](ZERAWAVE_WORLDFORM_RENDERING_INVENTORY_2026-10-05.md)
+is an immutable historical snapshot: 30 canonical Main rows plus Experimental,
+diagnostic and cycle availability, shared constraints, H/F/G evidence conditions,
+Marsh history and four ranked proposals. It distinguishes Main33/34 from
+Experimental39/40 and binds the reviewed Root and later Sky-guard source versions;
+it does not identify loaded runtime bytes or award current performance acceptance.
+Later Sky-guard measurements remain Builder evidence awaiting independent verification.
+Snapshot: 30,487 bytes; SHA-256
+`d1c740584fa9dfbc31ad64a295f4a3e06dafeb12179e3d777ee5299bce64f697`.
+Preserve it byte-for-byte. Record later findings in separately dated evidence and
+reconcile current guidance only through assigned scope; do not rewrite this snapshot
+or promote its hypotheses to implemented techniques. ROADMAP remains the sole plan.
+
 ## Discovery
 
 Run from the project root without opening Studio:
@@ -32,7 +47,9 @@ Python and GLSL definitions; no result is not proof of absence.
 | Matched pair audition | `app/visuals/studio_audition.py`, `replay_test.py` | Same preview process; decoded source restoration and explicit shared-history resets. |
 | Per-frame audio presentation | `app/visuals/resolved_audio.py:AudioUniformContract` | Resolve uniform-only inputs/encoded values on CPU; retain gains for spatially varying local inputs. Preserve endpoint and Planet ownership; hoist water ingredients outside intersection loops. |
 | Integrated program preparation | `app/visuals/prepared_program.py:PreparedProgram` | One program and VAO; cached active uniform handles, retained pruned declarations, NVIDIA measured compiler policy and first-use prewarm. No scene-entry family compilation. |
+| Frame-dependent Root branch geometry | `app/visuals/renderer.py:RootBranchStage` | Authored `dream.frag::root_network` equations prepare a fixed 31×4 RGBA32F target with separate normal/Planet clocks. Full-pixel distance, derivatives and shading remain in Main. Prepared VAO draws refresh geometry after uniform edits and restore the caller's framebuffer/viewport; raw shader tools retain the original procedural function. Independent review corroborates sampled gains and eight GPU contracts; overall full-size candidate remains PARTIAL. Extraction depends on authored function structure: source edits require procedural/prepared parity verification. See the [review checkpoint](ZERAWAVE_HANDOFF.md#current-unpublished-full-size-qtrendering-candidate) and [maintenance coupling](docs/MAINTENANCE_CONTRACTS.md#audio-presentation-and-measured-performance-fixes). |
 | Capture/decoded telemetry | `app/visuals/preview_capture.py` | Bounded PNG/statistics worker; owner-thread readback; streamed CSV input rows, one pending mutable row. |
+| Sky zero-coverage guards | `app/visuals/shaders/dream.frag:audio_owned_air_scene` | Skip cloud noise outside a conservative proven zero-mask radius and balloon fabric outside its authored soft shell. Visible equations, all depth planes, pigments and live endpoint clocks remain. The cloud bound depends on five-octave noise in [0,1]; guarded bodies must remain derivative-free. Full Roots/Sky measurements show worthwhile gains, while practical transition and observed strict-maximum gates still fail. See [scoped evidence](docs/agent-notes/roots-sky-full-size-20261005.md). |
 | Explicit preview render scale | `app/visuals/render_scale.py:ScaledContext` | Full quality bypasses extra targets; opt-in 75%/50% RGBA16F final upscale. Existing renderer and stage ownership, resize/release, no adaptive switching. |
 | Player and portable builder | `app/player.py`, `build_portable.py` | Player is the product entry; builder creates new output only. |
 
@@ -58,6 +75,49 @@ are integrated; the three Envelopers are currently off by default.
 Current priorities live in [ROADMAP.md](ROADMAP.md). Supporting palette,
 surface-treatment and feedback techniques can be built within an assigned scene;
 they do not need separate backlog approval.
+
+
+
+## Rendering references and untested options
+
+Prompter research, reconciled after the October 5 independent review. This is a
+compact reference set, not another plan or implemented-capability claim. The
+project uses ModernGL 5.12.0, GLFW's requested OpenGL 3.3 and hardware OpenGL in
+the recorded runs; the current Main program is integrated and prewarmed.
+Raising the context requirement is not evidence that existing math becomes cheaper.
+
+| Reference / transferable principle | Project application and limits |
+| --- | --- |
+| [ModernGL context version requirements](https://moderngl.readthedocs.io/en/latest/topics/context.html#require-a-minimum-opengl-version), [texture](https://moderngl.readthedocs.io/en/latest/reference/context.html#moderngl.Context.texture) and [framebuffer](https://moderngl.readthedocs.io/en/latest/reference/context.html#moderngl.Context.framebuffer) APIs | Existing API supports floating-point preparation/render targets. No new API/SDK is demonstrated necessary. |
+| [NVIDIA GPU Gems 2 ch35, sections 35.2.1-35.2.2](https://developer.nvidia.com/gpugems/gpugems2/part-iv-general-purpose-computation-gpus-primer/chapter-35-gpu-program-optimization) | Reduce computational frequency: prepare proven frame/object invariants rather than recalculate per pixel. Root is the verified project example. Further exact-equation hoists/dependency pruning are untested; preserve evolving inputs, gains, endpoint clocks and derivatives. Old vector-instruction advice is hardware-specific, not direct RTX 3070 guidance. |
+| [MJP shader permutations part 1](https://therealmjp.github.io/posts/shader-permutations-part1/) and [part 2, work split across passes](https://therealmjp.github.io/posts/shader-permutations-part2/) | Bounded specialization may trade simpler generated code for compile time, memory and maintenance. One matched endpoint/pair diagnostic is a proposal, not proven benefit. Production strategy needs reviewed variant bounds, fallback, uniform ownership, prewarm and lifetime contracts. |
+| [NVIDIA Advanced API Performance: General shaders](https://developer.nvidia.com/blog/advanced-api-performance-shaders/) | Register use/control flow are useful profiling questions. Other-form gains do not prove spilling or direct Root execution. HLSL/D3D flags and vendor advice are not GLSL instructions to copy. |
+| [Khronos ARB_timer_query, Overview and Example 1](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_timer_query.txt), [ModernGL Query](https://moderngl.readthedocs.io/en/latest/reference/query.html) | Include complete GPU passes, disclose query-read waits and compare instrumentation with ordinary playback. A fixed delay does not establish readiness; ModernGL's documented Query API supplies no readiness property. Reused bounded query pools/delayed supported collection remain diagnostic proposals; do not invent bindings or add glFinish as a remedy. |
+| [Hart, distance bounds and ray intersection, sections 2.1-2.2](https://graphics.stanford.edu/courses/cs348b-20-spring-content/uploads/hart.pdf#page=9) | Conservative distance bounds support correct traversal under deformation. This is mathematical guidance, not a modern-GPU speed claim. Compare analytic intersections, rasterized/instanced geometry and bounded distance tracing on one representative object; none is automatically faster or visually equivalent. |
+
+Representation proposals should retain silhouettes, normals, softness, deformation,
+occlusion and editable authored pigments. Lookup textures can replace stable bounded
+functions only after checking interpolation/precision/aliasing and bandwidth.
+Keep resident resources bounded and measure creation/upload/release at boundaries;
+asset count, atlases or cooking are not established warm-draw remedies here.
+
+Begin a selected experiment with hypothesis, identical Full-pixel state, measured
+owner, rejection condition and preservation checks. Measure held, overlap and
+arrival separately, total GPU including preparation, ordinary presentation, tails,
+memory and compilation. Inspect normal-time motion; a solo budget does not certify
+a transition budget. Do not reduce artistic detail or pixels to claim equivalent gain.
+
+A split optical compositor is conditional on demonstrated specialization benefit:
+two 1944x986 RGBA32F endpoint targets alone cost about 58.5 MiB. It still shades both
+live endpoints and adds writes/composition; preserve tonemap/color-space order,
+warps, derivatives, audio/history ownership. It is untested and does not establish
+compatibility with every spatial transition. The rejected ~6.5% Spires projection
+hoist remains negative evidence. Current priorities stay in [ROADMAP](ROADMAP.md).
+
+These references are linked summaries, with no imported sample code, guide chapters
+or asset collections. ModernGL's inspected package metadata is MIT; publicly readable
+papers/guides do not confer blanket reuse rights. Check individual licenses before
+any later code/asset reuse.
 
 ## Maintenance details
 
@@ -279,3 +339,47 @@ have independent Bass/Flux/Movement/Impact consumers in
 `u_structural_transition_audio`. Selected-band measurements pass through the existing
 scoped audio model; duration is a separately labelled CPU timer. No new pigment,
 persistent buffer, simulation or rendering engine is introduced by these transitions.
+
+## Unified Studio reusable presentation components
+
+These are UI/presentation techniques, not new scene effects or Main admissions.
+
+- `studio_panels.py`: one root-owned panel body, supported Tk floating wrappers,
+  movable Notebook tabs, seven resizable docking areas, visibility and separate
+  layout persistence. Detach native menus before discarding wrappers; retain
+  controller, draft and ACK ownership. Geometry clamps against actual monitors.
+- `window_host.py`: opt-in Windows hosting for the existing GLFW HWND, verified
+  PID/venv ancestry, system DPI awareness and cached native rectangle updates.
+  No context recreation, additional renderer or frame-readback transport.
+- `studio_compact.py`: compact views over the existing Color Inspector, Follow/Pin
+  tuning and read-only mapping monitor, with complete original controls in tabs,
+  scrolling and accessible help. Authored pigment roles and scope IDs stay owned
+  by the existing declarations; explicit compatible target selection is retained.
+- `studio_meters.py`: one cancellable decoded-PCM envelope worker, bounded live
+  PCM snapshots and exactly twelve existing FFT bands with actual edges, units,
+  under-resolution and unavailable indicators. No alternate audio analysis.
+- `envelopers.py::EnveloperStage.resize`: bounded resampling preserves feedback
+  across viewport changes. Existing history clock/state/reset boundaries and
+  authored Enveloper appearance remain renderer-owned.
+
+The unified shell composes these components over `Studio`; it adds no artistic
+palette families or effect classes. Existing generated pigments, named presets,
+profiles and sessions remain the reusable creative library.
+
+October 5 Qt additions extend presentation over those same owners:
+
+- `studio_scope.py`: canonical descendant scopes and nearest-parent direct-load
+  destinations, independent of browsed rows and current output. Existing Player
+  randomness/transitions remain the playback technique; Experimental routes stay
+  isolated and never become Main by matching a display name.
+- `studio_resources.py` / `session_performance.py::ResourceSampler`: read-only
+  formatting and a shared asynchronous role/PID collector with identified device
+  scope, honest freshness and bounded history. Enabled renderer diagnostics reuse
+  owner samples through the existing control pipe; no device query is added to
+  drawing. Swap-return rate is not GPU draw time or measured scanout.
+- `studio_qt.py` / `studio_chrome.py`: ADS layout, inline run-bound startup and one
+  client header over the existing native Qt/GLFW handles. Resource-incompatible
+  leaves use the existing owned lifecycle; compatible Main loads retain clocks,
+  context and audio position. Native move/resize initiation and system commands
+  are implementation paths; physical drag/snap, DPI and monitor changes remain
+  unverified in the additions evidence.

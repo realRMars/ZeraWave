@@ -1,12 +1,48 @@
 # ZeraWave development plan
 
-Updated: 2026-10-05 (accepted measured-performance development checkpoint).
+Updated: 2026-10-06 (Qt Studio development checkpoint publication authorized).
 This is the sole prioritized plan. The user's latest assignment sets scope;
 code establishes implementation and user review establishes artistic acceptance.
 Historical plans remain in [history](docs/history/README.md). The accepted visual
 baseline is 2bcb03f; the player checkpoint builds on that baseline.
 
 ## Current direction
+
+Robert authorized commit and normal GitHub push of the current Qt/Studio
+checkpoint on October 6. The publication parent is
+`4a4f6e03ad2119e790e88d8338bac9412a139881`; exact committed source, scope and
+remote verification belong in the [publication receipt](work/publication-qt-studio-20261006/review-index.json).
+This publishes development work with retained limits, not full-size FPS,
+physical-input or continuous-listening certification. Main30 and Envelopers-off
+remain intact.
+
+<a id="next-bounded-work-and-separate-monitor-scope"></a>
+
+### Current implemented Studio work and remaining priorities
+
+- Qt Studio hosts the existing renderer with docking, floating tools and the
+  retained legacy entries. Canonical category BONK, direct leaf load, inline
+  startup/cancellation, one native header and a shared Resources dock are implemented.
+- Resolution/resize controls add shared acknowledged fixed/Native choices,
+  aspect-fit presentation, eight native resize directions and Simple/Detailed
+  resource views. API/native-message checks do not certify physical mouse/DPI use.
+- Audio Hub provides one independent audio owner for Device Listening or Audio
+  File. WAV/MP3 file transport and renderer analysis share PCM; visual controls
+  remain separate. Its bounded real backend smoke did not establish heard output
+  or natural continuous AV. Legacy Experimental and matched-audition limits remain.
+- Roots/Sky preparation gains are source-bound; the later overlap remains about
+  39ms (25–26 swap returns/s). Strict observed maximum comparison still fails,
+  rare waits/population tails remain unresolved, and the practical mostly≥30FPS
+  full-size target is incomplete. Preserve the earlier independent PARTIAL verdict
+  and its separate source; do not relabel it a review of the later batches.
+- Next work follows Robert's feedback and a bounded brief: remaining full-size
+  overlap/entry/arrival and rare waits, physical input/DPI and layout provenance,
+  broader listening/device checks. Marsh/Arc33, media and Tools Lab are outside
+  this checkpoint's implementation. No new worker/critic or test campaign starts
+  through publication.
+
+See [current handoff](ZERAWAVE_HANDOFF.md#current-qtstudio-development-checkpoint)
+and [Studio instructions](DEVELOPMENT_STUDIO.md) for controls and evidence limits.
 
 The reviewed visual batch and current Main/Galaxy preview are user-accepted.
 The player interface and bounded device-loss cleanup are implemented and accepted.
@@ -18,7 +54,7 @@ The newer local roster is Main30, including Tidal Strata41, Recursive Atrium42
 and Honeycomb Garden43, with Branching Iris and Flowing Fold transitions.
 This reconciliation does not change existing Main30 artistic acceptance.
 
-Robert passed the measured-performance candidate for a development checkpoint
+Earlier, Robert passed the measured-performance candidate for a development checkpoint
 on October 5 and authorized commit and normal GitHub push. Acceptance retains
 the documented numerical/appearance and engineering limitations. Water GPU cost, capture stalls and startup memory improved, while
 Cavern/Marsh/Planet and Fractal GPU cost regressed under the compiler policy.
@@ -61,7 +97,7 @@ Refresh recovery without closing the runtime, repeated normal Start/Stop, and
 not certify unattended recovery, audio quality, device diversity or the preserved
 startup/performance limits. No release build is part of this checkpoint.
 
-## Published development checkpoint and current review
+## Historical published development checkpoints
 
 - **Player and Studio organization completed:** the accepted player retains its
   recorded controls/device contracts. Main/Experimental navigation and
@@ -100,9 +136,12 @@ startup/performance limits. No release build is part of this checkpoint.
   push. Source/staged-content checks and exact remote verification are recorded
   in the [publication receipt](work/publication-performance-20261005/review-index.json).
   Refinement follows later feedback; no new implementation or critic is dispatched. See [actual results and review steps](docs/agent-notes/performance-fixes-20261004.md)
-  and [current source/evidence](ZERAWAVE_HANDOFF.md#current-measured-performance-candidate).
+  and [historical source/evidence](ZERAWAVE_HANDOFF.md#current-measured-performance-candidate).
 
-### Remaining work: priority not reassigned here
+### Earlier remaining-work record
+
+The current bounded sequence above supersedes this older next-brief ordering;
+retain these historical limitations without treating old feature ideas as a new assignment.
 
 - **Startup and native performance:** the requested performance fixes are now
   reviewable as recorded above. Remaining cold-start cost, compiler GPU regressions,
@@ -149,7 +188,8 @@ code/assets without rights review.
   Publication parent: `0342e518a7bd2c521416e8027a7920668fc5ee51`, the published
   Studio organization/Bonk checkpoint. The new development checkpoint includes
   the reviewed rollout and accepted dependencies beyond the rollout-only patch.
-  Published development HEAD is b2aacd11d7d3a8d39bb9d2f5592659fd3d2d999b.
+  Earlier published development HEAD was b2aacd11d7d3a8d39bb9d2f5592659fd3d2d999b;
+  current published main is `4a4f6e03ad2119e790e88d8338bac9412a139881`.
   This authorized checkpoint adds the reviewed local Main30/performance dependency
   closure; its exact commit/remote identity belongs in the publication receipt above.
   Exact publication identity and preservation results are recorded in the

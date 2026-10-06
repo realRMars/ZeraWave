@@ -25,6 +25,7 @@ def configure(renderer,analyzer):
     model=FormAudioTuning(run,session,{t:s.authored for t,s in stores.items()})
     owner=StudioAudio(renderer,run,session,model);renderer.studio_audio=owner
     analyzer._form_listening=model
+    analyzer.preview_waveform=(lambda:owner.visible) if os.environ.get('ZERAWAVE_WORKSPACE_HOST') else False
     return owner
 
 def decode(text,run,session):
@@ -90,7 +91,8 @@ class StudioAudio:
         if not self.visible:return
         self.audio_frames+=1;self.audio_at=self.clock() if stamp is None else stamp
         self.audio=dict(legacy={key:float(getattr(frame,key)) for key in ('bass','mids','highs','flux','bass_onset','mids_onset','highs_onset','tempo','beat_confidence')},
-            band12=deepcopy(getattr(frame,'band12',None)),descriptors=deepcopy(getattr(frame,'descriptors',None)),frame=self.audio_frames)
+            band12=deepcopy(getattr(frame,'band12',None)),descriptors=deepcopy(getattr(frame,'descriptors',None)),frame=self.audio_frames,
+            waveform=deepcopy(getattr(frame,'preview_waveform',None)))
 
     def prepare(self,seconds):
         r=self.renderer;self.seconds=seconds;self.endpoint=endpoints(r,seconds)

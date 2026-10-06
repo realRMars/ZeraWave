@@ -3902,6 +3902,8 @@ vec3 audio_owned_air_scene(vec2 p,vec3 material,vec4 form) {
             float serial=floor(travel)+float(i),z=(float(i)+1.-fract(travel))*1.7+.12;
             vec2 center=vanish+vec2(sin(serial*2.4)*2.5,cos(serial*1.7)*.8-.35)/z;
             vec2 cloudUV=(p-center)*z/vec2(1.1,.72);
+            // fbm <= 31/32 and lobes <= 1/4: outside this bound the mask is zero.
+            if(dot(cloudUV,cloudUV)>2.)continue;
             float n=fbm(cloudUV*2.+serial+clock*.1);
             float lobes=sin(cloudUV.x*5.+serial)*sin(cloudUV.y*4.-serial)*.25;
             float mask=(1.-smoothstep(.32+n*.4,1.2+n*.5,dot(cloudUV,cloudUV)+lobes))
@@ -4161,6 +4163,8 @@ vec3 audio_owned_air_scene(vec2 p,vec3 material,vec4 form) {
             vec2 q=(p-center)/size;
             float r=length(q*vec2(1.+max(0.,-q.y)*.35,.83));
             float shell=1.-smoothstep(.97,1.02,r);
+            // Fabric has no derivatives and contributes only inside the soft shell.
+            if(shell<=0.)continue;
             float spin=clock*(1.15+hx*.85)*(hx>.5 ? 1. : -1.)+serial;
             vec2 textureUV=vec2(atan(q.x,sqrt(max(.015,1.-min(.99,r*r))))*.8,q.y);
             vec2 f=mat2(cos(spin),sin(spin),-sin(spin),cos(spin))*textureUV;

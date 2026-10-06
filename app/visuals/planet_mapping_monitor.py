@@ -187,7 +187,10 @@ class MonitorWindow:
     def __init__(self, parent, toggle, normal=False):
         import tkinter as tk
         from tkinter import ttk
-        self.window = tk.Toplevel(parent)
+        if getattr(parent,'workspace_owner',None):
+            from studio_panels import tool_window
+            self.window=tool_window(parent)
+        else:self.window=tk.Toplevel(parent)
         self.normal=normal
         self.window.title('Mapping monitor' if normal else 'Planet Canvas mapping monitor')
         self.window.geometry('940x790')
@@ -220,6 +223,9 @@ class MonitorWindow:
         self.received_run = None
 
     def close(self):
+        if getattr(self.window,'panel',None):
+            from studio_panels import hide_tool
+            if hide_tool(self.window):return
         self.toggle(False)
         self.window.destroy()
 

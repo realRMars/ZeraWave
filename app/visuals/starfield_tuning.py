@@ -157,7 +157,12 @@ class StarfieldTuningWindow:
     def __init__(self,parent,submit,observe,store=None,artifact_store=None,normal=False):
         import tkinter as tk
         from tkinter import ttk
-        self.window=tk.Toplevel(parent);self.window.title('Audio tuning - current Planet Canvas preview')
+        if getattr(parent,'workspace_owner',None):
+            from studio_panels import tool_window
+            self.window=tool_window(parent)
+        else:self.window=tk.Toplevel(parent)
+        self.window.title('Audio tuning - current Planet Canvas preview')
+        self.compact=bool(getattr(parent,'workspace_owner',None))
         self.window.geometry('900x860');self.submit=submit;self.observe=observe
         self.normal=normal;self.form=5;self.identity=None;self.received=None
         self.store=store or StarProfileStore();self.authored=deepcopy(self.store.authored)
@@ -568,7 +573,11 @@ class StarfieldTuningWindow:
     def choose_profile(self):
         from tkinter import filedialog
         self.keyboard.stop();owner=self.owner_key();revision=self.revision
-        path=filedialog.askopenfilename(parent=self.window,title='Load '+self.target.label+' audio profile',
+        parent=self.window
+        if self.compact:
+            from studio_panels import dialog_parent
+            parent=dialog_parent(self.window)
+        path=filedialog.askopenfilename(parent=parent,title='Load '+self.target.label+' audio profile',
             initialdir=str(self.store.profile_dir),filetypes=[('Audio tuning profile','*.json')])
         if path:
             if self.normal and (owner!=self.owner_key() or revision!=self.revision):self.profile_status.set('Profile load cancelled: destination or revision changed.');return
@@ -606,6 +615,9 @@ class StarfieldTuningWindow:
     def alive(self):return bool(self.window.winfo_exists())
 
     def close(self):
+        if getattr(self.window,'panel',None):
+            from studio_panels import hide_tool
+            if hide_tool(self.window):return
         self.keyboard.close()
         if self.pending is not None:self.window.after_cancel(self.pending);self.pending=None
         self.observe(False);self.window.destroy()

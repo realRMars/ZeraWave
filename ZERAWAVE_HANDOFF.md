@@ -1,10 +1,172 @@
 # ZeraWave handoff
 
-Updated: 2026-10-05 (accepted measured-performance development checkpoint).
+Updated: 2026-10-06 (Qt Studio development checkpoint publication authorized).
 [ROADMAP.md](ROADMAP.md) is the sole plan; [AGENTS.md](AGENTS.md) owns the working
 procedure. Prior checkpoints and their limitations remain below.
 
-## Current measured-performance candidate
+## Current Qt/Studio development checkpoint
+
+Robert authorized this development commit and normal GitHub push on October 6.
+Source/staged-content checks, complete checkpoint scope and exact commit/remote
+identity are recorded in the [publication receipt](work/publication-qt-studio-20261006/review-index.json).
+The parent is `4a4f6e03ad2119e790e88d8338bac9412a139881`. Publication includes the
+Qt prototype and reviewed rendering dependencies, later Studio additions,
+resolution/resize controls and Audio Hub. No release or frozen portable rebuild.
+
+Current source is bound by the layered
+[Studio additions](work/studio-additions-20261005/source-final.json),
+[resolution batch](work/studio-three-items-20261005/source-final.json) and
+[Audio Hub](work/audio-hub-20261006/source-final.json) manifests. Each older report
+retains its own source, input, results and pre-publication status. The root-guide
+publication edits are a separate delta; original evidence is not resealed.
+
+Category BONK/direct leaf load, Resources, inline startup and native header are
+implemented; see [Builder results](docs/agent-notes/studio-additions-20261005.md).
+Resolution choices and native resize guards are implemented, including shared
+menus and fixed-pixel aspect fit; see [resolution results](docs/agent-notes/studio-resolution-controls-20261005.md).
+Audio Hub's Device Listening/Audio File modes share a bounded PCM owner, with
+file transport separate from visual controls; see [Audio Hub results](docs/agent-notes/studio-audio-hub-20261006.md).
+Saved user layouts/settings stay local; documented unexplained layout changes
+are retained rather than restored. The overwritten historical Qt screenshot
+exception remains recorded, not silently repaired.
+
+Later Roots/Sky overlap is about39ms /25–26 swap returns/s; the mostly≥30FPS
+full-size target and strict maximum/tail gates remain incomplete. Prior GUI9/10
+and provisional usability8.5/10 retain their original scope. Physical keyboard,
+mouse, DPI/monitor changes, natural listening, latency, all-world/fullscreen and
+multi-hour coverage remain bounded or unverified. Audio backend acceptance is
+not heard-output proof. Normal GPU Main + Audio Hub was not observed in that
+bounded audio pass; Experimental/matched-audition restrictions remain.
+
+<a id="current-unpublished-full-size-qtrendering-candidate"></a>
+
+## Earlier independent full-size review — October 5
+
+**Independent verdict: PARTIAL.** The Root preparation optimization is worthwhile;
+Robert's practical maximized-editor/full-size playback goal remains incomplete.
+Published main remains `4a4f6e03ad2119e790e88d8338bac9412a139881`.
+That reviewed candidate was unpublished at the review boundary. Prior GUI visual match **9/10**
+and usability **8.5/10 provisional** carry forward unchanged; neither this review
+nor the documentation reconciliation awards new acceptance or publication authority.
+
+### Source and evidence identity
+
+- [Independent REVIEW.txt](work/publication-qt-studio-20261006/independent-review/REVIEW.txt):
+  SHA-256 `feb8cd77ff8dee50dcfb81af13d083ab0e560bc5b520db6d8d432b2eebe8fa3b`.
+  Supporting identity, statistics, clock audit and execution receipts are in that
+  same review directory.
+- [Builder report](work/full-size-performance-20261005/REPORT.md) and
+  [task-only patch](work/full-size-performance-20261005/task-only.patch): patch
+  SHA-256 `0781573c9691ce0e0b0d6b9cdf10be498e882289f5367c3aeceb2023e3f5585d`.
+  Its baseline is the preserved dirty pre-task directory, not published HEAD.
+- [Final manifest](work/full-size-performance-20261005/source-final.json): SHA-256
+  `fe09c7742ca6f3e5f5b3023de2d96abaef0f8659eb0b77f080eefdbdb9aa8b1c`.
+  Reviewer verified 282 final / 280 baseline bindings and 767 indexed evidence files.
+- [Builder evidence archive](work/full-size-performance-20261005-evidence.zip):
+  94,385,539 bytes, SHA-256
+  `0939af6ed9cf71c3475bd6cad3c7e2581ea03d29b3325ab6449e7ddc0018c75b`;
+  Reviewer verified ZIP CRC integrity. Original reports/manifests remain intact.
+
+This documentation-only delta follows that review. All 282 final bindings matched
+on entry to the reconciliation. Changed guidance hashes do not reseal the historical
+manifest or mean the application was retested. Application source, settings, saved
+layouts and evidence artifacts are outside this documentation assignment.
+
+### Reviewed results and evidence classes
+
+The Reviewer independently executed one sequential before/final Roots12 -> Sky19
+optical-fade fixture through Qt Shell -> ControlClient -> hidden Tk owner ->
+production Renderer, plus eight synthetic GPU uniform/gain/direct-draw contracts
+(all passed). RTX 3070 Laptop, actual framebuffer/internal/shader **1944x986**,
+Main/all30, Full 100%, real-time Synthetic, seed7301, authored colors, no layers,
+captures off, forced endpoints and Normal BONK after stable sizing. This is an
+adopted window with swap interval 1 on a 144 Hz monitor, not native fullscreen or
+Robert's exact session. Background/thermal/power conditions were not locked.
+
+| Fresh independently executed phase | Before mean ms | Final mean ms |
+| --- | ---: | ---: |
+| Roots steady | 32.36 | 15.94 |
+| Entry | 74.67 | 40.93 |
+| Optical overlap | 96.58 | 46.85 |
+| Exit | 96.96 | 46.83 |
+| Skyfade arrival | 66.32 | 32.78 |
+
+Reductions of 45.2-51.4% corroborate meaningful gains beyond the prior audit's
+0.51% mean / 1.27% median variation. Swap-return intervals are not scanout FPS.
+The fresh short pair is corroboration, not a tighter variability certificate.
+
+**Independently recalculated Builder evidence:** all eight ordinary distributions
+retain counts, outliers and >50ms intervals; all 43 Full-pixel comparisons were
+recalculated (27 byte-exact, remaining differences at most one 8-bit channel step,
+worst mean 0.0000226073 levels). Representative supplied stills were inspected.
+These support sampled preservation, not universal artistic/temporal equivalence.
+**Reused Builder evidence:** fixed-clock traces, query/pass attribution, 48
+same-value API edits and the passing owned docking/resize/lifecycle fixture.
+They are not independently repeated GPU timings or physical knob tests.
+
+### Gates and unresolved coverage
+
+- PASS: source/evidence identity, matched Full pixels, meaningful measured gains,
+  sampled pixel preservation, retained endpoints/history and bounded source clocks.
+  The independent GPU contracts cover current gains, encoded inputs, direct draw,
+  independent clocks, exact framebuffer/viewport restoration, fixed resources and release.
+- FAIL practical completion: optical overlap remains about **45-47ms**, roughly
+  21-22 swap returns/s. FAIL observed strict no-worse-maximum gate: some final
+  maxima exceed both baseline maxima despite improved median/p95/p99. Population
+  tail non-regression remains unverified; no threshold or outlier is discarded.
+- UNVERIFIED: exact Robert-session reproduction, continuous final normal-time
+  motion/listening, changed-value physical Qt knobs, keyboard/DPI/save-load,
+  complete recovery, native fullscreen, scanout, all-world coverage and multi-hour
+  stability/variety. Computer Use was stopped by the user's physical Escape;
+  inspection was limited to supplied stills and a partly occluded baseline Sky snapshot.
+  The additional independent lifecycle fixture was interrupted during compilation,
+  not a completed docking check or demonstrated application failure. Builder's
+  source-bound lifecycle pass remains reused evidence.
+- User-state preservation is incomplete: saved Qt layout changed from `437a73...`
+  to `938ed0...`, docks/geometry changed, controls unchanged; recorded save 14:31:18
+  followed initial comparison 14:29:17. Cause is unknown. Tk stayed `9e2716...`.
+  Preserve both evidence copies and the current saved layouts; restore neither.
+
+**Clock correction:** the earlier 0.998605-1.000790 ratios compare source timestamps
+before render with `present_wall` after swap. Endpoint latency changes bias the
+approximately 24-second span (+33.5407ms / -18.9270ms in the reviewed examples).
+At equivalent source/render-begin boundaries, all eight ordinary ratios are
+0.9999998956-1.0000005168, monotonic, with at most 0.0124ms residual span difference.
+The literal 0.999 presentation-span lower bound failed in baseline data; it is not
+a source-clock regression, and the gate is not silently revised. Fixed-clock
+300-state traces verify mapping, not real-time progression or long-session behavior.
+
+### Remaining priorities and review route
+
+Reviewer ranks: P1 Roots/Skyfade overlap/exit/entry; P1 rare waits; P2 Skyfade
+arrival/steady (~33ms); P2 Spires steady/entry (~33-34ms); P2 Molten arrival (~23ms).
+Composite costs are supported; individual material/shared-region owners are not
+yet isolated. Root preparation (~0.012-0.023ms) and Echo (~0.023ms/step) are minor
+in the measured overlap. Exceptional waits are distinct from sustained draw cost;
+their driver/display/queue owner is unknown. Other Main worlds are unmeasured.
+The rejected ~6.5% Spires projection hoist remains negative evidence. Cold startup
+remains costly and separate from these warm hotspots.
+
+Research options are untested proposals: exact-equation preparation/dependency
+pruning, bounded specialization, and only conditionally a split optical compositor.
+See [technique references](TECHNIQUE_LIBRARY.md#rendering-references-and-untested-options).
+No API migration, renderer overhaul or artistic reduction is established as necessary.
+The approved scope here is documentation; the next bounded Builder work awaits
+Robert's manual handoff, then independent verification and hands-on acceptance.
+
+**Distinct pending UI gap:** legacy renderer/system/device telemetry exists, but
+the dedicated Qt CPU/GPU/memory resource view is missing. Quiet actual resolution/
+preview-scale information belongs to that separate UI scope. See the
+[Studio distinction](DEVELOPMENT_STUDIO.md#resource-telemetry-and-pending-qt-view)
+and [sole plan](ROADMAP.md#next-bounded-work-and-separate-monitor-scope).
+
+Robert's hands-on sequence: `run_qt_studio.vbs` -> maximize editor -> Main/all
+worlds -> Full quality -> Start -> Normal BONK; observe entry, overlap and arrival.
+Acceptance and publication remain separate decisions. No worker is dispatched.
+
+<a id="current-measured-performance-candidate"></a>
+
+## Historical accepted measured-performance checkpoint
 
 **Status:** Robert passed this candidate for a development checkpoint on October 5
 and authorized commit and normal GitHub push. Existing Main30 artistic acceptance
@@ -18,7 +180,8 @@ Main's three Envelopers remain off, and Full quality remains the default.
 
 ### Identity and implemented behavior
 
-HEAD remains `b2aacd11d7d3a8d39bb9d2f5592659fd3d2d999b`. The task baseline is the
+At that pre-publication checkpoint HEAD was
+`b2aacd11d7d3a8d39bb9d2f5592659fd3d2d999b`. The task baseline is the
 pre-task dirty tree, including Main30 and the startup correction, bound to
 `4ba8d42c82f12a2ca69dc553c8d29bc5652b6cfd9f0cf2554a3510e2f2144d88`.
 The final 170-file app identity is

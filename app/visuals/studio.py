@@ -281,7 +281,8 @@ def command(values, output):
         args+=['--colors',json.dumps(colors,separators=(',',':'))]
         if values['duration']!='Full track':args+=['--max-seconds',values['duration'].split()[0]]
         return args
-    state_args = ['--state', states[0], '--transitions',json.dumps(cfg,separators=(',',':'))]
+    scoped = values.get('playback_scope')
+    state_args = ['--state', 'blend' if scoped else states[0], '--transitions',json.dumps(cfg,separators=(',',':'))]
     if states == ['galaxy']:
         raw=str(values.get('galaxy_seed','7301'))
         if not raw.isdecimal() or not 0<=int(raw)<=4294967295:raise ValueError('Galaxy seed must be an integer from 0 to 4294967295.')
@@ -303,7 +304,7 @@ def command(values, output):
     color_scope = color_scope_for_states(states)
     if targets_for(color_scope):
         state_args += ['--colors', json.dumps(scene_colors(colors, color_scope), separators=(',', ':'))]
-    if len(states) > 1: state_args += ['--states', *states]
+    if len(states) > 1 and not scoped: state_args += ['--states', *states]
     profiles = preview_profiles(values)
     if profiles: state_args += ['--layers', json.dumps(profiles, separators=(',', ':'))]
     base = [sys.executable, '-X', 'utf8', '-u']
@@ -353,6 +354,12 @@ def completed_comparison_run(folder, label, count):
 class Studio:
     def __init__(self, root):
         self.root = root
+        # The unified workspace retains these same controllers and callbacks.
+        # Root-owned native Tk windows can dock anywhere without reconstruction.
+        if getattr(root, 'workspace_owner', None):
+            from studio_panels import panel_frame
+            self.make_panel=lambda parent, **kw:panel_frame(root,parent,**kw)
+        else:self.make_panel=ttk.Frame
         self.process = None
         self.log = None
         self.output = None
@@ -426,10 +433,10 @@ class Studio:
         self.footer.pack(side='bottom', fill='x')
         self.tabs = ttk.Notebook(root)
         self.tabs.pack(fill='both', expand=True, padx=18, pady=(18, 10))
-        self.preview = ttk.Frame(self.tabs, padding=20)
-        self.results = ttk.Frame(self.tabs, padding=20)
+        self.preview = self.make_panel(self.tabs, padding=20)
+        self.results = self.make_panel(self.tabs, padding=20)
         self.tabs.add(self.preview, text='Build & preview')
-        self.layers_tab = ttk.Frame(self.tabs, padding=20)
+        self.layers_tab = self.make_panel(self.tabs, padding=20)
         self.tabs.add(self.layers_tab, text='Effects & layers')
         self.tabs.add(self.results, text='Review')
         ttk.Label(self.preview, text='Build & preview — approved Main worlds',
@@ -468,8 +475,9 @@ class Studio:
         ttk.Label(self.preview,text='Track replay is silent. Live input listens to your system audio.\n'
                   'Speed, duration and captures apply to test tracks. Declared colors can edit live; other changes apply next run.',
                   wraplength=610).grid(row=9,column=0,columnspan=3,sticky='w',pady=10)
-        self.preview_controls=ttk.Frame(self.tabs)
-        self.preview_controls.grid(in_=self.preview,row=10,column=0,columnspan=3,sticky='ew',pady=10)
+        self.preview_controls=self.make_panel(self.tabs)
+        if not getattr(root,'workspace_owner',None):
+            self.preview_controls.grid(in_=self.preview,row=10,column=0,columnspan=3,sticky='ew',pady=10)
         controls=ttk.Frame(self.preview_controls);controls.pack(anchor='w')
         self.start_button=ttk.Button(controls,text='Start',command=self.start);self.start_button.pack(side='left')
         self.pause_button=ttk.Button(controls,text='Pause',command=self.pause_preview,state='disabled');self.pause_button.pack(side='left',padx=3)
@@ -500,7 +508,7 @@ class Studio:
         root.protocol('WM_DELETE_WINDOW',self.close)
         # Keep this widget/legacy catalog identity; only its displayed tab name
         # changes. All oscillator, basin, style, band and live tools survive.
-        self.cymatics_tab=ttk.Frame(self.tabs,padding=12)
+        self.cymatics_tab=self.make_panel(self.tabs,padding=12)
         self.tabs.add(self.cymatics_tab,text='Experimental')
         self.build_experimental()
         self.menus()
@@ -552,7 +560,7 @@ class Studio:
             self.select(self.studio_selections[scope], scope=scope, show=False)
 
     def build_library(self):
-        self.library_tab = ttk.Frame(self.tabs, padding=20)
+        self.library_tab = self.make_panel(self.tabs, padding=20)
         self.tabs.add(self.library_tab, text='Library')
         ttk.Label(self.library_tab, text='Find what ZeraWave already knows',
                   font=('Segoe UI', 15)).pack(anchor='w')
@@ -664,7 +672,7 @@ class Studio:
             raise ValueError('Choose an Experimental category.')
         states = selection_states(selection, STUDIO_TREES[scope])  # Validate before changing controls.
         self.selection_scope = scope
-        if hasattr(self,'experimental_controls'):
+        if hasattr(self,'experimental_controls') and not getattr(self.root,'workspace_owner',None):
             self.preview_controls.grid_forget();self.preview_controls.pack_forget()
             if scope=='main':self.preview_controls.grid(in_=self.preview,row=10,column=0,columnspan=3,sticky='ew',pady=10)
             else:self.preview_controls.pack(in_=self.experimental_controls,fill='x')
@@ -1265,7 +1273,7 @@ class Studio:
             args += ['--seed', '7301', '--comparison-label', label]
             self.comparison_label = label
         selected_states=session_states(values)
-        live_scene='blend' if values.get('transitions',{}).get('pair') else color_scope_for_states(selected_states)
+        live_scene='blend' if values.get('playback_scope') or values.get('transitions',{}).get('pair') else color_scope_for_states(selected_states)
         live_scene = live_scene if targets_for(live_scene) and not label else None
         if live_scene: args += ['--studio-color-input']
         output.mkdir(parents=True)
@@ -1276,6 +1284,14 @@ class Studio:
         audio_session=getattr(self,'audio_session',None)
         if normal_audio and audio_session is None:self.audio_session=audio_session=uuid.uuid4().hex
         child_env=os.environ.copy()
+        workspace=getattr(self.root,'workspace_owner',None)
+        if workspace:
+            child_env.update(workspace.renderer_host_environment())
+        if values.get('playback_scope'):
+            child_env['ZERAWAVE_PLAYBACK_SCOPE']=json.dumps(values['playback_scope'])
+        else:child_env.pop('ZERAWAVE_PLAYBACK_SCOPE',None)
+        if values.get('playback_form') is not None:child_env['ZERAWAVE_PLAYBACK_FORM']=str(values['playback_form'])
+        else:child_env.pop('ZERAWAVE_PLAYBACK_FORM',None)
         child_env['ZERAWAVE_RENDER_SCALE']=str(RENDER_SCALES[values['render_scale']])
         self.preview_run=uuid.uuid4().hex if live_scene else None
         if live_scene:

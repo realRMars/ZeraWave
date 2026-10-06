@@ -156,6 +156,82 @@ class OriginalLoopStage:
         for resource in (self.vao,self.fbo,self.texture,self.program):resource.release()
 
 
+class RootBranchStage:
+    """Frame-dependent Root geometry; full-size distance/shading stays in Main."""
+    @staticmethod
+    def main_source(source):
+        start=source.index('float root_network(')
+        end=source.index('// Form-specific pigments',start)
+        # Raw shader tools keep the original procedural implementation. Only
+        # the prepared renderer program uses its owned geometry texture.
+        return source[:start]+'''uniform sampler2D u_root_branches;
+float root_network(vec2 position,float phase,float activity) {
+    int row=u_audio_forms.x!=0 && audio_context==5 ? 2 : 0;
+    float nearest=10.;
+    for(int i=0;i<31;i++) {
+        vec4 segment=texelFetch(u_root_branches,ivec2(i,row),0);
+        vec4 direction=texelFetch(u_root_branches,ivec2(i,row+1),0);
+        vec2 base=direction.zw;
+        float along=clamp(dot(position-base,direction.xy)/segment.z,0.,1.);
+        float distance_to_branch=length(position-mix(base,segment.xy,along));
+        float taper=mix(segment.w,segment.w*.64,along);
+        nearest=min(nearest,distance_to_branch-taper);
+    }
+    return nearest;
+}
+
+'''+source[end:]
+
+    def __init__(self, ctx, vertices):
+        source=(Path(__file__).parent/'shaders/dream.frag').read_text(encoding='utf-8')
+        # Reuse the authored equations, rather than maintaining another tree.
+        start=source.index('float root_network(')
+        geometry=source[start:source.index('        float along =',start)]
+        geometry=geometry.replace('float root_network(vec2 position, float phase, float activity)',
+            'void root_branch_tree(float phase,float activity,int branch,out vec4 segment,out vec4 direction)')
+        geometry=geometry.replace('    float nearest = 10.0;\n','').replace('i < 31','i <= branch')
+        geometry+='''        if(i==branch){segment=vec4(tips[i],lengths[i],widths[i]);direction=vec4(directions[i],base);}
+    }
+}
+'''
+        audio=source[source.index('uniform ivec2 u_audio_forms;'):source.index('uniform float u_planet_time')]
+        fragment='#version 330\nuniform float u_time,u_planet_time,u_flux;\nout vec4 branch_data;\n'+audio+geometry+'''
+void main(){
+    int row=int(gl_FragCoord.y),branch=int(gl_FragCoord.x);
+    float t=(row<2 ? u_time : u_planet_time)*.18;
+    float phase=t*.35;
+    float activity=smoothstep(.08,.65,form_audio(clamp(u_flux,0.,1.),12,64));
+    vec4 segment,direction;
+    root_branch_tree(phase,activity,branch,segment,direction);
+    branch_data=row%2==0 ? segment : direction;
+}
+'''
+        self.ctx=ctx
+        self.program=ctx.program(vertex_shader=VERTEX_SHADER,fragment_shader=fragment)
+        self.texture=ctx.texture((31,4),4,dtype='f4')
+        self.texture.filter=(moderngl.NEAREST,moderngl.NEAREST)
+        self.texture.repeat_x=self.texture.repeat_y=False
+        self.fbo=ctx.framebuffer(color_attachments=(self.texture,))
+        self.vao=ctx.vertex_array(self.program,[(vertices,'2f','in_position')])
+
+    def draw(self, program):
+        for name in ('u_time','u_planet_time','u_flux','u_audio_forms','u_form_audio_a','u_form_audio_b'):
+            uniform=self.program[name];value=program[name].value
+            uniform.value=value[:uniform.array_length] if name.startswith('u_form_audio_') else value
+        # Captures and Envelopers can draw into an owned target. Restore that
+        # exact binding/viewport, including explicit render-scale targets.
+        destination=self.ctx.fbo;viewport=self.ctx.viewport
+        try:
+            self.fbo.use();self.ctx.viewport=(0,0,31,4)
+            self.vao.render(mode=moderngl.TRIANGLE_STRIP)
+        finally:
+            destination.use();self.ctx.viewport=viewport
+        self.texture.use(14);program['u_root_branches'].value=14
+
+    def release(self):
+        for resource in (self.vao,self.fbo,self.texture,self.program):resource.release()
+
+
 class Renderer:
     # Base flow range before the bounded musical energy boost in render().
     FLOW_FLOOR = 0.35
@@ -174,6 +250,7 @@ class Renderer:
         self.vao = None
         self.surface_stage = None
         self.original_loop_stage = None
+        self.root_branch_stage = None
         self.enveloper_stage = None
         self.enveloper_failed = False
         self.echo_resources = None
@@ -572,6 +649,9 @@ class Renderer:
             self.shockwave_armed = False
 
     def create(self):
+        if os.environ.get('ZERAWAVE_WORKSPACE_HOST'):
+            from window_host import dpi_awareness
+            dpi_awareness()
         from development_forms import FRACTAL_FORMS
         forms=self.debug_sequence or (self.debug_state,)
         self.fractal_only=False  # Main uses one program across all30 approved endpoints.
@@ -581,6 +661,8 @@ class Renderer:
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
         glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
         glfw.window_hint(glfw.RESIZABLE, glfw.TRUE)
+        qt_host=os.environ.get('ZERAWAVE_WORKSPACE_QT_FOREIGN')=='1'
+        glfw.window_hint(glfw.VISIBLE,glfw.FALSE if qt_host else glfw.TRUE)
 
         self.window = glfw.create_window(
             self.width,
@@ -593,6 +675,11 @@ class Renderer:
         if not self.window:
             glfw.terminate()
             raise RuntimeError("Failed to create GLFW window")
+
+        if os.environ.get('ZERAWAVE_WORKSPACE_HOST'):
+            from window_host import initial_host
+            self.workspace_window = initial_host(self.window)
+            print('ZERAWAVE_WINDOW '+json.dumps(self.workspace_window),flush=True)
 
         visible = bool(glfw.get_window_attrib(self.window, glfw.VISIBLE))
         notice = None
@@ -613,8 +700,14 @@ class Renderer:
             glfw.make_context_current(self.window)
 
             self.ctx = moderngl.create_context()
+            self.gpu_info=dict(self.ctx.info)
+            if getattr(self,'performance',None):self.performance.sampler.configure({'renderer':os.getpid()},self.gpu_info.get('GL_RENDERER'))
             from render_scale import ScaledContext
             self.ctx=ScaledContext(self.ctx,float(os.environ.get('ZERAWAVE_RENDER_SCALE','1')))
+            if os.environ.get('ZERAWAVE_VISUALIZER_RESOLUTION'):
+                from visualizer_resolution import failure_message
+                try:self.ctx.configure(json.loads(os.environ['ZERAWAVE_VISUALIZER_RESOLUTION']),glfw.get_framebuffer_size(self.window))
+                except Exception as exc:self.ctx.error=failure_message(exc)
             self._color_uploads={};self._color_dirty=True
 
             shader_path = Path(__file__).parent / "shaders" / ("fractals.frag" if self.fractal_only else "dream.frag")
@@ -624,6 +717,7 @@ class Renderer:
             from resolved_audio import AudioUniformContract
             self.audio_uniform_contract=AudioUniformContract(fragment_shader) if not self.fractal_only else None
             if self.audio_uniform_contract is not None:fragment_shader=self.audio_uniform_contract.source
+            if not self.fractal_only:fragment_shader=RootBranchStage.main_source(fragment_shader)
 
             if self.startup_callback is not None:self.startup_callback('compiling')
             if notice:
@@ -654,6 +748,10 @@ class Renderer:
                 self.original_loop_stage=OriginalLoopStage(self.ctx,self.vertices)
                 self.original_loop_stage.draw(self.program,glfw.get_framebuffer_size(self.window),(0.,0.,0.,0.))
                 self.ctx.finish()
+            if not self.fractal_only:
+                self.root_branch_stage=RootBranchStage(self.ctx,self.vertices)
+                self.root_branch_stage.draw(self.program)
+                self.vao.before_render=lambda:self.root_branch_stage.draw(self.program)
             if self.debug_state==37:self.install_cymatics_controls()
             self.startup_metrics['create_seconds'] = time.perf_counter() - began
             # Compilation success is not presentation readiness. Keep the
@@ -672,6 +770,14 @@ class Renderer:
         self.start_time = time.perf_counter()
         controls=getattr(self,'preview_playback',None)
         if controls is not None:controls.install_output_keys()
+        if qt_host and controls is not None:
+            if self.startup_callback:self.startup_callback('attaching')
+            deadline=time.perf_counter()+30.
+            while not getattr(self,'workspace_attached',False):
+                if not controls.poll():raise RuntimeError('Preview startup cancelled before attachment.')
+                if time.perf_counter()>deadline:raise RuntimeError('Studio attachment timed out; Retry the preview.')
+                glfw.poll_events();time.sleep(.01)
+            self.start_time=time.perf_counter()
 
     def install_cymatics_controls(self):
         glfw.set_window_title(self.window,'Water | Left drag orbit | Right/Shift drag pan | Wheel zoom | R reset | M mute')
@@ -1510,6 +1616,7 @@ class Renderer:
         if self.surface_stage is not None:
             self.surface_stage.release();self.surface_stage=None
         if self.original_loop_stage is not None:self.original_loop_stage.release();self.original_loop_stage=None
+        if self.root_branch_stage is not None:self.root_branch_stage.release();self.root_branch_stage=None
         if self.enveloper_stage:self.enveloper_stage.release();self.enveloper_stage=None
         if self.color_inbox: self.color_inbox.close()
         self._color_uploads={}

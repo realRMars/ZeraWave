@@ -45,8 +45,8 @@ class Distribution:
                     quantile_resolution_ms=.1, quantile_overflow_ms=1000.)
 
 
-def process_resources():
-    result = dict(process_cpu_seconds=sum(os.times()[:2]), process_working_set_bytes=None,process_peak_working_set_bytes=None,
+def process_resources(pid=None):
+    result = dict(process_cpu_seconds=sum(os.times()[:2]) if pid in (None,os.getpid()) else None, process_working_set_bytes=None,process_peak_working_set_bytes=None,
                   system_cpu_total=None, system_cpu_idle=None, system_ram_used_bytes=None)
     if os.name != 'nt':
         return result
@@ -58,11 +58,19 @@ def process_resources():
     counters = Counters(); counters.cb = ctypes.sizeof(counters)
     kernel = ctypes.WinDLL('kernel32', use_last_error=True)
     kernel.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel.OpenProcess.argtypes=[wintypes.DWORD,wintypes.BOOL,wintypes.DWORD];kernel.OpenProcess.restype=wintypes.HANDLE
+    kernel.GetProcessTimes.argtypes=[wintypes.HANDLE,*([ctypes.POINTER(wintypes.FILETIME)]*4)]
+    kernel.CloseHandle.argtypes=[wintypes.HANDLE]
+    handle=kernel.GetCurrentProcess() if pid in (None,os.getpid()) else kernel.OpenProcess(0x410,False,int(pid))
     psapi = ctypes.WinDLL('psapi', use_last_error=True)
     psapi.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(Counters), wintypes.DWORD]
-    if psapi.GetProcessMemoryInfo(kernel.GetCurrentProcess(), ctypes.byref(counters), counters.cb):
+    if handle and psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
         result['process_working_set_bytes'] = counters.WorkingSetSize
         result['process_peak_working_set_bytes'] = counters.PeakWorkingSetSize
+    times=[wintypes.FILETIME() for _ in range(4)]
+    if handle and kernel.GetProcessTimes(handle,*(ctypes.byref(v) for v in times)):
+        result['process_cpu_seconds']=sum((v.dwHighDateTime<<32)|v.dwLowDateTime for v in times[2:])/1e7
+    if pid not in (None,os.getpid()) and handle:kernel.CloseHandle(handle)
     values = [wintypes.FILETIME() for _ in range(3)]
     if kernel.GetSystemTimes(*(ctypes.byref(v) for v in values)):
         idle, kern, user = [(v.dwHighDateTime << 32) | v.dwLowDateTime for v in values]
@@ -73,6 +81,7 @@ def process_resources():
     memory = Memory(); memory.length = ctypes.sizeof(memory)
     if kernel.GlobalMemoryStatusEx(ctypes.byref(memory)):
         result['system_ram_used_bytes'] = memory.total_phys - memory.avail_phys
+        result['system_ram_total_bytes'] = memory.total_phys
     return result
 
 
@@ -85,9 +94,15 @@ class ResourceSampler:
         self.latest = None
         self.history = deque(maxlen=1800)
         self.samples = 0
+        self.roles={'renderer':os.getpid()};self.gpu_name=None
         self.smi = shutil.which('nvidia-smi')
         self.thread = threading.Thread(target=self.work, name='Studio resource sampler', daemon=True)
         self.thread.start()
+
+    def configure(self,roles,gpu_name=None):
+        with self.lock:
+            self.roles=dict(roles)
+            if gpu_name:self.gpu_name=gpu_name
 
     def work(self):
         previous = None
@@ -95,6 +110,7 @@ class ResourceSampler:
             if not self.enabled.wait(.2):
                 previous = None
                 continue
+            if self.stop.is_set():break
             started = time.perf_counter()
             try:
                 row = process_resources()
@@ -102,6 +118,19 @@ class ResourceSampler:
                            gpu_device_utilization_percent=None, gpu_device_vram_used_bytes=None,
                            gpu_device_vram_total_bytes=None, gpu=None, driver=None,
                            process_vram_bytes=None, gpu_draw_ms=None)
+                with self.lock:roles=dict(self.roles);gpu_name=self.gpu_name
+                processes={}
+                for role,pid in roles.items():
+                    if not pid:continue
+                    key=str(pid)
+                    if key not in processes:
+                        item=process_resources(pid);item.update(pid=pid,roles=[],process_cpu_percent=None)
+                        old=(previous or {}).get('processes',{}).get(key)
+                        if old and item['process_cpu_seconds'] is not None and old['process_cpu_seconds'] is not None:
+                            item['process_cpu_percent']=max(0.,100.*(item['process_cpu_seconds']-old['process_cpu_seconds'])/(started-previous['wall']))
+                        processes[key]=item
+                    processes[key]['roles'].append(role)
+                row['processes']=processes
                 if previous:
                     elapsed = started - previous['wall']
                     if elapsed > 0:
@@ -112,15 +141,20 @@ class ResourceSampler:
                         if total > 0:
                             row['system_cpu_percent'] = max(0., min(100., 100. * (1. - idle / total)))
                 if self.smi:
-                    query = subprocess.run([self.smi, '--query-gpu=name,driver_version,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw', '--format=csv,noheader,nounits'],
+                    query = subprocess.run([self.smi, '--query-gpu=name,driver_version,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,index,uuid', '--format=csv,noheader,nounits'],
                         capture_output=True, text=True, timeout=2., creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
                     if query.returncode == 0:
-                        # Device zero explicitly; no attribution to this process.
-                        items = query.stdout.splitlines()[0].split(',')
-                        row.update(gpu=items[0].strip(), driver=items[1].strip(), gpu_device_index=0)
+                        devices=[line.split(',') for line in query.stdout.splitlines()]
+                        matches=[items for items in devices if gpu_name and items[0].strip().casefold() in gpu_name.casefold()]
+                        row['gpu_status']='unavailable: rendering adapter not identified' if len(matches)!=1 else 'identified rendering adapter; device-wide readings'
+                        if len(matches)!=1:devices=[]
+                        items=matches[0] if len(matches)==1 else None
+                        if items:row.update(gpu=items[0].strip(),driver=items[1].strip(),gpu_device_index=int(items[7]),gpu_uuid=items[8].strip())
                         for field, index, scale in (('gpu_device_utilization_percent', 2, 1.), ('gpu_device_vram_used_bytes', 3, 1048576.), ('gpu_device_vram_total_bytes', 4, 1048576.), ('gpu_temperature_c', 5, 1.), ('gpu_power_w', 6, 1.)):
-                            try:row[field] = float(items[index]) * scale
+                            try:row[field] = float(items[index]) * scale if items else None
                             except ValueError:row[field] = None
+                    else:row['gpu_status']='unavailable: device query failed'
+                else:row['gpu_status']='unsupported: nvidia-smi unavailable'
                 row['sampler_wall_ms'] = (time.perf_counter() - started) * 1000.
                 previous = row
                 with self.lock:
@@ -145,6 +179,8 @@ class SessionPerformance:
         self.started_utc = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
         self.frame = Distribution();self.submit = Distribution();self.swap = Distribution()
         self.intervals = deque(maxlen=120)
+        # Opt-in evidence trace, without device queries or synchronization.
+        self.interval_trace = deque(maxlen=4096) if os.environ.get('ZERAWAVE_SWAP_TRACE')=='1' else None
         self.hitches = deque(maxlen=256)
         self.switches = deque(maxlen=256)
         self.by_diagnostics = {False: Distribution(), True: Distribution()}
@@ -173,7 +209,7 @@ class SessionPerformance:
                 for block in iter(lambda:handle.read(1024 * 1024), b''):digest.update(block)
             audio = dict(name=Path(track).name, sha256=digest.hexdigest(), copied=False)
         # Identity only, no private source paths or unrelated settings copied.
-        relevant = {k:values.get(k) for k in ('state','selection','selection_scope','source','speed','duration','captures','layers','color_overrides','transitions','planet_palette','material_isolation','galaxy_seed','galaxy_visit','galaxy_entry','planet_dsp_pilot','planet_star_attack_pilot','cymatics','render_scale')}
+        relevant = {k:values.get(k) for k in ('state','selection','selection_scope','playback_scope','playback_form','source','speed','duration','captures','layers','color_overrides','transitions','planet_palette','material_isolation','galaxy_seed','galaxy_visit','galaxy_entry','planet_dsp_pilot','planet_star_attack_pilot','cymatics','render_scale')}
         launch_hash=hashlib.sha256(json.dumps(relevant,sort_keys=True).encode()).hexdigest()
         return dict(checkpoint=head, files=files, audio=audio, source_mode=values.get('source'),
                     settings_identity_kind='launch-only; subsequent applied controls are in applied_edit_trace',
@@ -209,8 +245,16 @@ class SessionPerformance:
         self.enabled = bool(enabled)
         if self.enabled:
             with self.sampler.lock:self.sampler.latest=None
-        self.sampler.enabled.set() if self.enabled else self.sampler.enabled.clear()
+        self.sampler.enabled.set() if self.enabled and os.environ.get('ZERAWAVE_OWNER_TELEMETRY')!='1' else self.sampler.enabled.clear()
         self.switches.append(dict(wall=time.perf_counter(), enabled=self.enabled))
+
+    def owner_sample(self,row):
+        """Retain enabled diagnostic consumers without a second collector."""
+        if not self.enabled or os.environ.get('ZERAWAVE_OWNER_TELEMETRY')!='1':return
+        if not isinstance(row,dict) or not isinstance(row.get('wall'),(int,float)) or not math.isfinite(row['wall']):return
+        with self.sampler.lock:
+            if self.sampler.latest and row['wall']<=self.sampler.latest.get('wall',-math.inf):return
+            self.sampler.latest=dict(row);self.sampler.history.append(dict(row));self.sampler.samples+=1
 
     def begin_render(self):
         self.render_started = time.perf_counter()
@@ -227,6 +271,9 @@ class SessionPerformance:
         if self.last_present is not None and not (controls and controls.playback.resume_fresh):
             interval = now - self.last_present
             self.frame.add(interval);self.by_diagnostics[self.enabled].add(interval);self.intervals.append(interval)
+            if self.interval_trace is not None:
+                self.interval_trace.append(dict(song_seconds=self.renderer.last_render_time,
+                    wall=now,interval_ms=interval*1000.))
             if interval > .05:
                 r = self.renderer
                 self.hitches.append(dict(wall_since_start=now - self.started, interval_ms=interval * 1000.,
@@ -237,22 +284,24 @@ class SessionPerformance:
         self.last_present = now
 
     def summary(self):
-        if not self.enabled:return dict(enabled=False, display='Diagnostics off. Frame timing is saved in Latest Results.')
         recent = list(self.intervals)
         mean = sum(recent) / len(recent) if recent else None
+        timing=dict(swap_return_rate_hz=1./mean if mean else None,swap_return_interval_ms=mean*1000. if mean else None,
+                    swap_return_wall=self.last_present,interval_samples=len(recent),interval_capacity=self.intervals.maxlen)
+        if not self.enabled:return dict(enabled=False, display='Diagnostics off. Frame timing is saved in Latest Results.',**timing)
         row = self.sampler.snapshot()
         if not row or time.perf_counter()-row.get('wall',-math.inf)>3*self.sampler.interval:
             row={}
         def number(key, unit, scale=1.):
             value = row.get(key)
             return f'{value / scale:.1f}{unit}' if type(value) in (int, float) else 'unavailable'
-        display = (f'Presentation {1. / mean:.1f} fps / {mean * 1000.:.1f} ms' if mean else 'Presentation unavailable')
+        display = (f'Swap returns {1. / mean:.1f}/s / {mean * 1000.:.1f} ms (not scanout)' if mean else 'Swap returns unavailable')
         controls=getattr(self.renderer,'preview_playback',None)
         if controls and controls.playback.paused:display='Presentation paused'
         display += f" | CPU process {number('process_cpu_percent', '%')} / system {number('system_cpu_percent', '%')}"
-        display += f" | GPU device 0 {number('gpu_device_utilization_percent', '%')} | RAM process {number('process_working_set_bytes', ' GiB', 2**30)}"
+        display += f" | GPU device {row.get('gpu_device_index','unidentified')} {number('gpu_device_utilization_percent', '%')} | RAM process {number('process_working_set_bytes', ' GiB', 2**30)}"
         display += f" | VRAM device {number('gpu_device_vram_used_bytes', ' GiB', 2**30)}; process unavailable"
-        return dict(enabled=True, display=display, resources=row, interval_seconds=self.sampler.interval)
+        return dict(enabled=True, display=display, resources=row, interval_seconds=self.sampler.interval,**timing)
 
     def close(self):
         self.sampler.close()
@@ -278,12 +327,13 @@ class SessionPerformance:
             final_state=dict(form=r.state_at(r.last_render_time or 0.),sequence=list(r.debug_sequence),outgoing=r.director_current,incoming=r.director_target,recipe=r.director_recipe,progress=r.transition_progress(),layers_sha256=hashlib.sha256(json.dumps(r.layer_profiles,sort_keys=True).encode()).hexdigest(),quality=dict(render_scale=getattr(r.ctx,'scale',1.),adaptive=False,appearance='Authored full quality' if getattr(r.ctx,'scale',1.)==1. else 'Opt-in softer scaled rendering')),
             presentation_by_diagnostics={str(k):v.packet() for k,v in self.by_diagnostics.items()},
             startup=getattr(r,'startup_metrics',{}), presentation_intervals=self.frame.packet(),
+            interval_trace=list(self.interval_trace) if self.interval_trace is not None else None,
             render_CPU_call=self.submit.packet(), swap_call=self.swap.packet(), hitches=list(self.hitches),
             resource_samples_total=samples, resource_history=resources, diagnostics_switches=list(self.switches),
             limits=dict(frame_quantiles='Fixed .1 ms histogram; >=1000 ms overflow bucket, exact maximum/count',
                 resource_history_cap=1800,hitch_history_cap=256,diagnostics_switch_cap=256,
                 process_CPU='Percent of one logical CPU; may exceed 100%',system_CPU='Whole system busy percent',
-                RAM='Process working set bytes; system physical used bytes',VRAM='Whole GPU device 0 MiB converted to bytes; process VRAM unavailable',
+                RAM='Process working set bytes; system physical used bytes',VRAM='Identified rendering device, device-wide MiB converted to bytes; process VRAM unavailable',
                 sampling='Async nominal 1 s; nvidia-smi timeout 2 s; actual timestamps retained',
                 presentation='Intervals between swap returns including caller pacing; not scanout',
                 render_CPU='Python render call, including any implicit driver sync; not GPU draw',

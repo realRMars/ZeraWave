@@ -85,6 +85,8 @@ class PreparedProgram:
 
 
 class PreparedVao:
-    def __init__(self,pool):self.pool=pool
-    def render(self,**kwargs):self.pool.render(**kwargs)
+    def __init__(self,pool):self.pool=pool;self.before_render=None
+    def render(self,**kwargs):
+        if self.before_render is not None:self.before_render()
+        self.pool.render(**kwargs)
     def release(self):pass # Pool owns every program and VAO exactly once.
