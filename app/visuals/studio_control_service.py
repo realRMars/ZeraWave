@@ -234,7 +234,7 @@ def main():
                 with patch('studio.command',lambda values,output:command(values,output)+['--seed',str(seed)]):
                     owner.launch(owner.values(),owner.run_folder())
         elif name=='audio_transport':
-            if owner.process is not None and owner.process.poll() is None and owner.committed_scope and not compatible_scope(owner.committed_scope) and data['op'] in ('source','device','open','play'):
+            if owner.process is not None and owner.process.poll() is None and owner.committed_scope and not compatible_scope(owner.committed_scope) and data['op'] in ('source','device','open','play','raw_waveform','seek','speed'):
                 raise ValueError('Stop the separate legacy Experimental preview before switching audio. Main playback shares the Studio audio owner.')
             owner.audio_owner.submit(data['op'],**data.get('values',{}))
         elif name=='diagnostics':owner.diagnostics.set(bool(data['value']))
@@ -352,6 +352,18 @@ def main():
         try:emit({'snapshot':snapshot()})
         except Exception as exc:failure(type(exc),exc,exc.__traceback__)
         root.after(200,publish)
-    emit({'snapshot':snapshot()});tick();publish();root.mainloop();log.close()
+    analyzer_sent=None
+    def publish_analyzer():
+        nonlocal analyzer_sent
+        if closing:return
+        try:
+            data=owner.audio_owner.analyzer_snapshot();packet=data.get('band_analyzer') or {}
+            identity=(data['generation'],data['playing'],data['status'],data['analyzer_enabled'],data['analyzer_error'],packet.get('sequence'))
+            if identity!=analyzer_sent:
+                emit({'audio_analyzer':data});analyzer_sent=identity
+        except Exception as exc:failure(type(exc),exc,exc.__traceback__)
+        # Lightweight projection only. Other docks/resources keep their cadence.
+        root.after(33,publish_analyzer)
+    emit({'snapshot':snapshot()});tick();publish();publish_analyzer();root.mainloop();log.close()
 
 if __name__=='__main__':main()

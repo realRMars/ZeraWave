@@ -92,7 +92,7 @@ class StudioAudio:
         self.audio_frames+=1;self.audio_at=self.clock() if stamp is None else stamp
         self.audio=dict(legacy={key:float(getattr(frame,key)) for key in ('bass','mids','highs','flux','bass_onset','mids_onset','highs_onset','tempo','beat_confidence')},
             band12=deepcopy(getattr(frame,'band12',None)),descriptors=deepcopy(getattr(frame,'descriptors',None)),frame=self.audio_frames,
-            waveform=deepcopy(getattr(frame,'preview_waveform',None)))
+            waveform=deepcopy(getattr(frame,'preview_waveform',None)),visual_drive=getattr(frame,'visual_drive','Analyzed'),source_levels=deepcopy(getattr(frame,'source_levels',None)),analyzed_levels=deepcopy(getattr(frame,'analyzed_levels',None)))
 
     def prepare(self,seconds):
         r=self.renderer;self.seconds=seconds;self.endpoint=endpoints(r,seconds)
@@ -134,12 +134,13 @@ class StudioAudio:
     def resolve(self,inputs,delta,rewound,mode):
         self.inputs=dict(inputs);self.mode=mode
         transition_active=[0] if self.renderer.state_at(getattr(self,'seconds',0.))==0 else []
-        self.rows=self.model.resolve(self.endpoint['active']+transition_active,inputs,delta,rewound,mode)
+        self.rows=self.model.resolve(self.endpoint['active']+transition_active,inputs,delta,rewound,mode,raw_waveform=getattr(self.renderer,'raw_waveform_drive',False))
         ids=(self.endpoint['active']+[0,0])[:2]
         neutral=[(1.,1.,1.,1.)]*32
         return tuple(ids),self.rows.get(ids[0],neutral),self.rows.get(ids[1],neutral)
 
     def shared_gains(self,suffix):
+        if getattr(self.renderer,'raw_waveform_drive',False):return (1.,)*4
         form=self.endpoint['primary']
         if form==5:return self.renderer.planet_audio_tuning.packed_gains('planet.'+suffix,True)
         return self.model.packed_gains(form,suffix)
@@ -182,19 +183,21 @@ class StudioAudio:
                 row=r.planet_audio_tuning.status(active,self.inputs,self.mode)[target]
                 row['scope_note']=row.pop('scope')
                 gains=r.planet_audio_tuning.packed_gains(target,active)
-                row['submissions']={role['key']:dict(source=role['source'],input=row.get('local_inputs',{}).get(role['source'],self.inputs.get(role['source'],0.)),gain=row['effective'][role['key']],slot=gains[i],consumer='Existing '+target+' role '+role['key'],scope='CPU uniform input; GPU shading has not been read back.') for i,role in enumerate(SPECS[target])}
+                row['submissions']={role['key']:dict(source=role['source'],input=row.get('local_inputs',{}).get(role['source'],self.inputs.get(role['source'],0.)),gain=gains[i] if getattr(r,'raw_waveform_drive',False) else row['effective'][role['key']],slot=gains[i],consumer='Existing '+target+' role '+role['key'],scope='CPU uniform input; GPU shading has not been read back.') for i,role in enumerate(SPECS[target])}
             row.update(scope=Scope(self.run,self.session,5,target,row['revision']).packet(),rendered_wall=self.clock(),available=True)
             rows[target]=row
         rejection=self.rejections.get((self.view_form,target))
         if rejection and target in rows:rows[target].update(rejected_revision=rejection[0],error=rejection[1])
         if target in rows:
             row=rows[target]
+            row['audio_bypassed']=bool(getattr(r,'raw_waveform_drive',False))
+            row['visual_drive']='Raw waveform' if row['audio_bypassed'] else 'Analyzed'
             row['contributing']=row['active'] and self.contributions.get(target,True)
             row['dependency']=self.dependency_notes.get(target,row.get('scope_note',''))
-            row['availability_note']='CPU selection/weight/endpoint eligibility; a contributing target may still have no visible pixels. Shared final-composition history follows the primary endpoint.'
+            row['availability_note']=('Raw waveform: gain/listening edits are parked; current inputs are original PCM RMS/peak. ' if row['audio_bypassed'] else '')+'CPU selection/weight/endpoint eligibility; a contributing target may still have no visible pixels. Shared final-composition history follows the primary endpoint.'
         spectrum=r.star_spectrum.snapshot()
         return dict(version=2,identity=dict(run=self.run,session=self.session),endpoints=deepcopy(self.endpoint),
-            source_mode=self.source_mode,source_identity=self.source_identity,
+            source_mode=self.source_mode,source_identity=self.source_identity,visual_drive='Raw waveform' if getattr(r,'raw_waveform_drive',False) else 'Analyzed',
             editing_form=self.view_form,editing_target=target,pin=self.pin,audio_targets=rows,spectrum=spectrum,
             rendered_wall=self.clock(),seconds=seconds,
             audio=deepcopy(self.audio),audio_age_seconds=None if self.audio_at is None else max(0.,self.clock()-self.audio_at),

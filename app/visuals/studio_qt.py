@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
     QHBoxLayout, QLabel, QPushButton, QComboBox, QTreeWidget, QTreeWidgetItem,
     QScrollArea, QDoubleSpinBox, QDial, QSlider, QMenu, QFileDialog, QColorDialog,
     QPlainTextEdit, QGroupBox, QMessageBox, QSplitter, QGridLayout, QLineEdit, QMenuBar,QProgressBar,
-    QDialog,QDialogButtonBox,QSpinBox,QFormLayout,QSizePolicy)
+    QDialog,QDialogButtonBox,QSpinBox,QFormLayout,QSizePolicy,QToolButton)
 import PySide6QtAds as ads
 from studio_control_client import ControlClient,OwnerView
 ROOT=Path(__file__).resolve().parents[2]
@@ -56,14 +56,11 @@ ads--CDockSplitter::handle { background:#080e12; }
 '''
 
 
-class Switch(QPushButton):
-    def __init__(self, label, callback):
-        super().__init__();self.label=label;self.setCheckable(True)
-        self.setAccessibleName(label);self.toggled.connect(self.caption)
-        self.clicked.connect(callback);self.caption(False)
-    def caption(self,value):self.setText(self.label+'   '+('ON' if value else 'OFF'))
-    def sync(self,value):
-        self.blockSignals(True);self.setChecked(bool(value));self.caption(value);self.blockSignals(False)
+from studio_audio_widgets import TwoWaySwitch,Waveform,icon_button
+from studio_band_analyzer import BandAnalyzer
+
+class Switch(TwoWaySwitch):
+    def __init__(self,label,callback):super().__init__(label,('Off','On'),callback)
 
 
 class Numeric(QWidget):
@@ -114,30 +111,6 @@ class Numeric(QWidget):
         for widget in (self.spin,self.dial,self.slider):widget.blockSignals(False)
 
 
-class Analyzer(QWidget):
-    def __init__(self):
-        super().__init__();self.setMinimumSize(280,130);self.packet=None;self.style='Bars';self.setToolTip('12 measured frequency bands; lower edges labeled in Hz (k = 1000 Hz).')
-    def paintEvent(self,event):
-        painter=QPainter(self);painter.fillRect(self.rect(),QColor('#0b141a'))
-        p,stamp=self.packet if self.packet else ({},0)
-        bands=(p.get('audio') or {}).get('band12') or {}
-        age=p.get('audio_age_seconds')
-        valid=time.perf_counter()-stamp<1.5 and isinstance(age,(int,float)) and age<1.5 and len(bands.get('levels',[]))==12 and len(bands.get('edges',[]))==13
-        painter.setPen(QColor('#91a8b4'))
-        if not valid:painter.drawText(self.rect(),Qt.AlignCenter,'12 measured bands • unavailable / stale');return
-        w=self.width()/12;h=self.height()-42;points=[]
-        for i,value in enumerate(bands['levels']):
-            x=i*w+w*.15;y=h-max(0,min(1,value))*(h-14)
-            gradient=QLinearGradient(0,y,0,h);gradient.setColorAt(0,QColor('#dfa978'));gradient.setColorAt(.15,QColor('#4ac5df'));gradient.setColorAt(1,QColor('#075071'))
-            if self.style=='Bars':painter.fillRect(int(x),int(y),max(1,int(w*.7)),max(1,int(h-y)),gradient)
-            points.append((int((i+.5)*w),int(y)))
-            edge=bands['edges'][i];label=f'{edge/1000:g}k' if edge>=1000 else f'{edge:g}'
-            painter.setPen(QColor('#91a8b4'));painter.drawText(int(i*w),int(h+3+(i%2)*17),int(w),17,Qt.AlignCenter,label)
-        if self.style=='Band trace':
-            painter.setPen(QColor('#51cee1'))
-            for a,b in zip(points,points[1:]):painter.drawLine(*a,*b)
-
-
 class MappingMeters(QWidget):
     """Real CPU submission fields; gain is not inferred GPU output."""
     def __init__(self):
@@ -146,7 +119,7 @@ class MappingMeters(QWidget):
         self.packet=packet;self.scope=scope;self.current=current;self.update()
     def paintEvent(self,event):
         p=QPainter(self);p.fillRect(self.rect(),QColor('#0b1218'));p.setPen(QColor('#9bb2bc'))
-        p.drawText(8,18,self.scope);p.drawText(8,36,'Input 0–1   |   Applied CPU gain ×')
+        p.drawText(8,18,self.scope);p.drawText(8,36,'Raw RMS/peak | Gain ×1 (bypassed)' if self.packet.get('audio_bypassed') else 'Analyzed 0–1 | Applied CPU gain ×')
         if not self.current:p.drawText(8,59,'Unavailable / stale');return
         rows=list((self.packet.get('submissions') or {}).items())[:6]
         if not rows:p.drawText(8,59,self.packet.get('availability_note') or 'No submission for this target');return
@@ -158,40 +131,6 @@ class MappingMeters(QWidget):
                 p.fillRect(x,y-10,int(w*max(0,min(1,value))),8,QColor('#4dbbce'))
                 p.drawText(x+w+5,y,f'{value:.2f}')
             p.setPen(QColor('#edbd94'));p.drawText(max(165,self.width()-55),y,f'{gain:.2f} ×' if isinstance(gain,(int,float)) else '—')
-
-
-class Waveform(QWidget):
-    def __init__(self):
-        super().__init__();self.setMinimumSize(200,100);self.peaks=[];self.key=None;self.future=None
-        self.cancel=threading.Event();self.pool=ThreadPoolExecutor(max_workers=1);self.caption='No current PCM waveform'
-        self.live=deque(maxlen=192);self.frame=None
-    def refresh(self,source,path,latest):
-        if self.future and self.future.done():
-            try:
-                result=self.future.result()
-                if result and self.key==result['path']:self.peaks=result['peaks'];self.caption=Path(result['path']).name+' • decoded PCM envelope'
-            except Exception as exc:self.caption='PCM unavailable: '+str(exc)
-            self.future=None
-        if source=='Test track':
-            key=str(Path(path).resolve()) if path else None
-            if key!=self.key:
-                self.key=key;self.peaks=[]
-                if key and self.future is None:
-                    from studio_meters import envelope
-                    self.future=self.pool.submit(envelope,Path(key),self.cancel)
-        elif source=='Live system audio':
-            self.key=None;p,stamp=latest if latest else ({},0);a=p.get('audio') or {}
-            if time.perf_counter()-stamp<1.5 and a.get('frame')!=self.frame and isinstance(a.get('waveform'),list):
-                self.live.extend(a['waveform']);self.frame=a['frame']
-            self.peaks=list(self.live) if time.perf_counter()-stamp<1.5 else [];self.caption='Live PCM snapshots • gaps between snapshots'
-        else:self.key=None;self.peaks=[];self.caption='Waveform unavailable • synthetic source'
-        self.update()
-    def paintEvent(self,event):
-        p=QPainter(self);p.fillRect(self.rect(),QColor('#0b141a'));p.setPen(QColor('#8ea8b6'));p.drawText(8,20,self.caption)
-        p.setPen(QColor('#4cbad0'));h=self.height()-30
-        for i,peak in enumerate(self.peaks):
-            x=int(i*self.width()/max(1,len(self.peaks)-1));p.drawLine(x,int(30+h/2-peak[1]*h/2),x,int(30+h/2-peak[0]*h/2))
-    def close_pool(self):self.cancel.set();self.pool.shutdown(wait=True,cancel_futures=True)
 
 
 class Shell(QMainWindow):
@@ -262,6 +201,7 @@ class Shell(QMainWindow):
         self.build();self.menus();self.balance();self.default=QByteArray(self.manager.saveState())
         self.restore();QTimer.singleShot(200,self.settle_default)
         self.timer=QTimer(self);self.timer.timeout.connect(self.poll);self.timer.start(200)
+        self.analyzer_timer=QTimer(self);self.analyzer_timer.timeout.connect(self.poll_analyzer);self.analyzer_timer.start(33)
         self.saved_art=json.dumps(self.owner.values(),sort_keys=True)
         QApplication.instance().applicationStateChanged.connect(lambda state:self.owner.release_preview_holds() if state!=Qt.ApplicationActive else None)
         QApplication.instance().focusChanged.connect(lambda old,new:self.owner.release_preview_holds() if not self.closing else None)
@@ -370,10 +310,9 @@ class Shell(QMainWindow):
         mode=QComboBox();mode.addItems(['Normal','Instant']);mode.currentTextChanged.connect(lambda v:self.owner.bonk_mode.set(v));extras.addWidget(mode)
         self.transport_status=QLabel();self.transport_status.setWordWrap(True);tr.addWidget(self.transport_status)
         bottom=self.dock('transport','Transport',transport,ads.BottomDockWidgetArea,center)
-        analyzer,al=self.body();style=QComboBox();style.addItems(['Bars','Band trace']);al.addWidget(style)
-        self.analyzer=Analyzer();al.addWidget(self.analyzer,1);style.currentTextChanged.connect(lambda v:setattr(self.analyzer,'style',v))
-        self.dock('analyzer','12-band analyzer',analyzer,ads.RightDockWidgetArea,bottom)
-        waveform,wl=self.body();self.create_audio_hub(wl);self.waveform=Waveform();wl.addWidget(self.waveform)
+        analyzer,al=self.body();self.analyzer=BandAnalyzer();al.addWidget(self.analyzer,1);self.analyzer_requested=None
+        self.dock('analyzer','Band Analyzer',analyzer,ads.RightDockWidgetArea,bottom)
+        waveform,wl=self.body();self.create_audio_hub(wl);self.waveform=Waveform();self.waveform.seekRequested.connect(lambda seconds,revision,identity:self.audio_action('seek',seconds=seconds,file_revision=revision,seek_id=identity));wl.addWidget(self.waveform)
         self.dock('waveform','Session waveform',waveform,ads.CenterDockWidgetArea,bottom)
         self.panels['transport'].setAsCurrentTab()
         diagnostics,dl=self.body();self.logs=QPlainTextEdit();self.logs.setReadOnly(True);dl.addWidget(self.logs)
@@ -532,22 +471,45 @@ class Shell(QMainWindow):
         path,_=QFileDialog.getOpenFileName(self,'Import audio',str(ROOT),'Audio files (*.wav *.mp3)')
         if path:self.audio_action('open',path=path)
     def create_audio_hub(self,layout):
-        self.hub_source=QComboBox();self.hub_source.addItems(['Device Listening','Audio File']);layout.addWidget(self.hub_source)
+        self.hub_source=TwoWaySwitch('Audio source',('Device Listening','Audio File'));layout.addWidget(self.hub_source)
         self.hub_source.currentTextChanged.connect(lambda v:self.audio_action('source',value=v))
         self.hub_device=QComboBox();self.hub_device.setMinimumContentsLength(12)
         self.hub_device.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon);layout.addWidget(self.hub_device)
         self.hub_device.setToolTip('Exact output-device loopback or explicit microphone. Analysis only; captured input is never replayed.')
         self.hub_device.activated.connect(lambda i:self.audio_action('device',value=self.hub_device.itemData(i)) if self.hub_device.itemData(i) else None)
-        self.hub_refresh=self.button(layout,'Refresh listening devices',lambda:self.audio_action('refresh'))
-        self.file_controls=QWidget();grid=QGridLayout(self.file_controls);grid.setContentsMargins(0,0,0,0);layout.addWidget(self.file_controls)
-        for i,(text,op) in enumerate((('Open…','open'),('Play','play'),('Pause','pause'),('Stop','stop'),('Repeat','repeat'),('Mute','mute'))):
-            button=QPushButton(text);grid.addWidget(button,i//3,i%3)
-            if op in ('repeat','mute'):
-                button.setCheckable(True);button.clicked.connect(lambda checked,o=op:self.audio_action(o,value=checked));setattr(self,'hub_'+op,button)
-            else:button.clicked.connect(lambda checked=False,o=op:self.import_audio() if o=='open' else self.audio_action(o))
-            if op=='mute':button.setToolTip('Mute file output only. Analysis continues from the unmodified decoded PCM.')
+        self.hub_refresh=icon_button('refresh','Refresh listening devices',lambda:self.audio_action('refresh'));layout.addWidget(self.hub_refresh)
+        self.file_controls=QWidget();controls=QVBoxLayout(self.file_controls);controls.setContentsMargins(0,0,0,0);controls.setSpacing(5);layout.addWidget(self.file_controls)
+        transport=QHBoxLayout();transport.setSpacing(5);controls.addLayout(transport)
+        self.audio_buttons={}
+        for kind,description in (('open','Open audio file'),('reverse','Rewind at selected scan rate (audible)'),('play','Play at normal speed'),('pause','Pause audio'),('stop','Stop and return to start'),('forward','Fast forward at selected scan rate (audible)')):
+            button=icon_button(kind,description,lambda checked=False,o=kind:self.import_audio() if o=='open' else self.scan_audio(-1 if o=='reverse' else 1) if o in ('reverse','forward') else self.audio_action(o))
+            transport.addWidget(button);self.audio_buttons[kind]=button
+        transport.addStretch(1);transport.addWidget(QLabel('Scan'))
+        self.hub_rate=QComboBox();self.hub_rate.addItems(['2×','4×','6×','12×']);self.hub_rate.setFixedWidth(68)
+        self.hub_rate.setAccessibleName('Forward / rewind scan rate');self.hub_rate.setToolTip('Audible forward/reverse speed. Pitch changes with rate; Play returns to normal 1×.')
+        self.hub_rate.currentIndexChanged.connect(self.scan_rate_changed);transport.addWidget(self.hub_rate)
+        modes=QHBoxLayout();controls.addLayout(modes)
+        self.hub_repeat=TwoWaySwitch('Repeat',('Once','Loop'),lambda v:self.audio_action('repeat',value=v));modes.addWidget(self.hub_repeat)
+        self.hub_mute=TwoWaySwitch('Output',('Sound','Muted'),lambda v:self.audio_action('mute',value=v));modes.addWidget(self.hub_mute)
+        self.hub_mute.setToolTip('Mute file output only. Analysis and visual input continue.')
+        volume_row=QHBoxLayout();volume_row.addWidget(QLabel('Output volume'));controls.addLayout(volume_row)
+        self.hub_volume=QSlider(Qt.Horizontal);self.hub_volume.setRange(0,100);self.hub_volume.setValue(100)
+        self.hub_volume.setAccessibleName('File output volume');self.hub_volume.setToolTip('0–100% file output only. 100% is unity gain. Analysis and visual input are unaffected.')
+        self.hub_volume_label=QLabel('100%');volume_row.addWidget(self.hub_volume,1);volume_row.addWidget(self.hub_volume_label)
+        self.volume_timer=QTimer(self);self.volume_timer.setSingleShot(True);self.volume_timer.setInterval(100)
+        self.volume_expected=None;self.volume_timer.timeout.connect(self.send_volume)
+        self.hub_volume.valueChanged.connect(lambda v:(self.hub_volume_label.setText(f'{v}%'),self.volume_timer.start()))
+        self.hub_raw=TwoWaySwitch('Visual drive',('Analyzed','Raw waveform'),lambda v:self.audio_action('raw_waveform',value=v));layout.addWidget(self.hub_raw)
+        self.hub_raw.setToolTip('Analyzed: musical levels with saved tuning. Raw waveform: PCM RMS/peak before output gain; bypasses normalization and visual audio tuning. Shared audio previews only.')
         self.hub_status=QLabel('Audio owner warming up');self.hub_status.setWordWrap(True);layout.addWidget(self.hub_status)
         self.audio_device_identity=None
+    def scan_audio(self,direction):
+        hub=self.client.snapshot.get('audio_hub',{})
+        self.audio_action('speed',value=direction*(2,4,6,12)[self.hub_rate.currentIndex()],play=True,file_revision=hub.get('file_revision',0))
+    def scan_rate_changed(self,index):
+        hub=self.client.snapshot.get('audio_hub',{});speed=hub.get('speed',1.)
+        if abs(speed)!=1. and hub.get('mode')=='Audio File':
+            self.audio_action('speed',value=(-1 if speed<0 else 1)*(2,4,6,12)[index],file_revision=hub.get('file_revision',0))
     def create_audio_menu(self):
         self.audio_menu=QMenu('Audio',self);self.audio_source_group=QActionGroup(self);self.audio_source_group.setExclusive(True)
         self.audio_source_actions={}
@@ -558,7 +520,12 @@ class Shell(QMainWindow):
         self.audio_device_group=QActionGroup(self.audio_devices_menu);self.audio_device_group.setExclusive(True)
         self.audio_menu.addAction('Refresh listening devices',lambda:self.audio_action('refresh'))
         self.audio_menu.addSeparator();self.audio_menu.addAction('Import audio…',self.import_audio)
+        self.audio_raw_action=QAction('Raw waveform drives visuals',self);self.audio_raw_action.setCheckable(True);self.audio_raw_action.triggered.connect(lambda v:self.audio_action('raw_waveform',value=v));self.audio_menu.addAction(self.audio_raw_action)
         self.audio_menu.aboutToShow.connect(self.sync_audio_hub)
+    def send_volume(self):
+        value=self.hub_volume.value()/100.
+        self.volume_expected=(value,time.perf_counter()+2.)
+        self.audio_action('volume',value=value)
     def sync_audio_hub(self):
         hub=self.client.snapshot.get('audio_hub',{})
         if not hub:return
@@ -567,7 +534,19 @@ class Shell(QMainWindow):
             combo.blockSignals(True);combo.setCurrentText(mode);combo.blockSignals(False)
         self.file_controls.setVisible(file);self.hub_device.setVisible(not file);self.hub_refresh.setVisible(not file)
         for op in ('mute','repeat'):
-            button=getattr(self,'hub_'+op);button.blockSignals(True);button.setChecked(hub[op]);button.blockSignals(False)
+            getattr(self,'hub_'+op).sync(hub[op])
+        speed=hub.get('speed',1.)
+        if abs(speed) in (2,4,6,12):
+            self.hub_rate.blockSignals(True);self.hub_rate.setCurrentIndex((2,4,6,12).index(abs(speed)));self.hub_rate.blockSignals(False)
+        for kind,button in self.audio_buttons.items():
+            if kind!='open':button.setEnabled(file and bool(hub.get('path')) and hub.get('status')!='Release unconfirmed')
+            active=file and ((kind=='play' and hub['playing'] and speed==1.) or (kind=='forward' and hub['playing'] and speed>1.) or (kind=='reverse' and hub['playing'] and speed<0.) or (kind=='pause' and hub['status']=='Paused') or (kind=='stop' and hub['status']=='Stopped'))
+            if button.property('active')!=active:
+                button.setProperty('active',active);button.style().unpolish(button);button.style().polish(button)
+        self.hub_raw.sync(hub.get('raw_waveform',False));self.audio_raw_action.setChecked(hub.get('raw_waveform',False))
+        if self.volume_expected and (hub.get('volume',1.)==self.volume_expected[0] or time.perf_counter()>self.volume_expected[1]):self.volume_expected=None
+        if not self.hub_volume.isSliderDown() and not self.volume_timer.isActive() and self.volume_expected is None:
+            self.hub_volume.blockSignals(True);self.hub_volume.setValue(round(hub.get('volume',1.)*100));self.hub_volume.blockSignals(False);self.hub_volume_label.setText(f"{round(hub.get('volume',1.)*100)}%")
         devices=hub['devices'];identity=json.dumps([devices,hub['device']],sort_keys=True)
         if identity!=self.audio_device_identity:
             self.audio_device_identity=identity;self.hub_device.blockSignals(True);self.hub_device.clear()
@@ -581,18 +560,21 @@ class Shell(QMainWindow):
             self.hub_device.blockSignals(False)
         for value,action in self.audio_source_actions.items():action.setChecked(value==mode)
         self.audio_devices_menu.setEnabled(not file)
-        status=hub['status']+' • '+f"{hub['playhead']:.1f}s"
-        if hub.get('duration') is not None and file:status+=' / '+f"{hub['duration']:.1f}s"
+        status=hub['status']
+        if file:status+=' • '+('Reverse ' if speed<0 else '')+f'{abs(speed):g}×'
         if hub.get('pending'):status+=' • applying'
         if hub.get('error'):status+=' • '+hub['error']
         if hub.get('device_error') and not file:status+=' • devices: '+hub['device_error']
+        status+=' • '+('Raw waveform' if hub.get('raw_waveform') else 'Analyzed')+' drives visuals'
+        if not hub['stale'] and hub.get('rms') is not None:
+            import math
+            status+=f"\nPCM RMS {20*math.log10(max(hub['rms'],1e-12)):.1f} dBFS • Peak {20*math.log10(max(hub.get('peak') or 0.,1e-12)):.1f} dBFS"
+            if file and hub.get('output_rms') is not None:status+=f" • Output {20*math.log10(max(hub['output_rms'],1e-12)):.1f} dBFS"
+            if hub.get('output_clipped'):status+=' • output clipping'
+            if hub.get('source_clipped'):status+=' • source over full scale'
         self.hub_status.setText(status);self.track.setText(hub['path'] or 'No audio file selected')
-        self.hub_status.setToolTip('Audio playhead counts submitted decoded/captured PCM, not measured speaker latency. File output uses a modest fixed gain; mute leaves analysis unchanged. No seeking.')
-        if self.waveform.isVisible():
-            self.waveform.peaks=hub['waveform'] if not hub['stale'] else []
-            self.waveform.caption=('File PCM' if file else 'Captured PCM')+' • recent amplitude envelope'
-            if hub['stale']:self.waveform.caption+=' • no fresh PCM'
-            self.waveform.update()
+        self.hub_status.setToolTip('Audio playhead counts submitted decoded/captured PCM, not measured speaker latency. Output volume/mute affect playback only; PCM/analyzer levels are pre-output digital RMS/peak. dBFS0 is full scale; silence reads -240dBFS. Raw mode bypasses visual audio tuning without changing saved values. Seek resets queued PCM events; visual clocks stay independent. Audible scan changes pitch.')
+        self.waveform.refresh(hub)
     def open_session(self):
         path,_=QFileDialog.getOpenFileName(self,'Open artistic session',str(ROOT/'work/studio'),'Session (*.json)')
         if path:
@@ -673,7 +655,7 @@ class Shell(QMainWindow):
             if not widget.spin.hasFocus() and not widget.dial.isSliderDown() and not widget.slider.isSliderDown():widget.sync()
         self.save_authored.setText('Save Authored');self.save_authored.setToolTip(self.view.author_button.cget('text'));self.save_authored.setEnabled(str(self.view.author_button.cget('state'))!='disabled')
         path=Path(self.view.data['authored_path']);self.save_destination.setText('Authored file destination \u2022 hover for full path');self.save_destination.setToolTip(str(path));self.save_destination.setAccessibleName(str(path))
-        self.audio_status.setText(self.view.status.get());self.audio_status.setToolTip(self.view.target_info.get())
+        self.audio_status.setText(self.view.status.get()+(' • Raw waveform: tuning parked' if self.client.snapshot.get('audio_hub',{}).get('raw_waveform') else ''));self.audio_status.setToolTip(self.view.target_info.get())
     def range_edit(self,name,value):self.safe(lambda:self.view.range_vars[name].set(value))
     def poll(self):
         if self.closing:return
@@ -735,8 +717,6 @@ class Shell(QMainWindow):
                 if phase.get('run')==run and not self.cancel_attach:
                     labels={'context':'Creating graphics context','compiling':'Compiling shaders','resources':'Preparing graphics resources','attaching':'Attaching preview','ready':'Preparing first presentation'}
                     self.progress_title.setText(labels.get(phase.get('phase'),'Starting preview')+f" • {phase.get('seconds',0.):.1f} s reported")
-            self.analyzer.packet=latest
-            if self.analyzer.isVisible():self.analyzer.update()
             values=self.owner.running_values if running else self.owner.values()
             shown=self.form_names.get(self.owner.preview_state.get('current_form'),self.client.snapshot['active_title'])
             self.title.setText(shown+' • '+self.client.snapshot.get('audio_hub',{}).get('mode',values['source']))
@@ -792,12 +772,19 @@ class Shell(QMainWindow):
         if not self.layout_path.exists():return
         try:
             data=json.loads(self.layout_path.read_text(encoding='utf8'));self.preferences=data.get('controls',{})
+            self.analyzer.restore_configuration(self.preferences.get('band_analyzer'))
             self.manager.restoreState(QByteArray(base64.b64decode(data['docks'])))
             self.restoreGeometry(QByteArray(base64.b64decode(data['geometry'])));self.recover()
         except Exception as exc:self.error(exc)
+    def poll_analyzer(self):
+        if self.closing or not self.client:return
+        visible=self.analyzer.isVisible()
+        if visible!=self.analyzer_requested:
+            self.audio_action('analyzer',value=visible);self.analyzer_requested=visible
+        if visible:self.analyzer.refresh(self.client.latest_analyzer())
     def save_layout(self):
         self.layout_path.parent.mkdir(parents=True,exist_ok=True)
-        data={'version':1,'docks':bytes(self.manager.saveState()).hex(),'geometry':bytes(self.saveGeometry()).hex(),'controls':self.preferences}
+        data={'version':1,'docks':bytes(self.manager.saveState()).hex(),'geometry':bytes(self.saveGeometry()).hex(),'controls':dict(self.preferences,band_analyzer=self.analyzer.configuration())}
         # Base64 is used so QByteArray round trips without text encoding changes.
         data['docks']=base64.b64encode(bytes(self.manager.saveState())).decode();data['geometry']=base64.b64encode(bytes(self.saveGeometry())).decode()
         self.layout_path.write_text(json.dumps(data,indent=2),encoding='utf8')
@@ -880,6 +867,7 @@ class Shell(QMainWindow):
         focus=QApplication.focusWidget()
         if isinstance(focus,(QLineEdit,QDoubleSpinBox,QSpinBox,QPlainTextEdit)):
             self.safe(self.owner.release_preview_holds);return False
+        if isinstance(focus,QToolButton) and event.key() in (Qt.Key_Space,Qt.Key_Return,Qt.Key_Enter) and not event.modifiers() & (Qt.ControlModifier|Qt.AltModifier|Qt.ShiftModifier):return False
         audio_focus=(hasattr(self,'file_controls') and self.file_controls.isAncestorOf(focus)) if focus is not None else False
         audio_focus=audio_focus or focus in (getattr(self,'hub_source',None),getattr(self,'hub_device',None),getattr(self,'source',None),getattr(self,'hub_refresh',None))
         if audio_focus and event.key() in (Qt.Key_Space,Qt.Key_Return,Qt.Key_Enter) and not event.modifiers() & (Qt.ControlModifier|Qt.AltModifier|Qt.ShiftModifier):return False
@@ -910,7 +898,7 @@ class Shell(QMainWindow):
             if answer==QMessageBox.Save:
                 self.safe(self.save_session)
                 if json.dumps(self.owner.values(),sort_keys=True)!=self.saved_art or self.client.snapshot.get('tuning_dirty'):event.ignore();return
-        self.closing=True;self.timer.stop()
+        self.closing=True;self.timer.stop();self.analyzer_timer.stop()
         try:
             try:self.save_layout()
             except OSError as exc:print('Layout was not saved:',exc,file=sys.stderr)

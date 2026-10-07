@@ -93,8 +93,9 @@ class ArtifactsAudioTuning:
             self.pending=(revision,c,a)
         return True
 
-    def resolve(self,active,inputs=None,delta=0.,rewound=False):
+    def resolve(self,active,inputs=None,delta=0.,rewound=False,raw_waveform=False):
         with self.lock:
+            self.raw_waveform=raw_waveform
             if rewound:self.listening_state.reset_impact()
             if self.pending is not None:
                 self.revision,self.settings,authored=self.pending;self.pending=None
@@ -102,16 +103,18 @@ class ArtifactsAudioTuning:
                 self.applied_wall=self.clock()
             c=self.settings if self.settings['enabled'] else self.authored
             self.selected,_=self.listening_state.select(c,WINDOWS,inputs or {},active,delta)
-            gains=tuple(c[key] for key in LEGACY_BASELINE if key!='enabled') if active else (1.,1.,1.)
-            on=active and any(c[key]!=1. for key in GAIN_KEYS)
+            if raw_waveform:self.selected=dict(inputs or {})
+            gains=tuple(c[key] for key in LEGACY_BASELINE if key!='enabled') if active and not raw_waveform else (1.,1.,1.)
+            on=active and not raw_waveform and any(c[key]!=1. for key in GAIN_KEYS)
         return int(on),gains
 
     def shape_gains(self,active):
         with self.lock:
             c=self.settings if self.settings['enabled'] else self.authored
-            return tuple(c[key] for key in ('bass_cells','bass_radial','sparkle_presence')) if active else (1.,1.,1.)
+            return tuple(c[key] for key in ('bass_cells','bass_radial','sparkle_presence')) if active and not getattr(self,'raw_waveform',False) else (1.,1.,1.)
 
     def _listening(self,c,active):
+        if getattr(self,'raw_waveform',False):return (0,0,0,0),(0.,0.,0.,0.),self.listening_state.details(c,WINDOWS,active)
         flags=[];values=[]
         details=self.listening_state.details(c,WINDOWS,active)
         for name,row in details.items():
@@ -128,11 +131,11 @@ class ArtifactsAudioTuning:
     def status(self,active,inputs,render_seconds,input_present=False,bass=0.):
         with self.lock:
             c=self.settings if self.settings['enabled'] else self.authored
-            gains=tuple(c[key] for key in LEGACY_BASELINE if key!='enabled') if active else (1.,1.,1.)
+            gains=tuple(c[key] for key in LEGACY_BASELINE if key!='enabled') if active and not getattr(self,'raw_waveform',False) else (1.,1.,1.)
             flags,values,details=self._listening(c,active)
             selected=(values[0] if flags[0] else inputs[0],values[3] if flags[3] else inputs[1],values[1] if flags[1] else inputs[2])
             local=mapped_inputs(selected,gains)
-            shape=tuple(c[key] if active else 1. for key in ('bass_cells','bass_radial','sparkle_presence'))
+            shape=tuple(c[key] if active and not getattr(self,'raw_waveform',False) else 1. for key in ('bass_cells','bass_radial','sparkle_presence'))
             presence=max(0.,min(1.,selected[2]*shape[2]));reveal=max(0.,min(1.,(presence-.65)/.35))
             selected_bass=values[2] if flags[2] else bass
             return dict(target=TARGET,version=2,active=bool(active),revision=self.revision,
@@ -144,8 +147,8 @@ class ArtifactsAudioTuning:
                     cell_scale_increment=max(0.,min(1.,selected_bass*shape[0]))*1.6,
                     radial_displacement=max(0.,min(1.,selected_bass*selected_bass*shape[1]))*.25,
                     presence_reveal=reveal*reveal*(3.-2.*reveal)),
-                gains=list(gains),shape_gains=[c[key] if active else 1. for key in ('bass_cells','bass_radial','sparkle_presence')],
-                uniform_on=int(active and any(c[key]!=1. for key in GAIN_KEYS)),render_seconds=render_seconds,
+                gains=list(gains),shape_gains=list(shape),
+                uniform_on=int(active and not getattr(self,'raw_waveform',False) and any(c[key]!=1. for key in GAIN_KEYS)),render_seconds=render_seconds,
                 rendered_wall=self.clock(),applied_wall=self.applied_wall,input_present=bool(input_present))
 
 

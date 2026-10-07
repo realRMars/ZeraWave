@@ -937,7 +937,8 @@ class Renderer:
         if rewound or not self.planet_dsp_eligible():
             self.reset_planet_dsp()
             return base
-        return self.planet_dsp.apply(base) if self.planet_dsp is not None else base
+        mapped=self.planet_dsp.apply(base) if self.planet_dsp is not None else base
+        return base if getattr(self,'raw_waveform_drive',False) else mapped
 
     def planet_star_attack_eligible(self):
         if not self.planet_star_attack_pilot:
@@ -968,7 +969,8 @@ class Renderer:
             return (0.,self.star_time,0.)
         if self.planet_star_flight is None:
             return (0.,self.star_time,0.)
-        return self.planet_star_flight.advance(delta_time,getattr(self,'_planet_star_time',self.star_time),rewound)
+        motion=self.planet_star_flight.advance(delta_time,getattr(self,'_planet_star_time',self.star_time),rewound)
+        return (0.,getattr(self,'_planet_star_time',self.star_time),0.) if getattr(self,'raw_waveform_drive',False) else motion
 
     def render(self, elapsed_time=None):
         if self.window is None:
@@ -1033,6 +1035,9 @@ class Renderer:
             if not self.planet_star_attack_eligible():tuning.apply_without_detector()
             from band_attack_tuning import effective
             with tuning.lock:star_settings=dict(effective(tuning.settings,tuning.authored))
+            if getattr(self,'raw_waveform_drive',False):
+                from band_attack_tuning import PRESENTATION_BOUNDS
+                star_settings.update({key:1. for key in PRESENTATION_BOUNDS})
         from planet_audio_tuning import UNIFORM_ROWS
         audio_inputs=dict(bass=self.parameters.scale,movement=self.parameters.movement,flux=self.parameters.flux,
                           sparkle=self.parameters.sparkle,impact=self.impact_envelope,raw_impact=self.parameters.impact)
@@ -1044,7 +1049,7 @@ class Renderer:
             self.program['u_audio_primary'].value=studio_audio.endpoint['primary'] or 0
             self.program['u_transition_audio'].value=(self.audio_input(0,'tr_warp','bass',self.parameters.scale),self.audio_input(0,'tr_warp','flux',self.parameters.flux),1.,0.)
             self.program['u_form_audio_a'].value=rows_a[:getattr(self.program['u_form_audio_a'],'array_length',32)];self.program['u_form_audio_b'].value=rows_b[:getattr(self.program['u_form_audio_b'],'array_length',32)]
-        planet_audio_on,planet_audio_rows=planet_tuning.resolve(planet_active,star_settings,audio_inputs,delta_time,audio_mode,rewound) if planet_tuning is not None else (0,[(1.,1.,1.,1.)]*UNIFORM_ROWS)
+        planet_audio_on,planet_audio_rows=planet_tuning.resolve(planet_active,star_settings,audio_inputs,delta_time,audio_mode,rewound,raw_waveform=getattr(self,'raw_waveform_drive',False)) if planet_tuning is not None else (0,[(1.,1.,1.,1.)]*UNIFORM_ROWS)
         self.audio_uniform_contract.upload(self,ids,rows_a,rows_b,planet_audio_on,planet_audio_rows)
         flow_local=planet_tuning.local_sources('planet.surface_response',audio_inputs) if planet_tuning is not None else audio_inputs
         star_local=planet_tuning.local_sources('planet.starfield',audio_inputs) if planet_tuning is not None else audio_inputs
@@ -1213,7 +1218,7 @@ class Renderer:
         artifact_active=held_planet(True,self.debug_state,self.debug_sequence,
             self.transition_sequence,self.transition_settings)
         if studio_audio is not None:artifact_active=planet_active
-        artifact_on,artifact_gains=artifact.resolve(artifact_active,audio_inputs,delta_time,rewound) if artifact is not None else (0,(1.,1.,1.))
+        artifact_on,artifact_gains=artifact.resolve(artifact_active,audio_inputs,delta_time,rewound,raw_waveform=getattr(self,'raw_waveform_drive',False)) if artifact is not None else (0,(1.,1.,1.))
         self.program['u_artifacts_tuning_on'].value=artifact_on
         self.program['u_artifacts_audio'].value=artifact_gains
         self.program['u_artifacts_shape_audio'].value=artifact.shape_gains(artifact_active) if artifact is not None else (1.,1.,1.)

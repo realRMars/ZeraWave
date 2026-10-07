@@ -37,6 +37,7 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors,
     """Shared live/replay analysis; detect events before visual slew limiting."""
     if descriptors:
         descriptor_snapshot = analyzer.describe_samples(samples, 48000, source_id).to_dict()
+    display_samples=samples
     if samples.ndim > 1:
         samples = samples.mean(axis=1)
 
@@ -138,6 +139,10 @@ def analyze_samples(samples, analyzer, processor, conditioner, detectors,
     for key, value in analyzer.beat_tracker.update_flux(flux_raw, len(samples)/48000., frame.energy).items():
         setattr(frame, key, value)
     frame.band12 = analyzer.frequency_bands.summarize(frequencies, magnitudes, len(samples))
+    if not hasattr(analyzer,'_band_display'):
+        from band_display import BandDisplay
+        analyzer._band_display=BandDisplay()
+    frame.band12['display']=analyzer._band_display.summarize(display_samples)
     frame.spectrum_frequencies = frequencies
     frame.spectrum_magnitudes = magnitudes
     listening=getattr(analyzer,'_artifact_listening',None)
@@ -247,6 +252,7 @@ def main(state="blend", states=None, layers=None, device=None, quiet=False, pale
             for stamp,(samples,frame) in incoming:
                 if hub_environment and getattr(frame,'audio_source',None):
                     source=frame.audio_source
+                    renderer.raw_waveform_drive=bool(source.get('raw_waveform',False))
                     if getattr(renderer,'studio_audio',None) is not None:
                         renderer.studio_audio.source_mode=source['mode']
                         renderer.studio_audio.source_identity=source['path'] if source['mode']=='Audio File' else json.dumps(source['device'],sort_keys=True)

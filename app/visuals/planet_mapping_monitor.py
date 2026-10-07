@@ -72,6 +72,7 @@ class PlanetMonitor:
                   ('bass', 'mids', 'highs', 'flux', 'bass_onset', 'mids_onset',
                    'highs_onset', 'tempo', 'beat_confidence')}
         bands = getattr(frame, 'band12', None)
+        band_display=deepcopy(bands.get('display')) if isinstance(bands,dict) else None
         bands = ({k:list(bands[k])[:13] for k in ('edges', 'levels', 'unresolved')}
                  if isinstance(bands, dict) else None)
         descriptors = getattr(frame, 'descriptors', None)
@@ -82,7 +83,7 @@ class PlanetMonitor:
         attack = ({k:attack.get(k) for k in ('sample_seconds', 'bass_attack', 'low_band_level')}
                   if isinstance(attack, dict) else None)
         measured=(attack or {}).get('sample_seconds', (descriptors or {}).get('analyzed_seconds'))
-        self.audio = dict(legacy=legacy, bands=bands, descriptors=descriptors, attack=attack,
+        self.audio = dict(band_display=band_display,visual_drive=getattr(frame,'visual_drive','Analyzed'),source_levels=getattr(frame,'source_levels',None),analyzed_levels=getattr(frame,'analyzed_levels',None),legacy=legacy, bands=bands, descriptors=descriptors, attack=attack,
                           frame=self.sequence, sample_seconds=measured if number(measured) else self.samples/48000.,
                           sample_clock='analyzed PCM' if number(measured) else 'delivered PCM (queue drops excluded)',
                           capture_stamp=stamp)

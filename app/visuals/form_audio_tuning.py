@@ -20,7 +20,7 @@ class FormAudioTuning:
         for target,p in TARGETS.items():
             c=validate(p['form'],target,(authored or {}).get(target,defaults(target)))
             self.state[target]=dict(authored=c,settings=dict(c,enabled=False),revision=0,error=None,rejected_revision=None)
-        self.processors={};self.mode=0
+        self.processors={};self.mode=0;self.raw_waveform=False
 
     def analysis_settings(self,target):
         with self.lock:
@@ -59,9 +59,9 @@ class FormAudioTuning:
     def submit(self,message):
         with self.lock:return self.mailbox.accept(message)
 
-    def resolve(self,active,inputs,delta=0.,rewound=False,mode=0):
+    def resolve(self,active,inputs,delta=0.,rewound=False,mode=0,raw_waveform=False):
         with self.lock:
-            prior=self.active;self.active=set(active);self.mode=mode;legacy=derived(inputs)
+            self.raw_waveform=raw_waveform;prior=self.active;self.active=set(active);self.mode=mode;legacy=derived(inputs)
             for form in prior-self.active:
                 for target in self.targets_by_form.get(form,()):self.listening[target]=ListeningState(self.clock);self.selected.pop(target,None);self.packed.pop(target,None)
             for scope,c,a in self.mailbox.take():
@@ -79,13 +79,14 @@ class FormAudioTuning:
                 form=TARGETS[target]['form'];on=form in self.active;c=p['settings'] if p['settings']['enabled'] else p['authored']
                 if rewound:self.listening[target].reset_impact()
                 local,details=self.listening[target].select(c,self.target_windows[target],legacy,on,delta)
+                if raw_waveform:local=dict(legacy)
                 self.selected[target]=local;packed=[]
                 for r in TARGETS[target]['roles']:
                     if r['source']=='timer':packed.append(c[r['key']]);continue
                     from planet_audio_tuning import role_active
                     enabled=role_active(dict(modes=r.get('modes','all')),mode)
-                    gain=c[r['key']] if on and enabled else 1.;source=r['source']
-                    slot=pack_input(local.get(source,0.),gain) if on and enabled and any(details[n]['enabled'] for n in INGREDIENTS[source]) else gain
+                    gain=c[r['key']] if on and enabled and not raw_waveform else 1.;source=r['source']
+                    slot=pack_input(local.get(source,0.),gain) if on and enabled and not raw_waveform and any(details[n]['enabled'] for n in INGREDIENTS[source]) else gain
                     packed.append(slot)
                     if on:arrays[form][self.indices[form][(target,r['key'])]]=slot
                 self.packed[target]=tuple(packed)
@@ -98,6 +99,7 @@ class FormAudioTuning:
     def value(self,form,target,key,legacy):
         from planet_listening import unpack_input
         with self.lock:
+            if self.raw_waveform:return legacy
             index=next(i for i,r in enumerate(TARGETS[target]['roles']) if r['key']==key)
             return unpack_input(legacy,self.packed.get(target,(1.,)*len(TARGETS[target]['roles']))[index])
 
@@ -113,4 +115,4 @@ class FormAudioTuning:
                 active=form in self.active,available=bool(available),error=p['error'],rejected_revision=p['rejected_revision'],rendered_wall=self.clock(),
                 listening=self.listening[target].details(c,windows(target),form in self.active),inputs=derived(inputs),local_inputs=local,
                 role_active={r['key']:r['source']=='timer' or role_active(dict(modes=r.get('modes','all')),self.mode) for r in TARGETS[target]['roles']},
-                submissions={r['key']:dict(source=r['source'],input=c[r['key']] if r['source']=='timer' else local.get(r['source'],0.),gain=c[r['key']],slot=self.packed.get(target,(1.,)*len(TARGETS[target]['roles']))[i],consumer=r['code'],scope=r['scope']) for i,r in enumerate(TARGETS[target]['roles'])})
+                submissions={r['key']:dict(source=r['source'],input=c[r['key']] if r['source']=='timer' else local.get(r['source'],0.),gain=1. if self.raw_waveform and r['source']!='timer' else c[r['key']],slot=self.packed.get(target,(1.,)*len(TARGETS[target]['roles']))[i],consumer=r['code'],scope=r['scope']) for i,r in enumerate(TARGETS[target]['roles'])})

@@ -193,6 +193,10 @@ def compatibility():
         for key,value in left.__dict__.items():
             actual=getattr(right,key)
             if isinstance(value,np.ndarray):assert np.array_equal(value,actual),key
+            elif key=='band12':
+                legacy=dict(actual);display=legacy.pop('display')
+                assert legacy==value,(i,key,value,legacy)
+                assert len(display['levels'])==12 and np.isfinite(display['rms']).all()
             else: assert value==actual,(i,key,value,actual)
         if i<len(golden['rows']):
             assert [getattr(right,k) for k in golden['keys']] == golden['rows'][i]
@@ -235,9 +239,39 @@ def benchmark():
                 uncertainty='ComfyUI/voice/background load, scheduling, thermal and power conditions uncontrolled; no hard latency guarantee or live capture measurement')
 
 
+def display_fixtures():
+    from band_display import BandDisplay
+    n=2048;t=np.arange(n)/48000;rows=[]
+    for hz,index in ((234.375,3),(1007.8125,5),(8015.625,9)):
+        mono=.1*np.sin(2*np.pi*hz*t)
+        for sign in (1,-1):
+            d=BandDisplay()
+            for _ in range(25):packet=d.summarize(np.column_stack((mono,sign*mono)))
+            assert np.argmax(packet['rms'])==index
+            assert abs(packet['rms'][index]-.1/np.sqrt(2))<.0001
+            assert abs(packet['dbfs'][index]+23.0103)<.001
+            assert abs(packet['normalized'][index]-(packet['dbfs'][index]+60)/60)<1e-12
+            assert abs(packet['levels'][index]-packet['normalized'][index])<1e-8
+            rows.append(dict(hz=hz,stereo_sign=sign,band=index,dbfs=packet['dbfs'][index]))
+        d=BandDisplay();quiet=d.summarize(np.zeros(n));assert not any(quiet['levels'])
+        rise=[d.summarize(mono)['levels'][index] for _ in range(5)]
+        assert all(a<b for a,b in zip(rise,rise[1:]))
+        release=[d.summarize(np.zeros(n))['levels'][index] for _ in range(70)]
+        assert all(a>b for a,b in zip(release,release[1:])) and release[-1]<.0001
+    multitone=sum(.1*np.sin(2*np.pi*hz*t) for hz in (234.375,1007.8125,8015.625))
+    p=BandDisplay().summarize(multitone)
+    assert all(abs(p['rms'][i]-.1/np.sqrt(2))<.0001 for i in (3,5,9))
+    rng=np.random.default_rng(21);noise=rng.normal(0,.1,(n,2));p=BandDisplay().summarize(noise)
+    assert np.isfinite(p['dbfs']).all() and all(v>0 for v in p['rms'])
+    assert abs(sum(v*v for v in p['rms'])-np.mean(noise*noise))<.003
+    assert p['unresolved'][:2]==[True,True] # 23.4375 Hz bins cannot resolve narrow low bands.
+    assert len(BandDisplay().summarize(np.zeros((1,2)))['levels'])==12
+    return dict(tones=rows,steps_release=True,multitone=True,noise=True,silence=True,stereo_phase=True)
+
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--output',type=Path);parser.add_argument('--benchmark',action='store_true');args=parser.parse_args()
-    report=dict(evidence_class='offline deterministic synthetic CPU',fixtures=fixtures(),compatibility=compatibility())
+    report=dict(evidence_class='offline deterministic synthetic CPU',fixtures=fixtures(),compatibility=compatibility(),band_display=display_fixtures())
     if args.benchmark:report['cpu']=benchmark()
     if args.output:args.output.write_text(json.dumps(report,indent=2,allow_nan=False)+'\n',encoding='utf-8')
     print('PASS: deterministic contrasts, gain, partitions, rates/channels, quiet/release, reset, bounded state and exact legacy compatibility')

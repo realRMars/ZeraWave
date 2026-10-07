@@ -38,7 +38,7 @@ class OwnedJob:
 
 class ControlClient:
     def __init__(self,host,log_path=None,cancel_event=None):
-        self.condition=threading.Condition();self.responses={};self.snapshot={};self.serial=0
+        self.condition=threading.Condition();self.responses={};self.snapshot={};self.serial=0;self.analyzer_telemetry=None
         self.closed=False;self.disconnected=False;self.latencies=deque(maxlen=256);self.pending=0
         self.job=OwnedJob();self.log_path=Path(log_path or ROOT/'work/studio/qt-control.log')
         self.log_path.parent.mkdir(parents=True,exist_ok=True)
@@ -61,6 +61,12 @@ class ControlClient:
                 message=json.loads(line)
                 with self.condition:
                     if 'snapshot' in message:self.snapshot=message['snapshot']
+                    if 'audio_analyzer' in message:
+                        data=message['audio_analyzer'];current=self.analyzer_telemetry
+                        packet=data.get('band_analyzer') or {};old_packet=(current or {}).get('band_analyzer') or {}
+                        newer=(current is None or data.get('generation',-1)>current.get('generation',-1)
+                            or data.get('generation',-1)==current.get('generation',-1) and (not packet or packet.get('sequence',-1)>=old_packet.get('sequence',-1)))
+                        if newer:self.analyzer_telemetry=data
                     if message.get('id') is not None:
                         self.responses[message['id']]=message
                         while len(self.responses)>32:self.responses.pop(next(iter(self.responses)))
@@ -69,6 +75,12 @@ class ControlClient:
             traceback.print_exc(file=self.stderr);self.stderr.flush()
         finally:
             with self.condition:self.disconnected=True;self.condition.notify_all()
+    def latest_analyzer(self):
+        with self.condition:
+            if self.disconnected:return dict(status='Disconnected',playing=False,generation=-1,band_analyzer=None)
+            full=self.snapshot.get('audio_hub',{});fast=self.analyzer_telemetry
+            if fast is None or full.get('generation',-1)>fast.get('generation',-1):return full
+            return fast
     def request(self,action,**data):
         if self.closed or self.disconnected:raise RuntimeError('Control owner is unavailable. Reopen Studio; diagnostics: '+str(self.log_path))
         began=time.perf_counter()

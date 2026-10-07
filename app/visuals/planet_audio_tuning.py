@@ -124,7 +124,7 @@ class PlanetAudioTuning:
     def __init__(self,authored=None,clock=time.perf_counter):
         self.clock=clock;self.lock=threading.Lock();self.pending={};self.state={}
         self.listening={target:ListeningState(clock) for target in TARGETS+(STAR_TARGET,)}
-        self.selected={};self.listening_details={};self.packed={};self.star_settings={}
+        self.selected={};self.listening_details={};self.packed={};self.star_settings={};self.raw_waveform=False
         for target in TARGETS:
             a=validate(target,(authored or {}).get(target,baseline(target)))
             self.state[target]=dict(settings=dict(a,enabled=False),authored=a,revision=0)
@@ -165,8 +165,9 @@ class PlanetAudioTuning:
     def local_sources(self,target,legacy):
         return self.selected.get(target,derived(legacy))
 
-    def resolve(self,active,star=None,inputs=None,delta=0.,mode=0,rewound=False):
+    def resolve(self,active,star=None,inputs=None,delta=0.,mode=0,rewound=False,raw_waveform=False):
         with self.lock:
+            self.raw_waveform=raw_waveform
             if rewound:
                 for state in self.listening.values():state.reset_impact()
             for target,(revision,c,a) in self.pending.items():
@@ -185,21 +186,25 @@ class PlanetAudioTuning:
             for target in TARGETS:
                 p=self.state[target];c=p['settings'] if p['settings']['enabled'] else p['authored']
                 local,details=self.listening[target].select(c,WINDOWS[target],legacy,active,delta)
+                if raw_waveform:
+                    local=dict(legacy);details={name:dict(row,enabled=False,bypassed=True) for name,row in details.items()}
                 self.selected[target]=local;self.listening_details[target]=details;values=[]
                 for r in SPECS[target]:
-                    slot=c[r['key']] if active else 1.;source=r['source']
+                    slot=c[r['key']] if active and not raw_waveform else 1.;source=r['source']
                     if target in ('planet.spatial.tunnel','planet.spatial.fractal','planet.spatial.horizon') and r['key'].endswith('_presence') and mode==2:
                         source='bass' if r['key'].startswith('bass') else 'flux'
-                    if role_active(r,mode) and any(details[name]['enabled'] for name in INGREDIENTS[source]):slot=pack_input(local.get(source,0.),slot)
+                    if not raw_waveform and role_active(r,mode) and any(details[name]['enabled'] for name in INGREDIENTS[source]):slot=pack_input(local.get(source,0.),slot)
                     values.append(slot)
                 self.packed[target]=tuple(values);values+=[1.]*8
                 rows.extend((tuple(values[:4]),tuple(values[4:8])))
             from band_attack_tuning import PRESENTATION_BOUNDS
             self.star_settings=dict(listening_defaults(STAR_WINDOWS),**(star or {}))
             local,details=self.listening[STAR_TARGET].select(self.star_settings,STAR_WINDOWS,legacy,active,delta)
+            if raw_waveform:
+                local=dict(legacy);details={name:dict(row,enabled=False,bypassed=True) for name,row in details.items()}
             self.selected[STAR_TARGET]=local;self.listening_details[STAR_TARGET]=details
-            values=[(star or {}).get(key,1.) if active else 1. for key in PRESENTATION_BOUNDS]
-            if any(row['enabled'] for row in details.values()):
+            values=[(star or {}).get(key,1.) if active and not raw_waveform else 1. for key in PRESENTATION_BOUNDS]
+            if not raw_waveform and any(row['enabled'] for row in details.values()):
                 chorus=smooth(.38,.88,.48*clip(local.get('flux',0.))+.22*clip(local.get('sparkle',0.))+.30*clip(local.get('impact',0.)))
                 values=[pack_input(chorus,gain) for gain in values]
             rows.append(tuple(values[:4]))
@@ -208,7 +213,7 @@ class PlanetAudioTuning:
     def gains(self,target,active=True):
         with self.lock:
             p=self.state[target];c=p['settings'] if p['settings']['enabled'] else p['authored']
-            return tuple(c[r['key']] if active else 1. for r in SPECS[target])
+            return tuple(c[r['key']] if active and not self.raw_waveform else 1. for r in SPECS[target])
 
     def status(self,active,inputs,mode,contributing=None):
         values=derived(inputs);result={}
@@ -218,7 +223,7 @@ class PlanetAudioTuning:
                 local=self.selected.get(target,values)
                 for r in SPECS[target]:
                     available[r['key']]=bool(active and role_active(r,mode))
-                    gain=c[r['key']] if available[r['key']] else 1.
+                    gain=c[r['key']] if available[r['key']] and not self.raw_waveform else 1.
                     src=r['source'];factor=r['factor']
                     if target in ('planet.spatial.tunnel','planet.spatial.fractal','planet.spatial.horizon') and r['key'].endswith('_presence') and mode==2:
                         src='bass' if r['key'].startswith('bass') else 'flux';factor=.45 if src=='bass' else .55
