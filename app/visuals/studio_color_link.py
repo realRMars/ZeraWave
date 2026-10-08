@@ -8,7 +8,7 @@ import time
 from copy import deepcopy
 from color_controls import validate_colors
 
-MAX_MESSAGE = 16384
+MAX_MESSAGE = 524288
 ACK_PREFIX = 'ZERAWAVE_COLOR '
 
 
@@ -64,7 +64,7 @@ class ColorInbox:
             if isinstance(message,dict) and message.get('kind')=='preview-control':
                 if not self.preview_run or message.get('run')!=self.preview_run:raise ValueError('Wrong preview control owner')
                 op=message.get('op');serial=message.get('serial')
-                if op not in ('pause','hold','release','bonk','mode','stop','diagnostics','load','attach','resources','resolution') or type(serial) is not int or not 0<=serial<2**31:raise ValueError('Invalid preview control')
+                if op not in ('pause','hold','release','bonk','mode','stop','diagnostics','load','attach','resources','resolution','images','images_cancel') or type(serial) is not int or not 0<=serial<2**31:raise ValueError('Invalid preview control')
                 if op=='hold' and message.get('owner') not in ('studio.mouse','studio.Shift_L','studio.Shift_R','output.Shift_L','output.Shift_R'):raise ValueError('Invalid Hold owner')
                 key=(op,message.get('owner',''))
                 with self.lock:

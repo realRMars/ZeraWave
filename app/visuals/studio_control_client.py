@@ -57,7 +57,7 @@ class ControlClient:
     def read(self):
         try:
             for line in self.process.stdout:
-                if len(line)>524288:raise ValueError('Owner snapshot exceeds protocol limit')
+                if len(line)>2*1024*1024:raise ValueError('Owner snapshot exceeds protocol limit') # includes up to 128 bounded media references
                 message=json.loads(line)
                 with self.condition:
                     if 'snapshot' in message:self.snapshot=message['snapshot']
@@ -84,14 +84,17 @@ class ControlClient:
     def request(self,action,**data):
         if self.closed or self.disconnected:raise RuntimeError('Control owner is unavailable. Reopen Studio; diagnostics: '+str(self.log_path))
         began=time.perf_counter()
-        if action in ('tune','range','override','reset_audio','restore_draft','authored','color_commit','color_reset'):
+        if action in ('tune','range','override','reset_audio','restore_draft','authored','color_commit','color_reset','image_layers','composition'):
             data.setdefault('destination_revision',self.snapshot.get('destination_revision',0))
             data.setdefault('preview_run',self.snapshot.get('preview_run'))
+        if action in ('image_layers','composition'):
+            media=self.snapshot.get('media_control',{})
+            data.setdefault('media_session',media.get('session'));data.setdefault('media_revision',media.get('revision'))
         with self.condition:
             if self.pending>=32:raise RuntimeError('Control command queue is busy.')
             self.serial+=1;serial=self.serial;self.pending+=1
             line=json.dumps({'id':serial,'action':action,'data':data},separators=(',',':'))
-            if len(line)>65536:self.pending-=1;raise ValueError('Command exceeds protocol limit')
+            if len(line)>524288:self.pending-=1;raise ValueError('Command exceeds protocol limit')
             try:
                 self.process.stdin.write(line+'\n');self.process.stdin.flush()
                 timeout=8 if action in ('stop','close') else 2
@@ -109,7 +112,7 @@ class ControlClient:
         """
         if self.closed or self.disconnected:return False
         line=json.dumps({'id':None,'action':action,'data':data},separators=(',',':'))
-        if len(line)>65536:raise ValueError('Command exceeds protocol limit')
+        if len(line)>524288:raise ValueError('Command exceeds protocol limit')
         with self.condition:
             try:self.process.stdin.write(line+'\n');self.process.stdin.flush()
             except (OSError,ValueError):return False

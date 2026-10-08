@@ -124,7 +124,7 @@ class PreviewPlayback:
         if not local and serial <= self.serial:
             return
         op = packet.get('op')
-        if op not in ('pause', 'hold', 'release', 'bonk', 'mode', 'stop', 'diagnostics', 'load', 'attach', 'resources', 'resolution'):
+        if op not in ('pause', 'hold', 'release', 'bonk', 'mode', 'stop', 'diagnostics', 'load', 'attach', 'resources', 'resolution','images','images_cancel'):
             raise ValueError('Unsupported preview command')
         if op == 'pause' and type(packet.get('active')) is not bool:
             raise ValueError('Pause requires an explicit state')
@@ -135,7 +135,17 @@ class PreviewPlayback:
         if op == 'diagnostics' and type(packet.get('active')) is not bool:
             raise ValueError('Invalid diagnostics switch')
         if not local:self.serial = serial
-        if op == 'resolution':
+        if op=='images':
+            if self.committed_scope is not None:
+                from studio_scope import compatible_scope
+                if not compatible_scope(self.committed_scope):raise ValueError('Image layers are unavailable on legacy Experimental routes.')
+            if self.renderer.image_layers is None:
+                from image_layers import ImageLayers
+                self.renderer.image_layers=ImageLayers(self.renderer.ctx,self.renderer.vertices)
+            self.renderer.image_layers.request(packet.get('config'),packet.get('revision'),packet.get('session'))
+        elif op=='images_cancel':
+            if self.renderer.image_layers is not None:self.renderer.image_layers.invalidate(packet.get('session'),packet.get('revision'))
+        elif op == 'resolution':
             import glfw
             from visualizer_resolution import failure_message
             ctx=self.renderer.ctx;stage=self.renderer.enveloper_stage
@@ -271,6 +281,7 @@ class PreviewPlayback:
                 echo_seconds=self.renderer.echo_clock,
                 echo_owner=id(self.renderer.echo_resources) if self.renderer.echo_resources else None,
                 enveloper_owner=id(self.renderer.enveloper_stage) if self.renderer.enveloper_stage else None)
+        if getattr(self.renderer,'image_layers',None) is not None:value['image_layers']=self.renderer.image_layers.snapshot()
         return value
 
     def emit(self, force=False, error=None):

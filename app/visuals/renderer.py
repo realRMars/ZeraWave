@@ -338,6 +338,7 @@ class Renderer:
         self.artifact_tuning=None;self.planet_audio_tuning=None;self.planet_audio_active=False
         self.color_overrides = {}
         self.color_inbox = None
+        self.image_layers = None
         self._color_dirty = True
         self._color_active = None
         # Bounded visual event history, driven by the existing onset parameter.
@@ -768,6 +769,11 @@ class Renderer:
         # Visible window is revealed only after its first complete swap.
         # Animation begins after loading, independent of compile/notice time.
         self.start_time = time.perf_counter()
+        if os.environ.get('ZERAWAVE_IMAGE_LAYERS'):
+            from image_layers import ImageLayers
+            spec=json.loads(os.environ['ZERAWAVE_IMAGE_LAYERS'])
+            self.image_layers=ImageLayers(self.ctx,self.vertices)
+            self.image_layers.request(spec['config'],spec['revision'],spec['session'])
         controls=getattr(self,'preview_playback',None)
         if controls is not None:controls.install_output_keys()
         if qt_host and controls is not None:
@@ -1562,6 +1568,7 @@ class Renderer:
                 raw=json.dumps(packet,separators=(',',':'),allow_nan=False)
                 if len(raw.encode('utf8'))<=AUDIO_MAX_PACKET:print(AUDIO_PREFIX+raw,flush=True)
         if normal_owner is not None:normal_owner.report_applied_edits(current_time)
+        if self.image_layers is not None:self.image_layers.draw((width,height))
         self.ctx.present(self.vertices,VERTEX_SHADER)
         if performance is not None:performance.end_render()
 
@@ -1624,6 +1631,7 @@ class Renderer:
         if self.root_branch_stage is not None:self.root_branch_stage.release();self.root_branch_stage=None
         if self.enveloper_stage:self.enveloper_stage.release();self.enveloper_stage=None
         if self.color_inbox: self.color_inbox.close()
+        if self.image_layers:self.image_layers.close();self.image_layers=None
         self._color_uploads={}
         self.release_echo()
         if self.vao is not None:

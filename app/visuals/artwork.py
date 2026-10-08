@@ -1,0 +1,147 @@
+"""Native artwork dependencies and shared selection geometry; no pixel JSON.
+
+Generated PNGs are immutable, content addressed, and bounded to 512 MiB per
+working store. Save/Save As copies only referenced dependencies beside a session.
+Original inputs are never overwritten. Undo retains immutable previous versions.
+"""
+from pathlib import Path
+import hashlib, os, uuid
+import numpy as np
+from PySide6.QtCore import Qt,QPointF,QRectF,QBuffer,QIODevice
+from PySide6.QtGui import QImage,QPainterPath,QPainter,QColor
+
+MAX_STORE=512*1024*1024
+
+def selection_path(operation,size,closed=True):
+    w,h=size;pts=operation['points'];path=QPainterPath()
+    shape=operation.get('shape','Path')
+    if shape in ('Rectangle','Ellipse'):
+        xs=[p[0]*w for p in pts];ys=[p[1]*h for p in pts];rect=QRectF(min(xs),min(ys),max(xs)-min(xs),max(ys)-min(ys))
+        (path.addRect if shape=='Rectangle' else path.addEllipse)(rect);return path
+    path.moveTo(pts[0][0]*w,pts[0][1]*h);handles=operation.get('handles')
+    for i in range(1,len(pts)+(1 if closed else 0)):
+        j=i%len(pts)
+        if handles:path.cubicTo(QPointF(handles[i-1][1][0]*w,handles[i-1][1][1]*h),QPointF(handles[j][0][0]*w,handles[j][0][1]*h),QPointF(pts[j][0]*w,pts[j][1]*h))
+        else:path.lineTo(pts[j][0]*w,pts[j][1]*h)
+    if closed:path.closeSubpath()
+    return path
+
+def masked(image,operations):
+    result=image.copy()
+    for operation in operations:
+        if not operation['enabled']:continue
+        shape=QImage(image.size(),QImage.Format_ARGB32_Premultiplied);shape.fill(0);p=QPainter(shape);p.setRenderHint(QPainter.Antialiasing);p.fillPath(selection_path(operation,(image.width(),image.height())),QColor('white'));p.end()
+        p=QPainter(result);p.setCompositionMode(QPainter.CompositionMode_DestinationIn if operation['mode']=='Keep' else QPainter.CompositionMode_DestinationOut);p.drawImage(0,0,shape);p.end()
+    return result
+
+def store_image(image,provenance,folder=None):
+    if image.isNull() or max(image.width(),image.height())>8192 or image.width()*image.height()>8388608:raise ValueError('Artwork exceeds the native 8 megapixel limit.')
+    folder=Path(folder or os.environ.get('ZERAWAVE_ARTWORK_STORE') or Path(__file__).resolve().parents[2]/'work/studio/artwork');folder.mkdir(parents=True,exist_ok=True)
+    buffer=QBuffer();buffer.open(QIODevice.WriteOnly)
+    if not image.save(buffer,'PNG'):raise ValueError('Cannot encode artwork; prior content retained.')
+    data=bytes(buffer.data());digest=hashlib.sha256(data).hexdigest();path=folder/(digest+'.png')
+    if not path.exists():
+        if sum(p.stat().st_size for p in folder.glob('*.png'))+len(data)>MAX_STORE:raise ValueError('Artwork store reached 512 MiB; save to another session folder.')
+        temporary=folder/(digest+'.'+uuid.uuid4().hex+'.tmp')
+        try:temporary.write_bytes(data);os.replace(temporary,path)
+        finally:
+            if temporary.exists():temporary.unlink()
+    from media_registry import inspect
+    import threading
+    record=inspect(str(path),threading.Event());record.update(id=uuid.uuid4().hex,managed=True,provenance=str(provenance)[:512]);return record
+
+def portable_scene(scene,destination):
+    """Prepare every copy before writing session state; original paths untouched."""
+    from copy import deepcopy
+    result=deepcopy(scene);folder=Path(destination).with_suffix('.assets')
+    copies=[]
+    for asset in result['assets']:
+        if not asset.get('managed'):continue
+        source=Path(asset['path']);data=source.read_bytes();digest=hashlib.sha256(data).hexdigest();target=folder/(digest+'.png')
+        copies.append((target,data));asset['path']=str(target.resolve())
+    if sum(len(data) for _,data in copies)>MAX_STORE:raise ValueError('Session artwork exceeds 512 MiB.')
+    for target,data in copies:
+        target.parent.mkdir(parents=True,exist_ok=True)
+        if target.exists():
+            if target.read_bytes()!=data:raise ValueError('Artwork dependency conflict; prior session retained.')
+        else:
+            temporary=target.with_suffix('.'+uuid.uuid4().hex+'.tmp')
+            try:temporary.write_bytes(data);os.replace(temporary,target)
+            finally:
+                if temporary.exists():temporary.unlink()
+    return result
+
+def magnetic_point(image,uv,radius=12):
+    """Local native-pixel gradient attraction, bounded 25×25, manual nodes remain.
+
+    No segmentation or automatic background removal. Flat regions keep the
+    pointer location; nearby strong edges attract the interactive tracing node.
+    """
+    if image is None:return list(uv)
+    w,h=image.width(),image.height();x,y=round(uv[0]*(w-1)),round(uv[1]*(h-1))
+    x0,x1=max(1,x-radius),min(w-1,x+radius+1);y0,y1=max(1,y-radius),min(h-1,y+radius+1)
+    if x1<=x0 or y1<=y0:return list(uv)
+    gray=image.copy(x0-1,y0-1,x1-x0+2,y1-y0+2).convertToFormat(QImage.Format_Grayscale8)
+    a=np.frombuffer(gray.constBits(),np.uint8).reshape(gray.height(),gray.bytesPerLine())[:,:gray.width()].astype(np.int16)
+    gx=a[1:-1,2:]-a[1:-1,:-2];gy=a[2:,1:-1]-a[:-2,1:-1]
+    yy,xx=np.mgrid[y0:y1,x0:x1];score=np.hypot(gx,gy)/(1+np.hypot(xx-x,yy-y)/3)
+    if score.max()<12:return list(uv)
+    iy,ix=np.unravel_index(np.argmax(score),score.shape);return [float((x0+ix)/w),float((y0+iy)/h)]
+
+def smudge(image,start,end,size,strength,opacity,shape='Round',row=None,selection=None):
+    """Blend a bounded brush tile dragged from prior to current native position."""
+    r=max(1,round(size/2));w,h=image.width(),image.height();sx,sy=start;ex,ey=end
+    tile=image.copy(QRectF(sx-r,sy-r,2*r,2*r).toRect());mask=QImage(tile.size(),QImage.Format_ARGB32_Premultiplied);mask.fill(0)
+    if row:
+        coverage=QImage(tile.size(),QImage.Format_ARGB32_Premultiplied);coverage.fill(0);p=QPainter(coverage);p.translate(-(sx-r),-(sy-r));c=row['crop'];p.fillRect(QRectF(c[0]*w,c[1]*h,(c[2]-c[0])*w,(c[3]-c[1])*h),QColor('white'));p.end()
+        for operation in row['masks']+([dict(selection,mode='Keep')] if selection else []):
+            if not operation['enabled']:continue
+            local=QImage(tile.size(),QImage.Format_ARGB32_Premultiplied);local.fill(0);p=QPainter(local);p.setRenderHint(QPainter.Antialiasing);p.translate(-(sx-r),-(sy-r));p.fillPath(selection_path(operation,(w,h)),QColor('white'));p.end();p=QPainter(coverage);p.setCompositionMode(QPainter.CompositionMode_DestinationIn if operation['mode']=='Keep' else QPainter.CompositionMode_DestinationOut);p.drawImage(0,0,local);p.end()
+        p=QPainter(tile);p.setCompositionMode(QPainter.CompositionMode_DestinationIn);p.drawImage(0,0,coverage);p.end()
+    p=QPainter(mask);p.setBrush(QColor(255,255,255));p.setPen(Qt.NoPen)
+    (p.drawRect if shape=='Square' else p.drawEllipse)(mask.rect());p.end();p=QPainter(tile);p.setCompositionMode(QPainter.CompositionMode_DestinationIn);p.drawImage(0,0,mask);p.end()
+    p=QPainter(image);p.setOpacity(strength*opacity);p.drawImage(QPointF(ex-r,ey-r),tile);p.end()
+
+
+def brush_stroke(image,start,end,brush,color,tool='Brush'):
+    """Native-pixel spaced dabs; flow per dab, stroke opacity applied by caller."""
+    from PySide6.QtGui import QRadialGradient
+    from PySide6.QtCore import QRectF
+    radius=max(.5,brush['size']/2);distance=float(np.hypot(end[0]-start[0],end[1]-start[1]))
+    count=max(1,int(np.ceil(distance/max(1.,radius*.2))))
+    p=QPainter(image);p.setRenderHint(QPainter.Antialiasing,tool!='Pencil')
+    if tool=='Eraser':p.setCompositionMode(QPainter.CompositionMode_DestinationOut)
+    c=QColor(color);c.setAlphaF(c.alphaF()*brush.get('flow',1.))
+    for i in range(1,count+1):
+        x=start[0]+(end[0]-start[0])*i/count;y=start[1]+(end[1]-start[1])*i/count
+        if tool=='Pencil' and brush['shape']=='Round':
+            p.setPen(Qt.NoPen);p.setBrush(c);p.drawEllipse(QRectF(round(x-radius),round(y-radius),max(1,round(radius*2)),max(1,round(radius*2))))
+        elif tool=='Pencil':p.fillRect(QRectF(round(x-radius),round(y-radius),max(1,round(radius*2)),max(1,round(radius*2))),c)
+        elif brush['shape']=='Square':p.fillRect(QRectF(x-radius,y-radius,radius*2,radius*2),c)
+        else:
+            hard=brush.get('hardness',1.)
+            gradient=QRadialGradient(QPointF(x,y),radius);gradient.setColorAt(0,c)
+            gradient.setColorAt(min(.999,hard),c);transparent=QColor(c);transparent.setAlpha(0);gradient.setColorAt(1,transparent)
+            p.setPen(Qt.NoPen);p.setBrush(gradient);p.drawEllipse(QPointF(x,y),radius,radius)
+    p.end()
+
+def edit_coverage(size,row,selection=None):
+    w,h=size;coverage=QImage(w,h,QImage.Format_ARGB32_Premultiplied);coverage.fill(0)
+    p=QPainter(coverage);c=row['crop'];p.fillRect(QRectF(c[0]*w,c[1]*h,(c[2]-c[0])*w,(c[3]-c[1])*h),QColor('white'));p.end()
+    return masked(coverage,row['masks']+([dict(selection,mode='Keep')] if selection else []))
+
+def constrained_edit(before,after,row,selection=None,opacity=1.,bounds=None,coverage=None,result=None):
+    """Write only the editable own-content footprint, without baking masks twice."""
+    w,h=before.width(),before.height()
+    if coverage is None:coverage=edit_coverage((w,h),row,selection)
+    # Bounded 64-row strips avoid four full floating-point image temporaries.
+    if result is None:result=before.copy()
+    a=np.frombuffer(before.constBits(),np.uint8).reshape(h,before.bytesPerLine())[:,:w*4].reshape(h,w,4)
+    b=np.frombuffer(after.constBits(),np.uint8).reshape(h,after.bytesPerLine())[:,:w*4].reshape(h,w,4)
+    mask=np.frombuffer(coverage.constBits(),np.uint8).reshape(h,coverage.bytesPerLine())[:,3:w*4:4]
+    dst=np.frombuffer(result.bits(),np.uint8).reshape(h,result.bytesPerLine())[:,:w*4].reshape(h,w,4)
+    x0,y0,x1,y1=bounds or (0,0,w,h);x0,y0=max(0,x0),max(0,y0);x1,y1=min(w,x1),min(h,y1)
+    for y in range(y0,y1,64):
+        stop=min(y+64,y1);factor=mask[y:stop,x0:x1,None].astype(np.float32)*(opacity/255.)
+        dst[y:stop,x0:x1]=np.rint(a[y:stop,x0:x1]*(1-factor)+b[y:stop,x0:x1]*factor).astype(np.uint8)
+    return result

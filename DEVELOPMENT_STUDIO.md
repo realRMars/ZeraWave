@@ -5,11 +5,40 @@ or a commitment to paid ZeraWave Studio 1.
 
 ## Launch and review
 
-For the current Qt candidate, double-click **`run_qt_studio.vbs`**. It retains the
-approved ADS docking layout, existing renderer and isolated control owner. The
-October 5 Studio additions are unpublished and await Robert's review; the prior
-full-size rendering limits still apply. The older unified Tk and diagnostic
-entry points below remain available.
+For the current checkout, double-click **`run_zerawave_studio.vbs`**. It uses the
+existing Qt Studio, ADS docking layout, renderer and isolated control owner.
+The media-composition candidate below is available for Robert's review; existing full-size
+rendering limits still apply. Older Tk and diagnostic entry points remain available.
+
+### Media composition — current candidate
+
+**File → Import media…** reveals Media Library. **View → Media Library**, **Layers**
+and **Composition Editor** recover their docks. Layers retains the former Image
+Layers dock identity and saved positions. Double-click/Enter a ready reference
+uses it without autoplay; repeated activation selects its existing layer. Use
+**Add another instance** for a deliberate duplicate. Audio remains owned by
+Session Waveform and retains same-source position.
+
+Layers now has an empty dynamic stack, named/locked/visible layers, drag order,
+contextual controls, groups, masks and Undo/Redo. Composition Editor provides a
+checkerboard layer canvas with move/resize/rotate, crop, mask/cut, zoom/pan and
+alignment. Visualizer stays clean output. World only, Layers only and World +
+Layers preserve the existing world clocks, histories and resolution policy.
+
+Supported videos use silent PyAV decoding in the existing compositor, with layer
+Play/Pause, Stop, seek, rate, loop/ping-pong and in/out controls. GIF animation,
+sprite sheets and a strict static glTF/GLB subset share the same layer tools.
+Collections store memberships rather than file copies. Artistic sessions use
+version 5 with prior-session migration; library version 2 and Qt layout remain
+separate. Original files are never altered by composition edits.
+
+See [Media composition instructions](docs/STUDIO_MEDIA_COMPOSITION.md) for the
+short review path, exact supported formats, bounds, coordinate/transport contracts
+and pending capabilities. Loudman browser display is **pending matching Qt
+WebEngine installation approval and validation**. Video audio/multitrack editing
+and rigged/animated 3D still need an agreed scope. They are not functioning features
+in this candidate. This remains Robert's review candidate; no publication or
+artistic acceptance is implied.
 
 ### Qt Library, startup, Resources and window header
 

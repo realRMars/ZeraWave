@@ -4,3 +4,6 @@ PySide6-Essentials==6.11.1
 shiboken6==6.11.1
 # Session Waveform file decoding; output uses the existing SoundCard backend.
 SoundFile==0.13.1
+# Silent video/GIF composition decoding (approved Oct 7); bundled FFmpeg codec
+# distribution terms are documented in docs/STUDIO_MEDIA_COMPOSITION.md.
+av==19.0.1

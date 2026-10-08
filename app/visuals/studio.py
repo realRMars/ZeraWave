@@ -20,6 +20,7 @@ from studio_color_link import ColorLink
 from color_inspector import ColorInspector
 from cymatics_session import validate as validate_cymatics, defaults as cymatics_defaults
 from cymatics_controls import CymaticsControls
+from media_registry import defaults as media_defaults,validate_scene as validate_media
 
 from technique_library import entries as library_entries, search as search_library
 from live_visual_test import LIVE_STATES
@@ -129,7 +130,8 @@ def tracks():
 
 
 def validate_session(data):
-    if not isinstance(data, dict) or data.get('version') not in (1, 2, 3):
+    if isinstance(data,dict) and set(data)=={'version','assets'}:raise ValueError('Media Library registry is not an artistic session.')
+    if not isinstance(data, dict) or data.get('version') not in (1, 2, 3, 4, 5):
         raise ValueError('This is not a supported ZeraWave development session.')
     values = {key: data.get(key, value) for key, value in DEFAULTS.items()}
     pilot = data.get('planet_dsp_pilot', False)
@@ -146,7 +148,8 @@ def validate_session(data):
     if selection == ['cosmic', 'geometry']:
         selection = ['cosmic', 'canvas']
     values['transitions']=validate_settings(data.get('transitions'))
-    values['layers'] = validate_layers(data.get('layers', {}) if data['version'] == 3 else {})
+    values['layers'] = validate_layers(data.get('layers', {}) if data['version'] >= 3 else {})
+    values['media']=validate_media(data.get('media') if data['version']>=4 else None)
     if data.get('material_isolation'):
         values['material_isolation'] = validate_isolation(data['material_isolation'])
     elif 'material_isolation' in data:
@@ -364,6 +367,7 @@ class Studio:
         self.log = None
         self.output = None
         self.session_path = None
+        self.media_scene=media_defaults()
         self.layer_profiles = {}
         self.material_isolation = {}
         self.planet_dsp_pilot = False
@@ -657,6 +661,7 @@ class Studio:
         if self.color_overrides: values['color_overrides'] = validate_colors(self.color_overrides)
         values['transitions']=self.transition_values()
         values['cymatics']=self.cymatics_panel.settings(stored=True) if hasattr(self,'cymatics_panel') else cymatics_defaults()
+        values['media']=validate_media(self.media_scene)
         return values
 
     def selected_states(self):
@@ -1164,6 +1169,7 @@ class Studio:
         self.status.set('Three materials meld across every world. Select a held form or Main blend, then start preview.')
 
     def new(self):
+        self.media_scene=media_defaults()
         self.cymatics_panel.set(cymatics_defaults())
         for key,value in DEFAULTS.items(): self.vars[key].set(value)
         available=tracks()
@@ -1201,6 +1207,7 @@ class Studio:
             if cfg['pair']:self.transition_from.set(SCENES[cfg['pair'][0]]);self.transition_to.set(SCENES[cfg['pair'][1]])
             self.transition_hold.set(str(cfg['hold']));self.transition_duration.set(str(cfg['duration']))
             self.layer_profiles=values['layers']
+            self.media_scene=values['media']
             self.material_isolation=values.get('material_isolation', {})
             self.planet_dsp_pilot=values.get('planet_dsp_pilot', False)
             self.planet_star_attack_pilot=values.get('planet_star_attack_pilot', False)
@@ -1220,10 +1227,21 @@ class Studio:
             if not selected:return
             path=Path(selected)
         try:
-            path.write_text(json.dumps(dict(version=3,**self.values()),indent=2),encoding='utf-8')
+            values=self.values()
+            if values['media'].get('canvas') is None:
+                # Legacy sessions used the effective internal target as canvas.
+                # Freeze that geometry in new saves; old files remain untouched.
+                dimensions=getattr(self,'preview_state',{}).get('dimensions',{}).get('internal')
+                policy=getattr(self,'resolution_policy',None)
+                values['media']['canvas']=list(dimensions or (policy.get('size') if policy and policy.get('mode')=='fixed' else None) or (1280,720))
+            from artwork import portable_scene
+            values['media']=portable_scene(values['media'],path)
+            temporary=path.with_suffix(path.suffix+'.tmp')
+            temporary.write_text(json.dumps(dict(version=5,**values),indent=2),encoding='utf-8')
+            __import__('os').replace(temporary,path)
             self.session_path=path
             self.status.set('Session saved. It stores preview settings, not shader code or audio files.')
-        except OSError as exc:messagebox.showerror('Cannot save session',str(exc))
+        except (OSError,ValueError) as exc:messagebox.showerror('Cannot save session',str(exc))
 
     def color_scene(self):
         states=self.selected_states()
@@ -1277,7 +1295,7 @@ class Studio:
         live_scene = live_scene if targets_for(live_scene) and not label else None
         if live_scene: args += ['--studio-color-input']
         output.mkdir(parents=True)
-        (output/'preview.json').write_text(json.dumps(dict(version=3, **values), indent=2), encoding='utf-8')
+        (output/'preview.json').write_text(json.dumps(dict(version=5, **values), indent=2), encoding='utf-8')
         self.log = (output/'run.log').open('w', encoding='utf-8')
         normal_audio=bool(live_scene and (values.get('selection_scope',selection_scope(values.get('selection',path_for_state(values['state']))))=='main' or all(LIVE_STATES[s] in FRACTAL_FORMS for s in selected_states)))
         audio_run=uuid.uuid4().hex if normal_audio else None

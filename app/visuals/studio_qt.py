@@ -254,7 +254,7 @@ class Shell(QMainWindow):
         saved,sl=self.body();sl.addWidget(QLabel('Existing artistic sessions'))
         sessions=QTreeWidget();sessions.setHeaderHidden(True);sl.addWidget(sessions)
         for path in sorted((ROOT/'work/studio').glob('*.json')):
-            if 'layout' not in path.name:QTreeWidgetItem(sessions,[path.name])
+            if 'layout' not in path.name and path.name!='media-library.json':QTreeWidgetItem(sessions,[path.name])
         self.button(sl,'Open session…',self.open_session)
         self.dock('sessions','Saved sessions',saved,ads.CenterDockWidgetArea,leftarea);self.panels['sessions'].toggleView(False)
         presets,pl=self.body();pl.addWidget(QLabel('Existing color preset files'))
@@ -318,6 +318,14 @@ class Shell(QMainWindow):
         diagnostics,dl=self.body();self.logs=QPlainTextEdit();self.logs.setReadOnly(True);dl.addWidget(self.logs)
         self.button(dl,'Open diagnostics folder',lambda:os.startfile(str(ROOT/'work/studio')))
         self.dock('diagnostics','Diagnostics',diagnostics,ads.CenterDockWidgetArea,center);self.panels['diagnostics'].toggleView(False)
+        from studio_media import MediaLibrary
+        from studio_composition import Layers,CompositionEditor
+        self.media_library=MediaLibrary(self);self.image_editor=Layers(self)
+        self.dock('media','Media Library',self.media_library,ads.CenterDockWidgetArea,leftarea);self.panels['media'].toggleView(False)
+        self.dock('image_layers','Layers',self.image_editor,ads.CenterDockWidgetArea,right);self.panels['image_layers'].toggleView(False)
+        self.composition_editor=CompositionEditor(self.image_editor)
+        self.dock('composition','Composition Editor',self.composition_editor,ads.CenterDockWidgetArea,center);self.panels['composition'].toggleView(False)
+        self.media_library.refresh();self.image_editor.refresh()
         self.statusBar().showMessage('Qt proof • F1 help')
         self.refresh_colors();self.tuning_identity=None;self.refresh_tuning()
     def create_header(self):
@@ -340,7 +348,7 @@ class Shell(QMainWindow):
         else:self.menu_bar.clear()
         bar=self.menu_bar;bar.setEnabled(self.client is not None)
         file=bar.addMenu('&File');file.addAction('Open session…',lambda:self.safe(self.open_session))
-        file.addAction('Save session…',lambda:self.safe(self.save_session));file.addSeparator();file.addAction('Exit',self.close)
+        file.addAction('Save session…',lambda:self.safe(self.save_session));file.addAction('Import media…',self.import_media);file.addSeparator();file.addAction('Exit',self.close)
         edit=bar.addMenu('&Edit');edit.addAction('Reset selected color target',lambda:self.safe(self.owner.color_editor.reset_target))
         edit.addAction('Restore saved tuning draft at selected destination',lambda:self.safe(lambda:self.client.request('restore_draft',binding=self.view.binding())))
         view=bar.addMenu('&View')
@@ -576,15 +584,19 @@ class Shell(QMainWindow):
         self.hub_status.setToolTip('Audio playhead counts submitted decoded/captured PCM, not measured speaker latency. Output volume/mute affect playback only; PCM/analyzer levels are pre-output digital RMS/peak. dBFS0 is full scale; silence reads -240dBFS. Raw mode bypasses visual audio tuning without changing saved values. Seek resets queued PCM events; visual clocks stay independent. Audible scan changes pitch.')
         self.waveform.refresh(hub)
     def open_session(self):
+        if not self.image_editor.resolve_pending():return
         path,_=QFileDialog.getOpenFileName(self,'Open artistic session',str(ROOT/'work/studio'),'Session (*.json)')
         if path:
             self.client.request('load',path=path)
             self.refresh_colors()
+    def import_media(self):
+        self.panels['media'].toggleView(True);self.panels['media'].setAsCurrentTab();self.media_library.import_files()
     def save_session(self):
+        if not self.image_editor.resolve_pending():return
         path,_=QFileDialog.getSaveFileName(self,'Save artistic session',str(ROOT/'work/studio/session.json'),'Session (*.json)')
         if path:
             if self.client.disconnected:
-                Path(path).write_text(json.dumps(dict(version=3,**self.owner.values(),qt_tuning_drafts=self.client.snapshot.get('tuning_drafts',[])),indent=2),encoding='utf8')
+                Path(path).write_text(json.dumps(dict(version=5,**self.owner.values(),qt_tuning_drafts=self.client.snapshot.get('tuning_drafts',[])),indent=2),encoding='utf8')
                 self.client.snapshot['tuning_dirty']=False
                 self.statusBar().showMessage('Saved last received artistic session; disconnected pending edits are unverified.')
             else:self.client.request('save',path=path)
@@ -682,6 +694,7 @@ class Shell(QMainWindow):
             self.owner_error_seen=owner_errors[-1]
             self.error(RuntimeError(owner_errors[-1].strip().splitlines()[-1]+'; owner diagnostics: '+str(self.client.log_path)))
         def update():
+            self.media_library.refresh();self.image_editor.refresh()
             running=self.owner.process is not None and self.owner.process.poll() is None
             link=self.owner.color_link;latest=link.get_audio() if link and link.audio_run else None
             self.view.refresh(latest,running);self.refresh_tuning()
@@ -772,6 +785,9 @@ class Shell(QMainWindow):
         if not self.layout_path.exists():return
         try:
             data=json.loads(self.layout_path.read_text(encoding='utf8'));self.preferences=data.get('controls',{})
+            self.image_editor.restore_tool_preferences()
+            state=self.preferences.get('composition_toolbar')
+            if state:self.composition_editor.restoreState(QByteArray.fromHex(state.encode()))
             self.analyzer.restore_configuration(self.preferences.get('band_analyzer'))
             self.manager.restoreState(QByteArray(base64.b64decode(data['docks'])))
             self.restoreGeometry(QByteArray(base64.b64decode(data['geometry'])));self.recover()
@@ -784,6 +800,8 @@ class Shell(QMainWindow):
         if visible:self.analyzer.refresh(self.client.latest_analyzer())
     def save_layout(self):
         self.layout_path.parent.mkdir(parents=True,exist_ok=True)
+        self.image_editor.remember_tools();self.preferences['composition_toolbar']=bytes(self.composition_editor.saveState().toHex()).decode()
+        for palette in self.image_editor.palettes:palette.remember()
         data={'version':1,'docks':bytes(self.manager.saveState()).hex(),'geometry':bytes(self.saveGeometry()).hex(),'controls':dict(self.preferences,band_analyzer=self.analyzer.configuration())}
         # Base64 is used so QByteArray round trips without text encoding changes.
         data['docks']=base64.b64encode(bytes(self.manager.saveState())).decode();data['geometry']=base64.b64encode(bytes(self.saveGeometry())).decode()
@@ -859,12 +877,23 @@ class Shell(QMainWindow):
             if event.type() in (QEvent.MouseButtonPress,QEvent.MouseButtonDblClick):
                 if self.chrome.client_press(event,event.type()==QEvent.MouseButtonDblClick):return True
         if self.client is None or self.client.disconnected:return False
+        if event.type()==QEvent.FocusIn and hasattr(self,'image_editor') and hasattr(self.image_editor,'editor_view') and hasattr(self.image_editor,'focus_pane'):
+            self.image_editor.focus_pane(QApplication.focusWidget())
         if event.type() in (QEvent.FocusIn,QEvent.WindowDeactivate,QEvent.MouseButtonPress):
             self.safe(self.owner.release_preview_holds);return False
         if event.type() not in (QEvent.KeyPress,QEvent.KeyRelease):return False
         if event.type()==QEvent.KeyRelease and event.key()==Qt.Key_Shift:
             self.safe(self.owner.release_preview_holds);return False
         focus=QApplication.focusWidget()
+        library_focus=focus is not None and self.media_library.isAncestorOf(focus)
+        if library_focus and event.type()==QEvent.KeyPress and event.modifiers()&Qt.ControlModifier and event.key() in (Qt.Key_Z,Qt.Key_Y) and not isinstance(focus,(QLineEdit,QDoubleSpinBox,QSpinBox,QPlainTextEdit)):
+            self.image_editor.history(event.key()==Qt.Key_Y or bool(event.modifiers()&Qt.ShiftModifier));self.media_library.refresh();return True
+        media_focus=focus is not None and (self.composition_editor.isAncestorOf(focus) or self.image_editor.isAncestorOf(focus))
+        palette_focus=focus is not None and any(p is focus.window() for p in self.image_editor.palettes)
+        if (media_focus or palette_focus) and not isinstance(focus,(QLineEdit,QDoubleSpinBox,QSpinBox,QPlainTextEdit)) and QApplication.activeModalWidget() is None:
+            if event.type()==QEvent.KeyRelease and event.key()==Qt.Key_Space:self.image_editor.canvas.space_pan=False;return True
+            if event.type()==QEvent.KeyPress and self.image_editor.editor_key(event):return True
+        if focus is not None and (self.composition_editor.isAncestorOf(focus) or self.image_editor.isAncestorOf(focus) or self.media_library.isAncestorOf(focus)):return False
         if isinstance(focus,(QLineEdit,QDoubleSpinBox,QSpinBox,QPlainTextEdit)):
             self.safe(self.owner.release_preview_holds);return False
         if isinstance(focus,QToolButton) and event.key() in (Qt.Key_Space,Qt.Key_Return,Qt.Key_Enter) and not event.modifiers() & (Qt.ControlModifier|Qt.AltModifier|Qt.ShiftModifier):return False
@@ -892,6 +921,7 @@ class Shell(QMainWindow):
             self.closing=True;self.control_cancel.set()
             if hasattr(self,'boot_timer'):self.boot_timer.stop()
             self.operations.shutdown(wait=False,cancel_futures=True);event.accept();return
+        if not self.image_editor.resolve_pending():event.ignore();return
         if json.dumps(self.owner.values(),sort_keys=True)!=self.saved_art or self.client.snapshot.get('tuning_dirty'):
             answer=QMessageBox.question(self,'Unsaved artistic settings','Save the session and destination-bound tuning drafts before closing? Save keeps drafts in the session; Save Authored remains a separate explicit action.',QMessageBox.Save|QMessageBox.Discard|QMessageBox.Cancel)
             if answer==QMessageBox.Cancel:event.ignore();return
@@ -903,7 +933,7 @@ class Shell(QMainWindow):
             try:self.save_layout()
             except OSError as exc:print('Layout was not saved:',exc,file=sys.stderr)
             self.cancel_attach=True;self.pending_operation=None
-            self.owner.release_preview_holds();self.waveform.close_pool()
+            self.owner.release_preview_holds();self.waveform.close_pool();self.image_editor.close_resources();self.media_library.close_resources()
             def cleanup():
                 try:self.client.close(force=self.client.disconnected or self.starting)
                 except Exception as exc:self.client.close(force=True);print('Close cleanup:',exc,file=sys.stderr)

@@ -1,5 +1,5 @@
 """Owned Qt and isolated service regression checks for reviewed proof failures."""
-import json,tempfile,time
+import json,tempfile,time,os
 from pathlib import Path
 from unittest.mock import patch
 from PySide6.QtCore import Qt,QEvent
@@ -11,6 +11,7 @@ import PySide6QtAds as ads
 
 def run():
  app=QApplication([]);checks=[]
+ out=Path(os.environ.get('ZERAWAVE_MEDIA_EVIDENCE',str(ROOT/'work/qt-studio-proof/corrections-01')));out.mkdir(parents=True,exist_ok=True)
  with tempfile.TemporaryDirectory(prefix='zerawave-proof-corrections-') as temp:
   layout=Path(temp)/'layout.json';session=Path(temp)/'session.json'
   shell=Shell(layout);shell.show();app.processEvents();shell.timer.stop()
@@ -69,7 +70,7 @@ def run():
     serial=reopened.client.serial;control.spin.lineEdit().setFocus();app.processEvents();serial=reopened.client.serial
     QApplication.sendEvent(control.spin.lineEdit(),QKeyEvent(QEvent.KeyPress,Qt.Key_Space,Qt.NoModifier))
     assert reopened.client.serial==serial;checks.append('text input does not send global BONK')
-    reopened.screen().grabWindow(int(reopened.winId())).save(str(ROOT/'work/qt-studio-proof/corrections-01/shell.png'))
+    reopened.screen().grabWindow(int(reopened.winId())).save(str(out/'shell.png'))
     event=QCloseEvent()
     with patch.object(QMessageBox,'question',return_value=QMessageBox.Discard):reopened.closeEvent(event)
     assert event.isAccepted() and reopened.client.closed;checks.append('tuning-only Discard closes without changing saved session')
@@ -91,6 +92,6 @@ def run():
   finally:
    if not saved_close.client.closed:
     with patch.object(QMessageBox,'question',return_value=QMessageBox.Discard):saved_close.close()
- (ROOT/'work/qt-studio-proof/corrections-01/cpu-result.json').write_text(json.dumps({'result':'PASS','evidence':'actual Qt widgets and separate Tk service; direct key event unit checks, no OS mouse gestures','checks':checks},indent=2))
+ (out/'cpu-result.json').write_text(json.dumps({'result':'PASS','evidence':'actual Qt widgets and separate Tk service; direct key event unit checks, no OS mouse gestures','checks':checks},indent=2))
  print('PASS',json.dumps(checks),flush=True)
 if __name__=='__main__':run()
