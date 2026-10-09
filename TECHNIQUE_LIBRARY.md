@@ -3,6 +3,28 @@
 This document maps current code ownership and reuse boundaries. It is not a
 backlog; see [ROADMAP.md](ROADMAP.md) for priorities.
 
+## Current editor ownership and approved migration boundary
+
+| Current owner | Implemented responsibility |
+| --- | --- |
+| `studio_qt.py`, `studio_composition.py` | Qt widgets/input, private raster gestures, CPU composition preview and tools. |
+| `studio_control_client.py`, `studio_control_service.py`, `composition.py` | Python command/ACK, authoritative composition/history and revision/session policy over the retained control process. |
+| `raster_resources.py`, `studio_control_service.py` | Immutable shared raster leases, bounded owner admission/persistence, duplicate ledger and revision-pinned portable saves. |
+| `artwork.py`, `media_registry.py` | Unchanged native raster algorithms and durable PNG/import validation; completed B1 pixel edits publish before background PNG work. |
+| `image_layers.py`, `renderer.py` | Existing context-owned GPU composition/output; no second world renderer. |
+| `media_frames.py`, `model_layer.py` | Bounded silent native codec frames and supported static meshes. |
+
+Approved direction retains Qt/Python control and GPU rendering with a small C++
+core in B2. B1 runtime snapshots/asynchronous outcomes are implemented in the
+development review candidate; [actual results](docs/agent-notes/b1-raster-20261008.md)
+do not establish user acceptance. B1 separates history/output acceptance from PNG persistence;
+B2 implements experimental C++ tiled storage, copy-on-write history and
+renderer-owned editor projection behind B1's transaction/save interfaces. See
+[native ownership/setup](docs/NATIVE_RASTER_B2.md); its generated DLL remains local. Audio/media native work
+follows separate stages. Module paths describe current ownership, not a language
+ban. See [ROADMAP](ROADMAP.md#b1--raster-transactions-recovery-and-immediate-publication)
+and [media contracts](docs/STUDIO_MEDIA_COMPOSITION.md#current-status-and-b1-boundary).
+
 ## Dated rendering inventory reference
 
 [Full worldform rendering inventory, 2026-10-05](ZERAWAVE_WORLDFORM_RENDERING_INVENTORY_2026-10-05.md)
@@ -12,8 +34,10 @@ Marsh history and four ranked proposals. It distinguishes Main33/34 from
 Experimental39/40 and binds the reviewed Root and later Sky-guard source versions;
 it does not identify loaded runtime bytes or award current performance acceptance.
 Later Sky-guard measurements remain Builder evidence awaiting independent verification.
-Snapshot: 30,487 bytes; SHA-256
-`d1c740584fa9dfbc31ad64a295f4a3e06dafeb12179e3d777ee5299bce64f697`.
+At recovery `0fb4c3f`, the local reference is 30,383 bytes; SHA-256
+`dcd7c50c6bd259379e53f29c58dc6a95a8fbff176f611b00b3c469dce97e7678`.
+Earlier manifests bind their own versions; this reference identity does not
+reseal or replace dated technical evidence.
 Preserve it byte-for-byte. Record later findings in separately dated evidence and
 reconcile current guidance only through assigned scope; do not rewrite this snapshot
 or promote its hypotheses to implemented techniques. ROADMAP remains the sole plan.
@@ -383,3 +407,23 @@ October 5 Qt additions extend presentation over those same owners:
   context and audio position. Native move/resize initiation and system commands
   are implementation paths; physical drag/snap, DPI and monitor changes remain
   unverified in the additions evidence.
+
+
+## B2 native raster/editor continuation - 2026-10-08
+
+The B2 development candidate retains128-pixel immutable C++ tiles, copy-on-write
+history, exact region editing, B1 transactions, revision-pinned portable PNG saves
+and the existing output publication path. The continuation corrects redundant
+CPU presentation refresh, adds an optional exact float32 region kernel, and hosts
+renderer-owned GPU projection/composition in the same Qt authoring Canvas.
+Integer-aligned physical native pixels use GPU composition and damage; filtered,
+rotated/fractional views retain exact Qt reference sampling with cached GPU display.
+There is no mandatory display-loop readback. The Layers editor label distinguishes
+these routes; `ZERAWAVE_EDITOR_GPU=cpu` selects the compatible CPU editor at open.
+Native initialization failure also preserves a usable CPU Canvas.
+
+This is a reviewable candidate, not Robert acceptance or a universal performance
+claim. Latency, memory, failures and remaining limitations are bound in
+`docs/agent-notes/b2-tiles-20261008.md` and `work/b2-completion-20261008`.
+Build, ABI, resource bounds and secured fallback are in the
+[B2 implementation contract](docs/NATIVE_RASTER_B2.md).

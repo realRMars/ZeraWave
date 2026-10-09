@@ -1,10 +1,103 @@
 # ZeraWave handoff
 
-Updated: 2026-10-06 (Qt Studio development checkpoint publication authorized).
+Updated: 2026-10-09 (raster/editor development publication authorized).
 [ROADMAP.md](ROADMAP.md) is the sole plan; [AGENTS.md](AGENTS.md) owns the working
 procedure. Prior checkpoints and their limitations remain below.
 
-## Current Qt/Studio development checkpoint
+## October 9 raster/editor development checkpoint
+
+Robert authorized commit and normal GitHub push of this development candidate.
+Parent is `0fb4c3fa28632a6aaedb472be50b1837926b9caa`; exact committed source and
+remote verification belong in [publication receipt](work/publication-raster-editor-20261009/review-index.json).
+This publishes B1 transactions/saves, B2 C++ tiles/copy-on-write resources,
+renderer-owned editor projection and subsequent selection/clipboard/Smudge and
+focused usability/performance corrections. Qt/Python control, original assets,
+existing renderer/audio ownership and frozen portable remain.
+
+The latest [actual-results note](docs/agent-notes/b2-tiles-20261008.md) binds
+`work/usability-performance-20261009-1791554021606265100/final.json`. Before this
+publication pass, all 383 candidate files, 1150 sealed artifacts and seven native
+build artifacts matched. Fresh publication checks and staged hashes belong in
+the receipt; earlier checks retain their own source/provenance. Original task
+reports are unchanged, including their task-time uncommitted status.
+
+**User acceptance remains pending.** Publication is a recovery/development
+checkpoint, not broad editor acceptance. Retain the 32-layer capacity, measured
+Fill heartbeat gap up to 485.82 ms and 5.57–5.93 s all-inline Undo fixture pauses,
+remaining owner-death/memory-only recovery limits and unresolved physical-input,
+on-screen GPUCanvas, monitor/DPI, live listening and multi-hour review. No B3,
+new critic, release or automatic refinement starts through publication.
+
+Source and build script are published; generated DLLs/captures and work evidence
+remain local. See [native build/fallback](docs/NATIVE_RASTER_B2.md). A fresh checkout
+uses compatible B1 fallback until an optional native DLL is built. Never switch
+DLLs in a live instance; secure accepted artwork before closing or rollback.
+Unrelated notes, research/planning and original media are excluded and preserved.
+
+<a id="current-recovery-checkpoint-and-b1-handoff"></a>
+
+## B1-to-B2 handoff — October 8 (historical)
+
+Fresh local verification: `main`, HEAD
+`0fb4c3fa28632a6aaedb472be50b1837926b9caa`. This is the published recovery base,
+not the dirty B1 source. The index is empty; B1 implementation, prior guidance and
+other local work are uncommitted. Before this pass, all 193 source hashes and 17
+task-file hashes matched [B1 final manifest](work/b1-raster-20261008/final.json).
+The [recovery receipt](work/commit-media-editor-20261008/review-index.json) retains
+its earlier remote verification; no new remote or application checks ran here.
+
+[B1 results](docs/agent-notes/b1-raster-20261008.md) record implemented immutable
+Windows shared raster resources, ordered/duplicate-safe owner transactions,
+scoped Undo/Redo and existing-renderer publication before background PNG saving.
+Save pins a revision/settings/Qt drafts and atomically secures portable dependencies;
+failed checkpoints retain recovery/retry. Session retirement and close protect
+accepted unsaved resources. Qt/Python control and pixel algorithms remain; no
+project-owned C++ core exists. [Runtime/save details](docs/STUDIO_MEDIA_COMPOSITION.md#runtime-transactions-and-recovery)
+are current candidate behavior, not future B2 claims.
+
+**B1 is implemented, uncommitted and awaiting Robert's acceptance. The current
+editor remains unaccepted.** The evidence pack includes scripted/offscreen/GPU
+checks and bounded native pointer/keyboard/output observations. Retained failures,
+tolerances and unrun checks remain in the original report. Release snapshot copies
+still cost work (39.09–56.62 ms in its matched component runs); Smudge/dense Add
+algorithms remain unchanged. Timing is observed acceptance/paint or ACK/readback,
+not scanout/FPS or a full historical executable comparison. No broad listening,
+multi-hour or exhaustive transformed-selection/lock/dialog-failure acceptance.
+Historical Library-drag freeze/floating-pane/general usability problems stay open
+unless separately reviewed. Memory-only pixels are not crash recovery; owner death
+has no automatic reconnect/authoritative export. Unknown outcomes retain producer
+leases and block context changes; close requires secured work/checkpoint pins.
+Robert reports the earlier playback issue fixed; dated Roots/Sky reports are not
+an instruction to reopen that assignment.
+
+**B2 is the next scoped stage, planned only:** C++ tiled raster resources,
+copy-on-write history and incremental compositing. Retain Qt/Python authoring,
+ControlOwner and the existing GPU renderer. Preserve B1 command/outcome ordering,
+resource leases, save/failure/recovery behavior and latest tool/lock/selection/Undo
+semantics. [ROADMAP B2](ROADMAP.md#b2--c-tiled-raster-resources-copy-on-write-history-and-incremental-compositing)
+owns scope, tests and later stages. No C++ implementation/build/install occurs here.
+
+Pre-pass dirty work includes the nine reconciled guidance files, ten modified B1
+Python files, untracked `raster_resources.py`/`raster_transactions_test.py` and B1's
+note, three pre-existing color notes, research/planning/assets, startup note,
+architecture assessment and earlier plan proposal. Exact status/hashes are in
+[this pass's baseline](work/docs-b2-handoff-20261008/baseline.json). Preserve all;
+Builder must bind the then-current dirty candidate, not reset to HEAD or reseal
+B1's historical manifests after these guidance changes.
+
+The original [assessment](docs/agent-notes/zeraphinax-architecture-assessment-20261008-0fb4c3f.md)
+is unchanged; its proposal/access status remains assessment-time evidence. Current
+approved direction and B1 result supersede its next-stage status in ROADMAP.
+Prompter/Bob prepare the B2 brief through the existing manual route. This pass
+starts no Builder/critic, implementation, commit, push or release. B1 user review
+and any new failures remain distinct from B2 preparation.
+
+<a id="current-qtstudio-development-checkpoint"></a>
+
+## Published Qt/Studio checkpoint — October 6
+
+The following is that earlier checkpoint's evidence, not the current B1 priority
+or a new measurement of the recovery source.
 
 Robert authorized this development commit and normal GitHub push on October 6.
 Source/staged-content checks, complete checkpoint scope and exact commit/remote

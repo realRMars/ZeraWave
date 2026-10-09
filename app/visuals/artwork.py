@@ -30,7 +30,8 @@ def masked(image,operations):
     result=image.copy()
     for operation in operations:
         if not operation['enabled']:continue
-        shape=QImage(image.size(),QImage.Format_ARGB32_Premultiplied);shape.fill(0);p=QPainter(shape);p.setRenderHint(QPainter.Antialiasing);p.fillPath(selection_path(operation,(image.width(),image.height())),QColor('white'));p.end()
+        from pixel_selection import operation_image
+        shape=operation_image(operation,(image.width(),image.height()))
         p=QPainter(result);p.setCompositionMode(QPainter.CompositionMode_DestinationIn if operation['mode']=='Keep' else QPainter.CompositionMode_DestinationOut);p.drawImage(0,0,shape);p.end()
     return result
 
@@ -88,28 +89,32 @@ def magnetic_point(image,uv,radius=12):
     if score.max()<12:return list(uv)
     iy,ix=np.unravel_index(np.argmax(score),score.shape);return [float((x0+ix)/w),float((y0+iy)/h)]
 
-def smudge(image,start,end,size,strength,opacity,shape='Round',row=None,selection=None):
+def smudge(image,start,end,size,strength,opacity,shape='Round',row=None,selection=None,origin=(0,0),global_size=None,pickup=None):
     """Blend a bounded brush tile dragged from prior to current native position."""
-    r=max(1,round(size/2));w,h=image.width(),image.height();sx,sy=start;ex,ey=end
-    tile=image.copy(QRectF(sx-r,sy-r,2*r,2*r).toRect());mask=QImage(tile.size(),QImage.Format_ARGB32_Premultiplied);mask.fill(0)
+    r=max(1,round(size/2));w,h=global_size or (image.width(),image.height());sx,sy=start;ex,ey=end
+    tile=image.copy(QRectF(sx-r-origin[0],sy-r-origin[1],2*r,2*r).toRect())
+    if pickup is not None:
+        tile=pickup.copy()  # Already includes the evolving target once in scene order.
+    mask=QImage(tile.size(),QImage.Format_ARGB32_Premultiplied);mask.fill(0)
     if row:
         coverage=QImage(tile.size(),QImage.Format_ARGB32_Premultiplied);coverage.fill(0);p=QPainter(coverage);p.translate(-(sx-r),-(sy-r));c=row['crop'];p.fillRect(QRectF(c[0]*w,c[1]*h,(c[2]-c[0])*w,(c[3]-c[1])*h),QColor('white'));p.end()
         for operation in row['masks']+([dict(selection,mode='Keep')] if selection else []):
             if not operation['enabled']:continue
-            local=QImage(tile.size(),QImage.Format_ARGB32_Premultiplied);local.fill(0);p=QPainter(local);p.setRenderHint(QPainter.Antialiasing);p.translate(-(sx-r),-(sy-r));p.fillPath(selection_path(operation,(w,h)),QColor('white'));p.end();p=QPainter(coverage);p.setCompositionMode(QPainter.CompositionMode_DestinationIn if operation['mode']=='Keep' else QPainter.CompositionMode_DestinationOut);p.drawImage(0,0,local);p.end()
+            from pixel_selection import operation_image
+            local=operation_image(operation,(w,h),(round(sx-r),round(sy-r),tile.width(),tile.height()));p=QPainter(coverage);p.setCompositionMode(QPainter.CompositionMode_DestinationIn if operation['mode']=='Keep' else QPainter.CompositionMode_DestinationOut);p.drawImage(0,0,local);p.end()
         p=QPainter(tile);p.setCompositionMode(QPainter.CompositionMode_DestinationIn);p.drawImage(0,0,coverage);p.end()
     p=QPainter(mask);p.setBrush(QColor(255,255,255));p.setPen(Qt.NoPen)
     (p.drawRect if shape=='Square' else p.drawEllipse)(mask.rect());p.end();p=QPainter(tile);p.setCompositionMode(QPainter.CompositionMode_DestinationIn);p.drawImage(0,0,mask);p.end()
-    p=QPainter(image);p.setOpacity(strength*opacity);p.drawImage(QPointF(ex-r,ey-r),tile);p.end()
+    p=QPainter(image);p.translate(-origin[0],-origin[1]);p.setOpacity(strength*opacity);p.drawImage(QPointF(ex-r,ey-r),tile);p.end()
 
 
-def brush_stroke(image,start,end,brush,color,tool='Brush'):
+def brush_stroke(image,start,end,brush,color,tool='Brush',origin=(0,0)):
     """Native-pixel spaced dabs; flow per dab, stroke opacity applied by caller."""
     from PySide6.QtGui import QRadialGradient
     from PySide6.QtCore import QRectF
     radius=max(.5,brush['size']/2);distance=float(np.hypot(end[0]-start[0],end[1]-start[1]))
     count=max(1,int(np.ceil(distance/max(1.,radius*.2))))
-    p=QPainter(image);p.setRenderHint(QPainter.Antialiasing,tool!='Pencil')
+    p=QPainter(image);p.translate(-origin[0],-origin[1]);p.setRenderHint(QPainter.Antialiasing,tool!='Pencil')
     if tool=='Eraser':p.setCompositionMode(QPainter.CompositionMode_DestinationOut)
     c=QColor(color);c.setAlphaF(c.alphaF()*brush.get('flow',1.))
     for i in range(1,count+1):

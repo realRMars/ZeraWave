@@ -79,7 +79,7 @@ def composition_run():
         checks.append('Session/revision/run/destination stale edits rejected without changing frames; legacy route rejected; reference Remove/Undo preserves masks/transforms/membership, originals and independently active audio')
 
         assert all(id(shell.panels[k].dockAreaWidget())==v for k,v in areas.items())
-        session=out/'session.json';shell.client.request('save',path=str(session));saved=json.loads(session.read_text());assert saved['version']==5
+        session=out/'session.json';shell.client.request('save',path=str(session),save_id='media-save');wait(lambda:any(s['id']=='media-save' and s['status']=='durable' for s in shell.client.snapshot['media_control']['raster']['saves']));saved=json.loads(session.read_text());assert saved['version']==5
         shell.client.request('load',path=str(session));editor.refresh(True);assert editor.config['layers'] and not any(s['playing'] for s in shell.client.snapshot['media_frames'].values());checks.append('Artistic v5 round trip; layout areas unchanged; reopening animations stopped')
         shell.panels['composition'].toggleView(True);shell.panels['composition'].setAsCurrentTab();pump();shell.grab().save(str(out/'composition.png'))
         (out/'RESULT.json').write_text(json.dumps(dict(checks=checks,evidence='Real Qt widgets and QTest mouse events; real decoded video without audio output; not hardware mouse/listening/scanout'),indent=2));(task/'qt-latest.txt').write_text(str(out));print('PASS',out,json.dumps(checks),flush=True)

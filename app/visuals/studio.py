@@ -1295,6 +1295,8 @@ class Studio:
         live_scene = live_scene if targets_for(live_scene) and not label else None
         if live_scene: args += ['--studio-color-input']
         output.mkdir(parents=True)
+        packet=getattr(self,'image_startup_packet',None)
+        if packet is not None:(output/'image-layers-startup.json').write_text(packet,encoding='utf8')
         (output/'preview.json').write_text(json.dumps(dict(version=5, **values), indent=2), encoding='utf-8')
         self.log = (output/'run.log').open('w', encoding='utf-8')
         normal_audio=bool(live_scene and (values.get('selection_scope',selection_scope(values.get('selection',path_for_state(values['state']))))=='main' or all(LIVE_STATES[s] in FRACTAL_FORMS for s in selected_states)))

@@ -98,51 +98,58 @@ def run():
             pump()
             if test():return
         raise AssertionError('Timeout: '+(e.status.text() if e else 'startup'))
-    def done():wait(lambda:not e.art_jobs and e.selected_row() and e.canvas.source_image(e.selected_row()) is not None)
+    def recover(redo,scope="layers"):
+        e.history(redo,scope);wait(lambda:not e.edit_jobs)
+    def done():wait(lambda:not e.art_jobs and not e.edit_jobs and e.selected_row() and e.canvas.source_image(e.selected_row()) is not None)
     def stroke(tool):
         c=e.canvas;e.choose_tool(tool);row=e.selected_row();a=c.screen_point(row,(.4,.45)).toPoint();b=c.screen_point(row,(.6,.55)).toPoint();QTest.mousePress(c,Qt.LeftButton,pos=a);assert c.stroke,e.status.text();QTest.mouseMove(c,b,delay=0);QTest.mouseRelease(c,Qt.LeftButton,pos=b);done()
     try:
         wait(lambda:shell.client and hasattr(shell,'image_editor') and not shell.client.snapshot['media_library']['loading']);e=shell.image_editor;c=e.canvas;e.reveal();pump()
         e.blank_layer();done();parent=e.selected;first=e.selected_row()['asset'];stroke('Pencil');drawn=e.selected_row()['asset'];assert drawn!=first
         e.blank_layer(True);done();child=e.selected;e.row_flag(parent,'locked');assert not effective(e.config,e.selected_row(),'locked');stroke('Brush');e.row_edit(child,'name','Unlocked child','Rename');assert e.selected_row()['name']=='Unlocked child'
-        e.history(False,'drawing');child_first=e.selected_row()['asset'];e.history(False,'drawing');assert e.selected_row()['asset']==child_first and len(e.config['layers'])==2
-        e.history(True,'drawing');child_drawn=e.selected_row()['asset'];e.row_flag(parent,'locked')
+        recover(False,'drawing');child_first=e.selected_row()['asset'];recover(False,'drawing');assert e.selected_row()['asset']==child_first and len(e.config['layers'])==2
+        recover(True,'drawing');child_drawn=e.selected_row()['asset'];e.row_flag(parent,'locked')
         e.expand_row(parent);e.expand_row(child);assert set(e.expanded)=={parent,child} and all(any(w.text()==lookup(e.config)[i]['name'] for w in e.row_widgets[i].findChildren(QLineEdit)) for i in (parent,child))
         e.row_widgets[parent].opacity.setValue(45);pump();assert lookup(e.config)[parent]['opacity']==.45 and lookup(e.config)[child]['opacity']==1
         e.row_edit(parent,'blend','Multiply','Blend');assert lookup(e.config)[parent]['opacity']==.45
         e.group();group=e.selected;e.row_flag(group,'locked');assert effective(e.config,lookup(e.config)[child],'locked');e.row_flag(group,'locked');assert not effective(e.config,lookup(e.config)[child],'locked');e.ungroup();pump()
         e.select(child);e.tree.blockSignals(True)
         for i in (parent,child):e.row_items[i].setSelected(True)
-        e.tree.blockSignals(False);count=shell.client.snapshot['media_control']['history']['undo_count'];e.delete();assert not e.config['layers'] and shell.client.snapshot['media_control']['history']['undo_count']==count+1
-        e.history(False);assert {r['id'] for r in e.config['layers']}=={parent,child} and lookup(e.config)[child]['asset']==child_drawn;e.select(child);e.history(False,'drawing');assert lookup(e.config)[child]['asset']==child_first
+        e.tree.blockSignals(False);count=shell.client.snapshot['media_control']['history']['undo_count']
+        from unittest.mock import patch
+        with patch.object(QMessageBox,'question',return_value=QMessageBox.Yes):e.delete()
+        assert not e.config['layers'] and shell.client.snapshot['media_control']['history']['undo_count']==count+1
+        recover(False);assert {r['id'] for r in e.config['layers']}=={parent,child} and lookup(e.config)[child]['asset']==child_drawn;e.select(child);recover(False,'drawing');assert lookup(e.config)[child]['asset']==child_first
         checks.append('Isolated real owner: ordinary locked parent child draw/rename; current-layer drawing exhaustion; inline expansion; row opacity; Group protection; deduplicated batch deletion / content / drawing recovery')
-        for tool in ('Brush','Pencil','Sampler','Eraser','Smudge','Select','Crop','Cut','Hand','Zoom'):
+        for tool in ('Brush','Pencil','Sampler','Eraser','Smudge','Select','Transform','Crop','Hand','Fill'):
             button=e.direct_buttons[tool];QTest.mouseClick(button,Qt.LeftButton);pump();assert c.tool==tool
-            QTest.mouseDClick(button,Qt.LeftButton);pump();palette=next(p for p in e.palettes if p.title==tool+' settings');assert palette.isVisible()
-            QTest.mouseDClick(button,Qt.LeftButton);pump();assert not palette.isVisible() and len([p for p in e.palettes if p.title==tool+' settings'])==1
-        e.choose_tool('Brush');e.brush['size']=31;e.brush_color=QColor('#12bc56');e.choose_tool('Pencil');e.brush['size']=7;e.brush_color=QColor('#db3251');e.choose_tool('Brush');assert e.brush['size']==31 and e.brush_color.name()=='#12bc56';e.choose_tool('Sampler');e.receive_sample(QColor('#abcdef'));assert e.tool_states['Brush']['color'].name()=='#abcdef' and e.tool_states['Pencil']['color'].name()=='#db3251' and e.tool_states['Brush']['brush']['size']==31
-        checks.append('Direct click / double-click singleton settings per tool; independent Brush/Pencil size/color; Sampler receiving tool preserves other settings')
+            QTest.mouseDClick(button,Qt.LeftButton);pump();assert not e.palettes
+            if tool!='Hand':assert e.color_toolbar.isVisible()
+            QTest.mouseDClick(button,Qt.LeftButton);pump();assert not e.palettes
+        e.choose_tool('Brush');e.brush['size']=31;e.brush_color=QColor('#12bc56');e.choose_tool('Pencil');e.brush['size']=7;e.brush_color=QColor('#db3251');e.choose_tool('Brush');assert e.brush['size']==31 and e.brush_color.name()=='#db3251';e.choose_tool('Sampler');e.receive_sample(QColor('#abcdef'));assert e.tool_states['Brush']['color'].name()=='#abcdef' and e.tool_states['Pencil']['color'].name()=='#abcdef' and e.tool_states['Brush']['brush']['size']==31
+        checks.append('Direct click / double-click shared sidebar per tool; independent Brush/Pencil size and shared Main; Sampler preserves Secondary/settings')
 
         e.tool_settings('Brush');e.apply_brush_preset('Brush',48,.2);assert e.settings_widgets['Brush']['size'].value()==48 and e.settings_widgets['Brush']['hardness'].value()==20
-        e.tool_settings('Brush');e.choose_tool('Select');e.select(child);e.expand_row(child) if child not in e.expanded else None
+        e.tool_settings('Brush');e.choose_tool('Transform');e.select(child);e.expand_row(child) if child not in e.expanded else None
         shell.activateWindow();pump();field=e.tree.findChild(QLineEdit,'layer_'+child+'_name');field.setFocus();pump();QTest.keyClick(field,Qt.Key_End);QTest.keyClicks(field,'XYZ');QTest.keyClick(field,Qt.Key_Z,Qt.ControlModifier);assert field.text()==lookup(e.config)[child]['name']
         field.selectAll();QTest.keyClicks(field,'Keyboard name');QTest.keyClick(field,Qt.Key_Return);pump();newfield=e.tree.findChild(QLineEdit,'layer_'+child+'_name');assert app.focusWidget() is newfield and newfield.text()=='Keyboard name',(app.focusWidget(),newfield.text(),e.selected_row()['name'])
         from unittest.mock import patch
         before_asset=e.selected_row()['asset'];QTimer.singleShot(0,lambda:app.activeModalWidget().button(QMessageBox.No).click())
         e.select(None);e.drawing_onboarding();assert len(e.config['layers'])==2
         e.select(child)
-        with patch('studio_composition.QColorDialog.getColor',return_value=QColor(70,160,220,128)):
-            e.solid_fill()
-        done();filled=e.selected_row()['asset'];assert filled!=before_asset;e.history(False,'drawing');assert e.selected_row()['asset']==before_asset
+        e.brush_color=QColor(70,160,220,128);c.discard();e.solid_fill();assert e.selected_row()['asset']==before_asset
+        QTest.mouseClick(c,Qt.LeftButton,pos=c.screen_point(e.selected_row(),(.5,.5)).toPoint())
+        wait(lambda:e.fill_controller.job is None)
+        done();filled=e.selected_row()['asset'];assert filled!=before_asset;recover(False,'drawing');assert e.selected_row()['asset']==before_asset
         # A protected member blocks the whole selected batch, including unlocked rows.
         e.row_flag(parent,'locked');e.tree.blockSignals(True)
         for identity in (parent,child):e.row_items[identity].setSelected(True)
         e.tree.blockSignals(False);before=deepcopy(e.config);e.delete();assert e.config==before;e.row_flag(parent,'locked')
-        checks.append('Preset exact fields stay synchronized; scripted Qt text Undo and focus survive rename; No onboarding preserves layers; solid fill one drawing Undo; protected batch deletion is atomic')
+        checks.append('Preset exact fields stay synchronized; scripted Qt text Undo and focus survive rename; No onboarding preserves layers; click Fill one drawing Undo; protected batch deletion is atomic')
         # Explicit native placement and resized asynchronous placement share one add transaction.
         asset=next(a for a in e.media_assets() if a['id']==lookup(e.config)[parent]['asset'])
         prior=len(e.config['layers']);assert e.add_asset(asset,another=True,placement=dict(parent=parent,above=None));assert len(e.config['layers'])==prior+1 and e.selected_row()['parent']==parent
-        e.history(False);assert len(e.config['layers'])==prior
+        recover(False);assert len(e.config['layers'])==prior
         checks.append('Library asset placement commits native parent and asset identity in one management command')
         e.select(child);e.choose_tool('Mask');e.choose_shape('Curve');c.discard();c.closed_path=False;row=deepcopy(e.selected_row());initial=deepcopy(e.config)
         for uv in ((.23,.25),(.78,.25),(.52,.78)):
@@ -150,12 +157,32 @@ def run():
         assert len(c.points)==3 and len(c.handles)==3 and e.config==initial
         original_handle=deepcopy(c.handles[1][1]);point=c.screen_point(row,original_handle).toPoint();QTest.mousePress(c,Qt.LeftButton,pos=point);QTest.mouseMove(c,point+__import__('PySide6.QtCore',fromlist=['QPoint']).QPoint(8,6));QTest.mouseRelease(c,Qt.LeftButton,pos=point);assert c.handles[1][1]!=original_handle
         c.toggle_closed();assert c.closed_path and e.config==initial;c.preview_history(False);assert not c.closed_path;c.toggle_closed();c.apply();assert not c.points and len(e.selected_row()['masks'])==len(row['masks'])+1
-        e.history(False);assert e.selected_row()['masks']==row['masks'];e.history(True);mask=deepcopy(e.selected_row()['masks']);e.mask_list.setCurrentIndex(len(mask)-1);e.edit_mask();assert c.points and c.handles;c.points[0][0]+=.02;c.discard();assert e.selected_row()['masks']==mask
-        e.history(False);e.choose_tool('Crop');c.discard();row=deepcopy(e.selected_row());a=c.screen_point(row,(.2,.2)).toPoint();b=c.screen_point(row,(.8,.8)).toPoint();QTest.mousePress(c,Qt.LeftButton,pos=a);QTest.mouseMove(c,b);QTest.mouseRelease(c,Qt.LeftButton,pos=b);assert len(c.points)==4
+        recover(False);assert e.selected_row()['masks']==row['masks'];recover(True);mask=deepcopy(e.selected_row()['masks']);e.mask_list.setCurrentIndex(len(mask)-1);e.edit_mask();assert c.points and c.handles;c.points[0][0]+=.02;c.discard();assert e.selected_row()['masks']==mask
+        recover(False);e.choose_tool('Crop');c.discard();row=deepcopy(e.selected_row());a=c.screen_point(row,(.2,.2)).toPoint();b=c.screen_point(row,(.8,.8)).toPoint();QTest.mousePress(c,Qt.LeftButton,pos=a);QTest.mouseMove(c,b);QTest.mouseRelease(c,Qt.LeftButton,pos=b);assert len(c.points)==4
         side=c.screen_point(row,((c.points[0][0]+c.points[1][0])/2,c.points[0][1])).toPoint();QTest.mousePress(c,Qt.LeftButton,pos=side);assert c.point_drag==('side',0);QTest.mouseMove(c,side+__import__('PySide6.QtCore',fromlist=['QPoint']).QPoint(0,7));QTest.mouseRelease(c,Qt.LeftButton,pos=side);assert c.points[0][1]>.2;c.discard();assert e.selected_row()['crop']==row['crop']
         checks.append('Curve provisional anchors/handles, closure and preview Undo, Apply/management Undo/Redo, saved edit Discard; Crop side adjustment with Discard')
+        # The global filter gate skips layout/style traffic while retaining its
+        # existing chrome, child tracking, focus and preview-release handling.
+        from unittest.mock import patch
+        from PySide6.QtCore import QEvent,QChildEvent
+        from PySide6.QtWidgets import QWidget
+        probe=QWidget(shell);probe.setMouseTracking(False)
+        with patch.object(shell.chrome,'client_hover') as hover,patch.object(shell.chrome,'client_press',return_value=False) as press,patch.object(shell.owner,'release_preview_holds') as release:
+            assert not shell.eventFilter(shell,QEvent(QEvent.LayoutRequest))
+            assert not hover.called and not press.called and not release.called
+            assert not shell.eventFilter(shell,QChildEvent(QEvent.ChildPolished,probe)) and probe.hasMouseTracking()
+            assert not shell.eventFilter(shell,QEvent(QEvent.MouseMove));hover.assert_called_once()
+            assert not shell.eventFilter(shell,QEvent(QEvent.MouseButtonPress));press.assert_called_once();release.assert_called_once()
+            press.reset_mock();release.reset_mock();press.return_value=True
+            assert shell.eventFilter(shell,QEvent(QEvent.MouseButtonDblClick));press.assert_called_once();assert not release.called
+            assert not shell.eventFilter(shell,QEvent(QEvent.WindowDeactivate));release.assert_called_once()
+        probe.deleteLater();checks.append('Global filter ignores layout events and retains ChildPolished tracking, chrome hover/press/double-click and preview release; existing typing/editor shortcuts exercised above')
         c.grab().save(str(out/'canvas.png'));shell.grab().save(str(out/'studio.png'));assert not shell.errors,list(shell.errors)
         (out/'RESULT.json').write_text(json.dumps(dict(checks=checks,history=shell.client.snapshot['media_control']['history'],limits='Scripted Qt input, not physical/native acceptance'),indent=2));print('\n'.join(checks))
     finally:
-        shell.saved_art=json.dumps(shell.owner.values(),sort_keys=True);shell.close();pump(.1)
+        # Isolated fixture teardown must not block the failure traceback on a preview dialog.
+        if shell.client:shell.client.close(force=True)
+        shell.closing=True
+        if e:e.close_resources()
+        shell.close();app.processEvents()
 if __name__=='__main__':run()

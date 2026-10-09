@@ -64,6 +64,7 @@ def bounds(size,image,layer):
 class ImageLayers:
     def __init__(self,ctx,vertices):
         self.ctx,self.vertices=ctx,vertices;self.program=self.vao=None;self.textures={}
+        self.tile_descriptors={};self.tile_upload={}
         self.config=None;self.desired=None;self.revision=-1;self.session=None;self.applied=-1;self.error='';self.pending=False
         self.condition=threading.Condition();self.task=None;self.result=None;self.cancel=None;self.closed=False;self.generation=0
         self.worker=threading.Thread(target=self.decode,name='Renderer still-image decode',daemon=True);self.worker.start()
@@ -81,8 +82,17 @@ class ImageLayers:
             if asset.get('status')!='Ready' and asset_key(asset) not in self.textures:continue
             if not isinstance(asset.get('metadata'),dict):raise ValueError('Image metadata is unavailable.')
             selected[asset_key(asset)]=deepcopy(asset)
+        from raster_resources import read as read_raster
+        if sum(a['runtime']['bytes'] for key,a in selected.items() if 'runtime' in a and key not in self.textures)>128*1024*1024:raise ValueError('Runtime raster CPU staging exceeds 128 MiB; previous composition retained.')
+        from raster_tiles import tiled,Upload
+        def transfer(desc):return (dict(width=desc['width'],height=desc['height']),Upload(desc)) if tiled(desc) else read_raster(desc)
+        immediate={key:transfer(asset['runtime']) for key,asset in selected.items() if 'runtime' in asset and key not in self.textures}
         same_assets=self.desired is not None and self.desired[1]==selected and session==self.session
         self.revision,self.session=revision,session;self.error='';self.desired=(clean,selected);self.runtime=deepcopy(config.get('runtime',{}))
+        if immediate:
+            ready={key:asset for key,asset in selected.items() if key in self.textures or key in immediate}
+            self.commit(clean,ready,immediate)
+            if self.error:return
         if all(key in self.textures for key in selected):
             with self.condition:
                 if self.cancel:self.cancel.set()
@@ -172,7 +182,11 @@ class ImageLayers:
                     candidates[key]=ModelResource(self.ctx,data);continue
                 size=(meta['width'],meta['height'])
                 if max(size)>limit:raise ValueError('Image exceeds this device texture limit: '+str(limit))
-                texture=self.ctx.texture(size,4,data,alignment=1);candidates[key]=texture
+                from raster_tiles import Upload
+                texture=self.ctx.texture(size,4,None if isinstance(data,Upload) else data,alignment=1);candidates[key]=texture
+                if isinstance(data,Upload):
+                    previous=next((k for k,d in self.tile_descriptors.items() if d['family']==data.desc['family'] and (d['width'],d['height'])==size and k in self.textures),None)
+                    self.tile_upload=data.apply(self.ctx,texture,self.textures.get(previous),self.tile_descriptors.get(previous))
                 texture.filter=(moderngl.LINEAR,moderngl.LINEAR);texture.repeat_x=texture.repeat_y=False
             if sum(getattr(t,'byte_size',t.width*t.height*4) for t in list(self.textures.values())+list(candidates.values()))>256*1024*1024:raise ValueError('Texture/model staging exceeds 256 MiB.')
             if any(key not in self.textures and key not in candidates for key in selected):raise ValueError('Image staging is incomplete.')
@@ -193,6 +207,7 @@ class ImageLayers:
         old=self.textures;self.textures={key:old[key] if key in old else candidates[key] for key in selected}
         for key,texture in old.items():
             if key not in self.textures:texture.release()
+        self.tile_descriptors={key:(images[key][1].desc if key in images and hasattr(images[key][1],'desc') else self.tile_descriptors[key]) for key in selected if key in self.tile_descriptors or key in images and hasattr(images[key][1],'desc')}
         self.config=config;self.applied=self.revision;self.pending=False;self.error=''
         for identity,pair in mask_candidates.items():
             previous=self.masks.get(identity)
@@ -242,9 +257,8 @@ class ImageLayers:
         alpha=QImage(*size,QImage.Format_ARGB32_Premultiplied);alpha.fill(0xffffffff)
         for mask in row['masks']:
             if not mask['enabled']:continue
-            shape=QImage(*size,QImage.Format_ARGB32_Premultiplied);shape.fill(0);p=QPainter(shape);p.setRenderHint(QPainter.Antialiasing)
-            from artwork import selection_path
-            p.fillPath(selection_path(mask,size),QColor('white'));p.end();p=QPainter(alpha);p.setCompositionMode(QPainter.CompositionMode_DestinationIn if mask['mode']=='Keep' else QPainter.CompositionMode_DestinationOut);p.drawImage(0,0,shape);p.end()
+            from pixel_selection import operation_image
+            shape=operation_image(mask,size);p=QPainter(alpha);p.setCompositionMode(QPainter.CompositionMode_DestinationIn if mask['mode']=='Keep' else QPainter.CompositionMode_DestinationOut);p.drawImage(0,0,shape);p.end()
         a=np.frombuffer(alpha.constBits(),np.uint8).reshape(size[1],alpha.bytesPerLine())[:,3::4].copy()[::-1]
         texture=self.ctx.texture(size,1,a.tobytes(),alignment=1);texture.filter=(moderngl.LINEAR,moderngl.LINEAR);texture.repeat_x=texture.repeat_y=False
         return texture
@@ -320,7 +334,7 @@ class ImageLayers:
             raw.blend_func=(moderngl.SRC_ALPHA,moderngl.ONE_MINUS_SRC_ALPHA)
             raw.viewport=saved_viewport
     def snapshot(self):
-        return dict(session=self.session,revision=self.revision,applied_revision=self.applied,pending=self.pending,error=self.error,
+        return dict(tile_upload=dict(self.tile_upload),session=self.session,revision=self.revision,applied_revision=self.applied,pending=self.pending,error=self.error,
             textures=len(self.textures),texture_bytes=sum(getattr(t,'byte_size',t.width*t.height*4) for t in self.textures.values()),
             resident=[list(key) for key in self.textures],
             animated_textures=len(self.animated),animated_texture_bytes=sum(t.width*t.height*4 for t in self.animated.values()),mask_texture_bytes=sum(t.width*t.height for k,t in self.masks.values()),upload_ms=self.upload_ms,composition_target_bytes=sum(t.width*t.height*8 for pair in self.buffers.values() for t,f in pair),
@@ -340,7 +354,7 @@ class ImageLayers:
             for t,f in pair:f.release();t.release()
         self.buffers.clear()
         for texture in self.textures.values():texture.release()
-        self.textures.clear()
+        self.textures.clear();self.tile_descriptors.clear()
         for resource in (self.vao,self.program):
             if resource is not None:resource.release()
         self.vao=self.program=None

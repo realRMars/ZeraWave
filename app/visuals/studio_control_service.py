@@ -36,6 +36,8 @@ class ControlOwner(Studio):
         self.media_session=uuid.uuid4().hex;self.media_revision=0;self.media_publication_revision=0
         from composition import History
         from media_frames import MediaFrames
+        from raster_resources import Resources,Outcomes
+        self.rasters=Resources();self.outcomes=Outcomes();self.publication_pins={};self.recovery_checkpoints=[]
         self.composition_history=History();self.media_frames=MediaFrames();self.frame_key=None;self.web_frames={};self.removed_media={}
         self.open_star_tuning();self.star_tuning_window.window.withdraw()
         self.open_color_inspector();self.color_editor.window.withdraw();self.color_editor.compact=True
@@ -47,7 +49,7 @@ class ControlOwner(Studio):
         from media_registry import validate_scene,normalized
         scene=validate_scene(self.media_scene);references=[]
         for ref in scene['assets']:
-            asset=self.media_registry.assets.get(ref['id'])
+            asset=self.rasters.rows.get(ref['id']) or self.media_registry.assets.get(ref['id'])
             if asset is None:
                 asset=dict(self.removed_media.get(ref['id'],ref),status='Missing',error='Library reference removed; Relink/Undo restores it.')
                 asset.setdefault('metadata',{})
@@ -63,17 +65,21 @@ class ControlOwner(Studio):
         from media_registry import reference
         needed={layer['asset'] for layer in self.media_scene['layers'] if layer['asset']}
         old={a['id']:a for a in self.media_scene['assets']}
-        self.media_scene['assets']=[reference(self.media_registry.assets[key]) if key in self.media_registry.assets else old[key] for key in sorted(needed)]
-    def send_media(self):
+        records={**self.media_registry.assets,**self.rasters.rows}
+        self.media_scene['assets']=[reference(records[key]) if key in records else old[key] for key in sorted(needed)]
+    def send_media(self,ordered=False):
         if self.process is not None and self.process.poll() is None:
             if not self.committed_scope or not compatible_scope(self.committed_scope):return
             # Frame residency changes need fresh renderer ordering, but are not
             # composition edits. They must not invalidate a live editor gesture.
             spec=self.media_spec(allow_resident=True);self.media_publication_revision+=1
-            self.preview_command('images',config=spec,revision=self.media_publication_revision,session=self.media_session)
+            self.preview_command('images',config=spec,revision=self.media_publication_revision,session=self.media_session,ordered=ordered)
+            self.publication_pins[self.media_publication_revision]={a['id'] for a in spec['assets'] if 'runtime' in a}
     def launch(self,values,output,label=None):
         self.pause_intent=None
         self.resolution_pending=None
+        startup_packet=None
+        self.host.pop('ZERAWAVE_IMAGE_LAYERS_FILE',None)
         if self.resolution_policy is None:self.host.pop('ZERAWAVE_VISUALIZER_RESOLUTION',None)
         else:self.host['ZERAWAVE_VISUALIZER_RESOLUTION']=json.dumps(self.resolution_policy)
         values=deepcopy(values)
@@ -92,11 +98,26 @@ class ControlOwner(Studio):
             self.host['ZERAWAVE_AUDIO_HUB']=self.audio_owner.environment()
             spec=self.media_spec()
             if spec['presentation']!='World only' and (spec['layers'] or spec['presentation']=='Layers only'):
-                self.host['ZERAWAVE_IMAGE_LAYERS']=json.dumps(dict(config=spec,revision=self.media_publication_revision,session=self.media_session))
+                packet=json.dumps(dict(config=spec,revision=self.media_publication_revision,session=self.media_session))
+                if len(packet.encode('utf8'))>8*1024*1024:raise ValueError('Image startup metadata exceeds 8 MiB; accepted scene retained')
+                self.publication_pins[self.media_publication_revision]={a['id'] for a in spec['assets'] if 'runtime' in a}
+                if len(packet)>12000:
+                    # Windows environment values cannot carry large tile tables.
+                    # The owned existing run folder pins a startup metadata file;
+                    # pixels still travel in immutable mappings, never this JSON.
+                    startup_packet=packet;self.host.pop('ZERAWAVE_IMAGE_LAYERS',None)
+                    self.host['ZERAWAVE_IMAGE_LAYERS_FILE']=str((Path(output)/'image-layers-startup.json').resolve())
+                else:self.host['ZERAWAVE_IMAGE_LAYERS']=packet
             else:self.host.pop('ZERAWAVE_IMAGE_LAYERS',None)
         else:
             self.host.pop('ZERAWAVE_AUDIO_HUB',None);self.host.pop('ZERAWAVE_IMAGE_LAYERS',None)
             if self.media_scene['presentation']=='Layers only' or self.media_scene['layers']:raise ValueError('Layer presentation requires a compatible Main preview; legacy Experimental is unsupported.')
+        if startup_packet is not None:
+            # Studio.launch creates the run directory exclusively. Write there
+            # immediately before its existing process launch, without changing
+            # renderer/audio ownership or adding another startup engine.
+            self.image_startup_packet=startup_packet
+        else:self.image_startup_packet=None
         return super().launch(values,output,label)
     def color_scene(self):
         form=getattr(self,'preview_state',{}).get('current_form')
@@ -199,8 +220,8 @@ def main():
             'startup':(owner.color_link.get_status().get('startup') or {}) if owner.color_link else {},
             'latest_audio':latest,'running_values':getattr(owner,'running_values',None),
             'audio_hub':owner.audio_owner.snapshot(),
-            'media_library':owner.media_registry.snapshot({r['asset'] for r in owner.media_scene['layers']}),
-            'media_control':dict(session=owner.media_session,revision=owner.media_revision,history=owner.composition_history.snapshot()),
+            'media_library':dict(owner.media_registry.snapshot({r['asset'] for r in owner.media_scene['layers']}),resources=[r for r in owner.rasters.rows.values() if not r.get('retired')]+owner.media_registry.snapshot({r['asset'] for r in owner.media_scene['layers']})['resources']),
+            'media_control':dict(session=owner.media_session,revision=owner.media_revision,history=owner.composition_history.snapshot(),transactions=owner.outcomes.state(),raster=owner.rasters.state()),
             'media_frames':dict(owner.media_frames.snapshot(),**owner.web_frames),
             'tuning_drafts':list(drafts.values()),'tuning_dirty':any(d['dirty'] for d in drafts.values()),
             'session_path':str(owner.session_path) if owner.session_path else None,
@@ -231,7 +252,7 @@ def main():
             raise ValueError('Editing destination changed; the original gesture was cancelled.')
         if owner.process is not None and owner.process.poll() is None and owner.running_values.get('playback_scope') and owner.preview_state.get('destination_revision')!=owner.destination_revision:
             raise ValueError('Destination is changing; wait for its renderer acknowledgement.')
-    def action(name,data):
+    def perform_action(name,data):
         nonlocal closing
         editor=owner.color_editor
         if name in ('select','form','target','pin'):
@@ -306,12 +327,14 @@ def main():
             if len(json.dumps(proposal,indent=2).encode('utf8'))>MAX_REGISTRY_BYTES:raise ValueError('Artwork metadata reached 8 MiB; previous content retained.')
             owner.media_registry.assets[ref['id']]=record;owner.media_registry.schedule_save()
         elif name=='media_recover':
+            if data.get('asset') in owner.rasters.rows:raise ValueError('Accepted raster reference is immutable. Replace the layer source with a new import; retained drawing remains recoverable.')
             ref=next((a for a in owner.media_scene['assets'] if a['id']==data.get('asset')),None)
             if not ref:raise ValueError('This composition reference no longer exists.')
             owner.media_registry.restore_refs([ref]);owner.media_registry.submit('relink',data.get('path'),ref['id'])
         elif name=='media_action':
             from media_registry import normalized
             registry=owner.media_registry;op=data.get('op');asset=data.get('asset')
+            if op in ('refresh','relink') and asset in owner.rasters.rows:raise ValueError('Source pixels are retained by raster history. Import a new version or replace the layer source; Save/reopen releases the old drawing history.')
             if op=='cancel':registry.cancel(data.get('token'))
             elif op=='collection':
                 selected=data.get('assets') or [asset]
@@ -377,11 +400,21 @@ def main():
             owner.web_frames[row['id']]=deepcopy(state)
             if (old_descriptor or {}).get('name')!=(state.get('frame') or {}).get('name'):
                 owner.send_media()
+        elif name=='operation_status':pass
+        elif name=='raster_retry':
+            for key in list(owner.rasters.failures):owner.rasters.persist(key)
+        elif name=='save_retry':owner.rasters.retry_save(data['save_id'],data.get('path'))
         elif name=='composition_history':
             if data.get('media_session')!=owner.media_session:raise ValueError('History belongs to an obsolete session.')
             if getattr(owner,'composition_preview',None) is not None:raise ValueError('Finish or cancel the active gesture before Undo/Redo.')
             scope=data.get('scope','layers');target=data.get('target') if scope=='drawing' else None
-            if scope not in ('layers','drawing'):raise ValueError('Unknown history scope.')
+            if scope not in ('layers','drawing','editor'):raise ValueError('Unknown history scope.')
+            if scope=='editor':
+                item=owner.composition_history.item(data.get('redo',False),'editor')
+                if item and item['scope']=='drawing':
+                    from composition import lookup,effective
+                    row=lookup(owner.media_scene).get(item['target'])
+                    if row and effective(owner.media_scene,row,'locked'):raise ValueError('Unlock the drawing target before editor recovery.')
             if scope=='drawing':
                 from composition import lookup,effective
                 row=lookup(owner.media_scene).get(target)
@@ -390,13 +423,13 @@ def main():
             scene=owner.composition_history.peek(data.get('redo',False),owner.media_scene,scope,target)
             if scene is None:return
             from composition import validate_scene
-            candidate=validate_scene(scene);assets=dict(owner.media_registry.assets)
+            candidate=validate_scene(scene);assets={**owner.media_registry.assets,**owner.rasters.rows}
             restores=scene.get('restore_batch',[]);removes=scene.get('remove_batch',[])
             for item in restores:assets[item['record']['id']]=item['record']
             for identity in removes:assets.pop(identity,None)
             from media_registry import MAX_ASSETS
             if sum(not a.get('internal') for a in assets.values())>MAX_ASSETS:raise ValueError('Library is full; remove an unused reference before Undo.')
-            if not restores and not removes:owner.media_registry.restore_refs(scene['assets'],apply=False)
+            if not restores and not removes:owner.media_registry.restore_refs([a for a in scene['assets'] if a['id'] not in owner.rasters.rows],apply=False)
             owner.media_frames.sync(candidate,assets,apply=False)
             with owner.media_frames.condition:
                 registry=owner.media_registry;saved=(deepcopy(registry.assets),deepcopy(registry.collections),registry.revision,owner.media_scene,deepcopy(owner.composition_history),owner.media_revision,dict(owner.media_frames.layers),dict(owner.media_frames.results))
@@ -410,9 +443,9 @@ def main():
                         registry.schedule_save()
                     elif removes:
                         for identity in removes:registry.remove(identity,cancel_pending=False)
-                    else:registry.restore_refs(scene['assets'],cancel_pending=False)
+                    else:registry.restore_refs([a for a in scene['assets'] if a['id'] not in owner.rasters.rows],cancel_pending=False)
                     owner.composition_history.step(data.get('redo',False),owner.media_scene,scope,target);owner.media_scene=candidate
-                    owner.media_revision+=1;owner.send_media()
+                    owner.media_revision+=1;owner.send_media(ordered=True)
                     for token,job in list(registry.pending.items()):
                         if job.get('asset') not in registry.assets and job.get('asset') is not None:registry.cancel(token)
                 except Exception:
@@ -422,7 +455,7 @@ def main():
             if data.get('media_session')!=owner.media_session:raise ValueError('Preview belongs to an obsolete session.')
             pending=getattr(owner,'composition_preview',None)
             if pending:
-                owner.media_scene=pending;owner.composition_preview=None;owner.media_frames.sync(pending,owner.media_registry.assets);owner.media_revision+=1;owner.send_media()
+                owner.media_scene=pending;owner.composition_preview=None;owner.media_frames.sync(pending,{**owner.media_registry.assets,**owner.rasters.rows});owner.media_revision+=1;owner.send_media()
         elif name in ('image_layers','composition','composition_preview'):
             require_destination(data)
             if data.get('media_session')!=owner.media_session or data.get('media_revision')!=owner.media_revision:raise ValueError(f"Image edit belongs to an obsolete session/revision ({data.get('media_revision')} to {owner.media_revision}).")
@@ -431,25 +464,26 @@ def main():
             refs=[]
             for identity in ids-{None}:
                 old={a['id']:a for a in owner.media_scene['assets']}
-                if identity not in owner.media_registry.assets and identity not in old:raise ValueError('Media reference no longer exists.')
-                refs.append(reference(owner.media_registry.assets.get(identity,old.get(identity))))
-            scene=validate_scene(dict(version=data.get('version',2),presentation=data.get('presentation'),layers=layers,assets=refs,canvas=data.get('canvas',owner.media_scene.get('canvas'))))
+                if identity not in owner.rasters.rows and identity not in owner.media_registry.assets and identity not in old:raise ValueError('Media reference no longer exists.')
+                refs.append(reference(owner.rasters.rows.get(identity) or owner.media_registry.assets.get(identity,old.get(identity))))
+            scene=validate_scene(dict(version=data.get('version',2),presentation=data.get('presentation'),layers=layers,assets=refs,canvas=data.get('canvas',owner.media_scene.get('canvas')),editor=data.get('editor',owner.media_scene.get('editor',{}))))
             previous=owner.media_scene;owner.media_scene=scene
             try:
                 owner.media_spec(allow_resident=owner.process is not None and owner.process.poll() is None)
                 if owner.process is not None and owner.process.poll() is None and (not owner.committed_scope or not compatible_scope(owner.committed_scope)):raise ValueError('Image layers require a compatible Main preview; legacy Experimental is unsupported.')
-                owner.media_frames.sync(scene,owner.media_registry.assets,apply=False)
+                owner.media_frames.sync(scene,{**owner.media_registry.assets,**owner.rasters.rows},apply=False)
             finally:owner.media_scene=previous
             with owner.media_frames.condition:
                 saved=(owner.media_scene,deepcopy(owner.composition_history),getattr(owner,'composition_preview',None),owner.web_frames,owner.media_revision,dict(owner.media_frames.layers),dict(owner.media_frames.results))
                 try:
-                    owner.media_scene=scene;owner.media_frames.sync(scene,owner.media_registry.assets)
+                    owner.media_scene=scene;owner.media_frames.sync(scene,{**owner.media_registry.assets,**owner.rasters.rows})
                     if name=='composition_preview':
                         if getattr(owner,'composition_preview',None) is None:owner.composition_preview=deepcopy(previous)
                     else:
                         previous=getattr(owner,'composition_preview',None) or previous;owner.composition_preview=None
                         history=owner.composition_history
-                        history.resource_sizes.update({a['id']:a.get('metadata',{}).get('width',0)*a.get('metadata',{}).get('height',0)*4 for a in owner.media_registry.assets.values() if a.get('managed')})
+                        history.resource_cost=getattr(owner.rasters,'history_bytes',None)
+                        history.resource_sizes.update({a['id']:a.get('metadata',{}).get('width',0)*a.get('metadata',{}).get('height',0)*4 for a in list(owner.media_registry.assets.values())+list(owner.rasters.rows.values()) if a.get('managed')})
                         scope=data.get('history_scope','layers');target=data.get('history_target') if scope=='drawing' else None
                         if scope=='drawing':
                             from composition import lookup
@@ -457,7 +491,7 @@ def main():
                             if prior_rows.keys()!=new_rows.keys() or any(prior_rows[k]!=new_rows[k] for k in prior_rows if k!=target) or previous.get('canvas')!=scene.get('canvas') or previous['presentation']!=scene['presentation']:raise ValueError('Drawing recovery must edit only its own existing layer.')
                         history.record(previous,scene,data.get('label','Edit composition'),data.get('before_selection'),data.get('selection'),scope,target)
                     owner.web_frames={key:value for key,value in owner.web_frames.items() if any(r['id']==key and r['type']=='Web' for r in scene['layers'])}
-                    owner.composition_history.selection=data.get('selection');owner.media_revision+=1;owner.send_media()
+                    owner.composition_history.selection=data.get('selection');owner.media_revision+=1;owner.send_media(ordered=name!='composition_preview')
                 except Exception:
                     owner.media_scene,owner.composition_history,owner.composition_preview,owner.web_frames,owner.media_revision,owner.media_frames.layers,owner.media_frames.results=saved
                     owner.media_frames.condition.notify_all();raise
@@ -529,10 +563,16 @@ def main():
             if draft_key() in drafts:
                 drafts[draft_key()].update(baseline=deepcopy(drafts[draft_key()]['settings']),dirty=False)
         elif name in ('load','save'):
-            # Dialog selection stays in Qt; storage still runs through Studio.
             from unittest.mock import patch
+            # Dialog selection stays in Qt; storage still runs through Studio.
             path=str(Path(data['path']).resolve())
             if name=='load':
+                if any(a['id'] in owner.rasters.rows for a in owner.media_scene['assets']):
+                    key=uuid.uuid4().hex
+                    recovery=ROOT/'work/studio/recovery'/(owner.media_session+'-'+str(owner.media_revision)+'.json')
+                    owner.rasters.save(key,deepcopy(owner.values()),list(drafts.values()),recovery,owner.media_session,owner.media_revision)
+                    owner.recovery_checkpoints.append(key)
+                    owner.recovery_checkpoints=owner.recovery_checkpoints[-16:]
                 owner.composition_preview=None
                 loaded=json.loads(Path(path).read_text(encoding='utf8'))
                 from studio import validate_session
@@ -540,10 +580,13 @@ def main():
                 if len(loaded.get('qt_tuning_drafts',[]))>256:raise ValueError('Session has more than 256 tuning draft destinations.')
                 owner.media_frames.sync(media,owner.media_registry.assets,apply=False);owner.media_registry.restore_refs(media['assets'])
                 with patch('studio.filedialog.askopenfilename',return_value=path):owner.load()
+                retired=owner.rasters.retire()
+                for revision,pins in owner.publication_pins.items():owner.publication_pins[revision]={retired.get(k,k) for k in pins}
+                for out in owner.outcomes.rows.values():out['resources']=[retired.get(k,k) for k in out['resources']]
                 owner.sync_media_refs() # only previously explicit relinks may replace saved paths
                 owner.media_session=uuid.uuid4().hex;owner.media_revision+=1
                 from composition import History
-                owner.composition_history=History();owner.media_frames.reset();owner.media_frames.sync(owner.media_scene,owner.media_registry.assets)
+                owner.composition_history=History();owner.media_frames.reset();owner.media_frames.sync(owner.media_scene,{**owner.media_registry.assets,**owner.rasters.rows})
                 owner.web_frames={}
                 if owner.color_link:
                     owner.media_publication_revision+=1
@@ -554,13 +597,53 @@ def main():
                     drafts[json.dumps(draft['binding'])]=draft
                 colors()
             else:
-                with patch('studio.filedialog.asksaveasfilename',return_value=path):owner.save(save_as=True)
-                saved=json.loads(Path(path).read_text(encoding='utf8'));saved['qt_tuning_drafts']=list(drafts.values())
-                destination=Path(path);temporary=destination.with_suffix(destination.suffix+'.qt-tmp')
-                temporary.write_text(json.dumps(saved,indent=2),encoding='utf8');os.replace(temporary,destination)
-                for draft in drafts.values():draft.update(baseline=deepcopy(draft['settings']),dirty=False)
-        elif name=='close':closing=True
+                key=data.get('save_id') or uuid.uuid4().hex
+                values=deepcopy(owner.values())
+                owner.rasters.save(key,values,list(drafts.values()),path,owner.media_session,owner.media_revision)
+        elif name=='close':
+            pending=any(not job.done() for job in owner.rasters.jobs.values())
+            failed=bool(owner.rasters.failures)
+            if pending or failed or owner.rasters.save_pins:raise ValueError('Accepted raster work is not secured. Wait, retry persistence or Save As/recovery export before closing.')
+            closing=True
         else:raise ValueError('Unsupported control command: '+str(name))
+    def action(name,data):
+        ordered='operation_id' in data
+        if ordered and not owner.outcomes.begin(name,data):return
+        admitted={}
+        try:
+            if data.get('raster_assets') or data.get('raster_sources'):
+                if owner.color_link and sum(bool(p.get('ordered')) for p in owner.color_link.pending_controls.values())>=60:raise ValueError('Renderer publication queue full; raster not accepted. Retry after output catches up.')
+                if name!='composition':raise ValueError('Raster resources require a composition transaction.')
+                if data.get('media_session')!=owner.media_session or data.get('media_revision')!=owner.media_revision:raise ValueError('Obsolete raster session/revision.')
+                from composition import lookup,effective
+                target=data.get('raster_target')
+                if target is not None:
+                    current=lookup(owner.media_scene).get(target['id'])
+                    if current!=target:raise ValueError('Raster target changed; edit rejected.')
+                    if effective(owner.media_scene,current,'locked') or not effective(owner.media_scene,current,'enabled'):raise ValueError('Raster target protected; edit rejected.')
+                    if data.get('history_scope')=='drawing':
+                        if current['type'] not in ('Image','Artwork','Paint') or not current['source_visible']:raise ValueError('Own raster target is not editable.')
+                        old=owner.rasters.rows.get(current['asset']) or owner.media_registry.assets.get(current['asset'],{})
+                        dimensions=(old.get('metadata',{}).get('width'),old.get('metadata',{}).get('height'))
+                        if any((a['runtime']['width'],a['runtime']['height'])!=dimensions for a in data['raster_assets']):raise ValueError('Drawing cannot replace native working dimensions.')
+                sources=[]
+                for source in data.get('raster_sources',[]):
+                    original=owner.media_registry.assets.get(source['id'])
+                    if not original or source.get('path')!=original['path'] or source.get('metadata')!=original.get('metadata'):raise ValueError('Source snapshot no longer matches validated original.')
+                    if source['id'] not in owner.rasters.rows:sources.append(dict(source,source_snapshot=True))
+                admitted=owner.rasters.admit(data.get('raster_assets',[])+sources)
+            perform_action(name,data)
+            if ordered:owner.outcomes.finish(data,status='applied',revision=owner.media_revision,session=owner.media_session,publication=owner.media_publication_revision,accepted=time.perf_counter(),resources=[a['id'] for a in owner.media_scene['assets'] if a['id'] in owner.rasters.rows],output='queued' if owner.process is not None else 'inactive')
+            # No fallible encoder or registry work precedes acceptance/publication.
+            for key in admitted:
+                if owner.rasters.rows[key].get('source_snapshot'):continue
+                try:owner.rasters.persist(key)
+                except Exception as exc:
+                    owner.rasters.rows[key].update(durability='failed',error=str(exc)[:240]);owner.rasters.failures[key]=str(exc)[:240]
+        except Exception as exc:
+            if admitted:owner.rasters.reject(admitted)
+            if ordered:owner.outcomes.finish(data,status='rejected',error=str(exc),revision=owner.media_revision)
+            raise
     # Recoverable errors must not open modal dialogs in a hidden process.
     def report_error(title,message,**kwargs):raise ValueError(str(title)+': '+str(message))
     from tkinter import messagebox
@@ -568,6 +651,37 @@ def main():
     def tick():
         nonlocal sequence,closing
         if eof.is_set():closing=True
+        owner.rasters.poll()
+        for out in owner.rasters.saves.values():
+            if out['status']=='durable' and not out.get('announced'):
+                out['announced']=True
+                if out['id'] not in owner.recovery_checkpoints:
+                    if out['session']==owner.media_session:owner.session_path=Path(out['path'])
+                    owner.status.set('Saved revision '+str(out['revision'])+('; newer edits remain unsaved.' if out['revision']!=owner.media_revision or out['session']!=owner.media_session else '.'))
+                    if out['session']==owner.media_session:
+                        pinned={json.dumps(d['binding']):d for d in out['drafts']}
+                        for key,draft in drafts.items():
+                            if key in pinned and draft['settings']==pinned[key]['settings']:draft.update(baseline=deepcopy(draft['settings']),dirty=False)
+                out.pop('drafts',None)
+        output=owner.preview_state.get('image_layers') or {}
+        acknowledged=output.get('applied_revision',-1)
+        for out in owner.outcomes.rows.values():
+            if out['status']!='applied':continue
+            if out.get('session')==owner.media_session and out.get('output') in ('queued','failed'):
+                publication=out.get('publication',-1)
+                if publication==acknowledged and not output.get('error'):out.update(output='published',published=time.perf_counter())
+                elif publication<acknowledged:out.update(output='superseded',superseded=time.perf_counter())
+                elif output.get('revision',-1)>=publication and output.get('error'):out.update(output='failed',output_error=output['error'])
+            states=[owner.rasters.rows[k]['durability'] for k in out['resources'] if k in owner.rasters.rows]
+            if states:out['durability']='failed' if 'failed' in states else 'pending' if 'pending' in states else 'durable'
+        for revision in list(owner.publication_pins):
+            if revision<=acknowledged or owner.process is None:owner.publication_pins.pop(revision,None)
+        refs={a['id'] for a in owner.media_scene['assets']}
+        refs.update(r['asset'] for r in owner.composition_history.rows.values())
+        for item in owner.composition_history.undo+owner.composition_history.redo:
+            refs.update(a['id'] for scene in (item['before'],item['after']) for a in scene['assets'])
+        for pins in owner.publication_pins.values():refs.update(pins)
+        owner.rasters.retain(refs)
         prior_refs=deepcopy(owner.media_scene['assets'])
         if owner.media_registry.poll():
             # Relinking retains asset/layer identities and transforms. Registry
@@ -582,7 +696,7 @@ def main():
         if owner.process is not None and owner.process.poll() is None:
             serial=owner.preview_state.get('serial',-1);intent=owner.pause_intent
             owner.media_frames.freeze(intent[1] if intent and serial<intent[0] else owner.preview_state.get('paused',False))
-        try:owner.media_frames.sync(owner.media_scene,owner.media_registry.assets)
+        try:owner.media_frames.sync(owner.media_scene,{**owner.media_registry.assets,**owner.rasters.rows})
         except ValueError as exc:owner.media_registry.error=str(exc) # Retain last frames; keep control/audio ticks alive.
         frames=owner.media_frames.snapshot();frame_key=[(key,(value.get('frame') or {}).get('name'),(value.get('frame') or {}).get('generation')) for key,value in frames.items()]
         if frame_key!=owner.frame_key:
@@ -592,11 +706,14 @@ def main():
             except queue.Empty:break
             try:
                 action(message['action'],message.get('data',{}));sequence+=1
-                emit({'id':message['id'],'snapshot':snapshot()})
+                drop=os.environ.get('ZERAWAVE_RASTER_TEST_DROP_ACK')
+                if drop and Path(drop).exists() and 'operation_id' in message.get('data',{}):
+                    Path(drop).unlink() # isolated fixture: exactly one lost ACK
+                else:emit({'id':message['id'],'snapshot':snapshot()})
             except Exception as exc:
                 failure(type(exc),exc,exc.__traceback__);emit({'id':message.get('id'),'error':str(exc)})
         if closing:
-            for cleanup in (owner.stop,owner.media_frames.close,owner.media_registry.close,owner.audio_owner.close,sampler.close,view.close,owner.color_editor.close):
+            for cleanup in (owner.stop,owner.rasters.close,owner.media_frames.close,owner.media_registry.close,owner.audio_owner.close,sampler.close,view.close,owner.color_editor.close):
                 try:cleanup()
                 except Exception as exc:failure(type(exc),exc,exc.__traceback__)
             root.destroy()

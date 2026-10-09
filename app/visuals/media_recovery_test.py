@@ -10,7 +10,7 @@ from media_frames import MediaFrames
 
 def run():
     root=Path(__file__).resolve().parents[2];out=Path(os.environ['ZERAWAVE_MEDIA_EVIDENCE'])/('recovery-'+str(time.time_ns()));out.mkdir()
-    tree=ast.parse(Path(__file__).with_name('studio_control_service.py').read_text());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='main');action=next(n for n in main.body if isinstance(n,ast.FunctionDef) and n.name=='action');branch=next(n for n in ast.walk(action) if isinstance(n,ast.If) and ast.unparse(n.test)=="name == 'media_action'")
+    tree=ast.parse(Path(__file__).with_name('studio_control_service.py').read_text());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='main');action=next(n for n in main.body if isinstance(n,ast.FunctionDef) and n.name=='perform_action');branch=next(n for n in ast.walk(action) if isinstance(n,ast.If) and ast.unparse(n.test)=="name == 'media_action'")
     history_branch=next(n for n in ast.walk(action) if isinstance(n,ast.If) and ast.unparse(n.test)=="name == 'composition_history'")
     composition_branch=next(n for n in ast.walk(action) if isinstance(n,ast.If) and ast.unparse(n.test)=="name in ('image_layers', 'composition', 'composition_preview')")
     nodes=[ast.FunctionDef(name=name,args=ast.arguments(posonlyargs=[],args=[ast.arg(arg='owner'),ast.arg(arg='data')],kwonlyargs=[],kw_defaults=[],defaults=[]),body=body,decorator_list=[]) for name,body in (('remove',branch.body),('history',history_branch.body),('composition',composition_branch.body))];module=ast.fix_missing_locations(ast.Module(body=nodes,type_ignores=[]));scope={'deepcopy':deepcopy,'name':'composition','require_destination':lambda data:None};exec(compile(module,'exact-service-removal','exec'),scope)
@@ -19,7 +19,7 @@ def run():
         end=time.monotonic()+5
         while registry.loading and time.monotonic()<end:registry.poll();time.sleep(.01)
         record=inspect(str(root/'images n vids/Xeraphina_video.mp4'),threading.Event());record['id']=uuid.uuid4().hex;registry.assets[record['id']]=record
-        scene=defaults();row=new_layer('Video',record['id']);scene.update(assets=[record],layers=[row]);frames.sync(scene,registry.assets);owner=SimpleNamespace(media_registry=registry,media_frames=frames,media_scene=scene,removed_media={},composition_history=History(),media_revision=7,send_media=Mock(side_effect=OSError('Injected renderer command failure')))
+        scene=defaults();row=new_layer('Video',record['id']);scene.update(assets=[record],layers=[row]);frames.sync(scene,registry.assets);owner=SimpleNamespace(rasters=SimpleNamespace(rows={}),media_registry=registry,media_frames=frames,media_scene=scene,removed_media={},composition_history=History(),media_revision=7,send_media=Mock(side_effect=OSError('Injected renderer command failure')))
         before=deepcopy(scene);state=frames.layers[row['id']];generation=state['generation'];data=dict(op='remove',asset=record['id'],choice='layers',selection=row['id'])
         import media_registry
         started=threading.Event();release=threading.Event();inspect_original=media_registry.inspect
@@ -68,7 +68,7 @@ def run():
         else:raise AssertionError('Relocation Undo failure not reported')
         assert registry.assets==before_assets and registry.epoch==before_epoch and owner.media_scene==scene and owner.composition_history.peek()==target
         from studio_control_service import ControlOwner
-        wire=SimpleNamespace(process=SimpleNamespace(poll=lambda:None),committed_scope={},media_spec=Mock(return_value={}),media_revision=7,media_publication_revision=0,media_session='wire',preview_command=Mock())
+        wire=SimpleNamespace(process=SimpleNamespace(poll=lambda:None),committed_scope={},media_spec=Mock(return_value={'assets':[]}),publication_pins={},media_revision=7,media_publication_revision=0,media_session='wire',preview_command=Mock())
         with patch('studio_control_service.compatible_scope',return_value=True):
             wire.committed_scope={'valid':True};ControlOwner.send_media(wire);ControlOwner.send_media(wire)
         assert wire.media_revision==7 and [c.kwargs['revision'] for c in wire.preview_command.call_args_list]==[1,2]

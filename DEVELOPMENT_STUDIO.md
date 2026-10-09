@@ -1,7 +1,8 @@
 # ZeraWave Development Studio
 
 Studio is the current development and review tool. It is not a consumer product
-or a commitment to paid ZeraWave Studio 1.
+or a shipped paid ZeraWave Studio 1. Expanded authoring/native stages are approved
+direction in ROADMAP, not current product features.
 
 ## Launch and review
 
@@ -37,8 +38,35 @@ short review path, exact supported formats, bounds, coordinate/transport contrac
 and pending capabilities. Loudman browser display is **pending matching Qt
 WebEngine installation approval and validation**. Video audio/multitrack editing
 and rigged/animated 3D still need an agreed scope. They are not functioning features
-in this candidate. This remains Robert's review candidate; no publication or
-artistic acceptance is implied.
+in this candidate. Recovery source is published at `0fb4c3f`, but the editor
+remains unaccepted; publication does not close Robert's review issues.
+
+### B1 status — development raster publication candidate
+
+B1 keeps Qt/Python control, ControlOwner and the renderer. Immutable runtime
+snapshots now enter scoped owner history and ordered renderer publication before
+background PNG persistence. Submitted/applied/published/durable/failed and unknown
+ACK outcomes stay separate. Local preview alone does not prove clean output.
+Save pins a revision plus Qt metadata; Retry saving/Save As secure failed resources
+and retained checkpoints. Admission/backpressure and close protection are bounded.
+See [actual results and review](docs/agent-notes/b1-raster-20261008.md) and the
+[runtime/save contract](docs/STUDIO_MEDIA_COMPOSITION.md#runtime-transactions-and-recovery).
+Robert's acceptance remains pending. Keep the latest
+[tool/lock/selection/recovery meanings](docs/STUDIO_MEDIA_COMPOSITION.md#b1-preservation-requirements).
+The [acceptance matrix](ROADMAP.md#b1-acceptance-plan) includes rapid input,
+delayed saving, Undo/Redo, failures and real input/visible output.
+
+### B2 status — experimental native editor candidate
+
+[B2](ROADMAP.md#b2--c-tiled-raster-resources-copy-on-write-history-and-incremental-compositing)
+implements experimental C++ tiled raster resources, copy-on-write history and
+renderer-owned editor projection behind B1's transaction/save behavior, followed
+by focused selection/clipboard/Smudge and usability/performance corrections. Retain Qt/Python tools and existing GPU output. B1's
+release snapshot copying, Smudge/dense Add costs, uncertain-owner/close limits
+and pending user review remain; a native performance improvement needs evidence.
+See [native setup/fallback](docs/NATIVE_RASTER_B2.md) and [latest actual results](docs/agent-notes/b2-tiles-20261008.md)
+for current controls, source identity, costs and unrun checks. Publication retains
+user-review limits; native DLL selection requires a new process.
 
 ### Qt Library, startup, Resources and window header
 
@@ -121,7 +149,9 @@ is assigned; a held-only candidate can be developed before joining Main. Track r
 analyzer, mapper, and renderer; it is not live audio validation. A still capture
 alone does not verify motion or stateful effects.
 
-## Unified workspace prototype
+<a id="unified-workspace-prototype"></a>
+
+## Retained Tk unified workspace prototype
 
 The central **Visualizer** hosts the existing renderer. Drag a tab to another
 area, drag it outside the workspace to float, or use **⋮** for exact destinations
@@ -178,7 +208,7 @@ New workspace previews default to **Real time**. Loading an existing session
 restores its saved speed; the original diagnostic Studio retains its 12× default.
 
 The file waveform is a bounded min/max envelope of actual decoded 16-bit PCM.
-Its cursor follows the shared analyzer's PCM position; it does not seek. Test
+Its cursor follows the shared analyzer's PCM position; this retained Tk view does not seek. Test
 track replay remains silent. Live input shows bounded PCM snapshots with gaps
 between snapshots. Synthetic, stale or unavailable PCM is labelled unavailable.
 The analyzer shows exactly twelve existing FFT ranges, normalized mean magnitude,
@@ -236,7 +266,7 @@ Library does not change project settings, layers, colors, or files.
 Saved v1-v3 projects keep their original visual IDs and settings. The `cymatics`
 catalog path and existing Cymatics controls remain; only the tab label changes.
 The previous format did not store notebook tab IDs. Old projects route by their
-stored visual path/state; new v3 saves additionally record `selection_scope` and
+stored visual path/state; current version 5 saves retain `selection_scope` and
 `studio_selections` so both visual selections survive reopening. Invalid paths
 show a load error rather than silently selecting the first Main form. Loading
 does not rewrite the source project. The established saved-Cymatics muted/restart
@@ -655,20 +685,23 @@ provides continuous listening review.
 
 ### Sessions
 
-Studio loads session versions 1, 2, and 3. Version 1's flat state is mapped to
-the current selection path; versions 1 and 2 load with authored layer profiles;
-version 3 retains validated per-world layer profiles. Saving writes version 3.
+Current Studio loads versions 1–5 and saves version 5. Version 1's flat state
+migrates to the selection path; older profiles, holds and color roles remain
+compatible. Version 5 includes composition/media refs; library/layout versions
+are separate. See [media storage](docs/STUDIO_MEDIA_COMPOSITION.md#library-sessions-and-failure-handling).
 The optional `planet_palette` field stores `authored` or `soft-dream` separately
 from layer profiles. Files without it load as Authored; unknown values are
-rejected. New session resets it to Authored. Saving remains version 3.
+rejected. New session resets it to Authored. Current saves use version 5.
 The optional `material_isolation` map stores world-to-material holds separately
 from the original layer profiles; absent maps preserve old playback exactly.
 Preview commands resolve the override through the existing profile machinery.
 The optional `color_overrides` map stores stable target and role assignments.
 Missing targets/roles use immutable authored defaults; sessions without this
-field keep their previous appearance. Saving still writes version 3.
-Sessions store settings and track paths, not audio files or shader code; a moved
-session needs an available decoded WAV selected again.
+field keep their previous appearance. Current saves use version 5.
+Sessions store settings/external source paths, not audio files or shader code.
+Save/Save As copies used managed artwork to a sibling `.assets` folder. Original
+media stays external; moved projects need available sources or explicit relink.
+Silent diagnostic replay still needs a decoded WAV.
 
 ## Current behavior
 
@@ -918,8 +951,12 @@ Settings > Audio and Session Waveform share Device Listening / Audio File source
 selection and import. Use Waveform Open/Play/Pause/Stop/Repeat/Mute for WAV/MP3
 files; visual Start/Pause/Resume/Hold/BONK remain separate. Device listening opens
 no output stream. Muted files continue analysis; file Pause freezes the audio
-playhead independently. Invalid import retains the working source. The waveform
-is a rolling PCM envelope, not a whole-file seekable timeline.
+playhead independently. Invalid import retains the source. Current Qt imported
+files have a whole-song waveform with click/drag seek and 2×/4×/6×/12× forward/
+reverse scan; Play restores 1×. Scan changes pitch. Device Listening retains a
+recent envelope without seeking. Output volume/mute leave analysis unchanged;
+analyzed/raw waveform drive remain distinct. See [timeline](docs/agent-notes/audio-timeline-20261007.md)
+and [volume/raw drive](docs/agent-notes/audio-volume-drive-20261007.md).
 
 SoundFile 0.13.1 is recorded in the optional Qt requirements; PCM WAV fallback
 remains available without it. Legacy Experimental routes retain separate audio
@@ -927,3 +964,23 @@ semantics: stop shared audio before entering them; shared-audio changes while
 such a preview runs are rejected. Matched source-rewind audition is unavailable
 on this live PCM route. Read [resolution checks/limits](docs/agent-notes/studio-resolution-controls-20261005.md)
 and [Audio Hub checks/limits](docs/agent-notes/studio-audio-hub-20261006.md).
+
+
+## B2 native raster/editor continuation - 2026-10-08
+
+The B2 development candidate retains128-pixel immutable C++ tiles, copy-on-write
+history, exact region editing, B1 transactions, revision-pinned portable PNG saves
+and the existing output publication path. The continuation corrects redundant
+CPU presentation refresh, adds an optional exact float32 region kernel, and hosts
+renderer-owned GPU projection/composition in the same Qt authoring Canvas.
+Integer-aligned physical native pixels use GPU composition and damage; filtered,
+rotated/fractional views retain exact Qt reference sampling with cached GPU display.
+There is no mandatory display-loop readback. The Layers editor label distinguishes
+these routes; `ZERAWAVE_EDITOR_GPU=cpu` selects the compatible CPU editor at open.
+Native initialization failure also preserves a usable CPU Canvas.
+
+This is a reviewable candidate, not Robert acceptance or a universal performance
+claim. Latency, memory, failures and remaining limitations are bound in
+`docs/agent-notes/b2-tiles-20261008.md` and `work/b2-completion-20261008`.
+Build, ABI, resource bounds and secured fallback are in the
+[B2 implementation contract](docs/NATIVE_RASTER_B2.md).

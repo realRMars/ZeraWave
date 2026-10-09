@@ -595,14 +595,18 @@ class Shell(QMainWindow):
         if not self.image_editor.resolve_pending():return
         path,_=QFileDialog.getSaveFileName(self,'Save artistic session',str(ROOT/'work/studio/session.json'),'Session (*.json)')
         if path:
-            if self.client.disconnected:
-                Path(path).write_text(json.dumps(dict(version=5,**self.owner.values(),qt_tuning_drafts=self.client.snapshot.get('tuning_drafts',[])),indent=2),encoding='utf8')
-                self.client.snapshot['tuning_dirty']=False
-                self.statusBar().showMessage('Saved last received artistic session; disconnected pending edits are unverified.')
-            else:self.client.request('save',path=path)
-            self.saved_art=json.dumps(self.owner.values(),sort_keys=True)
+            if self.client.disconnected:raise ValueError('Owner disconnected; the operation outcome is unknown and this instance cannot save an authoritative revision. Keep it open; memory-only pixels are not a durable session.')
+            import uuid
+            key=uuid.uuid4().hex
+            requested=json.dumps(self.owner.values(),sort_keys=True)
+            self.client.request('save',path=path,save_id=key)
+            self.requested_save=(key,requested)
+            self.statusBar().showMessage('Saving pinned document revision; newer edits remain separate.')
     def start(self):
         if self.owner.process is None and not self.operation:
+            self.panels['preview'].toggleView(True);self.panels['preview'].setAsCurrentTab()
+            self.progress_title.setText('Starting requested preview • first load may take longer; waiting for renderer telemetry')
+            self.progress_bar.setRange(0,0)
             self.native=None;self.cancel_attach=False
             scope,path=self.browsed
             self.queue_operation('start',scope=scope,path=path)
@@ -729,7 +733,7 @@ class Shell(QMainWindow):
                 phase=self.client.snapshot.get('startup') or {}
                 if phase.get('run')==run and not self.cancel_attach:
                     labels={'context':'Creating graphics context','compiling':'Compiling shaders','resources':'Preparing graphics resources','attaching':'Attaching preview','ready':'Preparing first presentation'}
-                    self.progress_title.setText(labels.get(phase.get('phase'),'Starting preview')+f" • {phase.get('seconds',0.):.1f} s reported")
+                    self.progress_title.setText(labels.get(phase.get('phase'),'Starting preview')+f" • {phase.get('seconds',0.):.1f} s reported"+(' • first load may take longer' if phase.get('phase') in ('context','compiling','resources') else ''))
             values=self.owner.running_values if running else self.owner.values()
             shown=self.form_names.get(self.owner.preview_state.get('current_form'),self.client.snapshot['active_title'])
             self.title.setText(shown+' • '+self.client.snapshot.get('audio_hub',{}).get('mode',values['source']))
@@ -870,29 +874,34 @@ class Shell(QMainWindow):
         if hasattr(self,'chrome'):QTimer.singleShot(0,self.chrome.remember_normal)
     def eventFilter(self,watched,event):
         if self.closing:return False
-        if event.type()==QEvent.ChildPolished and isinstance(event.child(),QWidget) and event.child().window()==self:
+        kind=event.type()
+        # Global Qt layout/style events do not participate in input handling.
+        # Expanded layer construction produces thousands of these; avoid window
+        # ancestry and chrome/client lookups unless this filter handles the type.
+        if kind not in (QEvent.ChildPolished,QEvent.MouseMove,QEvent.MouseButtonPress,QEvent.MouseButtonDblClick,QEvent.FocusIn,QEvent.WindowDeactivate,QEvent.KeyPress,QEvent.KeyRelease):return False
+        if kind==QEvent.ChildPolished and isinstance(event.child(),QWidget) and event.child().window()==self:
             event.child().setMouseTracking(True)
         if hasattr(self,'chrome') and isinstance(watched,QWidget) and watched.window()==self:
-            if event.type()==QEvent.MouseMove:self.chrome.client_hover(event)
-            if event.type() in (QEvent.MouseButtonPress,QEvent.MouseButtonDblClick):
-                if self.chrome.client_press(event,event.type()==QEvent.MouseButtonDblClick):return True
+            if kind==QEvent.MouseMove:self.chrome.client_hover(event)
+            if kind in (QEvent.MouseButtonPress,QEvent.MouseButtonDblClick):
+                if self.chrome.client_press(event,kind==QEvent.MouseButtonDblClick):return True
         if self.client is None or self.client.disconnected:return False
-        if event.type()==QEvent.FocusIn and hasattr(self,'image_editor') and hasattr(self.image_editor,'editor_view') and hasattr(self.image_editor,'focus_pane'):
+        if kind==QEvent.FocusIn and hasattr(self,'image_editor') and hasattr(self.image_editor,'editor_view') and hasattr(self.image_editor,'focus_pane'):
             self.image_editor.focus_pane(QApplication.focusWidget())
-        if event.type() in (QEvent.FocusIn,QEvent.WindowDeactivate,QEvent.MouseButtonPress):
+        if kind in (QEvent.FocusIn,QEvent.WindowDeactivate,QEvent.MouseButtonPress):
             self.safe(self.owner.release_preview_holds);return False
-        if event.type() not in (QEvent.KeyPress,QEvent.KeyRelease):return False
-        if event.type()==QEvent.KeyRelease and event.key()==Qt.Key_Shift:
+        if kind not in (QEvent.KeyPress,QEvent.KeyRelease):return False
+        if kind==QEvent.KeyRelease and event.key()==Qt.Key_Shift:
             self.safe(self.owner.release_preview_holds);return False
         focus=QApplication.focusWidget()
         library_focus=focus is not None and self.media_library.isAncestorOf(focus)
-        if library_focus and event.type()==QEvent.KeyPress and event.modifiers()&Qt.ControlModifier and event.key() in (Qt.Key_Z,Qt.Key_Y) and not isinstance(focus,(QLineEdit,QDoubleSpinBox,QSpinBox,QPlainTextEdit)):
+        if library_focus and kind==QEvent.KeyPress and event.modifiers()&Qt.ControlModifier and event.key() in (Qt.Key_Z,Qt.Key_Y) and not isinstance(focus,(QLineEdit,QDoubleSpinBox,QSpinBox,QPlainTextEdit)):
             self.image_editor.history(event.key()==Qt.Key_Y or bool(event.modifiers()&Qt.ShiftModifier));self.media_library.refresh();return True
         media_focus=focus is not None and (self.composition_editor.isAncestorOf(focus) or self.image_editor.isAncestorOf(focus))
         palette_focus=focus is not None and any(p is focus.window() for p in self.image_editor.palettes)
         if (media_focus or palette_focus) and not isinstance(focus,(QLineEdit,QDoubleSpinBox,QSpinBox,QPlainTextEdit)) and QApplication.activeModalWidget() is None:
-            if event.type()==QEvent.KeyRelease and event.key()==Qt.Key_Space:self.image_editor.canvas.space_pan=False;return True
-            if event.type()==QEvent.KeyPress and self.image_editor.editor_key(event):return True
+            if kind==QEvent.KeyRelease and event.key()==Qt.Key_Space:self.image_editor.canvas.space_pan=False;return True
+            if kind==QEvent.KeyPress and self.image_editor.editor_key(event):return True
         if focus is not None and (self.composition_editor.isAncestorOf(focus) or self.image_editor.isAncestorOf(focus) or self.media_library.isAncestorOf(focus)):return False
         if isinstance(focus,(QLineEdit,QDoubleSpinBox,QSpinBox,QPlainTextEdit)):
             self.safe(self.owner.release_preview_holds);return False
@@ -901,7 +910,7 @@ class Shell(QMainWindow):
         audio_focus=audio_focus or focus in (getattr(self,'hub_source',None),getattr(self,'hub_device',None),getattr(self,'source',None),getattr(self,'hub_refresh',None))
         if audio_focus and event.key() in (Qt.Key_Space,Qt.Key_Return,Qt.Key_Enter) and not event.modifiers() & (Qt.ControlModifier|Qt.AltModifier|Qt.ShiftModifier):return False
         if event.isAutoRepeat():return False
-        pressed=event.type()==QEvent.KeyPress;key=event.key();mods=event.modifiers()
+        pressed=kind==QEvent.KeyPress;key=event.key();mods=event.modifiers()
         if focus in self.chrome.buttons and key in (Qt.Key_Space,Qt.Key_Return,Qt.Key_Enter):return False
         if isinstance(focus,(QMenu,QMenuBar)):return False
         if pressed and key==Qt.Key_Space and mods & Qt.AltModifier:self.system_menu();return True
@@ -928,6 +937,9 @@ class Shell(QMainWindow):
             if answer==QMessageBox.Save:
                 self.safe(self.save_session)
                 if json.dumps(self.owner.values(),sort_keys=True)!=self.saved_art or self.client.snapshot.get('tuning_dirty'):event.ignore();return
+        raster=self.client.snapshot.get('media_control',{}).get('raster',{})
+        if raster.get('pending') or raster.get('failures') or raster.get('retained_checkpoints'):
+            self.statusBar().showMessage('Accepted work not secured. Wait, retry persistence, or Save As/recovery export before closing.');event.ignore();return
         self.closing=True;self.timer.stop();self.analyzer_timer.stop()
         try:
             try:self.save_layout()

@@ -66,7 +66,12 @@ class ColorInbox:
                 op=message.get('op');serial=message.get('serial')
                 if op not in ('pause','hold','release','bonk','mode','stop','diagnostics','load','attach','resources','resolution','images','images_cancel') or type(serial) is not int or not 0<=serial<2**31:raise ValueError('Invalid preview control')
                 if op=='hold' and message.get('owner') not in ('studio.mouse','studio.Shift_L','studio.Shift_R','output.Shift_L','output.Shift_R'):raise ValueError('Invalid Hold owner')
-                key=(op,message.get('owner',''))
+                key=(op,message.get('revision')) if op=='images' and message.get('ordered') else (op,message.get('owner',''))
+                # Backpressure the pipe reader, never discard an accepted edit.
+                while message.get('ordered') and not self.closed:
+                    with self.lock:full=sum(bool(p.get('ordered')) for p in self.pending_controls.values())>=64
+                    if not full:break
+                    time.sleep(.01)
                 with self.lock:
                     prior=self.pending_controls.get(key)
                     if prior is None or serial>prior['serial']:self.pending_controls[key]=message
@@ -315,9 +320,11 @@ class ColorLink:
     def submit_control(self,op,**values):
         with self.condition:
             if self.closed or not self.preview_run:return None
+            if values.get('ordered') and sum(bool(p.get('ordered')) for p in self.pending_controls.values())>=64:raise ValueError('Ordered image publication queue full.')
             self.preview_serial+=1
             packet=dict(kind='preview-control',run=self.preview_run,serial=self.preview_serial,op=op,**values)
-            self.pending_controls[(op,values.get('owner',''))]=packet
+            key=(op,values.get('revision')) if op=='images' and values.get('ordered') else (op,values.get('owner',''))
+            self.pending_controls[key]=packet
             self.condition.notify();return self.preview_serial
 
     def get_preview(self):

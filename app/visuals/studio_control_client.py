@@ -4,6 +4,8 @@ No Tk interpreter/window is created here. Values remain owned in the service;
 these facades only adapt the existing proof's presentation calls.
 """
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
+import uuid
 import ctypes as c
 from ctypes import wintypes as w
 import json
@@ -39,6 +41,7 @@ class OwnedJob:
 class ControlClient:
     def __init__(self,host,log_path=None,cancel_event=None):
         self.condition=threading.Condition();self.responses={};self.snapshot={};self.serial=0;self.analyzer_telemetry=None
+        self.edits=ThreadPoolExecutor(max_workers=1,thread_name_prefix='Ordered raster commands');self.edit_count=0;self.edit_sequence=0;self.edit_stream=uuid.uuid4().hex
         self.closed=False;self.disconnected=False;self.latencies=deque(maxlen=256);self.pending=0
         self.job=OwnedJob();self.log_path=Path(log_path or ROOT/'work/studio/qt-control.log')
         self.log_path.parent.mkdir(parents=True,exist_ok=True)
@@ -98,12 +101,43 @@ class ControlClient:
             try:
                 self.process.stdin.write(line+'\n');self.process.stdin.flush()
                 timeout=8 if action in ('stop','close') else 2
-                if not self.condition.wait_for(lambda:serial in self.responses or self.disconnected,timeout):raise RuntimeError('Control ACK timed out; operation outcome is uncertain. Check diagnostics before retrying.')
+                def reconciled():
+                    op=data.get('operation_id')
+                    return next((r for r in self.snapshot.get('media_control',{}).get('transactions',[]) if r['id']==op and r['status'] in ('applied','rejected')),None) if op else None
+                if not self.condition.wait_for(lambda:serial in self.responses or self.disconnected or reconciled(),timeout):raise RuntimeError('Control ACK timed out; operation outcome is uncertain. Check diagnostics before retrying.')
                 response=self.responses.pop(serial,None)
+                if response is None and reconciled():
+                    outcome=reconciled()
+                    if outcome['status']=='rejected':raise ValueError(outcome['error'])
+                    return self.snapshot
                 if response is None:raise RuntimeError('Control owner disconnected during '+action)
                 if 'error' in response:raise ValueError(response['error'])
                 return self.snapshot
             finally:self.pending-=1;self.latencies.append((action,(time.perf_counter()-began)*1000))
+    def submit(self,action,**data):
+        """Ordered completed edits; no ACK wait on Qt's input thread."""
+        def work():
+            try:
+                while not self.closed and not self.disconnected:
+                    try:return self.request(action,**data)
+                    except RuntimeError as exc:
+                        if 'uncertain' not in str(exc):raise
+                        # Retry identical immutable metadata/operation identity.
+                        # The owner ledger returns the previous result exactly once.
+                        continue
+                raise RuntimeError('Owner disconnected; operation outcome unknown. Retain recovery pixels.')
+            finally:
+                with self.condition:self.edit_count-=1
+        with self.condition:
+            if self.closed or self.disconnected:raise ValueError('Owner unavailable; operation not submitted. Retain the current accepted document.')
+            if self.edit_count>=16:raise ValueError('Sixteen completed commands pending; edit not submitted. Wait and retry.')
+            self.edit_count+=1;self.edit_sequence+=1
+            data.update(operation_id=uuid.uuid4().hex,operation_stream=self.edit_stream,operation_sequence=self.edit_sequence)
+            try:future=self.edits.submit(work)
+            except BaseException:
+                self.edit_count-=1;self.edit_sequence-=1;raise
+        future.operation_id=data['operation_id'];return future
+
     def notify(self,action,**data):
         """Momentary input; application arrives in ordinary owner snapshots.
 
@@ -119,10 +153,12 @@ class ControlClient:
         return True
     def close(self,force=False):
         if self.closed:return
+        if not force and not self.disconnected:self.request('close')
         try:
-            if not force and not self.disconnected:self.request('close')
+            pass
         finally:
             self.closed=True
+            self.edits.shutdown(wait=False,cancel_futures=True)
             if force:self.job.close()
             try:self.process.stdin.close()
             except (OSError,ValueError):pass

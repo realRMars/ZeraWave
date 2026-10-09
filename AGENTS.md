@@ -1,6 +1,6 @@
 # ZeraWave engineering and creative working agreement
 
-Version: 1.3 - 2026-10-04 (settled assignment route)
+Version: 1.6 - 2026-10-09 (implemented B1/B2 development checkpoint)
 Project: ZeraWave
 Root: `C:\ZeraWave`
 
@@ -40,8 +40,14 @@ automatically constitute an architectural replacement. Explain meaningful design
 tradeoffs and implement the solution that serves the visual result. Do not force
 everything into one shader or reduce the art to avoid extending existing systems.
 
-Replacing the overall renderer/audio architecture or adding dependencies outside
-the authorized scope still requires a concrete reviewable proposal.
+Robert approved selective native migration: retain Qt, Python authoring/control
+and the GPU renderer. B1/B2 are implemented development candidates with user
+acceptance pending. B1 added no C++; B2 adds the small C++ tiled resource/history
+core and incremental compositing. Publication is authorized, not broad acceptance
+or B3 dispatch. Approval is not a
+wholesale rewrite or renderer/engine replacement. Native stage/toolchain details
+and dependencies outside assigned scope still need a concrete brief and any
+missing installation approval. ROADMAP owns the ordering.
 
 ## 4. Preserve Working Systems
 
@@ -254,10 +260,17 @@ Validation limits are recorded in ZERAWAVE_HANDOFF.md; do not claim auto-loading
 
 ## 14. Architectural Evolution
 
-Architecture can evolve to support a demonstrated creative or engineering need.
-For a major replacement, explain the problem, alternatives, migration risks and
-reviewable implementation plan. Ordinary extensions described in sections 3 and
-8 can proceed within an assigned scene without a separate architecture task.
+Selective native migration is now the approved direction, not an unapproved
+replacement proposal. B1 keeps current processes/algorithms; later stages move
+bounded resource/media/audio responsibilities through stable interfaces. Logical
+analysis/mapping/renderer ownership remains even when an assigned native adapter
+changes physical module boundaries.
+
+Renderer/engine replacement, wholesale rewrite or an unassigned stage needs its
+own proposal. Ordinary scene extensions in sections 3 and 8 remain allowed.
+Existing Python paths do not impose a language ban. C++/toolchain work belongs
+to scoped B2, not the implemented B1 transaction stage. Keep Python policy and
+Qt UI; preserve B1 behavior across any native resource adapter.
 
 ## 15. Prime Directive
 
@@ -319,3 +332,65 @@ history unless the control explicitly changes those things. This color-editing
 contract does not prohibit redesigning those systems in an assigned visual task.
 Missing roles fall back to authored values. Build on the completed inspector
 rollout; future scenes must not need a separate editor.
+
+## 18. B1 raster transaction and recovery agreement
+
+B1 is implemented; Robert's acceptance remains pending. Publication authorization
+is distinct from user acceptance.
+[B1 results](docs/agent-notes/b1-raster-20261008.md) retain limits/failures. Handoff
+uses section 13's route; ROADMAP owns priorities and acceptance. B2/corrections
+are implemented candidates; this checkpoint does not declare the editor accepted.
+
+Keep one logical document authority/private GUI gesture buffers. Define immutable
+runtime pixel identity/lifetime, document/session/target revision, operation IDs
+and bounded asynchronous outcomes. Accepted, applied/published, persisted and
+failed are distinct; a timeout is unknown until reconciled. Retry one operation
+without duplicate pixels/history. Completed edits and Undo/Redo cannot be coalesced
+away. Background PNG writes cannot gate acceptance/history/output or replace a
+newer revision. Save targets a named revision; failure retains recoverable work.
+Switch/replacement/close retires stale readers/jobs without silently losing
+accepted unsaved content.
+
+Preserve direct tools, per-tool settings/colors/footprints, onboarding/Sampler/
+Fill, opacity separation, ordinary raster versus Group locks, own/subtree eyes,
+protected batch atomicity, masks/cut/curve/crop placement and Canvas versus Layers/
+Library/text/path recovery. See [the media contract](docs/STUDIO_MEDIA_COMPOSITION.md#b1-preservation-requirements).
+History exhaustion never changes scope. Tool, eye and lock choices do not become
+history commands for implementation convenience.
+
+Bind current dirty source/resources/evidence before Builder edits. Exercise the
+ROADMAP matrix with rapid edits, delayed saving, retries/failures, replacement and
+resource exhaustion. Include actual pointer/keyboard and canvas/clean output;
+synthetic/GPU-only checks cannot establish interactive acceptance. Retain failures
+and measure acceptance/presentation/persistence separately. Robert owns acceptance;
+no automatic critic, release or native migration follows from passing tests.
+
+## 19. B2 native resource and incremental composition agreement
+
+B2 and focused corrections are implemented experimental candidates, not a
+consumer release or accepted editor. ROADMAP is the sole scope/acceptance plan.
+Bind the current source and resource/evidence hashes before edits; preserve
+all uncommitted work and original reports. Qt/Python tools/control, ControlOwner
+logical authority and existing renderer remain. No automatic dispatch/install,
+commit, push, engine replacement or B3–B8 implementation follows from this handoff.
+
+A bounded C++ tiled resource store, copy-on-write history and dirty-region
+compositing may change physical storage through a batched C ABI. Define format,
+ABI/errors and consumer lifetime; retain the CPU reference/fallback. Mutable
+working tiles cannot alias accepted versions. History/save/output pins prevent
+eviction. Account CPU/GPU/staging budgets independently and reject capacity
+before partial acceptance. Preserve pixels, masks, Smudge halos, Add strength/
+alpha, group isolation, transforms and declared rounding tolerances.
+
+Preserve section 18's exactly-once transactions and scope, separate publication/
+persistence, pinned Save/Save As/retry/checkpoints, session retirement and close
+protection. Native speed does not replace recovery correctness. Materialize
+portable dependencies before fallback/rollback; saved data cannot silently require
+an unavailable experimental DLL. Inspect build tools and resolve any missing
+installation authorization within the actual assignment.
+
+Measure source-bound matched B1/B2 native-size interactions and memory; exercise
+reference pixels, sustained tile/history pressure, failures and B1's acceptance
+matrix. Real pointer/keyboard and visible output remain required alongside focused
+checks. Do not claim user acceptance, scanout/FPS or native performance before
+actual evidence; retain B1's documented limits until separately resolved.

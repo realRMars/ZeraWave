@@ -26,8 +26,13 @@ distinctive UI; deep Studio follows customers. Games/Vesper worlds long-term.
 Experimental means working but unfinished.
 
 Preserve richness while smooth; quality adaptation follows measured hardware.
-Evidence-based renderer/custom-engine proposals welcome; giant rewrite not
-authorized. ZeraphinaX grows through proven useful reuse. Offline claims require
+Approved technical direction retains Qt, Python authoring/control and GPU
+rendering. B1 raster transactions/recovery and B2 are implemented candidates
+awaiting user acceptance. B1 introduced no C++; B2 implements tiled C++ resources,
+copy-on-write history and incremental compositing, preserving B1 behavior. This supports expressive hands-on authoring, not a
+claim that current editing is accepted or future export/simulation/product tools
+exist. A wholesale rewrite or engine switch remains a separate proposal.
+ZeraphinaX grows through useful reuse; [ROADMAP](ROADMAP.md) owns the staged plan. Offline claims require
 implemented/available/downloaded resources; online AI optional. Pricing/semantic
 capabilities remain hypotheses, not current features or authorized commerce.
 

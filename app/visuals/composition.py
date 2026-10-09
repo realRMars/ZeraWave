@@ -18,7 +18,7 @@ MAX_POINTS=128
 MAX_MASKS=8
 IDENTITY=[1.,0.,0.,1.,0.,0.]
 
-def defaults():return dict(version=4,presentation=PRESENTATIONS[0],assets=[],layers=[],canvas=None)
+def defaults():return dict(version=4,presentation=PRESENTATIONS[0],assets=[],layers=[],canvas=None,editor=dict(custom_sizes=[]))
 def number(v,lo,hi,label):
     if type(v) not in (int,float) or not math.isfinite(v) or not lo<=v<=hi:raise ValueError('Invalid '+label+'.')
     return float(v)
@@ -61,7 +61,12 @@ def validate_scene(data):
     assets=data.get('assets');layers=data.get('layers')
     if not isinstance(assets,list) or len(assets)>MAX_LAYERS or not isinstance(layers,list) or len(layers)>MAX_LAYERS:raise ValueError('Composition supports at most 32 layers/references.')
     assets=[reference(a) for a in assets];refs={a['id']:a for a in assets}
-    if len(refs)!=len(assets) or len({normalized(a['path']) for a in assets})!=len(assets):raise ValueError('Duplicate composition reference.')
+    if len(refs)!=len(assets):raise ValueError('Duplicate composition reference.')
+    by_path={}
+    for asset in assets:by_path.setdefault(normalized(asset['path']),[]).append(asset)
+    # Portable content-addressed PNGs may be shared by independent immutable
+    # internal rasters (repeated Paste). Imported library paths remain unique.
+    if any(len(group)>1 and not all(a.get('managed') and a.get('internal') for a in group) for group in by_path.values()):raise ValueError('Duplicate composition reference.')
     clean=[];ids=set()
     for source in layers:
         if not isinstance(source,dict):raise ValueError('Invalid layer.')
@@ -88,6 +93,11 @@ def validate_scene(data):
         masks=row['masks']
         if not isinstance(masks,list) or len(masks)>MAX_MASKS:raise ValueError('At most 8 masks/cuts per layer.')
         for mask in masks:
+            if isinstance(mask,dict) and mask.get('shape')=='Pixels':
+                from pixel_selection import decode
+                if mask.get('mode') not in ('Keep','Cut') or type(mask.get('enabled')) is not bool:raise ValueError('Invalid pixel mask.')
+                decode(tuple(mask.get('size',[])),mask.get('coverage',''))
+                continue
             if not isinstance(mask,dict) or mask.get('mode') not in ('Keep','Cut') or type(mask.get('enabled')) is not bool:raise ValueError('Invalid mask operation.')
             points=mask.get('points')
             if not isinstance(points,list) or not 3<=len(points)<=MAX_POINTS:raise ValueError('Mask needs 3–128 points.')
@@ -152,7 +162,9 @@ def validate_scene(data):
     for parent in {r['parent'] for r in clean}:
         siblings=[r for r in clean if r['parent']==parent]
         if len({r['order'] for r in siblings})!=len(siblings):raise ValueError('Sibling layer order must be unique.')
-    result=dict(version=4,presentation=data['presentation'],assets=assets,layers=clean,canvas=deepcopy(canvas))
+    sizes=data.get('editor',{}).get('custom_sizes',[])
+    if not isinstance(sizes,list) or len(sizes)>3 or any(type(v) not in (int,float) or not math.isfinite(v) or not 1<=v<=512 for v in sizes) or len(set(sizes))!=len(sizes):raise ValueError('Custom sizes need at most three distinct native sizes (1–512 px).')
+    result=dict(version=4,presentation=data['presentation'],assets=assets,layers=clean,canvas=deepcopy(canvas),editor=dict(custom_sizes=list(sizes)))
     if result['presentation']!='World only' and sum(r['type'] in ('Video','GIF','Sprite') and effective(result,r,'enabled') for r in clean)>4:raise ValueError('At most 4 visible animated layers; hide a source before adding another.')
     return result
 def lookup(scene):return {r['id']:r for r in scene['layers']}
@@ -180,6 +192,23 @@ def asset_matrix(scene,row,size,image):
     fw,fh=fit_size(logical,image,row)
     # Inverse mapping in the shader and the Qt editor both use this matrix.
     return output@world_matrix(scene,row['id'])@np.array([[fw,0.,0.],[0.,fh,0.],[0.,0.,1.]])
+def crop_preserving(scene,row,size,image,crop):
+    """New crop preserves source UV placement and every descendant world frame."""
+    if row['type']=='Group':
+        # Group crop clips its existing local branch frame; it has no fitted
+        # raster rectangle to resize. Moving it would move all retained children.
+        row['crop']=list(crop);return
+    old=world_matrix(scene,row['id']);parent=world_matrix(scene,row['parent']) if row['parent'] else np.eye(3)
+    def uv_frame(c):
+        fw,fh=fit_size(scene.get('canvas') or size,image,row)
+        flip=np.diag([-1. if row['flip_x'] else 1.,-1. if row['flip_y'] else 1.,1.])
+        return np.diag([fw,fh,1.])@flip@np.array([[1/(c[2]-c[0]),0.,-c[0]/(c[2]-c[0])-.5],[0.,1/(c[3]-c[1]),-c[1]/(c[3]-c[1])-.5],[0.,0.,1.]])
+    frame=old@uv_frame(row['crop']);row['crop']=list(crop)
+    row['transform']=coefficients(np.linalg.inv(parent)@frame@np.linalg.inv(uv_frame(crop)))
+    new=world_matrix(scene,row['id'])
+    for child in scene['layers']:
+        if child['parent']==row['id']:child['transform']=coefficients(np.linalg.inv(new)@old@matrix(child['transform']))
+
 def reparent(scene,identity,parent):
     rows=lookup(scene);row=rows[identity];before=world_matrix(scene,identity)
     if parent is not None:
@@ -234,7 +263,11 @@ class History:
     Immutable raster files remain under the existing bounded artwork store.
     """
     def __init__(self):
-        self.undo=[];self.redo=[];self.bytes=0;self.selection=None;self.flags={};self.rows={};self.current=None;self.sequence=0;self.resource_sizes={}
+        self.undo=[];self.redo=[];self.bytes=0;self.selection=None;self.flags={};self.rows={};self.current=None;self.sequence=0;self.resource_sizes={};self.resource_cost=None
+    def __deepcopy__(self,memo):
+        result=type(self)();memo[id(self)]=result
+        for key,value in self.__dict__.items():setattr(result,key,value if key=='resource_cost' else deepcopy(value,memo))
+        return result
     def remember_flags(self,scene):
         for row in scene['layers']:self.flags[row['id']]={k:row[k] for k in ('enabled','locked','source_visible')}
     @staticmethod
@@ -251,7 +284,7 @@ class History:
         if scope not in ('layers','drawing') or scope=='drawing' and target not in lookup(after):raise ValueError('Invalid history scope/target.')
         self.sequence+=1
         item=dict(before=deepcopy(before),after=deepcopy(after),label=str(label)[:80],before_selection=before_selection,after_selection=after_selection,scope=scope,target=target,sequence=self.sequence)
-        self.undo.append(item);self.redo=[i for i in self.redo if (i['scope'],i['target'])!=(scope,target)]
+        self.undo.append(item);self.redo=[]
         self.trim(after)
     def trim(self,scene):
         def cost():
@@ -260,7 +293,7 @@ class History:
             refs={a['id']:a for i in items for s in (i['before'],i['after']) for a in s['assets']}
             # Native resources are estimated from their managed-reference metadata
             # by the control owner before recording (never source compression).
-            self.raster_bytes=sum(self.resource_sizes.get(k,0) for k in refs)
+            self.raster_bytes=self.resource_cost(refs,self.resource_sizes) if self.resource_cost else sum(self.resource_sizes.get(k,0) for k in refs)
             return len(items)>64 or self.bytes>8*1024*1024 or self.raster_bytes>256*1024*1024
         while cost() and self.undo+self.redo:
             oldest=min(self.undo+self.redo,key=lambda i:i['sequence'])
@@ -274,6 +307,7 @@ class History:
         self.resource_sizes={k:v for k,v in self.resource_sizes.items() if k in refs}
     def item(self,redo=False,scope='layers',target=None):
         source=self.redo if redo else self.undo
+        if scope=='editor':return (min(source,key=lambda i:i['sequence']) if redo else max(source,key=lambda i:i['sequence'])) if source else None
         return next((i for i in reversed(source) if i['scope']==scope and i['target']==target),None)
     def peek(self,redo=False,scene=None,scope='layers',target=None):
         item=self.item(redo,scope,target)
@@ -291,7 +325,7 @@ class History:
             if current is None:continue
             for key,value in wanted.items():
                 if key not in ('enabled','locked','source_visible') and value!=previous[identity].get(key):current[key]=deepcopy(value)
-        for key in ('canvas','presentation'):
+        for key in ('canvas','presentation','editor'):
             if new.get(key)!=old.get(key):result[key]=deepcopy(new.get(key))
         used={r['asset'] for r in result['layers']};refs={a['id']:a for i in self.undo+self.redo for s in (i['before'],i['after']) for a in s['assets']};refs.update({a['id']:a for s in (old,new,result) for a in s['assets']})
         old_refs={a['id']:a for a in old['assets']}
@@ -309,7 +343,7 @@ class History:
         if result is None:return None
         item=self.item(redo,scope,identity);source.remove(item);destination.append(item)
         if redo:destination.sort(key=lambda i:i['sequence'])
-        self.selection=(item['after_selection'] if redo else item['before_selection']) if scope=='layers' else identity
+        self.selection=(item['after_selection'] if redo else item['before_selection']) if scope in ('layers','editor') else identity
         self.current=deepcopy(result)
         for row in result['layers']:self.rows[row['id']]=deepcopy(row)
         self.trim(result)
@@ -318,4 +352,5 @@ class History:
         def scoped(scope,target=None):
             u,r=self.item(False,scope,target),self.item(True,scope,target)
             return dict(undo=u['label'] if u else '',redo=r['label'] if r else '',undo_count=sum(i['scope']==scope and i['target']==target for i in self.undo),redo_count=sum(i['scope']==scope and i['target']==target for i in self.redo))
-        return dict(scoped('layers'),selection=self.selection,drawing={k:scoped('drawing',k) for k in self.rows},commands=len(self.undo)+len(self.redo),bytes=self.bytes,raster_bytes=getattr(self,'raster_bytes',0))
+        editor_u,editor_r=self.item(False,'editor'),self.item(True,'editor')
+        return dict(scoped('layers'),editor=dict(undo=editor_u['label'] if editor_u else '',redo=editor_r['label'] if editor_r else '',undo_count=len(self.undo),redo_count=len(self.redo)),selection=self.selection,drawing={k:scoped('drawing',k) for k in self.rows},commands=len(self.undo)+len(self.redo),bytes=self.bytes,raster_bytes=getattr(self,'raster_bytes',0))

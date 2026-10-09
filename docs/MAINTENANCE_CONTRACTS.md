@@ -1,10 +1,99 @@
 # Cosmic and Elemental maintenance contracts
 
+
+## Focused Composition correction preservation — 2026-10-09
+
+Preserve separate Select/Lasso/Magic Wand toolbar buttons and scissors Cut action;
+do not restore a method dropdown, legacy Cutout workflow, local Composition Edit
+menu or any Details widget/layout. Main application Edit remains. Canvas cursors
+are distinct DPR-aware vectors, restored after temporary gestures; Ctrl+wheel is
+2% versus ordinary15%, fractionally scaled, view-only. Existing navigation limits,
+shared Main/Secondary, automatic Smudge and sidebar/docking contracts stay intact.
+
+Layer deletion confirms exact text “Everything within layer will be deleted” with
+Yes/No, defaultNo, validates the pinned scene/session/revision after confirmation
+and removes the complete chosen closure once. Row context deletion excludes
+unrelated selected rows; any protected member rejects all. Canvas Delete is still
+a raster command. Preserve resources for history/readers and original files.
+
+Retain identity-bound tree widgets across ordinary selection/refresh and refresh
+thumbnails independently of pixel reader handles or unchanged order renumbering.
+The global input filter handles only its actual mouse/key/focus/ChildPolished types.
+Do not lower the existing32-row
+or depth6 limits as a performance workaround. Preserve typing/focus and collapse.
+
+Fill optimization must match source, pixels, inputs/tolerance/boundaries/caller and
+separate worker/GUI/owner/output/PNG clocks. Optional zw_connected/zw_cancel keep
+ABI1 layouts; protect exact pixels, bounds, cancellation, immutable snapshots and
+stale-result rejection. Older exports/B1 retain compatibility. Build only to a
+fresh OutputName; retain old DLLs and never switch resources in a running process.
+Review/save/secure accepted work, close/reopen normally to use the new candidate.
+
+
 This reference protects existing working behavior when maintaining or extending
 shared code. It does not freeze all future art to current geometry or algorithms.
 An assigned scene redesign can change that scene; preserve unaffected scenes,
 saved data and shared systems. Current creative scope lives in
 [ROADMAP.md](../ROADMAP.md) and [AGENTS.md](../AGENTS.md).
+
+## B1 raster transaction preservation — candidate contract
+
+The uncommitted B1 candidate implements immutable shared raster resources,
+ordered asynchronous outcomes and background persistence in the retained Python
+ControlOwner; no native core is introduced. Preserve world/audio/hosting contracts below, originals
+and session migrations. Qt widgets stay on the GUI thread; GL resources belong
+to the existing renderer context. Published snapshots cannot alias mutable gestures.
+
+Bind document/session/target/revision/operation identity to pixels/history/output.
+Accepted, applied/published, persisted, failed and unknown ACK are distinct. Retry
+one ID without duplicate edits; late saves cannot replace newer work. Completed
+operations/Undo/Redo keep order/scope. Failed saving cannot lose accepted unsaved
+work or replace a valid project.
+
+Exercise [B1 acceptance](../ROADMAP.md#b1-acceptance-plan): slow PNG writes, rapid
+strokes, Undo/Redo during saving, layer/session switches, Save/Save As errors,
+lost/delayed ACK/retries, exhausted resources, replacement/deletion/close. Include
+actual pointer/keyboard and canvas/clean output. Preserve [tool/recovery meanings](STUDIO_MEDIA_COMPOSITION.md#b1-preservation-requirements)
+and pixel/alpha/transform/group fixtures. Record input/accept/output/persist delays
+and failures separately; GPU/paint-call timings alone do not pass interaction.
+
+`raster_transactions_test.py` holds persistence, tests exactly-once admission,
+recovery/save failures, capacity rejection and old-session checkpoint retention.
+Existing `raster_workflow_test.py`, `raster_workflow_pixels_test.py`,
+`composition_test.py`, `composition_canvas_test.py`, `media_recovery_test.py`,
+`studio_editing_test.py` and `studio_media_test.py` protect the existing semantics.
+Executed checks and failures belong in [B1 results](agent-notes/b1-raster-20261008.md),
+not an inference from this list. Bound histories,
+workers, storage/leases with explicit capacity failure and rollback/recovery.
+C++ tiles/native build setup belong to later stages, not a B1 prerequisite.
+
+Keep current/history/write/save/output pins alive until their consumers finish.
+Do not mutate a published mapping or store pixels in JSON. Preserve exact descriptor
+interpretation and Windows page-rounded mapping-capacity validation. Do not turn a
+lost ACK into rejection, coalesce completed operations, or reinstall pixels from a
+late durability callback. Save must retain its whole requested revision and Qt
+metadata; failed export pins block closure until retry/recovery. See
+[limits and user recovery](STUDIO_MEDIA_COMPOSITION.md#save-close-and-persistence-failure).
+
+## B2 native tiles and incremental composition — planned checks
+
+No C++ backend is implemented yet. B2 must preserve B1 transactions, exactly-once
+history/outcomes, output independent of PNG, revision-pinned portable saves,
+failed checkpoint recovery and close/session/source guards. Retain current/history/
+save/output resource pins through tile eviction and backend shutdown. Capacity
+failure cannot partially accept edits or destroy earlier accepted pixels.
+
+Compare against current native-pixel/reference fixtures for alpha/masks/Smudge
+halos, transformed Cut/Extract/Crop, partial opacity/strength and nested isolated
+groups. Dirty-region invalidation must cover structural and transform changes.
+Sustained edits/Undo/Redo, eviction/store exhaustion, delayed persistence, retries,
+resize/restart/cleanup and unavailable DLL/fallback belong in
+[ROADMAP B2](../ROADMAP.md#b2--c-tiled-raster-resources-copy-on-write-history-and-incremental-compositing).
+Use real pointer/keyboard plus canvas/clean output. Bind matched B1/B2 workloads,
+latency tails and separate CPU/GPU/staging allocations; no assumed speedup or
+reduced resolution. Preserve existing CPU reference, tool semantics, original
+assets and saved compatibility. These are acceptance requirements, not executed
+checks or a declaration that B1's pending user review is complete.
 
 ## Planet Canvas and its existing Cosmic diagnostics
 
@@ -297,3 +386,89 @@ Focused checks: `studio_scope_test.py`, `preview_playback_test.py`, existing
 Experimental route and matched Resources overhead evidence in
 `work/studio-additions-20261005/`. Combined independent review remains separately
 assigned through Prompter/Bob; these checks do not grant user acceptance.
+
+
+## B2 native raster/editor continuation - 2026-10-08
+
+The uncommitted B2 candidate retains128-pixel immutable C++ tiles, copy-on-write
+history, exact region editing, B1 transactions, revision-pinned portable PNG saves
+and the existing output publication path. The continuation corrects redundant
+CPU presentation refresh, adds an optional exact float32 region kernel, and hosts
+renderer-owned GPU projection/composition in the same Qt authoring Canvas.
+Integer-aligned physical native pixels use GPU composition and damage; filtered,
+rotated/fractional views retain exact Qt reference sampling with cached GPU display.
+There is no mandatory display-loop readback. The Layers editor label distinguishes
+these routes; `ZERAWAVE_EDITOR_GPU=cpu` selects the compatible CPU editor at open.
+Native initialization failure also preserves a usable CPU Canvas.
+
+This is a reviewable candidate, not Robert acceptance or a universal performance
+claim. Latency, memory, failures and remaining limitations are bound in
+`docs/agent-notes/b2-tiles-20261008.md` and `work/b2-completion-20261008`.
+Build, ABI, resource bounds and secured fallback are in the
+[B2 implementation contract](NATIVE_RASTER_B2.md).
+
+## Earlier B2 usability extension — workflow requirements SUPERSEDED below
+
+Optional `Pixels` masks store exact compressed 8-bit full-resolution coverage,
+validated before admission, bounded to 120 KiB encoded per mask and the existing
+256 KiB scene state. Regional mask reads share one implementation across Qt, native
+strokes and renderer-owned output/editor projection. Optional `media.editor` size
+metadata is owner-validated and pinned in ordinary session saves. Old scenes default
+to empty presets; old crops keep their existing placement. New crop compensation
+and child-placement changes form one management transaction. Named-source pickup
+uses immutable gesture-pinned readers and bounded regions, leaving ControlOwner
+authority, resource lifetime, exactly-once admission and failure recovery intact.
+No native ABI/build or compulsory frame readback change. See the current operating
+section in STUDIO_MEDIA_COMPOSITION.md and this pass’s source-bound actual results.
+
+## Earlier four-correction extension — workflow requirements SUPERSEDED below
+
+Details starts collapsed without disabling any live information source. All real
+tool settings use the existing saved-layout dockable/floating color sidebar;
+selection/refinement and saved-mask controls share it. No advanced popup remains.
+Fill is click-based four-connected RGBA similarity by default (tolerance32), accepts
+transparent seeds and uses the visibly chosen paint chip. Own/Group/selection
+coverage constrains both traversal and exact feathered writes at native dimensions.
+One changed fill follows existing drawing transactions/history/publication and PNG
+durability. Typed transient work is bounded to existing8MP/8192 dimensions with a
+30s computation guard; no saved-mask encoding limit is imposed. One worker request
+is source/scene/target/selection/session/revision bound and cancellable. No native
+ABI/build, history schema, output interface or saved-format change occurs.
+Zoom-in/out magnifiers preserve factors/limits; legacy Zoom activation is removed.
+See STUDIO_MEDIA_COMPOSITION.md and the dated B2 correction actual results for
+fixtures, costs and unresolved limits. Automated checks do not grant acceptance.
+
+## Selection, clipboard and automatic Smudge preservation — 2026-10-09
+
+This later authorized correction supersedes previous named-source pickup,
+per-tool Main, Cutout/confirmation/child shortcuts and Canvas-only drawing Undo
+requirements. Preserve old stored masks/pieces and existing native/transaction
+formats; no ordinary Cut/Delete operation may create a new removal mask or child.
+
+`editor_pixels.py` owns transient selection/gesture and immutable OS clipboard
+origin. Completed raster changes use existing `save_paint` and ControlOwner
+transactions. Paste inserts an independent sibling above the active layer using
+captured source-pixel world placement, with no destination mask/crop inheritance.
+Clipboard token/hash invalidate origin on external replacement. Protected/capacity/
+export failures preserve artwork/clipboard. Esc/click/Copy/Deselect add no history.
+The existing History offers an editor sequence across drawing/management; scoped
+APIs stay available, and new edits clear the redo branch. Internal managed immutable
+PNG dependencies may share paths under distinct IDs; external paths remain unique.
+
+Shared Main migration retains saved swatches/palettes and independent Secondary/
+tool settings. Fill's algorithm/resources stay intact; shared color and selection
+binding are the only Fill changes. Existing saved toolbar identity remains, with
+full dock height, resize grip, width reflow and actual-overflow scrolling.
+
+Automatic Smudge extends `cpu_projection.py` regional artwork sampling and reuses
+ordering/isolation/blends, crop/masks and existing brush physics. Immutable scene/
+frame pins plus evolving target preview prevent double-target feedback and stale
+delivery. Unsupported visible frames and exhausted 4 MiB footprint /16 MiB sample
+capacity reject explicitly; no whole viewport/world/checker pickup. Source pixels
+remain unchanged and only the editable selected raster receives an operation.
+
+Standalone checks: selection_clipboard_smudge_test, smudge_composite_test,
+editor_corrections_test, editor_usability_test, raster_workflow_test,
+studio_editing_test; publication/transactions/projection/resource checks cover
+affected interfaces. Bind actual executed results and limits in the latest report;
+Qt, native pixels and standalone GPU are distinct from physical user acceptance.

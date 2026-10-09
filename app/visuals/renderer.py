@@ -1,4 +1,55 @@
 from pathlib import Path
+
+class EditorSurface:
+    """Renderer-owned editor resources in the current Qt host context.
+
+    Qt owns its widget/context lifetime; this renderer adapter owns every GL
+    resource, projection pass and cleanup. It starts no world/audio/window loop.
+    """
+    def __init__(self,context):
+        import numpy as np
+        from editor_projection import EditorProjection
+        from PySide6.QtOpenGL import QOpenGLFunctions_3_3_Core
+        from PySide6.QtGui import QOpenGLContext
+        self.host_gl=None
+        if QOpenGLContext.currentContext() is not None:
+            self.host_gl=QOpenGLFunctions_3_3_Core()
+            if not self.host_gl.initializeOpenGLFunctions():raise RuntimeError('Qt host GL functions unavailable')
+        # ModernGL allocates textures on its default scratch unit as well as
+        # drawing on units 0/1. Qt caches these bindings across native painting.
+        self.host_texture_units=tuple(sorted({0,1,context.default_texture_unit}))
+        self.context=context;self.vertices=context.buffer(np.array([[-1,-1],[1,-1],[-1,1],[1,1]],dtype='f4').tobytes())
+        try:self.layers=EditorProjection(context,self.vertices)
+        except BaseException:self.vertices.release();raise
+        self.closed=False;self.host_framebuffer=None;self.host_framebuffer_key=None
+    def target_for(self,identity,size):
+        key=identity,tuple(size)
+        if key!=self.host_framebuffer_key:
+            # detect_framebuffer returns a reference to Qt's target, not an
+            # allocation owned here. Qt recreates it on resize/context change.
+            self.host_framebuffer=self.context.detect_framebuffer(identity);self.host_framebuffer_key=key
+        return self.host_framebuffer
+    def draw(self,canvas,size,projection,target):
+        if self.host_gl is None:return self._draw(canvas,size,projection,target)
+        gl=self.host_gl;active=gl.glGetIntegerv(0x84e0);bindings=[]
+        for unit in self.host_texture_units:
+            gl.glActiveTexture(0x84c0+unit);bindings.append(gl.glGetIntegerv(0x8069))
+        gl.glActiveTexture(active)
+        try:
+            return self._draw(canvas,size,projection,target)
+        finally:
+            # State queries only: no pixel readback or additional projection.
+            for unit,binding in zip(self.host_texture_units,bindings):
+                gl.glActiveTexture(0x84c0+unit);gl.glBindTexture(0x0de1,binding)
+            gl.glActiveTexture(active)
+    def _draw(self,canvas,size,projection,target):
+        from PySide6.QtCore import QRectF
+        texture=self.layers.render_editor(canvas,size,projection)
+        rect=canvas.view().mapRect(QRectF(0,0,*canvas.canvas_size));dpr=canvas.devicePixelRatioF()
+        self.layers.present(target,texture,(rect.x()*dpr,rect.y()*dpr,rect.width()*dpr,rect.height()*dpr));return self.layers.stats
+    def close(self):
+        if self.closed:return
+        self.closed=True;self.layers.close();self.vertices.release();self.host_framebuffer=None;self.host_framebuffer_key=None
 import time
 import random
 from functools import lru_cache
@@ -769,9 +820,13 @@ class Renderer:
         # Visible window is revealed only after its first complete swap.
         # Animation begins after loading, independent of compile/notice time.
         self.start_time = time.perf_counter()
-        if os.environ.get('ZERAWAVE_IMAGE_LAYERS'):
+        if os.environ.get('ZERAWAVE_IMAGE_LAYERS') or os.environ.get('ZERAWAVE_IMAGE_LAYERS_FILE'):
             from image_layers import ImageLayers
-            spec=json.loads(os.environ['ZERAWAVE_IMAGE_LAYERS'])
+            if os.environ.get('ZERAWAVE_IMAGE_LAYERS_FILE'):
+                startup=Path(os.environ['ZERAWAVE_IMAGE_LAYERS_FILE'])
+                if startup.stat().st_size>8*1024*1024:raise ValueError('Image startup metadata exceeds 8 MiB')
+                spec=json.loads(startup.read_text(encoding='utf8'))
+            else:spec=json.loads(os.environ['ZERAWAVE_IMAGE_LAYERS'])
             self.image_layers=ImageLayers(self.ctx,self.vertices)
             self.image_layers.request(spec['config'],spec['revision'],spec['session'])
         controls=getattr(self,'preview_playback',None)
