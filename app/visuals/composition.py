@@ -268,6 +268,18 @@ class History:
         result=type(self)();memo[id(self)]=result
         for key,value in self.__dict__.items():setattr(result,key,value if key=='resource_cost' else deepcopy(value,memo))
         return result
+    def checkpoint(self):
+        """Owner rollback copy; completed command snapshots are read-only.
+
+        record/peek/step/trim never modify an existing command or its scenes.
+        They replace/move list entries. Copy mutable indexes/current state but
+        share those immutable snapshots rather than cloning 64 full documents.
+        Ordinary deepcopy still provides a fully independent public copy.
+        """
+        result=type(self)()
+        for key,value in self.__dict__.items():
+            setattr(result,key,list(value) if key in ('undo','redo') else value if key=='resource_cost' else deepcopy(value))
+        return result
     def remember_flags(self,scene):
         for row in scene['layers']:self.flags[row['id']]={k:row[k] for k in ('enabled','locked','source_visible')}
     @staticmethod

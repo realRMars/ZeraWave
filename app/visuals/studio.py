@@ -150,6 +150,8 @@ def validate_session(data):
     values['transitions']=validate_settings(data.get('transitions'))
     values['layers'] = validate_layers(data.get('layers', {}) if data['version'] >= 3 else {})
     values['media']=validate_media(data.get('media') if data['version']>=4 else None)
+    from artwork_export import validate_outputs
+    values['artwork_outputs']=validate_outputs(data.get('artwork_outputs',[]))
     if data.get('material_isolation'):
         values['material_isolation'] = validate_isolation(data['material_isolation'])
     elif 'material_isolation' in data:
@@ -662,6 +664,7 @@ class Studio:
         values['transitions']=self.transition_values()
         values['cymatics']=self.cymatics_panel.settings(stored=True) if hasattr(self,'cymatics_panel') else cymatics_defaults()
         values['media']=validate_media(self.media_scene)
+        values['artwork_outputs']=deepcopy(getattr(self,'artwork_outputs',[]))
         return values
 
     def selected_states(self):
@@ -1208,6 +1211,7 @@ class Studio:
             self.transition_hold.set(str(cfg['hold']));self.transition_duration.set(str(cfg['duration']))
             self.layer_profiles=values['layers']
             self.media_scene=values['media']
+            self.artwork_outputs=values.get('artwork_outputs',[])
             self.material_isolation=values.get('material_isolation', {})
             self.planet_dsp_pilot=values.get('planet_dsp_pilot', False)
             self.planet_star_attack_pilot=values.get('planet_star_attack_pilot', False)

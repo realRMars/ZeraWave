@@ -35,6 +35,7 @@ class Projection:
     def render(self,canvas,width,height,full_projection,damage=None):
         from studio_composition import qtransform,masked_image
         config=canvas.editor.config
+        smooth=not getattr(canvas,'pixel_inspection',lambda:False)()
         def source(row):
             image=canvas.editor.images.get(row['id']) or canvas.editor.images.get(row['asset'])
             if canvas.stroke and row['id']==canvas.stroke['row']:image=canvas.stroke['preview']
@@ -45,7 +46,7 @@ class Projection:
         structure=[]
         for row in config['layers']:
             image=source(row);r=dict(row);r['asset']=image.family if isinstance(image,NativeImage) else row['asset'];structure.append((r,tuple(matrices[row['id']].flat)))
-        signature=json.dumps([structure,grain,config.get('canvas'),width,height,list(full_projection.flat)],sort_keys=True)
+        signature=json.dumps([structure,grain,config.get('canvas'),width,height,list(full_projection.flat),smooth],sort_keys=True)
         reset=signature!=self.signature
         if reset:
             self.cache.clear();self.scratch.clear();self.scratch_bytes=0;self.bytes=0;self.signature=signature;self.stats['broad_invalidations']+=1
@@ -102,9 +103,24 @@ class Projection:
                     # twice; translated small targets change filtering phase.
                     target=self.scratch_image((parent,'target'),width,height)
                     def painter_for(image):
-                        q=QPainter(image);q.setClipRect(x,y,iw,ih);q.setRenderHint(QPainter.SmoothPixmapTransform);return q
+                        q=QPainter(image);q.setClipRect(x,y,iw,ih);q.setRenderHint(QPainter.SmoothPixmapTransform,smooth);return q
                     q=painter_for(target);q.setCompositionMode(QPainter.CompositionMode_Source);q.fillRect(x,y,iw,ih,QColor(0,0,0,0));q.setCompositionMode(QPainter.CompositionMode_SourceOver)
-                    for row in ordered_children(config,parent):
+                    rows=ordered_children(config,parent)
+                    def prefix_key(stop):
+                        relevant=[]
+                        for r in rows[:stop]:
+                            relevant.extend(ids(r['id']) if is_branch(config,r) else [r['id']])
+                        return ('prefix',parent,x,y,stop,tuple((i,dependencies.get(i)) for i in relevant))
+                    # An unchanged completed backdrop is exactly the pixels Qt
+                    # would draw again, at the same global sampling phase. Keep
+                    # these images in the existing bounded dependency-complete
+                    # LRU, never a second unbounded composition cache.
+                    first=0
+                    for stop in range(len(rows)-1,1,-1):
+                        key=prefix_key(stop)
+                        if key in self.cache:
+                            q.setCompositionMode(QPainter.CompositionMode_Source);q.drawImage(x,y,self.get(key,lambda:None));q.setCompositionMode(QPainter.CompositionMode_SourceOver);first=stop;break
+                    for index,row in enumerate(rows[first:],first):
                         if not effective(config,row,'enabled') or not is_branch(config,row) and not row['source_visible']:continue
                         group=is_branch(config,row);image=children(row['id']) if group else source(row)
                         if image is None:continue
@@ -123,11 +139,17 @@ class Projection:
                         q.restore()
                         if add:
                             q.end();original=target.copy(x,y,iw,ih);foreground=foreground.copy(x,y,iw,ih)
-                            if blend=='Add':mixed=native_add(original,foreground)
+                            if blend=='Add':
+                                mixed=native_add(original,foreground)
+                                if mixed is None:
+                                    from studio_composition import add_image
+                                    mixed=add_image(original,foreground)
                             else:mixed=original.copy();bp=QPainter(mixed);bp.setCompositionMode(modes[blend]);bp.drawImage(0,0,foreground);bp.end()
                             if strength<1.:
                                 normal=original.copy();bp=QPainter(normal);bp.drawImage(0,0,foreground);bp.end();a=np.frombuffer(normal.constBits(),np.uint8).astype(np.uint16);b=np.frombuffer(mixed.constBits(),np.uint8).astype(np.uint16);factor=round(strength*255);data=((a*(255-factor)+b*factor+127)//255).astype(np.uint8).tobytes();mixed=QImage(data,iw,ih,QImage.Format_ARGB32_Premultiplied).copy()
                             q=painter_for(target);q.setCompositionMode(QPainter.CompositionMode_Source);q.drawImage(x,y,mixed);q.setCompositionMode(QPainter.CompositionMode_SourceOver)
+                        if 1<=index<len(rows)-1:
+                            self.get(prefix_key(index+1),lambda:target.copy(x,y,iw,ih))
                     q.end();return target.copy(x,y,iw,ih)
                 p.drawImage(x,y,children(None))
         p.end();return result
@@ -135,7 +157,19 @@ class Projection:
 
 
 
-def render_artwork_region(scene,images,frames,projection,width,height,target=None,preview=None):
+def artwork_sampling_plan(scene):
+    """Compile immutable stroke order/visibility/partition policy once, not per dab."""
+    def children(parent):
+        result=[]
+        for row in ordered_children(scene,parent):
+            group=is_branch(scene,row)
+            if not effective(scene,row,'enabled') or not group and not row['source_visible']:continue
+            result.append((row,children(row['id']) if group else None,partition_aligned(scene,row)))
+        return result
+    return children(None)
+
+
+def render_artwork_region(scene,images,frames,projection,width,height,target=None,preview=None,plan=None):
     """Bounded native-space artwork sampling for Smudge, using Qt blend semantics.
 
     No canvas/checker/world readback. Images/frames are immutable stroke pins;
@@ -165,19 +199,19 @@ def render_artwork_region(scene,images,frames,projection,width,height,target=Non
         nonlocal total
         total+=bounds[2]*bounds[3]*8
         if bounds[2]*bounds[3]*4>4*1024*1024 or total>16*1024*1024:raise ValueError('Smudge source footprint exceeds the regional budget; gesture cancelled.')
-        mask=coverage(bounds,(image.width(),image.height()),row)
+        masked=mask_only or row['crop']!=[0.,0.,1.,1.] or any(o['enabled'] for o in row['masks'])
+        mask=coverage(bounds,(image.width(),image.height()),row) if masked else None
         if mask_only:part=mask
         else:
             part=image.region(bounds) if hasattr(image,'region') else image.copy(*bounds)
-            p=QPainter(part);p.setCompositionMode(QPainter.CompositionMode_DestinationIn);p.drawImage(0,0,mask);p.end()
+            if mask is not None:
+                p=QPainter(part);p.setCompositionMode(QPainter.CompositionMode_DestinationIn);p.drawImage(0,0,mask);p.end()
         p=QPainter(out);p.setRenderHint(QPainter.SmoothPixmapTransform);p.setTransform(qtransform(m@np.array([[1,0,x],[0,1,y],[0,0,1.]])));p.drawImage(0,0,part);p.end();return out
-    def children(parent):
+    def children(nodes):
         result=allocate(width,height)
-        for row in ordered_children(scene,parent):
-            if not effective(scene,row,'enabled') or not is_branch(scene,row) and not row['source_visible']:continue
-            group=is_branch(scene,row)
-            if group:
-                source=children(row['id'])
+        for row,descendants,partition in nodes:
+            if descendants is not None:
+                source=children(descendants)
                 if row['type']=='Group' and (row['masks'] or row['crop']!=[0.,0.,1.,1.]):
                     # Synthetic dimensions only; coverage reads its bounded region.
                     class Dimensions:
@@ -196,9 +230,11 @@ def render_artwork_region(scene,images,frames,projection,width,height,target=Non
             original=result
             if blend=='Add':mixed=add_image(result,source)
             else:
-                mixed=result.copy();p=QPainter(mixed);p.setCompositionMode(QPainter.CompositionMode_Plus if partition_aligned(scene,row) else modes[blend]);p.drawImage(0,0,source);p.end()
+                # Retain a separate backdrop only when partial blend interpolation needs it.
+                mixed=result.copy() if blend!='Normal' and strength<1 else result
+                p=QPainter(mixed);p.setCompositionMode(QPainter.CompositionMode_Plus if partition else modes[blend]);p.drawImage(0,0,source);p.end()
             if blend!='Normal' and strength<1:
                 normal=original.copy();p=QPainter(normal);p.drawImage(0,0,source);p.end();a=np.frombuffer(normal.constBits(),np.uint8).astype(np.uint16);b=np.frombuffer(mixed.constBits(),np.uint8).astype(np.uint16);factor=round(strength*255);data=((a*(255-factor)+b*factor+127)//255).astype(np.uint8).tobytes();mixed=QImage(data,width,height,QImage.Format_ARGB32_Premultiplied).copy()
             result=mixed
         return result
-    return children(None)
+    return children(artwork_sampling_plan(scene) if plan is None else plan)

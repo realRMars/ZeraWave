@@ -168,4 +168,4 @@ class Waveform(QWidget):
         if event.type() in (QEvent.Hide,QEvent.WindowDeactivate) and hasattr(self,'seek_timer'):
             self.dragging=False;self.seek_timer.stop()
         return super().event(event)
-    def close_pool(self):self.seek_timer.stop();self.cancel.set();self.pool.shutdown(wait=True,cancel_futures=True)
+    def close_pool(self):self.seek_timer.stop();self.cancel.set();self.pool.shutdown(wait=False,cancel_futures=True)

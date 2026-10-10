@@ -126,14 +126,21 @@ def run():
   gpu=ImageLayers(Proxy(),vertices)
   try:
    records={a['id']:a for a in e.media_assets()};scene=deepcopy(e.config);scene['assets']=[records[a['id']] for a in scene['assets']];scene['presentation']='Layers only'
-   gpu.request(scene,e.binding[1],e.binding[0]);wait(lambda:not gpu.pending);assert not gpu.error,gpu.snapshot();fbo.use();fbo.clear(0,0,0,0);ctx.viewport=(0,0,96,64);gpu.draw((96,64));actual=np.frombuffer(fbo.read(components=4,alignment=1),np.uint8).reshape(64,96,4)[::-1][:,:,[2,1,0,3]].copy()
+   with ctx:gpu.request(scene,e.binding[1],e.binding[0])
+   wait(lambda:not gpu.pending)
+   # Qt pumping binds its own Canvas context. Rebind this independent GPU
+   # fixture before publication/drawing/readback; retain exact pixel equality.
+   with ctx:
+    assert not gpu.error,gpu.snapshot();fbo.use();fbo.clear(0,0,0,0);ctx.viewport=(0,0,96,64);gpu.draw((96,64));actual=np.frombuffer(fbo.read(components=4,alignment=1),np.uint8).reshape(64,96,4)[::-1][:,:,[2,1,0,3]].copy()
    expected=Projection().render(c,96,64,np.array([[96,0,48],[0,64,32],[0,0,1]],float))
    from PySide6.QtGui import QPainter
    presented=QImage(96,64,QImage.Format_ARGB32_Premultiplied);presented.fill(QColor('black'));painter=QPainter(presented);painter.drawImage(0,0,expected);painter.end()
    if actual.tobytes()!=data(presented):np.savez(out/'fill-output-difference.npz',actual=actual,expected=np.frombuffer(presented.constBits(),np.uint8).reshape(64,96,4))
    assert actual.tobytes()==data(presented)
    return hashlib.sha256(actual.tobytes()).hexdigest()
-  finally:gpu.close();vertices.release();fbo.release();texture.release();ctx.release()
+  finally:
+   with ctx:gpu.close();vertices.release();fbo.release();texture.release()
+   ctx.release()
  try:
   wait(lambda:shell.client and hasattr(shell,'image_editor') and not shell.client.snapshot['media_library']['loading']);e=shell.image_editor;c=e.canvas;e.reveal();e.resize_canvas((96,64),False);e.blank_layer();done();parent=e.selected;install(fixture())
   view=e.editor_view;state=deepcopy(e.config);tool=c.tool;history=deepcopy(shell.client.snapshot['media_control']['history'])

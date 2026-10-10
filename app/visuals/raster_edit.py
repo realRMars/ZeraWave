@@ -54,3 +54,22 @@ def masked_projection(canvas,image,row):
             p=QPainter(part);p.setCompositionMode(QPainter.CompositionMode_DestinationIn if operation['mode']=='Keep' else QPainter.CompositionMode_DestinationOut);p.drawImage(0,0,shape);p.end()
         p=QPainter(result);p.setCompositionMode(QPainter.CompositionMode_Source);p.drawImage(x,y,part);p.end()
     canvas.mask_cache[row['id']]=(key,result,ids);return result
+
+
+def path(stroke,points):
+    """One native region/constraint/patch for an ordered captured mouse batch.
+
+    Dab spacing, flow and each segment endpoint are unchanged. Smudge needs its
+    sequential visible pickup/preview and deliberately keeps segment().
+    """
+    from native_raster import native_constrained
+    image=stroke['image'];brush=stroke['brush'];vertices=[stroke['last']]+list(points);r=math.ceil(brush['size']/2)+4
+    x=max(0,math.floor(min(p[0] for p in vertices)-r));y=max(0,math.floor(min(p[1] for p in vertices)-r))
+    right=min(image.width(),math.ceil(max(p[0] for p in vertices)+r));bottom=min(image.height(),math.ceil(max(p[1] for p in vertices)+r))
+    if right<=x or bottom<=y:return x,y,right,bottom
+    bounds=x,y,right-x,bottom-y;working=image.region(bounds)
+    for first,last in zip(vertices,vertices[1:]):brush_stroke(working,first,last,brush,stroke['color'],stroke['tool'],origin=(x,y))
+    base=stroke['base'].region(bounds);mask=coverage(bounds,(image.width(),image.height()),stroke['target'],stroke['selection']);preview=native_constrained(base,working,mask,brush['opacity'])
+    if preview is None:preview=constrained_edit(base,working,stroke['target'],stroke['selection'],brush['opacity'],coverage=mask)
+    next_work=image.patch(bounds,working);next_preview=stroke['preview'].patch(bounds,preview);stroke.update(image=next_work,preview=next_preview)
+    return x,y,right,bottom

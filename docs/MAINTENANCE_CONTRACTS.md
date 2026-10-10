@@ -1,6 +1,48 @@
 # Cosmic and Elemental maintenance contracts
 
 
+## Raster recovery and mouse-channel correction — 2026-10-09
+
+This uncommitted correction starts at published `6aed22041bd15392857c676f832a4f25f07bd765`.
+Robert's hands-on acceptance remains pending; the dated actual-results section in
+`agent-notes/b2-tiles-20261008.md` binds the new evidence and its limits.
+
+The Composition canvas consumes context-menu events for every tool, including
+queued and modified events. It has no right-click popup. Layers, Library and
+toolbar/docking menus retain their existing scope; canvas editing controls and
+text-safe shortcuts remain. Brush/Pencil paint Main on left and Secondary on right.
+Fill uses the same region/protection/transaction rules on either button and pins
+the chosen RGBA/channel before worker execution. Sampler assigns only Main on left
+or Secondary on right, synchronizes existing chips, and records no artwork command.
+Both channels are shared across Brush/Pencil/Fill/Sampler; saved shared Secondary
+is authoritative, otherwise migration uses old Brush Secondary. Tool sizes and
+stroke settings remain independent. Eraser/Smudge retain their non-color gestures.
+
+Storage/save leases keep immutable mappings without redundant native imports.
+PNG encoding and recovery materialize exact pixels through the existing mapping
+reader. Failed Futures retain their error outcome, not traceback pixel readers.
+Import/export cleanup releases ctypes buffer pointers before closing mappings and
+preserves the original failure. Source-only snapshots do not consume PNG job slots.
+Retry uses the real owner, coalesces persistence requests and drains within the
+existing 16-job/256-MiB queued-byte bounds. Accepted failed resources remain pinned;
+history, readers and requested saves determine retirement. No caps are raised.
+
+A completed stroke rejected before admission is **not saved and must be redrawn**
+after pressure drains or Retry succeeds. Its preview is discarded, with explicit
+feedback; no rejected stroke is retained or automatically resubmitted. Unknown
+ACK remains recoverable in the running instance. Accepted pixels/history remain
+usable when PNG saving fails; Retry or revision-pinned Save As must secure them.
+Save outcomes remain separate from acceptance and publication.
+
+Master opacity sliders have a 26-pixel minimum hit height and immediate whole-track
+dragging; wheel needs no activation delay. Latest unsent opacity previews coalesce
+behind one ordered owner request; completed edits do not coalesce. Release, or
+180-ms wheel inactivity, creates one history gesture after prior preview ACK.
+Immutable command snapshots are shared only for owner rollback checkpoints;
+mutable history state is copied. Pixel asset replacement preserves equivalent
+row controls and refreshes geometry/thumbnails separately. These changes preserve
+native dimensions, drawing samples, branch targeting, locks and saved values.
+
 ## Focused Composition correction preservation — 2026-10-09
 
 Preserve separate Select/Lasso/Magic Wand toolbar buttons and scissors Cut action;
@@ -455,8 +497,8 @@ The existing History offers an editor sequence across drawing/management; scoped
 APIs stay available, and new edits clear the redo branch. Internal managed immutable
 PNG dependencies may share paths under distinct IDs; external paths remain unique.
 
-Shared Main migration retains saved swatches/palettes and independent Secondary/
-tool settings. Fill's algorithm/resources stay intact; shared color and selection
+Shared Main/Secondary migration retains saved swatches/palettes and independent
+tool sizes/stroke settings; the dated channel contract above governs both buttons. Fill's algorithm/resources stay intact; shared color and selection
 binding are the only Fill changes. Existing saved toolbar identity remains, with
 full dock height, resize grip, width reflow and actual-overflow scrolling.
 
@@ -472,3 +514,181 @@ editor_corrections_test, editor_usability_test, raster_workflow_test,
 studio_editing_test; publication/transactions/projection/resource checks cover
 affected interfaces. Bind actual executed results and limits in the latest report;
 Qt, native pixels and standalone GPU are distinct from physical user acceptance.
+
+Requested saves also export any referenced immutable source snapshot restored by Undo, even if its external file changed or disappeared. This uses a private managed reference in the saved document; working layer IDs, original Library identity/path and history remain unchanged. Source snapshots still consume no background PNG job. Failed snapshot export leaves the requested save failed and its resources pinned for Retry/Save As.
+
+
+## Natural short-stroke persistence/recovery correction — 2026-10-09
+
+This later correction preserves B1/B2 immutable snapshots, ordered admission,
+history and revision-pinned saves. Native ABI/DLL and stored session version stay
+unchanged. Current-only Qt resource publication uses an optional compact tile-name
+table; ControlClient reconstructs the exact ABI descriptor before any consumer.
+History/save/publication leases remain owner-retained and Undo republishes the
+requested current resource. A post-acceptance publication failure is uncertain,
+never an admission rejection or permission to dispose accepted pixels.
+
+Owner resources share one handle per unique immutable tile. Resource references,
+pending PNG jobs and save pins govern lifetime; borrowed worker/save readers drop
+all exported array views before release. Allocation accounting caches only
+admission-validated immutable tables and preserves unique raw/mapping/job budgets.
+Pending-job count, queued bytes, native versions, history and GUI transfer limits
+remain separate. Pass 1 below replaces the former 512 MiB disk-store ceiling.
+
+Persistence uses the existing NumPy/Qt alpha conversion and lossless PNG Sub/zlib
+encoding, retaining native dimensions, exact pixels, physical pixel aspect and ICC
+metadata. Faster compression can produce larger PNGs. Pass 1 below uses indexed
+accounting and physical free space with explicit reservations/headroom. Provenance
+and last-reference retirement replace the earlier running-owner-only rule;
+protected originals, dependencies, legacy files, sessions and evidence never retire.
+
+Known capacity prevents starting the next Brush/Pencil/Eraser/Smudge preview and
+explicitly says no edit was accepted. Admission races may still reject a completed
+stroke; it is not retained for automatic replay and must be redrawn after drain or
+recovery. Expected rejected outcomes remain in the ledger/log and editor status;
+they do not steal canvas focus through the runtime-error pane. Unexpected failures
+and accepted-but-unpublished uncertainty remain diagnostic errors. A separate
+persistent message shows pending/failed writes even during continuous input.
+
+Retry exercises the actual owner and cannot create space in a genuinely full
+store. Explicit Save As secures its requested revision and every retained unsaved
+accepted resource, indexing additional PNGs in its `.assets` folder. Failure leaves
+accepted work/history and checkpoint pins intact. Only durable completion in the
+same active session moves future writes to `<session>.rasters/<session-id>`;
+existing references/leases stay immutable. Load uses a new private working-store
+namespace after its existing old-context recovery checkpoint. Compatible reopen
+still uses portable PNG dependencies; artwork history remains the running owner's
+existing history, not a new serialized history feature. Owner-death recovery and
+File → New Session remain outside this correction.
+
+`raster_short_strokes_test.py` is the natural press/move/release/reclick regression
+(no worker barrier or injected write fault). `raster_reliability_test.py` covers
+controlled pressure, real filesystem failure, real Retry, resource/export lifetimes,
+history, saved pixels, colors and canvas menu boundaries. Bind actual runs and
+capacity rejections in the dated B2 report; passing recovery is not a no-overload
+guarantee or Robert acceptance.
+
+
+## Pass 1: sustainable working storage and normal shutdown — 2026-10-09
+
+This uncommitted candidate extends the starting recovery implementation; Robert
+owns acceptance. Passes 2–4 and B3 remain unimplemented. Native ABI 1, the loaded
+DLL, session version 5/composition version 4 and intended source pixels are unchanged.
+
+`artwork_store.py` uses bundled SQLite to index PNG bytes, distinct payloads,
+reservations, cumulative committed writes and reclamation. Writes reserve actual
+encoded bytes against destination-volume free space and leave 64 MiB for metadata,
+temporary/checkpoint publication and recovery. The former default 512 MiB disk
+ceiling is removed from working writes and portable/source/recovery dependencies.
+`ZERAWAVE_ARTWORK_BUDGET_BYTES`, when explicitly configured, is a disclosed per-folder
+PNG budget including retained/protected files; it is not a default or lifetime
+stroke count. Memory, decoder, queued-byte/job, native-version and history limits
+remain independent. Free-space checks cannot reserve space against unrelated
+external writers; an actual OS write failure remains recoverable and truthful.
+
+Current scene, retained Undo/Redo/structural rows, active PNG jobs, publication
+readers and requested saves retain immutable resource leases. Failure/retry entries
+do not independently retain an expired revision. Internal metadata expires with
+its last legitimate reference; late registry callbacks cannot recreate it.
+Only an indexed `working` payload with explicit provenance and no remaining
+current/history/job/read/save/Library obligation can be retired. Retirement intent
+is committed before unlink; normal reopen can finish it. Dependencies, public
+Library originals, legacy/unowned PNGs, prior projects and evidence stay protected.
+Interrupted active payloads stay conservative; this is not owner-death artwork
+recovery. Windows owner byte locks distinguish live writers from abandoned journal
+reservations. Startup reconciles at most 4,096 directory entries, then 64 entries
+per tick; external changes are audited incrementally every 30 seconds. Reclamation
+attempts at most 32 files per normal tick. Protected legacy space is shown separately.
+
+Preview, owner acceptance, output publication and durable PNG/save completion are
+separate states. Known queue pressure prevents starting the next stroke and explains
+that no edit was accepted. A completed stroke rejected by admission has no retained
+recovery copy and must be redrawn after drain/Retry; no automatic resubmission.
+Accepted unsaved current/history/save work remains retained while its obligations
+exist. Retry acts on owner failures; Save As secures its frozen requested revision
+and retained recovery dependencies before redirecting future working writes.
+
+Normal close resolves submitted/uncertain edits and unfinished gestures before the
+Save/Discard/Cancel decision. Save awaits the requested durable session/revision;
+failure or newer accepted work leaves the editor open. Discard explicitly abandons
+unsaved work and pending/failed checkpoints, cooperatively cancels writers, and
+waits for their actual completion before releasing readers. Cancel keeps the
+editor usable; cancelling a save waits for its real terminal outcome. Close phases
+are visible. Unresolved edits, save/cancellation or owner writes return to an open
+editor after 15 seconds rather than imply completion. Opaque OS I/O may finish
+later; its reader remains protected. Renderer/media/audio stop precedes resource
+release. The GUI observes owner process exit and actual worker-thread exit before
+accepting window close. Forced termination is an exceptional fallback, never
+normal-exit evidence. Bare legacy `close` still refuses unresolved raster work;
+the normal GUI route explicitly supplies `clean` or user-authorized `discard`.
+
+Standalone `raster_storage_shutdown_test.py` exercises accounting, conservative
+cleanup, interrupted writes, expired failures/metadata and isolated process exits.
+Actual results, source identities, raw failed trials and remaining limitations
+belong in the newest section of `docs/agent-notes/b2-tiles-20261008.md`.
+
+## Child/drawing/image-save preservation contract — 2026-10-10
+
+Row + binds its clicked identity, creates one accepted transparent child without
+a PNG gate and retains ordinary-own versus protecting-Group lock meanings. Keep
+one structural history operation, exact placement, parent pixels and selection.
+Release samples, chronological captured-only Windows history (64 max), gesture/view
+guards and native batched segment parity must preserve preview/accepted pixels,
+deliberate corners/reversals, Pencil policy and sequential visible-artwork Smudge.
+Projection backdrop prefixes use the original dependency-complete 128 MiB LRU and
+global Qt sampling phase; all structure/view/dependency changes invalidate correctly.
+
+`artwork_export.py`/`artwork_save_ui.py` are save adapters to the existing reference
+compositor, not another renderer. Freeze accepted pixels/scene/scope; refuse unknown
+work and previews. Hold readers until the actual Future terminates. Two pinned jobs,
+one ordered writer, 32 bounded outcomes, flushed temporary file then atomic replace.
+Close watches job IDs rather than outcome-list offsets; failed/cancelled jobs leave
+the editor open and actual thread exit precedes resource teardown. Encoding/write/
+replace/cancel errors retain last-good output and association. Session/recovery Save
+remains separate. Optional `artwork_outputs` identifies independent stable scopes
+and migrates older sessions with an empty list; duplication never copies overwrite
+identity. Existing Pass 1 storage accounting, retirement and failure ownership stay
+unchanged. Test normal exits rather than treating fixture forced finalizers as proof.
+
+User-facing bounds, live still-frame, format/alpha/lossy policy are in
+`STUDIO_MEDIA_COMPOSITION.md`. Focused standalone checks:
+`drawing_input_test.py`, `artwork_image_save_test.py`, existing editing/transaction/
+workflow/reliability and focused `raster_storage_shutdown_test.py` cases. Source-bound
+actual counts, failures, outliers and natural-input limits belong in the dated B2
+report; test success is not Robert acceptance or the deferred capacity campaign.
+
+
+## Finishing drawing/view/first-Fill contract — 2026-10-10
+
+Sequential Smudge pins the existing ordered contributor/hierarchy plan for one
+stroke. Plan construction, all-white coverage and backdrop copies can be omitted
+only when equivalent to the existing crop/mask/isolation/blend rules. Every input
+sample retains sequential pickup from the evolving target. Exact before/after
+comparisons include partial-strength blends/Add, transformed/hidden/nested sources,
+Round/Square and masks/crops; do not weaken mixing or add trailing smoothing.
+
+All Composition zoom entry points share .02–256. Pointer-anchored wheel and high
+zoom nearest-pixel inspection change only view sampling; reference image export,
+Smudge pickup and Visualizer filtering retain their policies. Cache identity includes
+the inspection sampling mode. Size-1 Pencil fills exactly one integer source cell
+for either footprint, preserving flow/opacity and larger-tip behavior.
+
+ControlOwner resolves legacy None canvas once per media session, validates existing
+limits and exposes it in values/publication/save. Explicit canvas geometry wins.
+Window/output resolution changes must never resize source pixels or redefine the
+legacy document's geometry after resolution. Compatible old sessions remain readable.
+
+Zero-layer Fill pins the original click/channel/settings before confirmation,
+prepares final pixels plus immutable transfer on the existing worker, and submits
+one creation/fill command through existing owner admission. No/cancel/stale or
+failure leaves the preceding canvas; resource/command rejection releases private
+transfers, with owner reconciliation restoring known accepted state. White-on-white
+still creates the confirmed surface. One job; duplicate busy clicks do not replay.
+Existing nonempty documents retain normal target rejection. Do not create first
+layer then blindly call Fill. Preserve Pass1 revision-pinned saves, ordered outcomes,
+reader lifetimes, storage accounting/retirement and Save/Discard/Cancel shutdown.
+
+Focused finishing evidence uses native/B1 standalone drawing/image/editing/history/
+reliability/workflow and selected close checks. Qt-dispatched gestures/framebuffer
+reads are scripted evidence, not physical input/scanout, live Visualizer or Robert
+acceptance. Deferred capacity work and owner-death recovery remain outside this pass.

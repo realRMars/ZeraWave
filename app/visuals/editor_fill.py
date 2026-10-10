@@ -163,9 +163,23 @@ def prepare(args,retain_source,progress=None):
         return prepared
     except BaseException:prepared.discard();raise
 
+def prepare_empty(args,progress):
+    """A first surface and its fill are prepared before any structural admission."""
+    prepared=prepare(args,False,progress)
+    if prepared is not None:return prepared
+    if args[7].is_set():raise ValueError('Obsolete first Fill cancelled; empty canvas unchanged.')
+    from raster_resources import snapshot
+    prepared=PreparedFill(args[0])
+    try:
+        prepared.transfer=snapshot(args[0])
+        if args[7].is_set():raise ValueError('Obsolete first Fill cancelled during preparation.')
+        return prepared
+    except BaseException:prepared.discard();raise
+
+
 class FillController:
     def __init__(self,e):
-        self.e=e;self.job=None;self.cancel_event=None;self.ticket=None;self.generation=0;self.metrics=[]
+        self.e=e;self.job=None;self.cancel_event=None;self.ticket=None;self.generation=0;self.metrics=[];self.empty_ticket=None
         self.timer=QTimer(e);self.timer.setInterval(16);self.timer.timeout.connect(self.poll);self.timer.start()
     def cancel(self):
         self.generation+=1
@@ -179,9 +193,10 @@ class FillController:
                     if prepared is not None:prepared.discard()
                 except Exception:pass
             self.job.add_done_callback(retire)
-    def click(self,pos):
+    def click(self,pos,secondary=False):
         e=self.e;c=e.canvas;row=e.selected_row()
         if self.job is not None:e.status.setText('Fill calculation pending; wait or change target/tool to cancel.');return
+        if not e.config['layers']:return self.first_click(pos,secondary)
         if not row or row['type'] not in ('Image','Artwork','Paint'):e.status.setText('Fill requires the selected editable raster layer.');return
         if not e.editable_target(row) or not row['source_visible']:
             if not row['source_visible']:e.status.setText('Show selected own content before Fill.')
@@ -194,7 +209,7 @@ class FillController:
         if not 0<=seed[0]<image.width() or not 0<=seed[1]<image.height():e.status.setText('Click inside selected artwork.');return
         from native_raster import FillCancel
         self.cancel_event=FillCancel();selection=deepcopy(c.operation()) if c.points else None;target=deepcopy(row);binding=e.binding;scene=deepcopy(e.config)
-        q=e.quick_colors;color=QColor(e.brush_color);args=(image if hasattr(image,'tiles') else image.copy(),target,selection,seed,color,q.tolerance.value(),q.contiguous.isChecked(),self.cancel_event)
+        q=e.quick_colors;color=QColor(e.secondary_color if secondary else e.brush_color);self.channel='Secondary' if secondary else 'Main';self.fill_color=QColor(color);args=(image if hasattr(image,'tiles') else image.copy(),target,selection,seed,color,q.tolerance.value(),q.contiguous.isChecked(),self.cancel_event)
         from composition import ancestors,world_matrix
         from editor_colors import pixel_frame
         groups=[];inverse=None
@@ -208,6 +223,53 @@ class FillController:
         cost=image.sizeInBytes()*(2 if retain_source else 1)
         if sum(p.size for p in e.runtime_producers.values())+cost>128*1024*1024:e.status.setText('Fill snapshot reservation exceeds 128 MiB; prior artwork retained.');return
         self.ticket=(self.generation,binding,target,image,scene,selection,time.perf_counter());self.progress=Progress();self.last_phase=None;self.job=e.pool.submit(prepare,args,retain_source,self.progress);e.status.setText('Calculating Fill on selected own pixels… artwork unchanged; target/tool change cancels.')
+    def first_click(self,pos,secondary):
+        from PySide6.QtWidgets import QMessageBox
+        from composition import new_layer
+        from PySide6.QtCore import Qt
+        from native_raster import FillCancel,backend
+        e=self.e;c=e.canvas
+        if e.onboarding_pending or e.edit_jobs or e.art_jobs:e.status.setText('Wait for preceding preparation or acceptance before Fill.');return
+        binding=e.binding;scene=deepcopy(e.config);size=tuple(e.canvas_size);generation=self.generation
+        point=c.canvas_point(pos);seed=(math.floor((point[0]+.5)*size[0]),math.floor((point[1]+.5)*size[1]))
+        if not 0<=seed[0]<size[0] or not 0<=seed[1]<size[1]:e.status.setText('Click inside the empty canvas to create its first Fill surface.');return
+        color=QColor(e.secondary_color if secondary else e.brush_color);channel='Secondary' if secondary else 'Main'
+        q=e.quick_colors;tolerance=q.tolerance.value();contiguous=q.contiguous.isChecked();selection=deepcopy(c.operation()) if c.points else None
+        box=QMessageBox(e);box.setWindowTitle('Create a new layer?');box.setText('Create a new layer?');box.setInformativeText('Yes creates the white editable surface and performs this Fill click. No keeps the empty canvas unchanged.');box.setStandardButtons(QMessageBox.Yes|QMessageBox.No);box.setDefaultButton(QMessageBox.Yes)
+        if box.exec()!=QMessageBox.Yes:return
+        if e.binding!=binding or e.config!=scene or e.config['layers'] or c.tool!='Fill' or self.generation!=generation:e.status.setText('First Fill destination changed; empty canvas unchanged.');return
+        image=QImage(*size,QImage.Format_ARGB32_Premultiplied);image.fill(QColor('white'))
+        if image.isNull():e.status.setText('First Fill allocation failed; empty canvas unchanged.');return
+        row=new_layer('Image',name='Drawing surface');row['fit']='Stretch'
+        self.cancel_event=FillCancel();self.channel=channel;self.fill_color=QColor(color)
+        self.empty_ticket=dict(generation=generation,binding=binding,scene=scene,row=row,selection=selection,size=size,channel=channel,began=time.perf_counter())
+        e.onboarding_pending=True;self.progress=Progress();self.last_phase=None
+        def work():
+            native=backend().storage().from_image(image) if backend().available else image
+            return prepare_empty((native,row,selection,seed,color,tolerance,contiguous,self.cancel_event,()),self.progress)
+        try:self.job=e.pool.submit(work);e.status.setText('Preparing first Fill… empty canvas unchanged until owner acceptance; target/tool change cancels.')
+        except Exception as exc:
+            self.empty_ticket=None;e.onboarding_pending=False;e.status.setText('First Fill not started; empty canvas unchanged: '+str(exc)[:180])
+    def poll_empty(self,job,ticket):
+        e=self.e;c=e.canvas;prepared=None;e.onboarding_pending=False
+        valid=ticket['generation']==self.generation and e.binding==ticket['binding'] and e.config==ticket['scene'] and not e.config['layers'] and e.selected is None and c.tool=='Fill' and tuple(e.canvas_size)==ticket['size'] and (deepcopy(c.operation()) if c.points else None)==ticket['selection']
+        try:
+            prepared=job.result()
+            if not valid:e.status.setText('Obsolete first Fill ignored; current artwork unchanged.');return
+            def finish(asset):
+                from media_registry import reference
+                row=dict(ticket['row'],asset=asset['id']);before=deepcopy(e.config)
+                e.config['layers'].append(row);e.config['assets'].append(reference(asset));e.selected=row['id']
+                if not e.commit('Create layer and Fill '+ticket['channel'],before):raise ValueError(e.status.text())
+                c.discard()
+            if not e.resource_generated(prepared.image,'First empty-canvas Fill',finish,prepared=prepared):
+                if not e.edit_jobs and e.binding==ticket['binding']:
+                    e.config=deepcopy(ticket['scene']);e.selected=None;e.populate();e.sync_controls()
+                return
+            self.metrics.append(dict(channel=ticket['channel'],color=self.fill_color.name(QColor.HexArgb),dimensions=list(ticket['size']),compute_to_submit_ms=(time.perf_counter()-ticket['began'])*1000,phases_ms=self.progress.snapshot()[1],first_layer=True));self.metrics=self.metrics[-32:]
+        except Exception as exc:e.status.setText('First Fill retained previous canvas: '+str(exc)[:180])
+        finally:
+            if prepared is not None:prepared.discard()
     def poll(self):
         if self.job is None:return
         if not self.job.done():
@@ -215,7 +277,11 @@ class FillController:
             if phase!=self.last_phase:
                 self.last_phase=phase;self.e.status.setText('Fill: '+phase+'… artwork unchanged; target/tool change cancels.')
             return
-        job,self.job=self.job,None;e=self.e;c=e.canvas;generation,binding,row,image,scene,selection,began=self.ticket;self.ticket=None
+        job,self.job=self.job,None
+        if self.empty_ticket is not None:
+            ticket,self.empty_ticket=self.empty_ticket,None
+            return self.poll_empty(job,ticket)
+        e=self.e;c=e.canvas;generation,binding,row,image,scene,selection,began=self.ticket;self.ticket=None
         valid=generation==self.generation and e.binding==binding and e.selected==row['id'] and e.config==scene and c.tool=='Fill' and c.source_image(row) is image and (deepcopy(c.operation()) if c.points else None)==selection and e.valid_target(*binding,row)
         prepared=None
         try:
@@ -224,7 +290,7 @@ class FillController:
             if prepared is None:e.status.setText('Fill unchanged or outside permitted coverage; no history added.');return
             stroke=dict(row=row['id'],asset=row['asset'],target=row,session=binding[0],revision=binding[1],tool='Fill',base=image)
             if not e.save_paint(stroke,prepared.image,prepared=prepared):return
-            self.metrics.append(dict(dimensions=[image.width(),image.height()],compute_to_submit_ms=(time.perf_counter()-began)*1000,phases_ms=self.progress.snapshot()[1]));self.metrics=self.metrics[-32:]
+            self.metrics.append(dict(channel=self.channel,color=self.fill_color.name(QColor.HexArgb),dimensions=[image.width(),image.height()],compute_to_submit_ms=(time.perf_counter()-began)*1000,phases_ms=self.progress.snapshot()[1]));self.metrics=self.metrics[-32:]
         except Exception as exc:e.status.setText('Fill retained previous artwork: '+str(exc)[:180])
         finally:
             if prepared is not None:prepared.discard()

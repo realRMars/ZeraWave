@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
     QHBoxLayout, QLabel, QPushButton, QComboBox, QTreeWidget, QTreeWidgetItem,
     QScrollArea, QDoubleSpinBox, QDial, QSlider, QMenu, QFileDialog, QColorDialog,
     QPlainTextEdit, QGroupBox, QMessageBox, QSplitter, QGridLayout, QLineEdit, QMenuBar,QProgressBar,
-    QDialog,QDialogButtonBox,QSpinBox,QFormLayout,QSizePolicy,QToolButton)
+    QDialog,QDialogButtonBox,QSpinBox,QFormLayout,QSizePolicy,QToolButton,QProgressDialog)
 import PySide6QtAds as ads
 from studio_control_client import ControlClient,OwnerView
 ROOT=Path(__file__).resolve().parents[2]
@@ -687,6 +687,7 @@ class Shell(QMainWindow):
             try:attach_future.result()
             except Exception as exc:self.error(exc);self.cancel_preview()
         if self.client.disconnected:
+            if getattr(self,'close_request',None):return
             if not self.disconnect_reported:
                 self.disconnect_reported=True;self.client.job.close();self.error(RuntimeError('Control owner disconnected. Last received settings remain available through File > Save session. Reopen Studio to recover the connection.'))
                 self.save_authored.setEnabled(False)
@@ -924,37 +925,132 @@ class Shell(QMainWindow):
             if key==Qt.Key_P:self.safe(self.owner.pause_preview);return True
             if key==Qt.Key_S and mods & Qt.ShiftModifier:self.safe(self.cancel_preview);return True
         return False
-    def closeEvent(self,event):
-        if self.closing:event.accept();return
-        if self.client is None:
-            self.closing=True;self.control_cancel.set()
-            if hasattr(self,'boot_timer'):self.boot_timer.stop()
-            self.operations.shutdown(wait=False,cancel_futures=True);event.accept();return
-        if not self.image_editor.resolve_pending():event.ignore();return
-        if json.dumps(self.owner.values(),sort_keys=True)!=self.saved_art or self.client.snapshot.get('tuning_dirty'):
-            answer=QMessageBox.question(self,'Unsaved artistic settings','Save the session and destination-bound tuning drafts before closing? Save keeps drafts in the session; Save Authored remains a separate explicit action.',QMessageBox.Save|QMessageBox.Discard|QMessageBox.Cancel)
-            if answer==QMessageBox.Cancel:event.ignore();return
+    def advance_bootstrap_close(self):
+        if self.connection is not None and not self.connection.done():return
+        if not hasattr(self,'bootstrap_shutdown'):
+            self.bootstrap_shutdown=None
+            if self.connection is not None:
+                try:
+                    client=self.connection.result()
+                    self.bootstrap_shutdown=self.operations.submit(lambda:client.close(mode='discard'))
+                except Exception:pass # startup cancellation has no submitted artwork
+                self.connection=None
+            return
+        if self.bootstrap_shutdown is not None and not self.bootstrap_shutdown.done():return
+        if self.bootstrap_shutdown is not None:self.bootstrap_shutdown.result();self.bootstrap_shutdown=None
+        self.operations.shutdown(wait=False,cancel_futures=True)
+        if any(t.is_alive() for t in self.operations._threads):return
+        self.bootstrap_close_timer.stop();self.closing=True;self.close()
+    def cancel_close(self):
+        request=getattr(self,'close_request',None)
+        if not request:return
+        if request['phase']=='save':
+            key=request['save_id']
+            self.operations.submit(lambda:self.client.request('cancel_save',save_id=key))
+            request.update(phase='cancelling',wait_started=time.perf_counter());self.close_progress.setLabelText('Cancelling requested save; waiting for its reader to release…')
+            return
+        if request['phase']=='image_save':
+            self.image_editor.artwork_save.saves.cancel_all();self.finish_close_request('Close cancelled; image-save cancellation requested. Actual write outcome remains reported.');return
+        if request['phase']=='reconcile':self.finish_close_request('Close cancelled. Editor remains open; accepted work retained.')
+    def finish_close_request(self,message):
+        self.close_timer.stop();self.close_progress.reset();self.close_progress.hide();self.close_request=None
+        self.statusBar().showMessage(message)
+    def advance_close(self):
+        request=self.close_request
+        if not request:return
+        phase=request['phase'];raster=self.client.snapshot.get('media_control',{}).get('raster',{})
+        if phase=='reconcile':
+            if time.perf_counter()-request['started']>15:
+                self.finish_close_request('Close could not resolve submitted edits within 15 seconds. Editor remains open; uncertain snapshots retained. Cancel/recovery has not discarded them.');return
+            if self.image_editor.edit_jobs or self.image_editor.art_jobs or self.client.edit_count or self.operation or getattr(self,'attach_future',None):return
+            request['phase']='resolving' # gesture confirmation has its own nested event loop
+            if not self.image_editor.resolve_pending():self.finish_close_request('Close cancelled; unfinished work remains in the editor.');return
+            request['phase']='reconcile'
+            if self.image_editor.edit_jobs or self.image_editor.art_jobs:return # Apply may submit a new ordered edit
+            self.image_editor.artwork_save.poll()
+            if self.image_editor.artwork_save.request or self.image_editor.artwork_save.association_jobs:return
+            if self.image_editor.artwork_save.saves.jobs:
+                request.update(phase='image_save',wait_started=time.perf_counter(),image_job_ids={v['id'] for v in self.image_editor.artwork_save.saves.jobs});self.close_progress.setLabelText('Waiting for artwork image saves to finish… Cancel keeps the editor open.');return
+            dirty=json.dumps(self.owner.values(),sort_keys=True)!=self.saved_art or self.client.snapshot.get('tuning_dirty') or raster.get('pending') or raster.get('failures') or raster.get('retained_checkpoints')
+            request['phase']='choosing' # nested Qt dialog loops must not re-enter close
+            answer=QMessageBox.Discard
+            if dirty:
+                answer=QMessageBox.question(self,'Unsaved artistic settings','Save the requested current session before closing, discard unsaved work and pending checkpoints, or cancel to continue editing?',QMessageBox.Save|QMessageBox.Discard|QMessageBox.Cancel)
+            if answer==QMessageBox.Cancel:self.finish_close_request('Close cancelled. Editor remains open.');return
             if answer==QMessageBox.Save:
-                self.safe(self.save_session)
-                if json.dumps(self.owner.values(),sort_keys=True)!=self.saved_art or self.client.snapshot.get('tuning_dirty'):event.ignore();return
-        raster=self.client.snapshot.get('media_control',{}).get('raster',{})
-        if raster.get('pending') or raster.get('failures') or raster.get('retained_checkpoints'):
-            self.statusBar().showMessage('Accepted work not secured. Wait, retry persistence, or Save As/recovery export before closing.');event.ignore();return
-        self.closing=True;self.timer.stop();self.analyzer_timer.stop()
-        try:
+                prior=getattr(self,'requested_save',None)
+                try:self.save_session()
+                except Exception as exc:self.finish_close_request('Save failed; editor remains open: '+str(exc));return
+                current=getattr(self,'requested_save',None)
+                if current is None or current is prior:self.finish_close_request('Save cancelled. Editor remains open.');return
+                request.update(phase='save',save_id=current[0],wait_started=time.perf_counter());self.close_progress.setLabelText('Saving requested revision and dependencies… Cancel keeps the editor open.');return
+            request['discard']=bool(dirty)
+            request['phase']='begin'
+        elif phase=='image_save':
+            self.image_editor.artwork_save.poll()
+            if time.perf_counter()-request['wait_started']>15:self.finish_close_request('Image save still draining; editor remains open with its snapshot pinned.');return
+            if self.image_editor.artwork_save.pending():return
+            failures=[v for v in self.image_editor.artwork_save.saves.results if v['id'] in request['image_job_ids'] and v['status']!='durable']
+            if failures:self.finish_close_request('Artwork image save '+failures[-1]['status']+'; editor remains open. Prior output retained: '+failures[-1].get('error',''));return
+            request['phase']='reconcile'
+        elif phase in ('save','cancelling'):
+            if time.perf_counter()-request['wait_started']>15:
+                self.finish_close_request('Close deferred: requested save/cancellation is still draining. Editor remains open; its snapshots remain pinned and its eventual outcome is reported.');return
+            outcome=next((s for s in raster.get('saves',[]) if s['id']==request['save_id']),None)
+            if not outcome or outcome['status']=='pending':return
+            if phase=='cancelling':self.finish_close_request('Close cancelled; '+('save completed before cancellation.' if outcome['status']=='durable' else 'accepted artwork retained.'));return
+            if outcome['status']!='durable':self.finish_close_request('Save failed; editor remains open and accepted pixels retained: '+outcome.get('error',''));return
+            control=self.client.snapshot['media_control']
+            if outcome['revision']!=control['revision'] or outcome['session']!=control['session']:self.finish_close_request('Requested revision saved; newer work remains open and unsaved.');return
+            request.update(phase='begin',discard=False)
+        elif phase=='begin':
+            self.close_progress.setCancelButton(None)
+            self.close_progress.setLabelText('Closing: waiting for writes and readers to finish…')
+            mode='discard' if request['discard'] else 'clean'
+            request.update(phase='owner',future=self.operations.submit(lambda:self.client.request('close',mode=mode)))
+        elif phase=='owner':
+            future=request['future']
+            if future.done():
+                try:future.result()
+                except Exception as exc:self.finish_close_request('Close failed; editor remains open: '+str(exc));return
+            state=self.client.snapshot.get('close_state',{})
+            if state.get('phase')=='failed':self.finish_close_request(state['error']);return
+            if self.client.process.poll() is None:return
+            # A disappeared window is insufficient: owner process exit is observed
+            # before releasing GUI resources and completing the window close.
+            self.timer.stop();self.analyzer_timer.stop();self.cancel_attach=True;self.pending_operation=None
+            self.waveform.close_pool();self.image_editor.close_resources();self.media_library.close_resources()
+            request.update(phase='workers',future=self.operations.submit(self.client.close))
+            self.close_progress.setLabelText('Owner exited. Releasing Studio readers and workers…')
+        elif phase=='workers':
+            if not request['future'].done():return
+            request['future'].result()
+            pools=(self.waveform.pool,self.image_editor.pool,self.media_library.pool,self.image_editor.artwork_save.saves.pool)
+            if any(thread.is_alive() for pool in pools for thread in pool._threads):return
+            self.operations.shutdown(wait=False,cancel_futures=True)
+            request['phase']='final'
+        elif phase=='final':
+            if any(thread.is_alive() for thread in self.operations._threads):return
             try:self.save_layout()
             except OSError as exc:print('Layout was not saved:',exc,file=sys.stderr)
-            self.cancel_attach=True;self.pending_operation=None
-            self.owner.release_preview_holds();self.waveform.close_pool();self.image_editor.close_resources();self.media_library.close_resources()
-            def cleanup():
-                try:self.client.close(force=self.client.disconnected or self.starting)
-                except Exception as exc:self.client.close(force=True);print('Close cleanup:',exc,file=sys.stderr)
-            if self.async_bootstrap:self.shutdown_future=self.operations.submit(cleanup)
-            else:cleanup()
-            self.operations.shutdown(wait=False,cancel_futures=not self.async_bootstrap)
-        except Exception as exc:
-            self.client.close(force=True);print('Close cleanup:',exc,file=sys.stderr)
-        event.accept()
+            self.close_timer.stop();self.close_progress.hide();self.closing=True;self.close()
+    def closeEvent(self,event):
+        if self.closing:event.accept();return
+        event.ignore()
+        if getattr(self,'close_request',None):return
+        if self.client is None:
+            # Bootstrap cancellation already owns its exceptional worker teardown.
+            self.control_cancel.set();self.statusBar().showMessage('Closing startup; waiting for the owner and connection worker to exit…')
+            if hasattr(self,'boot_timer'):self.boot_timer.stop()
+            if not hasattr(self,'bootstrap_close_timer'):
+                self.bootstrap_close_timer=QTimer(self);self.bootstrap_close_timer.setInterval(25);self.bootstrap_close_timer.timeout.connect(self.advance_bootstrap_close);self.bootstrap_close_timer.start()
+            return
+        self.close_request=dict(phase='reconcile',started=time.perf_counter())
+        self.close_progress=QProgressDialog('Resolving submitted edits before closing…','Cancel',0,0,self)
+        self.close_progress.setWindowModality(Qt.ApplicationModal);self.close_progress.setMinimumDuration(0)
+        self.close_progress.setAutoClose(False);self.close_progress.canceled.connect(self.cancel_close);self.close_progress.show()
+        self.close_timer=QTimer(self);self.close_timer.setInterval(25);self.close_timer.timeout.connect(self.advance_close);self.close_timer.start()
+
 
 
 def main():

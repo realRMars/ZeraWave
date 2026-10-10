@@ -278,12 +278,16 @@ class MediaRegistry:
             current['relinked_from']=(current.get('relinked_from',[])+[normalized(current['path'])])[-MAX_RELINK_PATHS:];current['path']=row['path'];current.update(status='Unchecked',metadata={},error='')
         for row in additions:self.assets[row['id']]=row
         if additions or relocations:self.revision+=1;self.schedule_save()
+    def prune_internal(self,keep):
+        obsolete=[key for key,row in self.assets.items() if row.get('internal') and key not in keep]
+        for key in obsolete:self.remove(key)
+        self.required_internal.intersection_update(keep)
     def snapshot(self,internal_ids=()):
         # Relink provenance is registry-local, not repeated in GUI snapshots.
         self.required_internal=set(internal_ids)
         rows=[{key:value for key,value in row.items() if key!='relinked_from'} for row in self.assets.values()]
         assets=[a for a in rows if not a.get('internal')];resources=[a for a in rows if a.get('internal') and a['id'] in internal_ids]
-        return dict(version=2,revision=self.revision,assets=assets,resources=resources,collections=deepcopy(self.collections),loading=self.loading,error=self.error,
+        return dict(version=2,revision=self.revision,internal_count=sum(bool(a.get('internal')) for a in self.assets.values()),public_count=len(assets),assets=assets,resources=resources,collections=deepcopy(self.collections),loading=self.loading,error=self.error,
             import_results=deepcopy(self.import_results),pending=[dict(token=t,op=j['op'],path=j.get('path'),asset=j.get('asset')) for t,j in self.pending.items()])
     def close(self):
         self.closed.set();self.cancel();self.worker.join(timeout=2.)

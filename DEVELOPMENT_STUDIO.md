@@ -41,6 +41,36 @@ and rigged/animated 3D still need an agreed scope. They are not functioning feat
 in this candidate. Recovery source is published at `0fb4c3f`, but the editor
 remains unaccepted; publication does not close Robert's review issues.
 
+### Blank children and ordinary artwork images — October 10 candidate
+
+The small **+ inside a Layers row** creates and selects a transparent drawing
+child directly. The large Layers + retains other media choices. Brush/Pencil/
+Smudge/Eraser now include the release endpoint and use bounded captured input;
+fast-path and latency limits remain subject to Robert's hands-on review.
+
+The Composition **floppy Save** and **Save As…**, plus Layers' **Save artwork
+image** context actions, write normal still images at authored pixel scale.
+PNG retains transparency; JPEG explicitly chooses an opaque background.
+Composition, layer own artwork, branch and selected set have independent stable
+destinations carried by session Save/reopen. These do not replace **File → Save
+session** or owner **Retry saving**. Scope/bounds, supported formats, async failure/
+close behavior and the uncommitted status are detailed in the
+[current image instructions](docs/STUDIO_MEDIA_COMPOSITION.md#direct-blank-children-captured-drawing-and-artwork-images--2026-10-10).
+
+### Finishing review — October 10 candidate
+
+Robert's latest review specifically accepts artwork Save/Save As, direct blank
+children, normal close, improved Brush/Pencil and quick Eraser. Smudge mixing is
+good; its remaining response cost and larger-tip/sustained drawing are review
+targets. This does not accept the whole editor or deferred capacity work.
+The finishing candidate improves measured Smudge pickup without changing its pixels,
+raises shared Composition zoom to 256× with crisp pixel inspection, fixes a
+demonstrated Round size-1 Pencil defect, removes only the canvas idle tooltip,
+freezes legacy canvas geometry independently of output changes and offers atomic
+first Fill creation for Main/Secondary. See the [controls and limits](docs/STUDIO_MEDIA_COMPOSITION.md#finishing-controls--2026-10-10)
+and dated B2 actual results for source-bound timing, scripted checks and remaining
+physical pointer/Visualizer review. It remains uncommitted for Robert's quick check.
+
 ### B1 status — development raster publication candidate
 
 B1 keeps Qt/Python control, ControlOwner and the renderer. Immutable runtime

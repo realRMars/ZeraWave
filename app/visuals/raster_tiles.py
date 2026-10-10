@@ -38,7 +38,7 @@ def mapping_bytes(descriptors):
 
 class TileLease:
     def __init__(self,desc,leases=None,native=True):
-        self.desc=deepcopy(validate(desc));self.leases=[];self.native=None
+        self.desc=deepcopy(validate(desc));self.allocations=allocations(self.desc);self.leases=[];self.native=None
         try:
             if leases is None:
                 for tile in desc['tiles']:
@@ -46,9 +46,12 @@ class TileLease:
                     if not tile['bytes']<=lease.size<=((tile['bytes']+mmap.PAGESIZE-1)//mmap.PAGESIZE)*mmap.PAGESIZE:raise ValueError('Tile mapping allocation length changed')
             else:self.leases=leases
             if native and backend().available:self.native=backend().storage().import_tiles(desc,self.leases)
-        except BaseException:self.close();raise
+        except BaseException as original:
+            try:self.close()
+            except Exception as cleanup:original.add_note('Tile admission cleanup: '+str(cleanup))
+            raise
     @property
-    def size(self):return unique_bytes([self.desc])
+    def size(self):return sum(self.allocations.values())
     def close(self):
         self.native=None
         for lease in self.leases:lease.close()
@@ -68,28 +71,45 @@ def export(image):
                 except FileNotFoundError:pass
             if lease is None:
                 name='zw_raster_'+uuid.uuid4().hex;lease=SharedMemory(name=name,create=True,size=t.length)
+                pointer=None
                 try:
-                    pointer=C.c_uint8.from_buffer(lease.buf);C.memmove(C.addressof(pointer),t.data,t.length);del pointer;copied+=t.length
-                except BaseException:lease.close();raise
+                    try:pointer=C.c_uint8.from_buffer(lease.buf);C.memmove(C.addressof(pointer),t.data,t.length);copied+=t.length
+                    finally:pointer=None
+                except BaseException as original:
+                    try:lease.close()
+                    except Exception as cleanup:original.add_note('Tile export cleanup: '+str(cleanup))
+                    raise
                 image.names[t.id]=name
             leases.append(lease);tiles.append(dict(name=name,x=t.x,y=t.y,width=t.width,height=t.height,stride=t.width*4,bytes=t.length))
         desc=dict(name='zw_raster_tiles_'+uuid.uuid4().hex,width=image.w,height=image.h,stride=image.w*4,bytes=image.w*image.h*4,format='RGBA8',orientation='bottom-up',alpha='premultiplied',color='sRGB',layout='tiles128-v1',abi=1,family=image.family,tiles=tiles,transfer_copied_bytes=copied)
         return desc,TileLease(desc,leases,native=False)
-    except BaseException:
-        for lease in leases:lease.close()
+    except BaseException as original:
+        for lease in leases:
+            try:lease.close()
+            except Exception as cleanup:original.add_note('Tile export cleanup: '+str(cleanup))
         raise
 
-def read(desc):
-    lease=TileLease(desc,native=False)
+def read(desc,lease=None):
+    import numpy as np
+    owned=lease is None;lease=TileLease(desc,native=False) if owned else lease;source=None
     try:
-        w,h=desc['width'],desc['height'];data=bytearray(w*h*4)
+        w,h=desc['width'],desc['height'];data=np.empty((h,w,4),dtype=np.uint8)
         for t,mapping in zip(desc['tiles'],lease.leases):
-            for y in range(t['height']):
-                at=((t['y']+y)*w+t['x'])*4;data[at:at+t['stride']]=mapping.buf[y*t['stride']:(y+1)*t['stride']]
-        return dict(width=w,height=h),bytes(data)
-    finally:lease.close()
+            source=np.frombuffer(mapping.buf,dtype=np.uint8,count=t['bytes'])
+            data[t['y']:t['y']+t['height'],t['x']:t['x']+t['width']]=source.reshape(t['height'],t['width'],4)
+            source=None
+        return dict(width=w,height=h),data.tobytes()
+    finally:
+        # Drop every exported ndarray view before closing its Windows mapping,
+        # including exception exits. The returned bytes never borrow a mapping.
+        source=None
+        if owned:lease.close()
 
-def image(desc):
+def image(desc,native=True,lease=None):
+    if not native:
+        from PySide6.QtGui import QImage
+        meta,data=read(desc,lease=lease)
+        return QImage(data,meta['width'],meta['height'],QImage.Format_RGBA8888_Premultiplied).mirrored(False,True).convertToFormat(QImage.Format_ARGB32_Premultiplied)
     lease=TileLease(desc)
     try:
         if lease.native is not None:return lease.native
@@ -115,3 +135,24 @@ class Upload:
                 texture.write(mapping.buf[:tile['bytes']],viewport=(tile['x'],tile['y'],tile['width'],tile['height']),alignment=1);copied+=tile['bytes']
         finally:lease.close()
         return dict(upload_bytes=copied,reused_tiles=sum(t['name'] in old_names for t in self.desc['tiles']) if base is not None else 0,changed_tiles=sum(t['name'] not in old_names for t in self.desc['tiles']) if base is not None else len(self.desc['tiles']),gpu_copy_bytes=self.desc['bytes'] if base is not None else 0)
+
+
+def wire_resource(row):
+    """Compact only the Qt control packet; native/renderer descriptors stay ABI-1."""
+    desc=row.get('runtime')
+    if not tiled(desc):return row
+    packed=dict(desc);packed['tile_names']=[t['name'] for t in desc['tiles']];packed.pop('tiles')
+    return dict(row,runtime=packed)
+
+def unwire_resource(row):
+    desc=row.get('runtime')
+    if not tiled(desc) or 'tile_names' not in desc:return row
+    names=desc['tile_names'];w,h=desc['width'],desc['height']
+    if not isinstance(names,list) or len(names)!=((w+127)//128)*((h+127)//128):raise ValueError('Incomplete control tile table')
+    restored=dict(desc);restored.pop('tile_names');tiles=[]
+    for y in range(0,h,128):
+        for x in range(0,w,128):
+            tw,th=min(128,w-x),min(128,h-y)
+            tiles.append(dict(name=names[len(tiles)],x=x,y=y,width=tw,height=th,stride=tw*4,bytes=tw*th*4))
+    restored['tiles']=tiles
+    return dict(row,runtime=validate(restored))

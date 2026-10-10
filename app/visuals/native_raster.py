@@ -70,15 +70,19 @@ class Core:
         except BaseException:
             self.call('zw_release',self.context,out.value);raise
     def import_tiles(self,desc,leases):
-        table=(Tile*len(desc['tiles']))();pointers=[]
-        for i,(t,lease) in enumerate(zip(desc['tiles'],leases)):
-            identity=int.from_bytes(hashlib.sha256(t['name'].encode()).digest()[:8],'little') or 1
-            if identity in self.import_names and self.import_names[identity]!=t['name']:raise ValueError('Transfer tile identity collision')
-            if identity not in self.import_names and len(self.import_names)>=262144:raise MemoryError('Transfer identity table reached its fixed bound')
-            self.import_names[identity]=t['name'];pointer=C.c_uint8.from_buffer(lease.buf);pointers.append(pointer)
-            table[i]=Tile(identity,t['x'],t['y'],t['width'],t['height'],t['bytes'],C.addressof(pointer))
-        out=C.c_uint64();self.call('zw_import',self.context,desc['width'],desc['height'],table,len(table),C.byref(out))
-        result=NativeImage(self,out.value,desc['width'],desc['height'],family=desc['family']);result.names={t.id:d['name'] for t,d in zip(result.tiles(),desc['tiles'])};return result
+        table=(Tile*len(desc['tiles']))();pointers=[];pointer=None
+        try:
+            for i,(t,lease) in enumerate(zip(desc['tiles'],leases)):
+                identity=int.from_bytes(hashlib.sha256(t['name'].encode()).digest()[:8],'little') or 1
+                if identity in self.import_names and self.import_names[identity]!=t['name']:raise ValueError('Transfer tile identity collision')
+                if identity not in self.import_names and len(self.import_names)>=262144:raise MemoryError('Transfer identity table reached its fixed bound')
+                self.import_names[identity]=t['name'];pointer=C.c_uint8.from_buffer(lease.buf);pointers.append(pointer)
+                table[i]=Tile(identity,t['x'],t['y'],t['width'],t['height'],t['bytes'],C.addressof(pointer))
+            out=C.c_uint64();self.call('zw_import',self.context,desc['width'],desc['height'],table,len(table),C.byref(out))
+            result=NativeImage(self,out.value,desc['width'],desc['height'],family=desc['family']);result.names={t.id:d['name'] for t,d in zip(result.tiles(),desc['tiles'])};return result
+        finally:
+            pointer=None;pointers.clear();table=None
+
 
 _displays=weakref.WeakValueDictionary()
 _display_bytes=0

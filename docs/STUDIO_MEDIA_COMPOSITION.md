@@ -5,7 +5,92 @@ development checkpoint for commit/normal push. User acceptance remains pending.
 The candidate descriptions below retain their task-time evidence, including
 earlier uncommitted/planned statuses; current implementation and remaining limits
 are summarized in [handoff](../ZERAWAVE_HANDOFF.md#october-9-rastereditor-development-checkpoint).
-Original task reports and sealed work packs remain unchanged.
+Earlier report sections and sealed work packs retain their original evidence.
+
+## Finishing controls — 2026-10-10
+
+Robert specifically accepted ordinary artwork Save/Save As, direct blank children,
+normal closing, improved Brush/Pencil and quick Eraser in the starting candidate.
+Smudge mixing looks good to him; its response and subtle larger-tip/sustained
+Brush/Pencil trailing remain this finishing pass's review targets. These specific
+results do not establish comprehensive editor/capacity acceptance.
+
+Wheel, Ctrl fine wheel, native detail and both magnifiers now share **0.02–256×**
+(2%–25600%). Wheel keeps the artwork point under the pointer; existing increments,
+Fit and Hand/Space/middle panning remain. At 16× or higher, the Composition Canvas
+uses nearest-pixel inspection; stored/source pixels and ordinary output filtering
+are unchanged. Zoom can show only a few source pixels. Size-1 Pencil Round and
+Square each paint one crisp source cell: opaque color, opacity100% and flow100%
+give one opaque pixel; lower flow/alpha keep their existing meaning. The canvas
+has no idle shortcut tooltip; button descriptions and question-mark help remain.
+
+With **zero layers**, Fill asks **Create a new layer?**. No/dismiss changes nothing.
+Yes prepares the established white editable surface and the original click together,
+using left/Main or right/Secondary. Channel, RGBA, location, tolerance, contiguous
+mode and boundaries are pinned before confirmation/preparation. One accepted
+structural command creates, fills and selects it; one Undo removes it, Redo restores
+it. Failure/cancellation or changed session/revision/target leaves the preceding
+canvas intact. Busy clicks do not submit duplicates. Existing layers still require
+the selected editable, visible, unlocked target; Fill never adds a replacement to
+bypass rejection. Acceptance and PNG/session durability remain separate.
+
+Authored canvas size, raster size, view zoom/window and Visualizer output resolution
+are independent. A legacy session without canvas dimensions resolves its initial
+effective output geometry once per document (fixed output policy, otherwise
+1280×720 when no effective output exists); publication and the next session save
+carry that size. Later output/viewport changes do not redefine it or resize pixels.
+Explicit-size sessions retain their stored canvas dimensions. Existing native size
+and pixel/count limits remain; no full PPI/sizing interface is added.
+
+Smudge still performs sequential visible-artwork pickup on every delivered sample.
+A stroke pins its contributor/hierarchy plan; full unmasked coverage and eligible
+blend paths avoid redundant setup/copies. The evolving selected layer, hidden
+exclusion, transforms, crop/masks, blend strength, tips and smear math remain.
+The dated [actual results](agent-notes/b2-tiles-20261008.md) bind exact pixel parity,
+matched native/B1 timings, outliers, scripted framebuffer checks and unrun physical
+pointer/Visualizer checks. No broad capacity acceptance or B3 follows.
+
+## Raster recovery and mouse-channel correction — 2026-10-09
+
+This uncommitted correction starts at published `6aed22041bd15392857c676f832a4f25f07bd765`.
+Robert's hands-on acceptance remains pending; the dated actual-results section in
+`agent-notes/b2-tiles-20261008.md` binds the new evidence and its limits.
+
+The Composition canvas consumes context-menu events for every tool, including
+queued and modified events. It has no right-click popup. Layers, Library and
+toolbar/docking menus retain their existing scope; canvas editing controls and
+text-safe shortcuts remain. Brush/Pencil paint Main on left and Secondary on right.
+Fill uses the same region/protection/transaction rules on either button and pins
+the chosen RGBA/channel before worker execution. Sampler assigns only Main on left
+or Secondary on right, synchronizes existing chips, and records no artwork command.
+Both channels are shared across Brush/Pencil/Fill/Sampler; saved shared Secondary
+is authoritative, otherwise migration uses old Brush Secondary. Tool sizes and
+stroke settings remain independent. Eraser/Smudge retain their non-color gestures.
+
+Storage/save leases keep immutable mappings without redundant native imports.
+PNG encoding and recovery materialize exact pixels through the existing mapping
+reader. Failed Futures retain their error outcome, not traceback pixel readers.
+Import/export cleanup releases ctypes buffer pointers before closing mappings and
+preserves the original failure. Source-only snapshots do not consume PNG job slots.
+Retry uses the real owner, coalesces persistence requests and drains within the
+existing 16-job/256-MiB queued-byte bounds. Accepted failed resources remain pinned;
+history, readers and requested saves determine retirement. No caps are raised.
+
+A completed stroke rejected before admission is **not saved and must be redrawn**
+after pressure drains or Retry succeeds. Its preview is discarded, with explicit
+feedback; no rejected stroke is retained or automatically resubmitted. Unknown
+ACK remains recoverable in the running instance. Accepted pixels/history remain
+usable when PNG saving fails; Retry or revision-pinned Save As must secure them.
+Save outcomes remain separate from acceptance and publication.
+
+Master opacity sliders have a 26-pixel minimum hit height and immediate whole-track
+dragging; wheel needs no activation delay. Latest unsent opacity previews coalesce
+behind one ordered owner request; completed edits do not coalesce. Release, or
+180-ms wheel inactivity, creates one history gesture after prior preview ACK.
+Immutable command snapshots are shared only for owner rollback checkpoints;
+mutable history state is copied. Pixel asset replacement preserves equivalent
+row controls and refreshes geometry/thumbnails separately. These changes preserve
+native dimensions, drawing samples, branch targeting, locks and saved values.
 
 ## Focused usability and performance correction — 2026-10-09
 
@@ -28,8 +113,8 @@ the active tool. Brush footprints remain. Text fields keep ordinary cursors.
 
 Canvas **wheel = 15%** per notch; **Ctrl+wheel = 2%** per notch, inverses for
 negative notches and exponent-scaled fractional input. Pixel-only wheel input uses
-the same 120-unit notch convention. Existing wheel limits .02–8, magnifier factors
-1.25 / 1/1.25 and limits .02–16, Fit/native detail and navigation remain. Zoom
+the same 120-unit notch convention. The finishing candidate shares .02–256 limits
+across wheel/native detail/magnifiers, whose factors stay 1.25 / 1/1.25. Fit remains. Zoom
 changes only the view. These modifiers apply only over the canvas.
 
 Layer Delete shows **“Everything within layer will be deleted”**, Yes / No with
@@ -119,8 +204,7 @@ load/render/save; they are not the basic Cut/Delete mechanism.
 
 **Main RGBA is shared by Brush, Pencil and Fill.** Sampler click, picker and Main
 swatches update it immediately; switching tools retains it. Hover and invalid
-samples do not assign. Secondary remains the independent per-tool right-button
-color and is unchanged by sampling. Sizes, stroke opacity, hardness, flow, footprint
+samples do not assign. Secondary is shared across these tools; right-click sampling assigns only Secondary. Sizes, stroke opacity, hardness, flow, footprint
 and Smudge strength retain their independent tool values. Preferences migrate once
 from `media_main_rgba`, otherwise old Brush Main; old other-tool Main values are
 ignored. Saved palettes/custom swatches and custom session sizes are preserved.
@@ -183,7 +267,7 @@ The normal RGBA picker, independent Main/Secondary colors, swatches, custom sess
 sizes and ordinary field typing/Undo remain. Hand's navigation remains in View.
 
 **Fill (F)** arms a paint bucket; activating it changes no artwork. Clicking uses
-the visibly chosen RGBA chip of the last Brush/Pencil, without opening a picker.
+shared Main on left click and shared Secondary on right click, without opening a picker.
 The default tolerance is 32 (inclusive maximum straight-sRGB RGBA channel distance
 on 0–255). Transparent source pixels compare as transparent black. Default
 Contiguous traverses four neighbors; turning it off explicitly selects all matching
@@ -193,7 +277,8 @@ pixels. Exact fractional coverage interpolates the replacement premultiplied RGB
 Layer opacity and blend mode remain presentation properties; stroke opacity/flow
 are separate brush settings and do not apply to Fill. Ordinary parents' own masks
 retain their independent-child semantics. Only the SAME selected unlocked raster
-is written. Empty, rejected and unchanged fills add no history.
+is written. On an existing target, rejected/unchanged fills add no history.
+Zero-layer Fill instead uses the atomic confirmed creation workflow above.
 
 One background Fill job is admitted at a time on the existing editor executor.
 Clicks map through source/crop/flips/parent transforms. Source, target, full scene,
@@ -207,7 +292,7 @@ unconsumed leases. Changed native tiles remain shared through B1/B2 transactions
 and delayed PNG persistence; QImage/B1 fallback follows the same pixel semantics.
 
 Matching magnifier-plus/minus buttons retain factors 1.25 and 1/1.25 and limits
-0.02–16. The original Zoom tool and unmodified Z activation are removed. Wheel,
+0.02–256 in the finishing candidate. The original Zoom tool and unmodified Z activation are removed. Wheel,
 Hand/Space/middle panning, Fit/native detail and modified Undo shortcuts remain.
 These are view operations. Robert's review is pending; see the dated actual-results
 section for executed evidence, measured costs, failures and remaining limits.
@@ -223,10 +308,9 @@ C++ migration is completed here.
 **Colors and sizes.** Single-click Brush/Pencil shows the shared Tool settings and colors
 sidebar. Drag its grip to float/redock at any edge or below Composition
 tools. The visible Main / Left and Secondary / Right chips select the assignment
-target. A swatch or + RGBA picker changes that chip. Brush and Pencil remember
-independent RGBA pairs; old saved color becomes Main and Secondary defaults to
-opaque white. Left paints Main; right paints Secondary. Opaque white is paint,
-not erasing. E is the dedicated Eraser; Shift+right opens context. Stroke opacity,
+target. A swatch or + RGBA picker changes that chip. Brush and Pencil use the shared RGBA pair; migration uses old Brush Main/Secondary
+unless the saved shared channels exist. Secondary otherwise defaults to opaque white. Left paints Main; right paints Secondary. Opaque white is paint,
+not erasing. E is the dedicated Eraser; canvas context events are consumed. Stroke opacity,
 color alpha, flow, hardness and layer master opacity retain separate meanings.
 Double-click Brush/Pencil focuses this sidebar and retains settings without a duplicate picker.
 
@@ -247,8 +331,8 @@ opacity 10–90%; 0 sets 100%. Fields/dialogs retain typing. A live gesture keep
 its starting settings; a changed value applies to the next gesture.
 
 **Sampler.** I opens the sidebar for the last active Brush/Pencil. Hover previews
-RGBA separately without history or assignment. Left click always commits that
-receiver’s Main, even if Secondary was active. Secondary stays unchanged. Selected
+RGBA separately without history or assignment. Left click commits shared Main; right click commits shared Secondary, regardless
+of the active assignment chip. The other channel stays unchanged. Selected
 layer is the default; Visible Composite is explicit opt-in. Transparent, outside
 or unavailable pixels retain valid colors. Own crop, masks, alpha and master
 opacity apply; ancestor placement maps coordinates. Readable locked sources need
@@ -392,7 +476,8 @@ Limits: 16 ordered client commands; 128 MiB GUI transfer leases; owner 384 MiB
 retained raster snapshots, 16 persistence reservations and 256 MiB pending PNG
 bytes; one PNG worker and one save worker. Admission is atomic and reports capacity
 failure before acceptance. Existing 64-command/8 MiB serialized/256 MiB native
-history, 512 MiB artwork store, 192 MiB editor cache and renderer budgets remain.
+history, 192 MiB editor cache and renderer budgets remain. Pass 1 below replaces
+the former 512 MiB artwork-store ceiling with physical space and headroom.
 The immutable source lease counts against retained bytes. GUI history/preview
 availability is bounded; pressure is reported rather than silently dropping an edit.
 
@@ -412,8 +497,9 @@ so that exact pinned document can be exported to another destination. Save As ca
 secure a failed working-store PNG directly in its own `.assets` folder. Failed
 dependency copy/JSON replacement leaves the previous valid session intact; retry
 retains the same requested document. Four pending/failed checkpoint pins and 16
-terminal save outcomes are bounded independently. Failed pins must be recovered
-before closing, including a previous session's failed recovery checkpoint.
+terminal save outcomes are bounded independently. Failed pins survive until
+recovery, requested cancellation or an explicit normal-close Discard decision;
+previous-session checkpoints follow the same lifecycle.
 
 Session load secures the old accepted raster context through an automatic pinned
 checkpoint under `work/studio/recovery/` before its resources can be released.
@@ -421,8 +507,9 @@ Retired leases use private retention keys, so a loaded portable reference with t
 same stable asset ID cannot resolve to the old working path or pixels. They remain
 pinned by old writes/checkpoints/output readers, then release when those finish.
 Qt also clears old session decode/cache entries before loading the new sources.
-Close refuses pending/failed raster durability or retained checkpoint pins. Wait,
-retry or export, then close; the existing unsaved-settings decision still applies.
+Normal close uses the responsive Save/Discard/Cancel lifecycle below. Resolve
+unknown outcomes first; Save secures its revision, Discard deliberately abandons
+unsaved work/checkpoints, and Cancel returns to the editor.
 An owner disconnect is uncertain: keep Studio open and its producer leases intact;
 this instance has no automatic owner reconnection or authoritative export after
 owner death. Do not claim rejection or crash recovery. Memory-only pixels are lost on process
@@ -582,12 +669,14 @@ Smudge. Pencil defaults to the existing crisp square footprint; optional Round
 is now an actual crisp round dab. Previously Pencil ignored the shape field and
 always painted Square. The cursor shows the chosen footprint. Eraser removes
 alpha; Smudge automatically samples visible artwork and writes only the selected layer.
-Brush/Pencil right-drag paints Secondary; Shift+right-click opens context. Escape/focus loss cancels active input.
+Brush/Pencil right-drag paints Secondary; the canvas never opens a context popup. Escape/focus loss cancels active input.
 
 Drawing with no selected layer asks **Create a new layer?** once per gesture.
 No changes nothing. Yes on an empty composition creates a white editable surface;
 Yes in an existing composition clearly adds a transparent overlay. The active
 tool is ready for the next gesture. Ordinary New Layer remains transparent.
+Fill has its separate zero-layer confirmation: Yes performs the original click as
+one complete creation/fill operation, rather than waiting for another gesture.
 Locked, hidden, zero-opacity or incompatible targets explain the issue without
 silently redirecting to a child. Allocation/write failure retains accepted state.
 Every source stays at native dimensions; the incremental constraint buffer keeps
@@ -598,7 +687,7 @@ rejection; unknown outcomes retain recovery pixels. See the runtime/save contrac
 above. Brush algorithms and source pixels are unchanged by this migration.
 
 Sampler chooses Active Layer or Visible Composite, excludes checkerboard/handles,
-and reports ARGB plus the receiving last Brush/Pencil. Empty/transparent/outside
+and reports ARGB plus the receiving shared Main/Secondary channel. Empty/transparent/outside
 content leaves colors unchanged. **Fill** arms a click-based bucket using the
 chosen RGBA chip. Connected four-neighbor matching is default; tolerance and explicit
 all-matching mode are in the sidebar. Crop/masks/selection constrain traversal and
@@ -631,7 +720,8 @@ unchanged. **Use source dimensions for canvas** is opt-in. Source working pixels
 logical Canvas Size, Visualizer Resolution and editor zoom are distinct.
 Canvas Size context provides 16:9, 9:16, square/custom and proportional placement
 or preserved pixel size/offset from the canvas centre. Canvas fits proportionally into output. Old sessions follow their
-previous effective output-sized canvas; saving freezes that current size.
+initial effective output-sized canvas, resolved once at load in this candidate;
+later output changes preserve placement and saving stores the resolved size.
 Fixed/Native resolution policy continues to determine actual renderer pixels.
 
 Drop mixed local files onto Library, empty canvas or an artwork. Target drops
@@ -639,7 +729,8 @@ ask Add child / Add layer / Replace / Cancel. Replacement is explicit and
 undoable; mixed import results identify each file. Duplicate references reuse
 their identity. Successful items survive another file's validation failure.
 No import/drop starts playback. Generated paint/extraction/derivative PNGs are
-immutable external dependencies (512 MiB working-store bound), never pixel JSON.
+immutable external dependencies admitted against physical free space/headroom,
+never pixel JSON.
 Paint and extraction snapshots are internal resources, not visible Library
 imports. Explicit working derivatives remain Library assets. Known prior writer
 provenance migrates to internal classification; a SHA-like filename alone never
@@ -738,8 +829,9 @@ retained history (estimated as width × height × 4). Current content remains
 independently bounded by image/store budgets; trimming history does not delete it.
 Raster data is not in history JSON. One private active stroke, one pending native artwork write and one queued
 completed stroke are allowed; each native image buffer is at most 32 MiB, with additional
-bounded encoding/validation temporaries. Retained immutable files are not pruned
-when history is trimmed; a full store reports an error and retains committed
+bounded encoding/validation temporaries. Pass 1 retires obsolete generated files
+after their final history/current/read/job/save obligation; legacy and saved
+dependencies remain protected. Space/write failure retains required accepted
 content. These are component bounds, not total process memory guarantees.
 At most four visible
 video/GIF/sprite sources, 96 MiB aggregate native-frame reverse windows and
@@ -844,3 +936,147 @@ claim. Latency, memory, failures and remaining limitations are bound in
 `docs/agent-notes/b2-tiles-20261008.md` and `work/b2-completion-20261008`.
 Build, ABI, resource bounds and secured fallback are in the
 [B2 implementation contract](NATIVE_RASTER_B2.md).
+
+Requested saves also export any referenced immutable source snapshot restored by Undo, even if its external file changed or disappeared. This uses a private managed reference in the saved document; working layer IDs, original Library identity/path and history remain unchanged. Source snapshots still consume no background PNG job. Failed snapshot export leaves the requested save failed and its resources pinned for Retry/Save As.
+
+
+## Pass 1: sustainable working storage and normal shutdown — 2026-10-09
+
+This uncommitted candidate extends the starting recovery implementation; Robert
+owns acceptance. Passes 2–4 and B3 remain unimplemented. Native ABI 1, the loaded
+DLL, session version 5/composition version 4 and intended source pixels are unchanged.
+
+`artwork_store.py` uses bundled SQLite to index PNG bytes, distinct payloads,
+reservations, cumulative committed writes and reclamation. Writes reserve actual
+encoded bytes against destination-volume free space and leave 64 MiB for metadata,
+temporary/checkpoint publication and recovery. The former default 512 MiB disk
+ceiling is removed from working writes and portable/source/recovery dependencies.
+`ZERAWAVE_ARTWORK_BUDGET_BYTES`, when explicitly configured, is a disclosed per-folder
+PNG budget including retained/protected files; it is not a default or lifetime
+stroke count. Memory, decoder, queued-byte/job, native-version and history limits
+remain independent. Free-space checks cannot reserve space against unrelated
+external writers; an actual OS write failure remains recoverable and truthful.
+
+Current scene, retained Undo/Redo/structural rows, active PNG jobs, publication
+readers and requested saves retain immutable resource leases. Failure/retry entries
+do not independently retain an expired revision. Internal metadata expires with
+its last legitimate reference; late registry callbacks cannot recreate it.
+Only an indexed `working` payload with explicit provenance and no remaining
+current/history/job/read/save/Library obligation can be retired. Retirement intent
+is committed before unlink; normal reopen can finish it. Dependencies, public
+Library originals, legacy/unowned PNGs, prior projects and evidence stay protected.
+Interrupted active payloads stay conservative; this is not owner-death artwork
+recovery. Windows owner byte locks distinguish live writers from abandoned journal
+reservations. Startup reconciles at most 4,096 directory entries, then 64 entries
+per tick; external changes are audited incrementally every 30 seconds. Reclamation
+attempts at most 32 files per normal tick. Protected legacy space is shown separately.
+
+Preview, owner acceptance, output publication and durable PNG/save completion are
+separate states. Known queue pressure prevents starting the next stroke and explains
+that no edit was accepted. A completed stroke rejected by admission has no retained
+recovery copy and must be redrawn after drain/Retry; no automatic resubmission.
+Accepted unsaved current/history/save work remains retained while its obligations
+exist. Retry acts on owner failures; Save As secures its frozen requested revision
+and retained recovery dependencies before redirecting future working writes.
+
+Normal close resolves submitted/uncertain edits and unfinished gestures before the
+Save/Discard/Cancel decision. Save awaits the requested durable session/revision;
+failure or newer accepted work leaves the editor open. Discard explicitly abandons
+unsaved work and pending/failed checkpoints, cooperatively cancels writers, and
+waits for their actual completion before releasing readers. Cancel keeps the
+editor usable; cancelling a save waits for its real terminal outcome. Close phases
+are visible. Unresolved edits, save/cancellation or owner writes return to an open
+editor after 15 seconds rather than imply completion. Opaque OS I/O may finish
+later; its reader remains protected. Renderer/media/audio stop precedes resource
+release. The GUI observes owner process exit and actual worker-thread exit before
+accepting window close. Forced termination is an exceptional fallback, never
+normal-exit evidence. Bare legacy `close` still refuses unresolved raster work;
+the normal GUI route explicitly supplies `clean` or user-authorized `discard`.
+
+Standalone `raster_storage_shutdown_test.py` exercises accounting, conservative
+cleanup, interrupted writes, expired failures/metadata and isolated process exits.
+Actual results, source identities, raw failed trials and remaining limitations
+belong in the newest section of `docs/agent-notes/b2-tiles-20261008.md`.
+
+## Direct blank children, captured drawing and artwork images — 2026-10-10
+
+The **small + in a layer row** now creates a selected transparent drawing child
+under that clicked stable row in one structural Undo/Redo operation. It does not
+open the media chooser or require PNG durability before drawing. Existing parent
+pixel dimensions, crop/flip/fit and parent placement are retained. Ordinary raster
+own-content locks permit a new unlocked child; a protecting locked Group rejects
+the operation. The **large + above Layers** still offers other media types, and
+Library import/drag retains the existing placement choices. Creating a child is
+explicit; ordinary painting still edits the selected layer's own pixels.
+
+Brush/Pencil/Eraser/Smudge include the final release position. Their view/source
+conversion is pinned for the gesture; focus loss, a changed view or cancellation
+discards only private unaccepted work. Windows captured mouse history is bounded
+to 64 points and filtered to the gesture/event time window, ordered and deduplicated.
+Missing OS history uses delivered Qt positions. No invented smoothing points or
+additional trailing buffer are used. Brush/Pencil/Eraser can batch captured segments
+with the existing pixel policy; Smudge keeps sequential visible-artwork pickup.
+Preview and accepted pixels use the same effective path. Fast motion can still be
+angular when the OS/Qt delivery supplies too few points; measured stalls and actual
+history limitations are in the source-bound report. The compositor reuses proven
+unchanged backdrop pixels inside its existing bounded cache at the same Qt sampling
+phase; image dimensions and intended pixels are preserved.
+
+The Composition **floppy Save icon** writes the Composition canvas as an ordinary
+image. **Save As…** selects another file/format. Layers' context menu offers **Save
+artwork image / Save artwork image As…** for the selected stable layer(s). First Save
+opens scope, filename/folder, format, output dimensions and canvas origin. Repeat
+Save updates that scope's assigned output. Composition, own layer(s), branch and
+selected branch set have separate destinations, persisted as optional
+`artwork_outputs` in compatible version-5 sessions (older sessions default empty).
+Duplicated IDs receive no overwrite destination. Save As confirms an existing file;
+cancellation/failure leaves the prior association and good output. Imported originals
+are never automatically destinations and are protected by the dialog. Existing managed/accepted artwork source
+paths are also refused, including a saved output subsequently imported as a source.
+
+Composition output uses authored canvas dimensions. Own output excludes children;
+branch includes them; multiple selection defaults to aligned branches with overlapping
+descendants included once. Layers use tight transformed/cropped geometry bounds at
+one authored canvas pixel per output pixel, including off-canvas content; the dialog
+shows origin and dimensions. Hidden content is excluded. Ancestor transforms,
+opacity, masks, isolation and the existing blend/Add policy apply. Group-only own
+output has no own artwork; choose branch for its children. The existing 8192-side /
+8 MP image capacity rejects larger output explicitly, without clipping or downsampling.
+Chrome, checkerboard, handles, cursor and selection outlines are excluded.
+
+This saves the **Composition drawing canvas artwork**, which does not show the
+Visualizer's reactive world. Available current decoded video/GIF/sprite/Web/model
+images are frozen through their existing reader ownership and named in the dialog.
+Unavailable visible sources fail clearly; no editor placeholder is encoded. This
+is a still image, not video or a session export.
+
+PNG retains alpha with exact decoded straight-RGBA pixels under the existing
+premultiplied conversion/rounding policy. JPEG uses an explicit adjustable opaque
+background (white default) and lossy writer quality. Other installed Qt writers
+are offered only after a small encode/decode probe; BMP/PPM/JFIF are opaque,
+PGM is grayscale, PBM/XBM/WBMP monochrome, ICO/CUR limited to 256 pixels per side,
+XPM palette-limited and flattened by this writer policy, and WebP can be lossy.
+PNG/TIFF/WebP/ICO/CUR retain alpha
+as confirmed by the installed probe. Extension and actual writer format agree.
+Writer quality is exposed where supported; a flattening background never changes
+editable artwork.
+
+Image save freezes a consistent accepted revision, reconciles submitted work and
+refuses an active preview. It pins immutable readers, composes at save time with
+the existing reference compositor and runs at most two jobs through one ordered
+encoder/writer. A temporary file is flushed before atomic replacement; success and
+destination metadata follow completion. Later edits remain unsaved for that image
+target. **Cancel save** requests cooperative cancellation and reports the actual
+outcome; a completed replacement remains success. Normal close waits for image
+jobs/readers and real worker exit; failed/cancelled saves leave Studio open. Opaque
+I/O still may finish after a bounded wait, retaining its readers. Image Save never
+marks the editable session saved. **File → Save session** and **Retry saving**
+retain their distinct session/recovery purposes and Pass 1 safeguards.
+
+This is an uncommitted review candidate. Robert owns acceptance. See the dated
+[actual results](agent-notes/b2-tiles-20261008.md) for exact identities, raw evidence,
+failures, matched timing limits and guarded rollback. Capacity Passes 2–4, metadata/
+protocol scaling, higher Library/layer counts, storage location/relocation controls
+and deeper stress remain deferred and must be retained by ROADMAP's owner through
+the manual handoff; this feature note is not another plan. New Session and B3 are
+outside this pass.

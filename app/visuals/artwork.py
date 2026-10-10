@@ -1,7 +1,7 @@
 """Native artwork dependencies and shared selection geometry; no pixel JSON.
 
-Generated PNGs are immutable, content addressed, and bounded to 512 MiB per
-working store. Save/Save As copies only referenced dependencies beside a session.
+Generated PNGs are immutable and content addressed. Disk admission uses physical
+free space, explicit reservations and checkpoint headroom. Save/Save As copies only referenced dependencies beside a session.
 Original inputs are never overwritten. Undo retains immutable previous versions.
 """
 from pathlib import Path
@@ -10,7 +10,7 @@ import numpy as np
 from PySide6.QtCore import Qt,QPointF,QRectF,QBuffer,QIODevice
 from PySide6.QtGui import QImage,QPainterPath,QPainter,QColor
 
-MAX_STORE=512*1024*1024
+from artwork_store import get_store, check_cancel
 
 def selection_path(operation,size,closed=True):
     w,h=size;pts=operation['points'];path=QPainterPath()
@@ -35,41 +35,55 @@ def masked(image,operations):
         p=QPainter(result);p.setCompositionMode(QPainter.CompositionMode_DestinationIn if operation['mode']=='Keep' else QPainter.CompositionMode_DestinationOut);p.drawImage(0,0,shape);p.end()
     return result
 
-def store_image(image,provenance,folder=None):
+def encode_image(image):
+    """Lossless RGBA PNG for immutable working pixels, using standard zlib.
+
+    Qt's adaptive PNG filters dominated short-stroke persistence. The PNG Sub filter
+    and zlib level 1 trade file size for throughput without changing a pixel.
+    Qt still owns premultiplied -> straight-alpha conversion and PNG decoding.
+    """
+    import struct,zlib
+    rgba=image.convertToFormat(QImage.Format_RGBA8888)
+    if rgba.isNull():raise ValueError('Cannot encode empty artwork; accepted pixels retained.')
+    w,h=rgba.width(),rgba.height();stride=w*4
+    if max(w,h)>8192 or w*h>8388608:raise ValueError('Artwork exceeds the native 8 megapixel limit.')
+    pixels=rgba.constBits();source=None
+    try:
+        source=np.frombuffer(pixels,dtype=np.uint8).reshape(h,rgba.bytesPerLine())[:,:stride]
+        raw=np.empty((h,stride+1),dtype=np.uint8);raw[:,0]=1
+        raw[:,1:5]=source[:,:4];raw[:,5:]=source[:,4:]-source[:,:-4]
+    finally:source=None;pixels.release()
+    def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
+    metadata=b''
+    dx,dy=rgba.dotsPerMeterX(),rgba.dotsPerMeterY()
+    if dx>0 and dy>0:metadata+=chunk(b'pHYs',struct.pack('>IIB',dx,dy,1))
+    space=rgba.colorSpace()
+    if space.isValid():
+        profile=bytes(space.iccProfile())
+        if profile:metadata+=chunk(b'iCCP',b'Profile\0\0'+zlib.compress(profile,1))
+    return b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',w,h,8,6,0,0,0))+metadata+chunk(b'IDAT',zlib.compress(raw,1))+chunk(b'IEND',b'')
+
+def store_image(image,provenance,folder=None,cancel=None):
     if image.isNull() or max(image.width(),image.height())>8192 or image.width()*image.height()>8388608:raise ValueError('Artwork exceeds the native 8 megapixel limit.')
     folder=Path(folder or os.environ.get('ZERAWAVE_ARTWORK_STORE') or Path(__file__).resolve().parents[2]/'work/studio/artwork');folder.mkdir(parents=True,exist_ok=True)
-    buffer=QBuffer();buffer.open(QIODevice.WriteOnly)
-    if not image.save(buffer,'PNG'):raise ValueError('Cannot encode artwork; prior content retained.')
-    data=bytes(buffer.data());digest=hashlib.sha256(data).hexdigest();path=folder/(digest+'.png')
-    if not path.exists():
-        if sum(p.stat().st_size for p in folder.glob('*.png'))+len(data)>MAX_STORE:raise ValueError('Artwork store reached 512 MiB; save to another session folder.')
-        temporary=folder/(digest+'.'+uuid.uuid4().hex+'.tmp')
-        try:temporary.write_bytes(data);os.replace(temporary,path)
-        finally:
-            if temporary.exists():temporary.unlink()
+    data=encode_image(image);digest=hashlib.sha256(data).hexdigest();path=folder/(digest+'.png')
+    get_store(folder).write(path,data,cancel=cancel)
     from media_registry import inspect
     import threading
     record=inspect(str(path),threading.Event());record.update(id=uuid.uuid4().hex,managed=True,provenance=str(provenance)[:512]);return record
 
-def portable_scene(scene,destination):
+def portable_scene(scene,destination,cancel=None):
     """Prepare every copy before writing session state; original paths untouched."""
     from copy import deepcopy
     result=deepcopy(scene);folder=Path(destination).with_suffix('.assets')
-    copies=[]
+    # Copy one dependency at a time; duplicate paths/content are charged once.
+    copied=set()
     for asset in result['assets']:
+        check_cancel(cancel)
         if not asset.get('managed'):continue
         source=Path(asset['path']);data=source.read_bytes();digest=hashlib.sha256(data).hexdigest();target=folder/(digest+'.png')
-        copies.append((target,data));asset['path']=str(target.resolve())
-    if sum(len(data) for _,data in copies)>MAX_STORE:raise ValueError('Session artwork exceeds 512 MiB.')
-    for target,data in copies:
-        target.parent.mkdir(parents=True,exist_ok=True)
-        if target.exists():
-            if target.read_bytes()!=data:raise ValueError('Artwork dependency conflict; prior session retained.')
-        else:
-            temporary=target.with_suffix('.'+uuid.uuid4().hex+'.tmp')
-            try:temporary.write_bytes(data);os.replace(temporary,target)
-            finally:
-                if temporary.exists():temporary.unlink()
+        if digest not in copied:get_store(folder).write(target,data,cancel=cancel);copied.add(digest)
+        asset['path']=str(target.resolve())
     return result
 
 def magnetic_point(image,uv,radius=12):
@@ -119,7 +133,11 @@ def brush_stroke(image,start,end,brush,color,tool='Brush',origin=(0,0)):
     c=QColor(color);c.setAlphaF(c.alphaF()*brush.get('flow',1.))
     for i in range(1,count+1):
         x=start[0]+(end[0]-start[0])*i/count;y=start[1]+(end[1]-start[1])*i/count
-        if tool=='Pencil' and brush['shape']=='Round':
+        if tool=='Pencil' and max(1,round(radius*2))==1:
+            # Qt's non-antialiased 1x1 ellipse is empty. Both one-pixel tips
+            # occupy the same source cell; retain per-dab flow and stroke opacity.
+            p.fillRect(QRectF(round(x-radius),round(y-radius),1,1),c)
+        elif tool=='Pencil' and brush['shape']=='Round':
             p.setPen(Qt.NoPen);p.setBrush(c);p.drawEllipse(QRectF(round(x-radius),round(y-radius),max(1,round(radius*2)),max(1,round(radius*2))))
         elif tool=='Pencil':p.fillRect(QRectF(round(x-radius),round(y-radius),max(1,round(radius*2)),max(1,round(radius*2))),c)
         elif brush['shape']=='Square':p.fillRect(QRectF(x-radius,y-radius,radius*2,radius*2),c)

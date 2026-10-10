@@ -49,7 +49,7 @@ class QuickColors(QWidget):
         for box in self.fields.values():box.setMaximumWidth(132);box.setMinimumWidth(80)
         self.pickup_hint=QLabel('Smudge samples visible artwork automatically; only the selected raster changes.');self.pickup_hint.setWordWrap(True);body.addWidget(self.pickup_hint)
         self.fill_options=QWidget();form=QFormLayout(self.fill_options);self.tolerance=QSpinBox();self.tolerance.setRange(0,255);self.tolerance.setValue(32);form.addRow('Tolerance',self.tolerance)
-        self.contiguous=QCheckBox('Contiguous (4 neighbors)');self.contiguous.setChecked(True);form.addRow(self.contiguous);hint=QLabel('Off: all matching colors. Fill uses shared Main RGBA; Secondary remains a Brush/Pencil alternate.');hint.setWordWrap(True);form.addRow(hint);body.addWidget(self.fill_options)
+        self.contiguous=QCheckBox('Contiguous (4 neighbors)');self.contiguous.setChecked(True);form.addRow(self.contiguous);hint=QLabel('Off: all matching colors. Fill uses Main with left click and Secondary with right click.');hint.setWordWrap(True);form.addRow(hint);body.addWidget(self.fill_options)
         body.addWidget(self.swatches)
         self.selection_host=QWidget();self.selection_layout=QVBoxLayout(self.selection_host);self.selection_layout.setContentsMargins(0,0,0,0);body.addWidget(self.selection_host)
         self.boundary_actions=QWidget();self.boundary_actions.hide();e.settings_mask_widgets={}
@@ -71,11 +71,11 @@ class QuickColors(QWidget):
             for button in buttons:grid.removeWidget(button)
             for i,button in enumerate(buttons):grid.addWidget(button,i//columns,i%columns)
     def assign(self,key):self.assignment=key;self.sync()
-    def current(self):return self.e.tool_states[self.e.color_target]['secondary'] if self.assignment=='secondary' else self.e.brush_color
+    def current(self):return self.e.secondary_color if self.assignment=='secondary' else self.e.brush_color
     def set_color(self,color):
         if not color.isValid():return
         began=time.perf_counter()
-        if self.assignment=='secondary':self.e.tool_states[self.e.color_target]['secondary']=QColor(color)
+        if self.assignment=='secondary':self.e.secondary_color=QColor(color)
         else:self.e.brush_color=color
         self.e.remember_tools();self.e.sync_tool_ui();self.e.status.setText(self.e.color_target+' '+self.assignment+' '+color.name(QColor.HexArgb))
         self.e.ui_timings.append(dict(event='color_assignment',tool=self.e.color_target,ms=(time.perf_counter()-began)*1000));self.e.ui_timings=self.e.ui_timings[-256:]
@@ -121,11 +121,11 @@ class QuickColors(QWidget):
             sizes[n]=self.e.brush['size'];self.change_sizes(sizes)
         menu.addAction('Replace with current size',replace);menu.addAction('Remove preset',remove);menu.exec(self.mapToGlobal(self.rect().center()))
     def preview_sample(self,color,message=''):
-        self.hover_color=color;self.preview.setText('Hover sample: '+(color.name(QColor.HexArgb) if color is not None and color.alpha() else message or 'transparent / unavailable')+'\nClick → '+self.e.color_target+' Main')
+        self.hover_color=color;self.preview.setText('Hover sample: '+(color.name(QColor.HexArgb) if color is not None and color.alpha() else message or 'transparent / unavailable')+'\nLeft → shared Main • Right → shared Secondary')
     def sync(self):
-        e=self.e;state=e.tool_states[e.color_target];fill=bool(e.canvas and e.canvas.tool=='Fill');self.receiver.setText('Shared Main RGBA • Brush / Pencil / Fill'+(' • Sampler receiver' if e.canvas and e.canvas.tool=='Sampler' else ''))
+        e=self.e;state=e.tool_states[e.color_target];fill=bool(e.canvas and e.canvas.tool=='Fill');self.receiver.setText('Shared Main / Secondary RGBA • Brush / Pencil / Fill'+(' • Sampler receiver' if e.canvas and e.canvas.tool=='Sampler' else ''))
         for key,b in self.chips.items():
-            color=e.brush_color if key=='main' else state['secondary'];b.setChecked(key==self.assignment);b.setText((('Main' if key=='main' else 'Secondary') if fill else ('Main / Left' if key=='main' else 'Secondary / Right'))+' '+color.name(QColor.HexArgb));b.setStyleSheet('background:'+color.name()+';color:'+('#000000' if color.lightness()>127 else '#ffffff'))
+            color=e.brush_color if key=='main' else e.secondary_color;b.setChecked(key==self.assignment);b.setText((('Main' if key=='main' else 'Secondary') if fill else ('Main / Left' if key=='main' else 'Secondary / Right'))+' '+color.name(QColor.HexArgb));b.setStyleSheet('background:'+color.name()+';color:'+('#000000' if color.lightness()>127 else '#ffffff'))
         values=e.shell.preferences.get('media_custom_colors',[])
         for i,b in enumerate(self.custom_buttons):b.setText('' if i<len(values) else '·');b.setStyleSheet('background:'+QColor(values[i]).name() if i<len(values) else '');b.setToolTip('Custom '+str(i+1)+': '+(values[i] if i<len(values) else 'empty; Add custom'))
         tool=e.canvas.tool if e.canvas else 'Select';changed=tool!=self.active_tool;self.active_tool=tool;painting=tool in ('Brush','Pencil','Eraser','Smudge');self.title.setText(('Select' if tool in ('Selection','Wand') else tool)+' settings')
@@ -182,7 +182,7 @@ def attach(editor,e):
             if isinstance(height,int) and 120<=height<=1200:scroll.setFixedHeight(height)
     bar.topLevelChanged.connect(floating);bar.hide()
 
-def sample(canvas,pos,commit=False):
+def sample(canvas,pos,commit=False,secondary=False):
     e=canvas.editor;row=e.selected_row()
     if e.sample_scope=='Visible Composite':color=canvas.sample_composite(pos)
     elif row and row['type'] in ('Image','Artwork','Paint') and row['source_visible']:
@@ -195,7 +195,7 @@ def sample(canvas,pos,commit=False):
                 color.setAlpha(round(color.alpha()*alpha/255*row['opacity']))
     else:color=None
     if hasattr(e,'quick_colors'):e.quick_colors.preview_sample(color,'outside / no readable selected pixel')
-    if commit:e.receive_sample(color)
+    if commit:e.receive_sample(color,secondary=secondary)
     return color
 
 def pixel_frame(canvas,row,image):
@@ -214,7 +214,8 @@ def pin_pickup(canvas,stroke):
         # GIF/Video/Sprite frames without a whole-frame pixel copy.
         images[row['id']]=image.private_view() if hasattr(image,'private_view') else QImage(image)
         frames[row['id']]=pixel_frame(canvas,row,image)
-    stroke['pickup']=dict(scene=scene,images=images,frames=frames,target_frame=pixel_frame(canvas,stroke['target'],stroke['image']),session=stroke['session'],revision=stroke['revision'])
+    from cpu_projection import artwork_sampling_plan
+    stroke['pickup']=dict(scene=scene,images=images,frames=frames,plan=artwork_sampling_plan(scene),target_frame=pixel_frame(canvas,stroke['target'],stroke['image']),session=stroke['session'],revision=stroke['revision'])
 
 def pickup_tile(stroke,start,r):
     pickup=stroke.get('pickup')
@@ -222,4 +223,4 @@ def pickup_tile(stroke,start,r):
     from cpu_projection import render_artwork_region
     sx,sy=start;origin=np.array([[1.,0.,sx-r],[0.,1.,sy-r],[0.,0.,1.]])
     projection=np.linalg.inv(pickup['target_frame']@origin)
-    return render_artwork_region(pickup['scene'],pickup['images'],pickup['frames'],projection,2*r,2*r,stroke['row'],stroke['preview'])
+    return render_artwork_region(pickup['scene'],pickup['images'],pickup['frames'],projection,2*r,2*r,stroke['row'],stroke['preview'],plan=pickup['plan'])

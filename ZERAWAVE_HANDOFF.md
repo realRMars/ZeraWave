@@ -1,8 +1,46 @@
 # ZeraWave handoff
 
-Updated: 2026-10-09 (raster/editor development publication authorized).
+Updated: 2026-10-10 (drawing, artwork saving, storage/shutdown and finishing checkpoint).
 [ROADMAP.md](ROADMAP.md) is the sole plan; [AGENTS.md](AGENTS.md) owns the working
 procedure. Prior checkpoints and their limitations remain below.
+
+## October 10 drawing and storage development checkpoint
+
+Robert authorized commit and normal GitHub push from parent
+`6aed22041bd15392857c676f832a4f25f07bd765`. Exact committed source/staged scope,
+checks and remote verification belong in [publication receipt](work/publication-raster-recovery-20261010/review-index.json).
+This checkpoint includes raster/mouse-channel recovery, short-stroke disposition,
+Pass 1 sustainable artwork storage and normal shutdown, direct blank children,
+captured drawing, ordinary artwork image Save/Save As, and the focused finishing
+controls documented in [actual results](docs/agent-notes/b2-tiles-20261008.md).
+
+Latest source identity is `work/finishing-20261010-1791615314962580500/`:
+230-file app bundle `607ace8177c84ec3809fc79b3965476a1b543690394fbf4da5c48747a0c519ed`.
+Before publication edits, all 393 candidate files and 230 app-source hashes matched
+its final manifest/baseline. The native DLL is unchanged; no native rebuild,
+installation, user-session interruption or portable release is part of publication.
+Earlier packs/task reports retain their original hashes and task-time status.
+
+Robert specifically accepted artwork Save/Save As, immediate blank children,
+normal closing, improved Brush/Pencil and quick Eraser. Smudge mixing looks good
+to him; responsiveness/larger-tip sustained trailing remain review targets.
+These supersede earlier blanket unaccepted wording only for those behaviors;
+whole-editor/capacity, physical pointer/live Visualizer and multi-hour/listening
+acceptance remain open. Finishing adds pointer-anchored 0.02–256x inspection,
+crisp one-cell size-1 Pencil, atomic confirmed zero-layer Fill and stable authored
+canvas dimensions independently of later output/viewport changes.
+
+Keep the documented overload/backpressure and rejection/redraw requirements.
+Full-image PNG persistence remains; true encoder overload can fill its bounded
+queue. Unknown/crashed work and saved dependencies retain conservative protection.
+Owner-death/power-loss recovery, arbitrary filesystem stalls and multi-instance
+storage coordination are not established. Native/B1 timing tails/outliers remain;
+no universal speedup, physical latency/FPS or stall-free response is claimed.
+
+Passes 2–4, higher capacities/storage relocation, New Session and B3 remain
+deferred pending scoped briefs. Publication starts no worker/critic or new pass.
+Original media/research/plans, unrelated color/startup/plan notes, generated DLLs,
+work evidence and the frozen portable remain local and preserved.
 
 ## October 9 raster/editor development checkpoint
 

@@ -110,7 +110,7 @@ def run():
         recover(False,'drawing');child_first=e.selected_row()['asset'];recover(False,'drawing');assert e.selected_row()['asset']==child_first and len(e.config['layers'])==2
         recover(True,'drawing');child_drawn=e.selected_row()['asset'];e.row_flag(parent,'locked')
         e.expand_row(parent);e.expand_row(child);assert set(e.expanded)=={parent,child} and all(any(w.text()==lookup(e.config)[i]['name'] for w in e.row_widgets[i].findChildren(QLineEdit)) for i in (parent,child))
-        e.row_widgets[parent].opacity.setValue(45);pump();assert lookup(e.config)[parent]['opacity']==.45 and lookup(e.config)[child]['opacity']==1
+        e.row_widgets[parent].opacity.setValue(45);pump();wait(lambda:e.slider_before is None and not e.edit_jobs);assert lookup(e.config)[parent]['opacity']==.45 and lookup(e.config)[child]['opacity']==1
         e.row_edit(parent,'blend','Multiply','Blend');assert lookup(e.config)[parent]['opacity']==.45
         e.group();group=e.selected;e.row_flag(group,'locked');assert effective(e.config,lookup(e.config)[child],'locked');e.row_flag(group,'locked');assert not effective(e.config,lookup(e.config)[child],'locked');e.ungroup();pump()
         e.select(child);e.tree.blockSignals(True)

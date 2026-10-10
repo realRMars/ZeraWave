@@ -53,7 +53,7 @@ class ControlClient:
         self.reader=threading.Thread(target=self.read,daemon=True,name='Studio owner snapshots');self.reader.start()
         deadline=time.perf_counter()+15.
         while not self.snapshot and not self.disconnected:
-            if cancel_event is not None and cancel_event.is_set():self.close(force=True);raise RuntimeError('Control owner connection cancelled.')
+            if cancel_event is not None and cancel_event.is_set():self.close(mode='discard');raise RuntimeError('Control owner connection cancelled after normal exit.')
             if time.perf_counter()>deadline:self.close(force=True);raise RuntimeError('Control owner startup timed out; '+str(self.log_path))
             with self.condition:self.condition.wait(timeout=.1)
         if not self.snapshot:self.close(force=True);raise RuntimeError('Control owner failed to start; '+str(self.log_path))
@@ -63,7 +63,11 @@ class ControlClient:
                 if len(line)>2*1024*1024:raise ValueError('Owner snapshot exceeds protocol limit') # includes up to 128 bounded media references
                 message=json.loads(line)
                 with self.condition:
-                    if 'snapshot' in message:self.snapshot=message['snapshot']
+                    if 'snapshot' in message:
+                        from raster_tiles import unwire_resource
+                        snap=message['snapshot'];library=snap.get('media_library',{})
+                        library['resources']=[unwire_resource(r) for r in library.get('resources',[])]
+                        self.snapshot=snap
                     if 'audio_analyzer' in message:
                         data=message['audio_analyzer'];current=self.analyzer_telemetry
                         packet=data.get('band_analyzer') or {};old_packet=(current or {}).get('band_analyzer') or {}
@@ -100,7 +104,7 @@ class ControlClient:
             if len(line)>524288:self.pending-=1;raise ValueError('Command exceeds protocol limit')
             try:
                 self.process.stdin.write(line+'\n');self.process.stdin.flush()
-                timeout=8 if action in ('stop','close') else 2
+                timeout=20 if action=='close' else 8 if action=='stop' else 2
                 def reconciled():
                     op=data.get('operation_id')
                     return next((r for r in self.snapshot.get('media_control',{}).get('transactions',[]) if r['id']==op and r['status'] in ('applied','rejected')),None) if op else None
@@ -111,7 +115,9 @@ class ControlClient:
                     if outcome['status']=='rejected':raise ValueError(outcome['error'])
                     return self.snapshot
                 if response is None:raise RuntimeError('Control owner disconnected during '+action)
-                if 'error' in response:raise ValueError(response['error'])
+                if 'error' in response:
+                    if response.get('outcome_uncertain'):raise RuntimeError('Owner accepted operation; publication outcome is uncertain: '+response['error'])
+                    raise ValueError(response['error'])
                 return self.snapshot
             finally:self.pending-=1;self.latencies.append((action,(time.perf_counter()-began)*1000))
     def submit(self,action,**data):
@@ -151,20 +157,18 @@ class ControlClient:
             try:self.process.stdin.write(line+'\n');self.process.stdin.flush()
             except (OSError,ValueError):return False
         return True
-    def close(self,force=False):
+    def close(self,force=False,mode=None):
         if self.closed:return
-        if not force and not self.disconnected:self.request('close')
-        try:
-            pass
-        finally:
-            self.closed=True
-            self.edits.shutdown(wait=False,cancel_futures=True)
-            if force:self.job.close()
-            try:self.process.stdin.close()
-            except (OSError,ValueError):pass
-            try:self.process.wait(timeout=5)
-            except subprocess.TimeoutExpired:pass
-            self.job.close();self.stderr.close()
+        if not force and self.process.poll() is None and not self.disconnected:
+            self.request('close',**({'mode':mode} if mode else {}))
+        if force:self.job.close()
+        try:self.process.wait(timeout=20 if not force else 5)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError('Owner has not exited. Close remains incomplete; no forced termination was used.')
+        self.closed=True;self.edits.shutdown(wait=True,cancel_futures=True)
+        try:self.process.stdin.close()
+        except (OSError,ValueError):pass
+        self.reader.join(timeout=2);self.job.close();self.stderr.close()
 
 class Value:
     def __init__(self,getter,setter=None):self.getter=getter;self.setter=setter

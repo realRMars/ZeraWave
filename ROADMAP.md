@@ -1,10 +1,34 @@
 # ZeraWave development plan
 
-Updated: 2026-10-09 (B1/B2 and focused editor corrections; development publication authorized).
+Updated: 2026-10-10 (drawing/storage/finishing development publication authorized).
 This is the sole prioritized plan. The user's latest assignment sets scope;
 code establishes implementation and user review establishes artistic acceptance.
 Historical plans remain in [history](docs/history/README.md). The accepted visual
 baseline is 2bcb03f; the player checkpoint builds on that baseline.
+
+## Current October 10 checkpoint
+
+Robert authorized commit/normal push of the implemented drawing, ordinary artwork
+Save/Save As, direct-child, raster recovery, sustainable storage/normal shutdown
+and focused finishing candidate on `6aed22041bd15392857c676f832a4f25f07bd765`.
+[Handoff](ZERAWAVE_HANDOFF.md#october-10-drawing-and-storage-development-checkpoint)
+and [latest actual results](docs/agent-notes/b2-tiles-20261008.md) bind its source,
+checks, specific acceptance and remaining limits; publication identity belongs in
+the [receipt](work/publication-raster-recovery-20261010/review-index.json).
+
+Robert accepted artwork saving, direct blank children, normal closing, improved
+Brush/Pencil and quick Eraser. Smudge mixing is good; responsiveness/sustained
+trailing and broader editor/capacity acceptance remain open. These specific results
+supersede older blanket unaccepted status only for the reviewed behaviors.
+Pass 1 preserves accepted work and fixes lifetime storage/shutdown bookkeeping;
+real encoding/queue pressure, redraw of rejected work and owner-death limits remain.
+Finishing preserves pixels/output while extending zoom/inspection and first Fill.
+
+Passes 2–4, deeper capacity/higher counts, storage relocation, New Session and B3
+are deferred, not cancelled. Prepare later scoped briefs through the existing
+manual route; publication dispatches nothing. The earlier B1/B2 contracts below
+remain preservation/acceptance guidance, with dated status understood through
+this current checkpoint. Native DLL/evidence and frozen portable stay local.
 
 ## Current direction
 

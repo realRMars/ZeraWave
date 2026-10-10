@@ -9,7 +9,7 @@ import json,math,threading,time,os
 import numpy as np
 from PySide6.QtCore import Qt,QTimer,QPointF,QRectF,QSize,Signal,QEvent,QMimeData
 from PySide6.QtGui import QImage,QPainter,QPainterPath,QPolygonF,QColor,QPen,QTransform,QIcon,QPixmap,QCursor
-from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QFormLayout,QLabel,QPushButton,QComboBox,QTreeWidget,QTreeWidgetItem,QTreeWidgetItemIterator,QLineEdit,QDoubleSpinBox,QSlider,QCheckBox,QGroupBox,QMenu,QMessageBox,QInputDialog,QSpinBox,QScrollArea,QTabWidget,QApplication,QToolButton,QGridLayout,QFileDialog,QDialog,QDialogButtonBox,QColorDialog,QToolTip,QHeaderView,QSizeGrip,QMainWindow,QToolBar
+from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QFormLayout,QLabel,QPushButton,QComboBox,QTreeWidget,QTreeWidgetItem,QTreeWidgetItemIterator,QLineEdit,QDoubleSpinBox,QSlider,QCheckBox,QGroupBox,QMenu,QMessageBox,QInputDialog,QSpinBox,QScrollArea,QTabWidget,QApplication,QToolButton,QGridLayout,QFileDialog,QDialog,QDialogButtonBox,QColorDialog,QToolTip,QHeaderView,QSizeGrip,QMainWindow,QToolBar,QStyle,QStyleOptionSlider
 from composition import defaults,validate_scene,new_layer,lookup,ancestors,effective,asset_matrix,world_matrix,matrix,coefficients,transform,properties,reparent,renumber,PRESENTATIONS,BLENDS,MAX_LAYERS,is_branch,ordered_children,partition_aligned,piece_geometry,IDENTITY
 from media_frames import FrameReader
 from media_registry import decode_image
@@ -108,6 +108,8 @@ def tool_icon(name,size,dpr=1.):
     elif name in ('ZoomIn','ZoomOut'):
         p.drawEllipse(3,3,19,19);p.drawLine(20,20,29,29);p.drawLine(8,12,17,12)
         if name=='ZoomIn':p.drawLine(12,8,12,17)
+    elif name=='Save':
+        p.drawPolygon(QPolygonF([QPointF(5,4),QPointF(24,4),QPointF(28,8),QPointF(28,28),QPointF(5,28)]));p.drawRect(10,4,12,9);p.drawRect(10,19,13,9);p.drawLine(18,6,18,11)
     elif name=='Fill':
         p.drawPolygon(QPolygonF([QPointF(5,15),QPointF(16,4),QPointF(27,15),QPointF(16,26)]));p.drawLine(5,15,27,15)
         path=QPainterPath();path.moveTo(9,11);path.cubicTo(3,0,17,0,21,9);p.drawPath(path)
@@ -143,6 +145,9 @@ class Palette(QWidget):
         self.remember()
     def moveEvent(self,event):super().moveEvent(event);self.remember()
 
+MAX_CANVAS_ZOOM=256.
+MIN_CANVAS_ZOOM=.02
+
 class _CanvasMethods:
     def __init__(self,editor):
         super().__init__();self.editor=editor;self.setFocusPolicy(Qt.StrongFocus);self.setMouseTracking(True);self.setMinimumSize(260,180)
@@ -151,7 +156,7 @@ class _CanvasMethods:
         for text,help,cb,color in (('✓','Apply crop',self.apply,'#77dc99'),('×','Cancel crop',self.discard,'#fc7878'),('↶','Undo preview adjustment',lambda:self.preview_history(False),'#ffcd78'),('↷','Redo preview adjustment',lambda:self.preview_history(True),'#ffcd78')):
             b=icon_button(text,help,cb);b.setStyleSheet('color:'+color);bubble.addWidget(b)
         self.bubble.hide();self.apply_tool_cursor()
-        self.setToolTip('V Select pixels; Rectangle/Lasso release is ready. Drag inside the selection to move pixels on the same raster. T transforms a whole layer with resize/rotate handles. Ctrl+C/X/V copy/cut/paste pixels; Delete clears pixels; Ctrl+D deselects. Ctrl+Z / Ctrl+Y recover editor edits. Wheel zooms 15%; Ctrl+wheel fine zooms 2%; middle-drag pans.')
+        self.setToolTip('')
     @property
     def canvas_size(self):return self.editor.canvas_size
     def set_tool(self,name):
@@ -205,6 +210,7 @@ class _CanvasMethods:
     def view(self):
         w,h=self.canvas_size;scale=self.zoom if self.zoom is not None else min(max(1,self.width()-48)/w,max(1,self.height()-48)/h)
         return QTransform(scale,0.,0.,scale,(self.width()-w*scale)/2+self.pan.x(),(self.height()-h*scale)/2+self.pan.y())
+    def pixel_inspection(self):return self.zoom is not None and self.view().m11()*self.devicePixelRatioF()>=16.
     def canvas_point(self,p):
         v=self.view().inverted()[0].map(p);w,h=self.canvas_size;return v.x()/w-.5,v.y()/h-.5
     def source_matrix(self,row):
@@ -251,6 +257,7 @@ class _CanvasMethods:
             return QPolygonF([self.view().map(QPointF((x+.5)*w,(y+.5)*h)) for x,y in (point(m,p) for p in ((-.5,-.5),(.5,-.5),(.5,.5),(-.5,.5)))])
         c=self.content_bounds(row);return QPolygonF([self.screen_point(row,uv) for uv in ((c[0],c[1]),(c[2],c[1]),(c[2],c[3]),(c[0],c[3]))])
     def paintEvent(self,event):
+        smooth=not self.pixel_inspection()
         painter=QPainter(self);painter.setRenderHint(QPainter.Antialiasing);painter.fillRect(self.rect(),QColor('#080e12'))
         w,h=self.canvas_size;view=self.view();canvas=view.mapRect(QRectF(0,0,w,h));painter.save();painter.setClipRect(canvas)
         visible=canvas.intersected(QRectF(self.rect()));left,top=int(canvas.left()),int(canvas.top())
@@ -267,7 +274,7 @@ class _CanvasMethods:
         full_projection=projection.copy();projection[:2,2]-=np.array([region.left(),region.top()])*dpr
         modes={'Normal':QPainter.CompositionMode_SourceOver,'Multiply':QPainter.CompositionMode_Multiply,'Screen':QPainter.CompositionMode_Screen,'Add':QPainter.CompositionMode_Plus,'Difference':QPainter.CompositionMode_Difference}
         def children(parent):
-            target=QImage(iw,ih,QImage.Format_ARGB32_Premultiplied);target.fill(0);p=QPainter(target);p.setRenderHint(QPainter.SmoothPixmapTransform)
+            target=QImage(iw,ih,QImage.Format_ARGB32_Premultiplied);target.fill(0);p=QPainter(target);p.setRenderHint(QPainter.SmoothPixmapTransform,smooth)
             rows=ordered_children(self.editor.config,parent)
             for row in rows:
                 if not effective(self.editor.config,row,'enabled') or not is_branch(self.editor.config,row) and not row['source_visible']:continue
@@ -281,7 +288,7 @@ class _CanvasMethods:
                 partition=not row.get('_own') and partition_aligned(self.editor.config,row)
                 strength=row.get('blend_strength',1.);blend='Normal' if strength==0 else row['blend'];add=blend=='Add' or (blend!='Normal' and strength<1.)
                 if add:
-                    p.end();source=QImage(iw,ih,QImage.Format_ARGB32_Premultiplied);source.fill(0);p=QPainter(source);p.setRenderHint(QPainter.SmoothPixmapTransform)
+                    p.end();source=QImage(iw,ih,QImage.Format_ARGB32_Premultiplied);source.fill(0);p=QPainter(source);p.setRenderHint(QPainter.SmoothPixmapTransform,smooth)
                 p.save();p.setOpacity(row['opacity']);p.setCompositionMode(QPainter.CompositionMode_SourceOver if add else QPainter.CompositionMode_Plus if partition else modes[blend])
                 if group:p.drawImage(QRectF(0,0,iw,ih),image)
                 else:
@@ -298,7 +305,7 @@ class _CanvasMethods:
                         target=target.copy();bp=QPainter(target);bp.setCompositionMode(modes[blend]);bp.drawImage(0,0,source);bp.end()
                     if strength<1.:
                         normal=original.copy();bp=QPainter(normal);bp.drawImage(0,0,source);bp.end();a=np.frombuffer(normal.constBits(),np.uint8).astype(np.uint16);b=np.frombuffer(target.constBits(),np.uint8).astype(np.uint16);factor=round(strength*255);data=((a*(255-factor)+b*factor+127)//255).astype(np.uint8).tobytes();target=QImage(data,iw,ih,QImage.Format_ARGB32_Premultiplied).copy()
-                    p=QPainter(target);p.setRenderHint(QPainter.SmoothPixmapTransform)
+                    p=QPainter(target);p.setRenderHint(QPainter.SmoothPixmapTransform,smooth)
             p.end();return target
         from native_raster import backend
         surface=getattr(self,'gpu_surface',None)
@@ -307,7 +314,7 @@ class _CanvasMethods:
             try:
                 size=(max(1,round(self.width()*dpr)),max(1,round(self.height()*dpr)));target=surface.target_for(self.defaultFramebufferObject(),size)
                 self.gpu_stats=surface.draw(self,size,full_projection,target)
-                self.editor.projection_diagnostic='GPU display / exact Qt filtered view' if self.gpu_stats.get('sampling_reference') else 'GPU native pixel projection'
+                self.editor.projection_diagnostic=('GPU display / exact Qt filtered view' if smooth else 'GPU display / exact Qt pixel inspection') if self.gpu_stats.get('sampling_reference') else 'GPU native pixel projection'
                 if self.gpu_stats.get('error'):self.editor.status.setText('Editor projection retained: '+self.gpu_stats['error'])
             finally:painter.endNativePainting()
             image=None
@@ -387,18 +394,22 @@ class _CanvasMethods:
         painter.end()
     def mousePressEvent(self,event):
         self.setFocus();pos=event.position()
+        if self.stroke:return # another button cannot replace an active private gesture
         self.tracing=False
         if self.interactive:
             if event.button()==Qt.LeftButton:self.finish_interactive(True)
             elif event.button()==Qt.RightButton:self.finish_interactive(False)
             return
         if event.button()==Qt.MiddleButton or self.space_pan or self.tool=='Hand':self.drag=('pan',pos,QPointF(self.pan));self.apply_tool_cursor();return
-        secondary=event.button()==Qt.RightButton and self.tool in ('Brush','Pencil') and not event.modifiers()&Qt.ShiftModifier
+        secondary=event.button()==Qt.RightButton and self.tool in ('Brush','Pencil','Fill','Sampler') and not event.modifiers()&Qt.ShiftModifier
         erase=event.button()==Qt.RightButton and self.tool in ('Eraser','Smudge') and not event.modifiers()&Qt.ShiftModifier
         if event.button()!=Qt.LeftButton and not erase and not secondary:return
         row=self.editor.selected_row()
         if self.tool in ('Brush','Pencil','Eraser','Smudge') and row is None:self.editor.drawing_onboarding();return
-        if self.tool=='Fill':self.editor.fill_controller.click(pos);return
+        if self.tool=='Fill':self.editor.fill_controller.click(pos,secondary=secondary);return
+        if self.tool=='Sampler':
+            from editor_colors import sample
+            sample(self,pos,True,secondary=secondary);return
         if self.tool=='Wand':
             if not self.editor.pixel_editor.press(event):self.editor.selection_controls.click(pos)
             return
@@ -411,7 +422,11 @@ class _CanvasMethods:
         if self.tool=='Sampler' and row and not self.polygon(row).containsPoint(pos,Qt.OddEvenFill):
             self.editor.receive_sample(None);return
         if self.tool in ('Brush','Pencil','Eraser','Smudge','Sampler') and row:
-            self.paint_press(row,pos,erase,secondary);return
+            self.paint_press(row,pos,erase,secondary)
+            if self.stroke:
+                from stroke_input import MouseHistory
+                self.stroke['input']=MouseHistory(self,event);self.stroke['button']=event.button();self.stroke['input_stats']=dict(delivered=1,captured=1,history=0,processing_ms=[],history_gaps=0,sample_age_ms=[])
+            return
         if self.tool in ('Selection','Mask','Remove','Cut','Crop','Extract') and row:
             if not self.editor.editable_target(row):return
             p=self.mask_point(row,pos)
@@ -467,7 +482,7 @@ class _CanvasMethods:
         if self.tool in ('Brush','Pencil','Eraser','Smudge'):
             self.hover=event.position()
             if not self.stroke:self.update()
-        if self.stroke:self.paint_move(event.position());return
+        if self.stroke:self.paint_event(event);return
         if self.selection_drag is not None:
             row=self.editor.selected_row();a=self.selection_drag;b=self.mask_point(row,event.position())
             if self.shape in ('Square','Circle'):
@@ -518,7 +533,9 @@ class _CanvasMethods:
         row['transform']=[float(v) for v in values];self.editor.sync_controls();self.editor.schedule_preview();self.update()
     def mouseReleaseEvent(self,event):
         if self.editor.pixel_editor.release(event):return
-        if self.stroke:self.paint_finish();return
+        if self.stroke:
+            if event.button()!=self.stroke.get('button',event.button()):return
+            self.paint_event(event);self.paint_finish();return
         if self.shape=='Curve' and self.points and len(self.handles)!=len(self.points):self.auto_handles()
         complete=self.selection_drag is not None or self.tracing and self.shape=='Freehand'
         self.selection_drag=None
@@ -539,7 +556,8 @@ class _CanvasMethods:
     def focusInEvent(self,event):self.set_tool(self.tool);super().focusInEvent(event)
     def leaveEvent(self,event):self.hover=None;self.update();super().leaveEvent(event)
     def wheelEvent(self,event):
-        old=self.view();delta=event.angleDelta().y()/120 if event.angleDelta().y() else event.pixelDelta().y()/120;step=1.02 if event.modifiers()&Qt.ControlModifier else 1.15;self.zoom=max(.02,min(8.,old.m11()*math.pow(step,delta)));self.update();event.accept()
+        if self.stroke:self.cancel_drag()
+        old=self.view();delta=event.angleDelta().y()/120 if event.angleDelta().y() else event.pixelDelta().y()/120;step=1.02 if event.modifiers()&Qt.ControlModifier else 1.15;self.zoom=max(MIN_CANVAS_ZOOM,min(MAX_CANVAS_ZOOM,old.m11()*math.pow(step,delta)));anchor=old.inverted()[0].map(event.position());self.pan+=event.position()-self.view().map(anchor);self.update();event.accept()
     def keyPressEvent(self,event):
         if self.editor.editor_key(event):event.accept();return
         super().keyPressEvent(event)
@@ -623,6 +641,12 @@ class _CanvasMethods:
         import time
         began=time.perf_counter()
         if self.editor.await_recovery:self.editor.status.setText('Drawing recovery is applying; start the next stroke when its accepted pixels arrive.');return
+        if self.tool in ('Brush','Pencil','Eraser','Smudge'):
+            capacity=self.editor.shell.client.snapshot.get('media_control',{}).get('raster',{})
+            if capacity.get('pending',0)>=capacity.get('job_limit',16):
+                self.editor.status.setText('Stroke not started: saving is at capacity. No edit accepted. Redraw after writes drain or recovery succeeds.');return
+            if capacity.get('resource_count',0)>=capacity.get('resource_limit',256):
+                self.editor.status.setText('Stroke not started: retained artwork is at capacity. No edit accepted. Save As to secure accepted work, then redraw.');return
         if self.editor.art_jobs and not self.editor.pending_paint:self.editor.status.setText('Finish the pending non-stroke edit first.');return
         if getattr(self.editor,'queued_paint',None):self.editor.status.setText('Two stroke buffers are pending; finish saving before another gesture.');return
         if not self.editor.editable_target(row):return
@@ -636,18 +660,22 @@ class _CanvasMethods:
         if self.tool=='Sampler':
             if self.editor.sample_scope=='Visible Composite':sampled=self.sample_composite(pos)
             else:sampled=self.mask_image(image,row).pixelColor(max(0,min(image.width()-1,int(x))),max(0,min(image.height()-1,int(y))))
-            self.editor.receive_sample(sampled);return
+            self.editor.receive_sample(sampled,secondary=secondary);return
         if not row['source_visible']:self.editor.status.setText('Own content is hidden. Show it before pixel editing.');return
         from native_raster import NativeImage
         buffer=image.private_view() if isinstance(image,NativeImage) else image.convertToFormat(QImage.Format_ARGB32_Premultiplied).copy()
         if buffer.isNull():self.editor.status.setText('Cannot allocate stroke; previous content retained.');return
         if self.points and getattr(self,'pixel_selection_ready',False) and not self.editor.pixel_editor.readable(False):return
         selection=self.operation() if self.points and getattr(self,'selection_target',row['id'])==row['id'] else None
-        self.stroke=dict(asset=row['asset'],image=buffer,base=image if isinstance(image,NativeImage) else image.copy(),scene=deepcopy(self.editor.config),target=deepcopy(row),row=row['id'],session=self.editor.binding[0],revision=self.editor.binding[1],new_child=False,tool='Eraser' if erase else self.tool,brush=deepcopy(self.editor.brush),color=QColor(self.editor.tool_states[self.editor.color_target]['secondary'] if secondary else self.editor.brush_color),last=(x,y),selection=selection)
+        self.stroke=dict(asset=row['asset'],image=buffer,base=image if isinstance(image,NativeImage) else image.copy(),scene=deepcopy(self.editor.config),target=deepcopy(row),row=row['id'],session=self.editor.binding[0],revision=self.editor.binding[1],new_child=False,tool='Eraser' if erase else self.tool,brush=deepcopy(self.editor.brush),color=QColor(self.editor.secondary_color if secondary else self.editor.brush_color),last=(x,y),selection=selection)
         if self.tool=='Smudge':
             from editor_colors import pin_pickup
             try:pin_pickup(self,self.stroke)
             except Exception as exc:self.stroke=None;self.editor.status.setText('Smudge unavailable: '+str(exc)[:180]);return
+        view=self.view();w,h=self.canvas_size;v=np.array([[1/(view.m11()*w),0.,-view.dx()/(view.m11()*w)-.5],[0.,1/(view.m22()*h),-view.dy()/(view.m22()*h)-.5],[0.,0.,1.]])
+        c=row['crop'];flip=np.diag([-1 if row['flip_x'] else 1, -1 if row['flip_y'] else 1,1.]);uv=np.array([[(c[2]-c[0])*image.width(),0.,(c[0]+(c[2]-c[0])*.5)*image.width()],[0.,(c[3]-c[1])*image.height(),(c[1]+(c[3]-c[1])*.5)*image.height()],[0.,0.,1.]])
+        self.stroke['input_matrix']=uv@flip@np.linalg.inv(self.source_matrix(row))@v
+        self.stroke['view_signature']=(self.width(),self.height(),self.devicePixelRatioF(),view.m11(),view.m22(),view.dx(),view.dy())
         self.stroke['coverage']=None if isinstance(image,NativeImage) else edit_coverage((image.width(),image.height()),row,selection);self.stroke['preview']=buffer if isinstance(image,NativeImage) else image.copy();self.editor.ui_timings.append(dict(event='stroke_prepare',tool=self.tool,ms=(time.perf_counter()-began)*1000));self.editor.ui_timings=self.editor.ui_timings[-256:];self.paint_move(pos)
     def sample_composite(self,pos):
         w,h=self.canvas_size
@@ -667,7 +695,7 @@ class _CanvasMethods:
         if not self.stroke:return
         stroke=self.stroke
         if not self.editor.valid_target(stroke['session'],stroke['revision'],stroke['target']):self.cancel_drag();return
-        row=stroke['target'];uv=self.mask_point(row,pos);image=stroke['image'];now=(uv[0]*image.width(),uv[1]*image.height());last=stroke['last'];brush=stroke['brush']
+        row=stroke['target'];image=stroke['image'];v=stroke['input_matrix']@np.array([pos.x(),pos.y(),1.]);now=(max(0.,min(image.width(),v[0])),max(0.,min(image.height(),v[1])));last=stroke['last'];brush=stroke['brush']
         from native_raster import NativeImage
         if isinstance(image,NativeImage):
             from raster_edit import segment
@@ -689,14 +717,43 @@ class _CanvasMethods:
         corners=[self.screen_point(row,(x/image.width(),y/image.height())) for x in (bounds[0],bounds[2]) for y in (bounds[1],bounds[3])]
         self.update(QPolygonF(corners).boundingRect().adjusted(-3,-3,3,3).toAlignedRect())
 
+    def paint_event(self,event):
+        stroke=self.stroke
+        if not stroke:return
+        view=self.view()
+        if stroke.get('view_signature')!=(self.width(),self.height(),self.devicePixelRatioF(),view.m11(),view.m22(),view.dx(),view.dy()):self.cancel_drag();self.editor.status.setText('View changed during gesture; uncommitted stroke cancelled, previous artwork retained.');return
+        from stroke_input import MouseHistory
+        history=stroke.get('input');samples,ages,gap=history.samples(event) if history else ([event.position()],[],False)
+        stats=stroke.setdefault('input_stats',dict(delivered=0,captured=1,history=0,processing_ms=[],history_gaps=0,sample_age_ms=[]))
+        stats['delivery_age_ms']=(stats.get('delivery_age_ms',[])+[getattr(history,'delivery_age_ms',None)])[-256:]
+        stats['delivered']+=1;stats['captured']+=len(samples);stats['history']+=max(0,len(samples)-1);stats['history_gaps']+=int(gap);stats['sample_age_ms']=(stats['sample_age_ms']+ages)[-256:]
+        started=time.perf_counter()
+        from native_raster import NativeImage
+        if len(samples)>1 and stroke['tool']!='Smudge' and isinstance(stroke['image'],NativeImage):
+            if not self.editor.valid_target(stroke['session'],stroke['revision'],stroke['target']):self.cancel_drag();return
+            image=stroke['image'];points=[]
+            for pos in samples:
+                v=stroke['input_matrix']@np.array([pos.x(),pos.y(),1.]);points.append((max(0.,min(image.width(),v[0])),max(0.,min(image.height(),v[1]))))
+            try:
+                from raster_edit import path
+                bounds=path(stroke,points);stroke['last']=points[-1]
+                corners=[self.screen_point(stroke['target'],(x/image.width(),y/image.height())) for x in (bounds[0],bounds[2]) for y in (bounds[1],bounds[3])]
+                self.update(QPolygonF(corners).boundingRect().adjusted(-3,-3,3,3).toAlignedRect())
+            except Exception as exc:self.stroke=None;self.editor.status.setText('Private stroke cancelled; accepted content retained: '+str(exc)[:180]);self.update()
+        else:
+            for pos in samples:
+                if not self.stroke:break
+                self.paint_move(pos)
+        stats['last_history_count']=getattr(history,'last_count',None);stats['last_history_error']=getattr(history,'last_error',None)
+        stats['processing_ms']=(stats['processing_ms']+[(time.perf_counter()-started)*1000])[-256:]
     def paint_finish(self):
         stroke,self.stroke=self.stroke,None
+        if stroke:self.last_input_stats=stroke.get('input_stats',{});self.last_input_stats['final_source_position']=list(stroke['last'])
         if stroke and self.editor.valid_target(stroke['session'],stroke['revision'],stroke['target']):self.editor.save_paint(stroke,stroke['preview'])
         self.update()
     def contextMenuEvent(self,event):
-        menu=QMenu(self);menu.addAction('Copy pixels',self.editor.copy_layer);menu.addAction('Cut pixels',self.editor.cut_clipboard);menu.addAction('Paste pixels',self.editor.paste_layer);menu.addAction('Delete selected pixels',self.editor.pixel_editor.delete);menu.addAction('Deselect',self.discard)
-        menu.addSeparator();menu.addAction('Undo editor',lambda:self.editor.history(False));menu.addAction('Redo editor',lambda:self.editor.history(True))
-        menu.addSeparator();menu.addAction('Fit view',self.editor.editor_view.fit);menu.addAction('Tool settings',lambda:self.editor.tool_settings(self.tool));menu.exec(event.globalPos())
+        # Consume queued/modified events at the canvas boundary for every tool.
+        event.accept()
     def toggle_closed(self):self.preview_begin();self.closed_path=not self.closed_path;self.update()
 
     def dragEnterEvent(self,event):
@@ -837,6 +894,35 @@ class InlineControls(QWidget):
     def finish(self):
         if not getattr(self.editor,'rebuilding',False):QTimer.singleShot(0,self.editor.numeric_finish)
 
+class OpacitySlider(QSlider):
+    """The whole track is an immediate drag target, including the groove."""
+    def __init__(self,*args):
+        super().__init__(*args);self.setMinimumHeight(26);self.setFocusPolicy(Qt.StrongFocus)
+    def point_value(self,pos):
+        option=QStyleOptionSlider();self.initStyleOption(option)
+        handle=self.style().subControlRect(QStyle.CC_Slider,option,QStyle.SC_SliderHandle,self)
+        span=max(1,self.width()-handle.width());x=max(0,min(span,round(pos.x()-handle.width()/2)))
+        return QStyle.sliderValueFromPosition(self.minimum(),self.maximum(),x,span,option.upsideDown)
+    def mousePressEvent(self,event):
+        if event.button()!=Qt.LeftButton:return super().mousePressEvent(event)
+        self.setFocus();self.setSliderDown(True);self.setValue(self.point_value(event.position()));event.accept()
+    def mouseMoveEvent(self,event):
+        if self.isSliderDown():self.setValue(self.point_value(event.position()));event.accept()
+        else:super().mouseMoveEvent(event)
+    def mouseReleaseEvent(self,event):
+        if event.button()==Qt.LeftButton and self.isSliderDown():
+            self.setValue(self.point_value(event.position()));self.setSliderDown(False);event.accept()
+        else:super().mouseReleaseEvent(event)
+    def wheelEvent(self,event):
+        # Do not require hover activation/focus; the receiving track owns input.
+        delta=event.angleDelta().y() or event.angleDelta().x()
+        if delta:
+            self.wheel_remainder=getattr(self,'wheel_remainder',0)+delta/120
+            steps=int(self.wheel_remainder);self.wheel_remainder-=steps
+            amount=self.pageStep() if event.modifiers()&(Qt.ControlModifier|Qt.ShiftModifier) else self.singleStep()
+            self.setValue(self.value()+steps*amount);event.accept()
+        else:super().wheelEvent(event)
+
 class LayerRow(QWidget):
     def __init__(self,editor,row):
         super().__init__();self.editor=editor;self.identity=row['id'];outer=QVBoxLayout(self);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0);line=QHBoxLayout();line.setContentsMargins(2,2,2,2);line.setSpacing(3);outer.addLayout(line)
@@ -850,10 +936,10 @@ class LayerRow(QWidget):
             own=icon_button('','Own content eye: this layer pixels only; child eyes stay independent',lambda:QTimer.singleShot(0,lambda:editor.row_flag(self.identity,'source_visible')));own.setIcon(tool_icon('OwnEye',24));own.setCheckable(True);own.setChecked(row['source_visible']);line.addWidget(own)
         branch=icon_button('','Subtree eye: layer and descendants; retains individual eye states',lambda:QTimer.singleShot(0,lambda:editor.row_flag(self.identity,'enabled')));branch.setIcon(tool_icon('BranchEye',24));branch.setCheckable(True);branch.setChecked(row['enabled']);line.addWidget(branch)
         master=QHBoxLayout();master.setContentsMargins(35,0,4,3);master.addWidget(QLabel('Opacity'));outer.addLayout(master)
-        self.opacity=QSlider(Qt.Horizontal);self.opacity.setRange(0,100);self.opacity.setValue(round(row['opacity']*100));self.opacity.setMinimumWidth(48);self.opacity.setMaximumWidth(100);self.opacity.setEnabled(not protected);self.opacity.setAccessibleName('Master opacity '+row['name']);self.opacity.setToolTip('Finished layer/subtree master opacity; applied once after its effects');master.addWidget(self.opacity,1)
-        self.percent=QLabel(f"{row['opacity']*100:.0f}%");self.percent.setMinimumWidth(31);master.addWidget(self.percent);master.addStretch();self.opacity.sliderPressed.connect(editor.slider_begin);self.opacity.valueChanged.connect(self.opacity_preview);self.opacity.sliderReleased.connect(lambda:QTimer.singleShot(0,lambda:editor.slider_commit('opacity')))
+        self.opacity=OpacitySlider(Qt.Horizontal);self.opacity.setRange(0,100);self.opacity.setValue(round(row['opacity']*100));self.opacity.setMinimumWidth(48);self.opacity.setMaximumWidth(100);self.opacity.setEnabled(not protected);self.opacity.setAccessibleName('Master opacity '+row['name']);self.opacity.setToolTip('Finished layer/subtree master opacity; applied once after its effects');master.addWidget(self.opacity,1)
+        self.percent=QLabel(f"{row['opacity']*100:.0f}%");self.percent.setMinimumWidth(31);master.addWidget(self.percent);master.addStretch();self.opacity.sliderPressed.connect(lambda:editor.slider_begin('opacity'));self.opacity.valueChanged.connect(self.opacity_preview);self.opacity.sliderReleased.connect(lambda:QTimer.singleShot(0,lambda:editor.slider_commit('opacity')))
         if row['type'] in ('Image','Artwork','Paint'):
-            add=icon_button('+','Add inside '+row['name'],lambda:editor.row_add_menu(self.identity));add.setEnabled(not inherited);line.addWidget(add)
+            add=icon_button('+','Create blank transparent child inside '+row['name'],lambda:editor.blank_child(self.identity));add.setEnabled(not inherited);line.addWidget(add)
         lock=icon_button('⛓' if inherited else '🔒' if row['locked'] else '🔓','Protected by ancestor Group' if inherited else 'Group lock protects subtree' if row['type']=='Group' else 'Lock own content and transforms only',lambda:QTimer.singleShot(0,lambda:editor.row_flag(self.identity,'locked')));lock.setEnabled(not inherited);line.addWidget(lock)
         if self.identity in editor.expanded:outer.addWidget(InlineControls(editor,row))
         self.setStyleSheet('LayerRow {border-bottom:1px solid #344049;}')
@@ -862,9 +948,9 @@ class LayerRow(QWidget):
     def opacity_preview(self,value):
         e=self.editor;row=lookup(e.config).get(self.identity)
         if not row or effective(e.config,row,'locked'):return
-        if e.slider_before is None:e.slider_begin()
+        if e.slider_before is None:e.slider_begin('opacity')
         row['opacity']=value/100;self.percent.setText(str(value)+'%');e.schedule_preview();e.canvas.update()
-        if not self.opacity.isSliderDown():QTimer.singleShot(0,lambda:e.slider_commit('opacity'))
+        if not self.opacity.isSliderDown():e.opacity_timer.start(180)
 
 
 class LayerTree(QTreeWidget):
@@ -943,6 +1029,11 @@ class CompositionEditor(QMainWindow):
         attach_colors(self,layers);attach_selection(self,layers)
         from editor_fill import FillController
         layers.fill_controller=FillController(layers)
+        from artwork_save_ui import ArtworkSaveController
+        layers.artwork_save=ArtworkSaveController(layers)
+        self.image_save=icon_button('','Save composition artwork image',lambda:layers.artwork_save.save());self.image_save.setIcon(tool_icon('Save',26,self.devicePixelRatioF()));self.image_save.setIconSize(QSize(26,26));bar.insertWidget(bar.actions()[0],self.image_save)
+        self.image_save_as=icon_button('Save As…','Save composition artwork image As…',lambda:layers.artwork_save.save(True));self.image_save_as.setToolButtonStyle(Qt.ToolButtonTextOnly);self.image_save_as.setMinimumWidth(82);bar.insertWidget(bar.actions()[1],self.image_save_as)
+        self.image_save_cancel=icon_button('Cancel save','Cancel pending artwork image saves',layers.artwork_save.cancel);self.image_save_cancel.setToolButtonStyle(Qt.ToolButtonTextOnly);self.image_save_cancel.setMinimumWidth(94);self.image_save_cancel_action=bar.insertWidget(bar.actions()[2],self.image_save_cancel);self.image_save_cancel_action.setVisible(False)
         self.zoom_buttons=[]
         for name,label,factor in (('ZoomIn','Zoom in',1.25),('ZoomOut','Zoom out',1/1.25)):
             button=icon_button('',label,lambda checked=False,f=factor:self.zoom_step(f));button.setIcon(tool_icon(name,26));button.setIconSize(QSize(26,26));bar.addWidget(button);self.zoom_buttons.append(button)
@@ -957,7 +1048,7 @@ class CompositionEditor(QMainWindow):
     def tool(self,name):
         if not self.layers.resolve_pending():return
         self.canvas.set_tool(name)
-    def zoom_step(self,factor):self.canvas.zoom=max(.02,min(16.,self.canvas.view().m11()*factor));self.canvas.update()
+    def zoom_step(self,factor):self.canvas.zoom=max(MIN_CANVAS_ZOOM,min(MAX_CANVAS_ZOOM,self.canvas.view().m11()*factor));self.canvas.update()
     def fit(self):self.canvas.zoom=None;self.canvas.pan=QPointF();self.canvas.update()
     def actual(self):
         canvas=self.canvas;row=canvas.editor.selected_row();canvas.zoom=1./canvas.devicePixelRatioF();canvas.pan=QPointF()
@@ -969,14 +1060,17 @@ class CompositionEditor(QMainWindow):
                 # Preserve authored deformation; the least magnified direction
                 # reaches native detail, rather than merely 100% canvas zoom.
                 canvas.zoom/=max(1e-9,float(np.linalg.svd(pixels,compute_uv=False)[-1]))
+                canvas.zoom=max(MIN_CANVAS_ZOOM,min(MAX_CANVAS_ZOOM,canvas.zoom))
                 canvas.pan=QPointF(-w*m[0,2]*canvas.zoom,-h*m[1,2]*canvas.zoom)
         canvas.update()
 
 class Layers(QWidget):
     def __init__(self,shell):
-        super().__init__();self.shell=shell;self.config=defaults();self.binding=None;self.selected=None;self.syncing=False;self.canvas=None;self.images={};self.models={};self.model_keys={};self.image_jobs={};self.image_errors={};self.reader=FrameReader();self.pool=ThreadPoolExecutor(max_workers=1,thread_name_prefix='Editor native artwork');self.canvas_size=(1280,720);self.before=None;self.asset_key=None;self.collapsed=set();self.numeric_before=None;self.preview_active=False;self.art_jobs=[];self.edit_jobs=[];self.runtime_producers={};self.runtime_assets={};self.unsubmitted_assets={};self.await_recovery=False;self.drops=[];self.color_target='Brush';self.tool_states={t:dict(brush=dict(size=12.,opacity=1.,strength=.5,shape='Round',hardness=.8,flow=.5),color=QColor('#f6c490'),secondary=QColor('#ffffff')) for t in ('Brush','Pencil','Eraser','Smudge')};self.tool_states['Pencil']['brush']['shape']='Square';self.main_color=QColor('#f6c490');self.ui_timings=[];self.sample_scope='Active Layer';self.pending_paint=None;self.queued_paint=None;self.palettes=[];self.onboarding_pending=False
+        super().__init__();self.shell=shell;self.config=defaults();self.binding=None;self.selected=None;self.syncing=False;self.canvas=None;self.images={};self.models={};self.model_keys={};self.image_jobs={};self.image_errors={};self.reader=FrameReader();self.pool=ThreadPoolExecutor(max_workers=1,thread_name_prefix='Editor native artwork');self.canvas_size=(1280,720);self.before=None;self.asset_key=None;self.collapsed=set();self.numeric_before=None;self.preview_active=False;self.art_jobs=[];self.edit_jobs=[];self.runtime_producers={};self.runtime_assets={};self.unsubmitted_assets={};self.await_recovery=False;self.retry_watch=None;self.drops=[];self.color_target='Brush';self.tool_states={t:dict(brush=dict(size=12.,opacity=1.,strength=.5,shape='Round',hardness=.8,flow=.5),color=QColor('#f6c490'),secondary=QColor('#ffffff')) for t in ('Brush','Pencil','Eraser','Smudge')};self.tool_states['Pencil']['brush']['shape']='Square';self.main_color=QColor('#f6c490');self._secondary_color=QColor('#ffffff');self.ui_timings=[];self.sample_scope='Active Layer';self.pending_paint=None;self.queued_paint=None;self.palettes=[];self.onboarding_pending=False
         self.restore_tool_preferences()
         self.preview_timer=QTimer(self);self.preview_timer.setSingleShot(True);self.preview_timer.setInterval(50);self.preview_timer.timeout.connect(self.send_preview)
+        self.opacity_job=None;self.opacity_gesture=False;self.opacity_dirty=False
+        self.opacity_timer=QTimer(self);self.opacity_timer.setSingleShot(True);self.opacity_timer.timeout.connect(lambda:self.slider_commit('opacity'))
         self.numeric_timer=QTimer(self);self.numeric_timer.setSingleShot(True);self.numeric_timer.setInterval(350);self.numeric_timer.timeout.connect(self.numeric_finish)
         outer=QVBoxLayout(self);outer.setContentsMargins(8,8,8,8);self.presentation=QComboBox();self.presentation.addItems(PRESENTATIONS);self.presentation.currentTextChanged.connect(lambda value:self.change_presentation(value));outer.addWidget(self.presentation)
         row=QHBoxLayout();outer.addLayout(row)
@@ -1009,7 +1103,7 @@ class Layers(QWidget):
         self.sliders={};self.slider_before=None
         for key,label,low,high in (('scale','Scale %',10,10000),('opacity','Opacity %',0,1000)):
             form=self.section_forms['Scale' if key=='scale' else 'Blend']
-            slider=QSlider(Qt.Horizontal);slider.setRange(low,high);slider.setToolTip('Drag previews locally; release commits one Undo command. Numeric fields retain the full range and precision.');slider.sliderPressed.connect(lambda:self.slider_begin());slider.valueChanged.connect(lambda v,k=key:self.slider_preview(k,v));slider.sliderReleased.connect(lambda k=key:self.slider_commit(k));form.addRow(label,slider);self.sliders[key]=slider
+            slider=OpacitySlider(Qt.Horizontal) if key=='opacity' else QSlider(Qt.Horizontal);slider.setRange(low,high);slider.setToolTip('Drag previews locally; release commits one Undo command. Numeric fields retain the full range and precision.');slider.sliderPressed.connect(lambda k=key:self.slider_begin(k));slider.valueChanged.connect(lambda v,k=key:self.slider_preview(k,v));slider.sliderReleased.connect(lambda k=key:self.slider_commit(k));form.addRow(label,slider);self.sliders[key]=slider
         form=self.section_forms['Flip & Rotate'];row=QHBoxLayout();form.addRow(row)
         for label,callback in (('↔',lambda:self.flip('flip_x')),('↕',lambda:self.flip('flip_y')),('−90°',lambda:self.rotate(-90)),('+90°',lambda:self.rotate(90)),('Reset',self.reset)):
             b=QPushButton(label);b.clicked.connect(callback);row.addWidget(b)
@@ -1047,10 +1141,15 @@ class Layers(QWidget):
         for label,callback in (('Load / Reload',self.web_start),('Stop browser',self.web_sources.stop)):
             b=QPushButton(label);b.clicked.connect(callback);buttons.addWidget(b)
         self.status=EditorStatus('32 layers • 6 group levels • 4 active animated layers');self.status.setWordWrap(True);outer.addWidget(self.status)
+        self.persistence_status=QLabel();self.persistence_status.setWordWrap(True);outer.addWidget(self.persistence_status)
         row=QHBoxLayout();outer.addLayout(row);self.undo=QPushButton('Undo');self.redo=QPushButton('Redo');self.undo.clicked.connect(lambda:self.history(False));self.redo.clicked.connect(lambda:self.history(True));row.addWidget(self.undo);row.addWidget(self.redo)
         retry=QPushButton('Retry saving');retry.setToolTip('Retry failed accepted PNGs and the latest failed revision-pinned checkpoint. Save As can secure a different destination.');retry.clicked.connect(self.retry_saving);row.addWidget(retry)
         self.timer=QTimer(self);self.timer.setInterval(33);self.timer.timeout.connect(self.frames);self.timer.start()
     def resolve_pending(self):
+        if self.slider_before is not None:
+            self.slider_commit('opacity' if self.opacity_gesture else 'scale')
+            if self.slider_before is not None:
+                self.status.setText('Opacity gesture awaiting owner acknowledgement; retry this action after acceptance.');return False
         self.numeric_finish()
         if self.edit_jobs:
             self.status.setText('Completed edits awaiting owner outcome; retry this context/save action after acceptance. PNG saving does not block it.');return False
@@ -1065,14 +1164,15 @@ class Layers(QWidget):
         self.canvas.discard();return True
     def retry_saving(self):
         try:
-            self.shell.client.request('raster_retry')
+            outcome=self.shell.client.request('raster_retry')['media_control']['raster']
             saves=self.shell.client.snapshot.get('media_control',{}).get('raster',{}).get('saves',[])
             failed=next((s for s in reversed(saves) if s['status']=='failed'),None)
             if failed:
                 path,_=QFileDialog.getSaveFileName(self,'Recover retained revision '+str(failed['revision']),failed['path'],'Session (*.json)')
                 if not path:self.status.setText('Retained checkpoint remains unsaved; choose Retry saving to export it.');return
                 self.shell.client.request('save_retry',save_id=failed['id'],path=path)
-            self.status.setText('Retrying accepted PNGs/checkpoint; pixels and history stay current.')
+            self.retry_watch=dict(session=self.binding[0],state=None)
+            self.status.setText('Retry requested through owner: '+str(outcome['pending'])+' PNG jobs pending, '+str(outcome.get('retry_waiting',0))+' waiting; failures remain visible until secured. Pixels/history retained.')
         except Exception as exc:self.status.setText(str(exc))
     def selected_row(self):return lookup(self.config).get(self.selected)
     def focus_pane(self,widget):
@@ -1192,12 +1292,27 @@ class Layers(QWidget):
                 # Stacking order is reconciled by node position, and is not a
                 # displayed control value. Renumbering surviving siblings must
                 # not rebuild their editors after one deletion/Undo.
-                row_state=deepcopy(row);row_state.pop('order',None)
+                row_state=deepcopy(row);row_state.pop('order',None);row_state.pop('opacity',None)
+                # Drawing changes immutable resource identity, not row controls.
+                # Only reuse across the same native geometry/interpretation.
+                if row['type'] in ('Image','Artwork','Paint'):
+                    row_state.pop('asset',None);meta=self.metadata(row)
+                    row_state['_working_geometry']=tuple(meta.get(k,1) for k in ('width','height','pixel_aspect'))
                 signature=(row_state,identity in self.expanded,protected,inherited,self.canvas_size)
                 widget=self.row_widgets.get(identity)
                 if moved or widget is None or not isValid(widget) or self.row_signatures.get(identity)!=signature:
                     if widget is not None and isValid(widget):widget.hide();self.tree.removeItemWidget(node,0);widget.setParent(None);widget.deleteLater()
                     widget=LayerRow(self,row);self.tree.setItemWidget(node,0,widget);node.setSizeHint(0,widget.sizeHint());self.row_widgets[identity]=widget;self.row_signatures[identity]=signature
+                if getattr(widget,'source_asset',None)!=row['asset']:
+                    widget.source_asset=row['asset']
+                    inline=widget.findChild(InlineControls)
+                    if inline is not None:
+                        w,h=self.base_dimensions(row);_,_,sx,sy,_=properties(row['transform'],self.canvas_size[0]/self.canvas_size[1])
+                        for key,value in (('width',w*sx),('height',h*sy)):
+                            box=inline.fields[key]
+                            if not box.hasFocus():box.blockSignals(True);box.setValue(value);box.blockSignals(False)
+                if not widget.opacity.isSliderDown():
+                    widget.opacity.blockSignals(True);widget.opacity.setValue(round(row['opacity']*100));widget.opacity.blockSignals(False);widget.percent.setText(f"{row['opacity']*100:.0f}%")
                 children(identity,node);node.setExpanded(identity not in self.collapsed);node.setSelected(identity in selected_ids or identity==self.selected and not selected_ids)
                 if identity==self.selected and self.tree.currentItem() is not node:self.tree.setCurrentItem(node,0,QItemSelectionModel.NoUpdate)
         try:
@@ -1317,7 +1432,7 @@ class Layers(QWidget):
             selection=self.selected if self.selected in lookup(prior) else getattr(self,'last_selection',None)
             data=dict(version=4,editor=deepcopy(self.config.get('editor',{})),canvas=self.config.get('canvas'),presentation=self.config['presentation'],layers=deepcopy(self.config['layers']),label=label,selection=self.selected,before_selection=selection,history_scope=scope,history_target=target,**self.binding_args())
             assets=list(self.unsubmitted_assets.values())
-            if assets or self.edit_jobs:
+            if assets or self.edit_jobs or label=='Layer opacity slider':
                 sources=getattr(self,'unsubmitted_sources',{})
                 data.update(raster_assets=assets,raster_sources=list(sources.values()),raster_target=getattr(self,'raster_target',None))
                 job=self.shell.client.submit('composition',**data)
@@ -1367,9 +1482,26 @@ class Layers(QWidget):
         self.numeric_timer.stop();before,self.numeric_before=self.numeric_before,None
         if before is not None:self.commit('Layer '+getattr(self,'numeric_key','value'),before)
     def schedule_preview(self):
+        if self.opacity_gesture:self.opacity_dirty=True
         if not self.syncing and not self.preview_timer.isActive():self.preview_timer.start()
+    def finish_opacity_preview(self):
+        if self.opacity_job is None:return True
+        if not self.opacity_job.done():return False
+        job,self.opacity_job=self.opacity_job,None
+        try:
+            job.result();media=self.shell.client.snapshot['media_control'];self.binding=(media['session'],media['revision']);self.preview_active=True;return True
+        except Exception as exc:
+            self.opacity_dirty=False;self.opacity_gesture=False;self.slider_before=None
+            self.cancel_preview();self.refresh(True);self.status.setText('Opacity preview failed; owner state restored: '+str(exc));return True
     def send_preview(self):
         if self.binding is None:return
+        if self.opacity_gesture:
+            if not self.finish_opacity_preview():self.preview_timer.start(16);return
+            if not self.opacity_dirty:return
+            self.opacity_dirty=False
+            data=dict(version=4,canvas=self.config.get('canvas'),presentation=self.config['presentation'],layers=deepcopy(self.config['layers']),selection=self.selected,**self.binding_args())
+            self.opacity_job=self.shell.client.edits.submit(self.shell.client.request,'composition_preview',**data)
+            self.preview_timer.start(16);return
         try:
             self.shell.client.request('composition_preview',version=4,canvas=self.config.get('canvas'),presentation=self.config['presentation'],layers=deepcopy(self.config['layers']),selection=self.selected,**self.binding_args());self.preview_active=True
             media=self.shell.client.snapshot['media_control'];self.binding=(media['session'],media['revision'])
@@ -1385,12 +1517,15 @@ class Layers(QWidget):
         if row['type']!='Group' and self.canvas:
             bounds=self.canvas.content_bounds(row);c=row['crop'];fw*=(bounds[2]-bounds[0])/(c[2]-c[0]);fh*=(bounds[3]-bounds[1])/(c[3]-c[1])
         return fw*self.canvas_size[0],fh*self.canvas_size[1]
-    def slider_begin(self):self.slider_before=deepcopy(self.config)
+    def slider_begin(self,key=None):
+        self.opacity_timer.stop()
+        if self.slider_before is None:self.slider_before=deepcopy(self.config)
+        self.opacity_gesture=key=='opacity'
     def slider_preview(self,key,value):
         if self.syncing:return
         row=self.selected_row()
         if not row or effective(self.config,row,'locked'):return
-        if self.slider_before is None:self.slider_begin()
+        if self.slider_before is None:self.slider_begin(key)
         self.fields[key].blockSignals(True);self.fields[key].setValue(value/10);self.fields[key].blockSignals(False)
         if key=='opacity':row['opacity']=value/1000
         else:
@@ -1399,8 +1534,15 @@ class Layers(QWidget):
             row['transform']=transform(x,y,s,sy,r,self.canvas_size[0]/self.canvas_size[1])
         if self.canvas:self.canvas.update()
         self.schedule_preview()
-        if not self.sliders[key].isSliderDown():self.slider_commit(key)
+        if not self.sliders[key].isSliderDown():
+            if key=='opacity':self.opacity_timer.start(180)
+            else:self.slider_commit(key)
     def slider_commit(self,key):
+        self.opacity_timer.stop()
+        if self.opacity_gesture:
+            self.preview_timer.stop()
+            if not self.finish_opacity_preview():self.opacity_timer.start(16);return
+            self.opacity_dirty=False;self.opacity_gesture=False
         before,self.slider_before=self.slider_before,None
         if before is not None:self.commit('Layer '+key+' slider',before)
     def change_presentation(self,value):
@@ -1595,7 +1737,11 @@ class Layers(QWidget):
         if item and not item.isSelected():self.tree.setCurrentItem(item)
         row=lookup(self.config).get(item.data(0,Qt.UserRole)) if item else None;menu=QMenu(self)
         for label,callback in (('Copy layer/subtree',self.copy_branch),('Paste layer/subtree',self.paste_branch),('Duplicate layer/subtree',self.duplicate),('Delete layer/subtree',lambda:self.delete(row['id']) if row else self.delete())):menu.addAction(label,callback)
-        if row and row['type'] in ('Image','Artwork','Paint'):menu.addAction('Add inside…',lambda:self.row_add_menu(row['id']))
+        ids=[i.data(0,Qt.UserRole) for i in self.tree.selectedItems()]
+        if row:
+            if not ids:ids=[row['id']]
+            menu.addAction('Save artwork image…',lambda:self.artwork_save.save(ids=ids));menu.addAction('Save artwork image As…',lambda:self.artwork_save.save(True,ids=ids))
+        if row and row['type'] in ('Image','Artwork','Paint'):menu.addAction('Create blank drawing child',lambda:self.blank_child(row['id']))
         if row and row['type'] in ('Video','GIF','Sprite'):menu.addAction('Snapshot current frame',self.snapshot_frame)
         if row:menu.addAction('Relink source…',self.relink_source)
         menu.exec(self.tree.viewport().mapToGlobal(pos))
@@ -1689,7 +1835,7 @@ class Layers(QWidget):
             before=deepcopy(self.config);step=10 if shift else 1;w,h=self.canvas_size;row['transform'][4]+=(-step if key==Qt.Key_Left else step if key==Qt.Key_Right else 0)/w;row['transform'][5]+=(-step if key==Qt.Key_Up else step if key==Qt.Key_Down else 0)/h;self.commit('Nudge layer',before);return True
         return key==Qt.Key_Shift
     def shortcut_reference(self):
-        QMessageBox.information(self,'Editor shortcuts','V Select pixels • M Rectangle • L Lasso • W Magic Wand\nT Transform whole layer • G/R/S move/rotate/scale; Enter accepts, Esc cancels\nB Brush • P Pencil • E Eraser • I Sampler • U visible-artwork Smudge\nF Fill connected region with shared Main • C Crop (Apply crop / Cancel crop)\nCtrl+C Copy pixels • Ctrl+X Cut pixels • Ctrl+V Paste new layer • Delete clears selected pixels\nCtrl+D Deselect • Ctrl+Z Undo editor • Ctrl+Shift+Z / Ctrl+Y Redo editor\nDrag inside pixel selection moves content on the same raster. Pasted layers use Transform handles.\nH Hand • wheel zoom 15% • Ctrl+wheel fine zoom 2% • magnifiers 25% • Space held pan • [ / ] size • digits stroke opacity\nBrush/Pencil left Main, right Secondary; Shift+right menu. Text fields retain ordinary typing/clipboard/Undo.\nLayers context menu provides explicit layer/subtree commands.')
+        QMessageBox.information(self,'Editor shortcuts','V Select pixels • M Rectangle • L Lasso • W Magic Wand\nT Transform whole layer • G/R/S move/rotate/scale; Enter accepts, Esc cancels\nB Brush • P Pencil • E Eraser • I Sampler • U visible-artwork Smudge\nF Fill connected region: left Main / right Secondary • C Crop (Apply crop / Cancel crop)\nCtrl+C Copy pixels • Ctrl+X Cut pixels • Ctrl+V Paste new layer • Delete clears selected pixels\nCtrl+D Deselect • Ctrl+Z Undo editor • Ctrl+Shift+Z / Ctrl+Y Redo editor\nDrag inside pixel selection moves content on the same raster. Pasted layers use Transform handles.\nH Hand • wheel zoom 15% • Ctrl+wheel fine zoom 2% • magnifiers 25% • zoom 2%–25600% (wheel anchored at pointer) • Space held pan • [ / ] size • digits stroke opacity\nBrush/Pencil left Main, right Secondary; Fill/Sampler left Main, right Secondary. No canvas popup. Text fields retain ordinary typing/clipboard/Undo.\nLayers context menu provides explicit layer/subtree commands.')
     def step_order(self,direction):
         row=self.selected_row()
         if not row or not self.editable_target(row):return
@@ -1744,14 +1890,17 @@ class Layers(QWidget):
         from native_raster import NativeImage,backend
         if backend().available and not isinstance(image,NativeImage):
             try:image=backend().storage().from_image(image)
-            except Exception as exc:self.status.setText('Native preparation failed; prior content retained: '+str(exc)[:180]);return False
+            except Exception as exc:self.status.setText('Operation rejected, not saved. Accepted content retained; redraw stroke/repeat action after pressure is relieved: '+str(exc)[:180]);return False
         import os,uuid
         from pathlib import Path
-        if len(self.edit_jobs)>=16:self.status.setText('Completed command queue full; operation not submitted. Retry.');return False
-        if sum(p.size for p in self.runtime_producers.values())+image.sizeInBytes()>128*1024*1024:self.status.setText('GUI snapshot transfer reached 128 MiB; edit not submitted. Wait/retry.');return False
+        if len(self.edit_jobs)>=16:self.status.setText('Completed operation rejected, not saved: GUI command queue full. Redraw stroke/repeat action after commands drain.');return False
         identity=uuid.uuid4().hex;lease=None
         try:
             desc,lease=prepared.take_image() if prepared is not None else snapshot(image)
+            from raster_tiles import unique_bytes
+            retained=[p.desc for p in self.runtime_producers.values() if hasattr(p,'desc')]
+            flat=sum(p.size for p in self.runtime_producers.values() if not hasattr(p,'desc'))
+            if flat+unique_bytes(retained+[desc])>128*1024*1024:raise ValueError('GUI transfer reached 128 MiB; completed stroke rejected, not saved. Redraw after transfers drain.')
             from native_raster import NativeImage
             cached=image if isinstance(image,NativeImage) else image.copy()
             if cached.isNull():raise MemoryError('Cannot allocate the native editor snapshot cache.')
@@ -1772,15 +1921,21 @@ class Layers(QWidget):
         token=(self.binding[0],self.binding[1],deepcopy(target)) if target else None
         self.art_jobs.append((self.binding[0],self.pool.submit(prepare),(provenance,callback),token))
         self.status.setText('Preparing native source pixels…')
-    def blank_child(self):
-        parent=self.selected_row()
-        if parent is None or parent['type']=='Group':
-            return self.blank_layer(True)
+    def blank_child(self,identity=None):
+        if not self.resolve_pending():return
+        parent=lookup(self.config).get(identity or self.selected)
+        if not parent:self.status.setText('Child not created: that parent is unavailable.');return
+        try:self.artwork_parent(parent['id'])
+        except ValueError as exc:self.status.setText(str(exc));return
+        if len(self.config['layers'])>=MAX_LAYERS:self.status.setText('Child not created: 32-layer capacity.');return
+        if parent['type']=='Group':
+            self.selected=parent['id'];return self.blank_layer(True)
         meta=self.metadata(parent);w,h=meta.get('width'),meta.get('height')
-        if not w or not h:self.status.setText('Wait for native source pixels.');return
-        image=QImage(w,h,QImage.Format_ARGB32_Premultiplied);image.fill(0);identity=parent['id'];template=deepcopy(parent)
-        if not self.editable_target(parent):return
-        self.generated(image,'Transparent drawing child of '+parent['name'],lambda asset:self.create_child(dict(asset,name='Drawing'),identity,'Paint',template,prepared=True),parent)
+        if not w or not h:self.status.setText('Child not created: wait for native source dimensions.');return
+        image=QImage(w,h,QImage.Format_ARGB32_Premultiplied)
+        if image.isNull():self.status.setText('Child not created: allocation failed.');return
+        image.fill(0);identity=parent['id'];template=deepcopy(parent)
+        self.generated(image,'Transparent drawing child of '+parent['name'],lambda asset:self.create_child(dict(asset,name='Drawing'),identity,'Paint',template,label='Create blank drawing child',prepared=True),parent)
     def extract_child(self,operation):return self.cut_child(operation,False)
 
     def save_paint(self,stroke,image,prepared=None):
@@ -1992,13 +2147,22 @@ class Layers(QWidget):
     def brush_color(self,color):
         self.main_color=QColor(color)
         for state in self.tool_states.values():state['color']=QColor(color)
-    def receive_sample(self,color):
+    @property
+    def secondary_color(self):return self._secondary_color
+    @secondary_color.setter
+    def secondary_color(self,color):
+        self._secondary_color=QColor(color)
+        for state in self.tool_states.values():state['secondary']=QColor(color)
+    def receive_sample(self,color,secondary=False):
         if color is None or color.alpha()==0:self.status.setText('No visible pixel sampled; drawing colors unchanged.');return
-        self.brush_color=color
-        if hasattr(self,'quick_colors'):self.quick_colors.assignment='main'
-        self.remember_tools();self.sync_tool_ui();self.status.setText('Sampled '+color.name(QColor.HexArgb)+' → shared Main; Secondary and tool settings preserved.')
+        if secondary:self.secondary_color=color
+        else:self.brush_color=color
+        channel='Secondary' if secondary else 'Main'
+        if hasattr(self,'quick_colors'):self.quick_colors.assignment=channel.lower()
+        self.remember_tools();self.sync_tool_ui();self.status.setText('Sampled '+color.name(QColor.HexArgb)+' → shared '+channel+'; artwork unchanged.')
     def remember_tools(self):
         self.shell.preferences['media_main_rgba']=self.main_color.name(QColor.HexArgb)
+        self.shell.preferences['media_secondary_rgba']=self.secondary_color.name(QColor.HexArgb)
         self.shell.preferences['media_tool_settings']={t:dict(brush=dict(v['brush']),color=v['color'].name(QColor.HexArgb),secondary=v['secondary'].name(QColor.HexArgb)) for t,v in self.tool_states.items()}
     def restore_tool_preferences(self):
         for tool,values in self.shell.preferences.get('media_tool_settings',{}).items():
@@ -2011,6 +2175,8 @@ class Layers(QWidget):
                 elif isinstance(value,(int,float)) and math.isfinite(value) and (1<=value<=512 if key=='size' else 0<=value<=1):state['brush'][key]=value
             secondary=QColor(values.get('secondary','#ffffffff'))
             if secondary.isValid():state['secondary']=secondary
+        secondary=QColor(self.shell.preferences.get('media_secondary_rgba',self.tool_states['Brush']['secondary'].name(QColor.HexArgb)))
+        if secondary.isValid():self.secondary_color=secondary
         # Deterministic one-time migration: saved shared Main, otherwise old Brush Main.
         legacy=self.shell.preferences.get('media_tool_settings',{}).get('Brush',{}).get('color','#fff6c490')
         color=QColor(self.shell.preferences.get('media_main_rgba',legacy))
@@ -2110,7 +2276,7 @@ class Layers(QWidget):
                 for key in ids:
                     if key in self.runtime_producers:release(self.runtime_producers.pop(key))
                     self.runtime_assets.pop(key,None)
-                self.status.setText('Owner rejected operation; protected content retained: '+str(exc)[:180])
+                self.status.setText('Completed operation rejected; not saved. Redraw stroke after work drains or Retry succeeds. Accepted content retained: '+str(exc)[:180])
             except Exception as exc:
                 self.status.setText('Unknown owner outcome: '+str(exc)[:160]+' • retain this Studio instance for recovery.')
                 continue
@@ -2131,8 +2297,22 @@ class Layers(QWidget):
                 if session!=self.shell.client.snapshot.get('media_control',{}).get('session'):continue
                 if token and not self.valid_target(*token):self.status.setText('Target/session changed; provisional preparation cancelled.');continue
                 provenance,finish=callback;self.resource_generated(job.result(),provenance,finish,token[2] if token else None)
-            except Exception as exc:self.status.setText('Native preparation failed; prior content retained: '+str(exc)[:180])
+            except Exception as exc:self.status.setText('Operation rejected, not saved. Accepted content retained; redraw stroke/repeat action after pressure is relieved: '+str(exc)[:180])
         raster=self.shell.client.snapshot.get('media_control',{}).get('raster',{})
+        failures=raster.get('failures',{});pending=raster.get('pending',0)
+        if failures:
+            message=next(iter(failures.values()))
+            text=('Accepted artwork is not saved. Retry saving or Save As. '+message)
+        elif pending:text=f'Accepted artwork is waiting to save: {pending} writes pending.'
+        else:text='No artwork writes pending. Save session to preserve current edits.'
+        self.persistence_status.setText(text)
+        store=raster.get('stores',{}).get(raster.get('working_store'),{})
+        free=store.get('physical_free_bytes');reserve=store.get('reserved_bytes',0);headroom=store.get('headroom_bytes',0)
+        if free is not None and free-reserve<=headroom and not failures:
+            self.persistence_status.setText('Destination space is below checkpoint headroom; new writes may fail. Accepted pixels remain in this editor.')
+        detail=raster.get('working_store','')
+        if store:detail+=f"\nPNG bytes: {store['bytes']:,}; reservations: {reserve:,}; free: {format(free,',') if free is not None else 'unavailable'}; headroom: {headroom:,}; optional budget: {store.get('optional_budget_bytes') or 'none'}; protected legacy: {store.get('protected_legacy_bytes',0):,}"
+        self.persistence_status.setToolTip(detail)
         request=getattr(self.shell,'requested_save',None)
         if request:
             outcome=next((s for s in raster.get('saves',[]) if s['id']==request[0]),None)
@@ -2144,9 +2324,25 @@ class Layers(QWidget):
                 self.shell.requested_save=None
                 newer=json.dumps(self.shell.owner.values(),sort_keys=True)!=request[1]
                 self.shell.statusBar().showMessage('Saved revision '+str(outcome['revision'])+('; current work remains unsaved.' if newer or not same_session or not verified else '.'))
+            elif outcome and outcome['status']=='cancelled':
+                self.shell.requested_save=None;self.shell.statusBar().showMessage('Save cancelled; accepted content remains in this open editor.')
             elif outcome and outcome['status']=='failed':
                 self.shell.requested_save=None;self.shell.statusBar().showMessage('Save failed; prior session and accepted content retained. Save As to recover: '+outcome['error'])
-        if raster.get('failures'):self.status.setText('Accepted pixels retained, PNG not durable. Retry saving or Save As/recovery export. '+next(iter(raster['failures'].values())))
+        if raster.get('failures'):self.status.routine('Accepted pixels retained, PNG not durable. Retry saving or Save As/recovery export. '+next(iter(raster['failures'].values())))
+        if self.retry_watch:
+            if self.retry_watch['session']!=self.binding[0]:self.retry_watch=None
+            else:
+                pending=raster.get('pending',0);waiting=raster.get('retry_waiting',0);saves=raster.get('saves',[])
+                save_pending=sum(s['status']=='pending' for s in saves);failed=raster.get('failures',{});save_failed=next((s['error'] for s in reversed(saves) if s['status']=='failed'),'')
+                state=(pending,waiting,save_pending,len(failed),save_failed)
+                if state!=self.retry_watch['state']:
+                    self.retry_watch['state']=state
+                    if pending or waiting or save_pending:self.status.setText(f'Retry in progress: {pending} PNG jobs, {waiting} waiting, {save_pending} pinned saves. Accepted pixels retained; rejected strokes must be redrawn.')
+                    elif failed or save_failed:
+                        self.status.setText('Retry finished with failed writes; accepted pixels/history remain unsaved and retained. Correct the destination or use Save As, then Retry. Rejected strokes must be redrawn. '+(next(iter(failed.values())) if failed else save_failed));self.retry_watch=None
+                    else:
+                        self.status.setText('Retry finished: accepted raster dependencies secured; check the requested save revision separately. Rejected strokes remain unsaved and must be redrawn.');self.retry_watch=None
+
         from media_registry import normalized
         library=self.shell.client.snapshot.get('media_library',{});assets=library.get('assets',[]);pending=library.get('pending',[])
         for drop in list(self.drops):
@@ -2245,7 +2441,8 @@ class Layers(QWidget):
         from raster_resources import release
         for lease in self.runtime_producers.values():release(lease)
         self.runtime_producers.clear()
-        self.cancel_preview();self.timer.stop();self.preview_timer.stop();self.numeric_timer.stop();self.web_sources.close();self.reader.close();self.pool.shutdown(wait=False,cancel_futures=True)
+        if hasattr(self,'artwork_save'):self.artwork_save.close()
+        self.opacity_timer.stop();self.cancel_preview();self.timer.stop();self.preview_timer.stop();self.numeric_timer.stop();self.web_sources.close();self.reader.close();self.pool.shutdown(wait=False,cancel_futures=True)
         if hasattr(self,'selection_controls'):self.selection_controls.cancel();self.selection_controls.timer.stop()
         if self.canvas and hasattr(self.canvas,'sample_timer'):self.canvas.sample_timer.stop()
         for palette in self.palettes:palette.close()
