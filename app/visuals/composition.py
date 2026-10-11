@@ -36,7 +36,7 @@ def new_layer(kind='Image',asset=None,name=None):
     return dict(id=uuid.uuid4().hex,type=kind,asset=asset,name=name or kind,parent=None,order=0,
         enabled=True,locked=False,opacity=1.,fit='Fit',transform=IDENTITY.copy(),aspect_lock=True,
         flip_x=False,flip_y=False,crop=[0.,0.,1.,1.],masks=[],blend='Normal',blend_strength=1.,source_visible=True,cut_alignment=None,
-        media=dict(rate=1.,loop='None',start=0.,end=None,columns=1,rows=1,first=0,last=0,fps=12.),
+        media=dict(rate=1.,direction=1,loop='None',start=0.,end=None,columns=1,rows=1,first=0,last=0,fps=12.),
         web=dict(url='',width=1280,height=720,cadence=15.,transparent=True,offline='Retain last'),model=dict(yaw=0.,pitch=0.,roll=0.))
 def validate_scene(data):
     from media_registry import reference,normalized
@@ -126,6 +126,8 @@ def validate_scene(data):
         media=row['media']
         if not isinstance(media,dict) or media.get('loop') not in ('None','Loop','Ping-pong'):raise ValueError('Invalid animation settings.')
         media['rate']=number(media.get('rate'),.1,12.,'playback rate');media['start']=number(media.get('start'),0.,86400.,'in point')
+        media.setdefault('direction',1)
+        if type(media['direction']) is not int or media['direction'] not in (-1,1):raise ValueError('Playback direction must be Forward or Reverse; rate is a positive magnitude.')
         if media.get('end') is not None:
             media['end']=number(media['end'],media['start']+.001,86400.,'out point')
         for key,hi in (('columns',64),('rows',64),('first',4095),('last',4095)):

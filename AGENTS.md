@@ -1,6 +1,17 @@
 # ZeraWave engineering and creative working agreement
 
-Version: 1.7 - 2026-10-10 (accepted finishing checkpoint; scoped B3 media handoff)
+## October 11 accepted B3 development checkpoint
+
+Robert accepted the verified B3 correction candidate and authorized publication.
+See the [current handoff](ZERAWAVE_HANDOFF.md#october-11-accepted-b3-development-checkpoint)
+and [publication receipt](work/publication-b3-accepted-20261011/review-index.json).
+Timing remains PARTIAL, one fallback switch timeout is unresolved, and scripted
+physical drag evidence remains unverified. Video Save writing stays OPEN; this
+checkpoint neither approves its proposal nor closes B3 or dispatches later work.
+Dated reports retain their task-time status and measurements.
+
+
+Version: 1.8 - 2026-10-11 (accepted B3 development checkpoint; closure limits retained)
 Project: ZeraWave
 Root: `C:\ZeraWave`
 
@@ -45,7 +56,8 @@ and the GPU renderer. B1/B2 and finishing corrections are implemented in the
 accepted/pushed `f3d414be7ee380a38865c3579c057597dbb5fb06` checkpoint; older broad
 product/capacity and unrun conditions retain their limits. B1 added no C++; B2
 adds the small C++ tiled resource/history core and incremental compositing.
-B3 media foundation is approved next, not implemented or automatically dispatched.
+B3 media foundation has an implemented, accepted development candidate; its
+Video Save/timing limits remain open. Publication automatically dispatches nothing.
 Its bounded native exception is described in section 20. Approval is not a
 wholesale rewrite or renderer/engine replacement. Native stage/toolchain details
 and dependencies outside assigned scope still need a concrete brief and any
@@ -403,9 +415,10 @@ actual evidence; retain B1's documented limits until separately resolved.
 
 ## 20. B3 media-foundation agreement and manual prerequisite
 
-B3 is approved next scope, not implemented. The sole Builder must first read and
-verify the Overseer's [reconciliation receipt](work/docs-b3-reconciliation-20261010/READINESS.md)
-and written [B3 scope/matrix](ROADMAP.md#b3--bounded-media-foundation). Preparation
+B3 has an implemented, accepted development candidate, with Video Save/timing
+limits retained. The original [reconciliation receipt](work/docs-b3-reconciliation-20261010/READINESS.md)
+and [B3 scope/matrix](ROADMAP.md#b3--bounded-media-foundation) remain historical
+prerequisite/preservation records. Rebind current source before further assigned work. Preparation
 and publication do not grant dispatch authority. Follow the manual Prompter →
 Overseer → Builder route; no automatic worker/critic/follow-on assignment.
 

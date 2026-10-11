@@ -1,5 +1,16 @@
 # ZeraWave Visual Identity
 
+## October 11 accepted B3 development checkpoint
+
+Robert accepted the verified B3 correction candidate and authorized publication.
+See the [current handoff](ZERAWAVE_HANDOFF.md#october-11-accepted-b3-development-checkpoint)
+and [publication receipt](work/publication-b3-accepted-20261011/review-index.json).
+Timing remains PARTIAL, one fallback switch timeout is unresolved, and scripted
+physical drag evidence remains unverified. Video Save writing stays OPEN; this
+checkpoint neither approves its proposal nor closes B3 or dispatches later work.
+Dated reports retain their task-time status and measurements.
+
+
 Creative direction clarified 2026-10-01; player presentation direction reconciled 2026-10-02. The principles below describe the visual
 ambition; implementation status and priorities live in [ROADMAP.md](ROADMAP.md).
 
@@ -33,7 +44,8 @@ development checkpoint, with older product/capacity and unrun limits retained.
 B1 introduced no C++; B2 implements tiled C++ resources, copy-on-write history and
 incremental compositing while preserving B1 behavior. This supports expressive
 hands-on authoring; it does not certify every editing case or mean future
-export/simulation/product tools exist. B3 media work is approved next, not implemented. A wholesale rewrite or engine switch remains a separate proposal.
+export/simulation/product tools exist. B3 media foundation has an accepted implemented development candidate; Video Save
+and timing limits remain open. A wholesale rewrite or engine switch remains a separate proposal.
 ZeraphinaX grows through useful reuse; [ROADMAP](ROADMAP.md) owns the staged plan. Offline claims require
 implemented/available/downloaded resources; online AI optional. Pricing/semantic
 capabilities remain hypotheses, not current features or authorized commerce.

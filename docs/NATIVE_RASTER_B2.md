@@ -1,5 +1,16 @@
 # B2 native tiled raster and renderer-owned editor candidate
 
+## October 11 accepted B3 development checkpoint
+
+Robert accepted the verified B3 correction candidate and authorized publication.
+See the [current handoff](../ZERAWAVE_HANDOFF.md#october-11-accepted-b3-development-checkpoint)
+and [publication receipt](../work/publication-b3-accepted-20261011/review-index.json).
+Timing remains PARTIAL, one fallback switch timeout is unresolved, and scripted
+physical drag evidence remains unverified. Video Save writing stays OPEN; this
+checkpoint neither approves its proposal nor closes B3 or dispatches later work.
+Dated reports retain their task-time status and measurements.
+
+
 B2 is implemented as the optional experimental raster backend in the accepted
 finishing development checkpoint below; this is not a consumer release. Generated
 DLLs remain local, with source/build instructions and a compatible B1 fallback.
@@ -19,7 +30,7 @@ Smudge/encoder tails, overload/rejected-stroke redraw, owner-process-death limit
 unsupported media and broad/physical/multi-hour unrun cases remain explicit.
 Native ABI1/128px/x64 and generated DLL remain unchanged; no B3 build has shipped.
 
-B3 is approved next, not implemented. [ROADMAP B3](../ROADMAP.md#b3--bounded-media-foundation)
+B3 has an accepted implemented media candidate, with Video Save open and timing partial. [ROADMAP B3](../ROADMAP.md#b3--bounded-media-foundation)
 owns its increments and matrix. Preserve existing Qt/Python authoring/control,
 renderer/audio ownership, original pixels/rates/ranges/loops, B1 transactions,
 Undo/Redo, image/session Save/recovery and normal close. Planned media scheduling
@@ -402,7 +413,7 @@ guarantee or Robert acceptance.
 ## Pass 1: sustainable working storage and normal shutdown — 2026-10-09
 
 This implemented Pass 1 is included in the accepted finishing checkpoint. Capacity
-Passes 2–4 remain separate; B3 is approved next, not implemented. Native ABI 1, the loaded
+Passes 2–4 remain separate; B3 has an accepted implemented media candidate, with Video Save open and timing partial. Native ABI 1, the loaded
 DLL, session version 5/composition version 4 and intended source pixels are unchanged.
 
 `artwork_store.py` uses bundled SQLite to index PNG bytes, distinct payloads,

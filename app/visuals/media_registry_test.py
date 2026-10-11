@@ -47,7 +47,7 @@ def run():
         audio=folder/'short.wav'
         with wave.open(str(audio),'wb') as f:f.setnchannels(1);f.setsampwidth(2);f.setframerate(48000);f.writeframes(b'\0\0'*4096)
         import shutil
-        video=folder/'reference.mp4';shutil.copyfile(Path(__file__).resolve().parents[2]/'images n vids/Xeraphina_video.mp4',video)
+        video=folder/'reference.mp4';shutil.copyfile(Path(__file__).resolve().parents[2]/'videos/Xeraphina_video.mp4',video)
         registry=MediaRegistry(folder/'library.json')
         try:
             wait(registry,lambda:not registry.loading)

@@ -1,17 +1,41 @@
 # ZeraWave development plan
 
-Updated: 2026-10-10 (accepted/pushed finishing checkpoint; B3 media foundation next).
+## October 11 accepted B3 development checkpoint
+
+Robert reviewed and accepted the B3 correction candidate and authorized commit,
+normal push and Page reconciliation. The verified 239-file app bundle is
+`4a6ba5f8c10f0403b7be726a527190608309529c99a5e6cc6f8eb6ff140132a7`,
+on parent `9c14a349e351d3e56dbf11e24ac28dba00bc5dff`. The
+[publication receipt](work/publication-b3-accepted-20261011/review-index.json)
+records the exact published identity; [latest actual results](work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md)
+retain failed/unrun checks. This current acceptance supersedes task-time
+uncommitted/pending and pre-implementation wording below, not historical evidence.
+
+Timing remains PARTIAL: primary fairness improved 348.93 → 117.50 ms, but stalls
+reached 1684.55 ms and one fallback source-switch timeout remains unexplained.
+The scripted physical Windows drag-acceptance gap is retained; Robert's acceptance
+is his reported review, not a newly captured physical-input/scanout test.
+**Video Save writing remains OPEN**, with its [manual scope proposal](work/b3-remaining-20261011-1791735342975863300/VIDEO_SAVE_PROPOSAL.md)
+not approved or implemented by publication. Session Save and current-frame image
+Save remain separate. B3 stage closure is not declared by this checkpoint.
+After finishing B3, assess the whole existing product (worlds, Visualizer, audio
+and all older systems), then complete appropriate migration before unrelated
+expansion. Capacity Passes 2–4, higher counts and storage-location/relocation
+remain separate commitments. No next-stage dispatch, install or release build.
+
+
+Updated: 2026-10-11 (B3 development candidate accepted for publication; Video Save open, timing partial).
 This is the sole prioritized plan. The user's latest assignment sets scope;
 code establishes implementation and user review establishes artistic acceptance.
 Historical plans remain in [history](docs/history/README.md). The accepted visual
 baseline is 2bcb03f; the player checkpoint builds on that baseline.
 
-## Current October 10 checkpoint
+## Current checkpoint and October 10 finishing history
 
 Robert accepted the finishing development checkpoint and it is committed/pushed at
 [`f3d414be7ee380a38865c3579c057597dbb5fb06`](https://github.com/realRMars/ZeraWave/commit/f3d414be7ee380a38865c3579c057597dbb5fb06).
-Fresh local verification for this handoff finds `main`, HEAD and local `origin/main`
-at that identity, with an empty index. The [publication receipt](work/publication-raster-recovery-20261010/review-index.json)
+October 10 verification found `main`, HEAD and local `origin/main`
+at that historical finishing identity, with an empty index. The [publication receipt](work/publication-raster-recovery-20261010/review-index.json)
 records the successful remote verification; this documentation pass does not repeat
 network verification. Newer unrelated color/startup/plan notes, research/planning
 folders and original media remain local and preserved.
@@ -29,9 +53,9 @@ real overload, rejected strokes requiring redraw, unknown-owner recovery limits,
 unsupported media and unverified broad/physical/Visualizer/multi-hour conditions
 remain. It does not certify every older editor, product or capacity case.
 
-**B3 media foundation is the next scoped implementation stage**, approved but not
-implemented. Documentation readiness does not dispatch Builder. The sole Builder
-must verify the manual reconciliation receipt and actual guidance before coding.
+B3 media foundation is implemented in the accepted development candidate above.
+Video Save and timing limits remain open; the requirements below are preservation
+and unresolved-case review contracts, not a new coding or assessment dispatch.
 Capacity Passes 2–4, metadata/protocol scaling, higher Library/layer counts, storage
 location/relocation controls and deeper stress remain separate, not cancelled or
 completed by B3. New Session and unrelated expansion remain outside this stage.
@@ -208,7 +232,9 @@ redesign are outside B3. This reconciliation dispatches no Builder or critic.
 
 ### B3 — bounded media foundation
 
-**Approved next scope; not implemented.** Outcome: animated sources receive fair,
+**Implemented candidate, accepted October 11; timing PARTIAL and Video Save OPEN.**
+The scope below records the original B3 contract and remaining acceptance criteria;
+it does not claim every workload passes. Outcome: animated sources receive fair,
 bounded decoding service; obsolete work cannot publish; forward/reverse caches
 anticipate requested time; editor/output present timestamp-correct frames with
 explicit resource and upload ownership. Build through the practical increments
@@ -494,9 +520,10 @@ code/assets without rights review.
 
 ## Working checkpoint
 
-- Current accepted/pushed `main`: `f3d414be7ee380a38865c3579c057597dbb5fb06`.
+- Earlier accepted/pushed finishing checkpoint: `f3d414be7ee380a38865c3579c057597dbb5fb06`.
   Local branch/HEAD/`origin/main` verified October 10; the [publication receipt](work/publication-raster-recovery-20261010/review-index.json)
-  records exact source/remote identity. B3 is approved next, not implemented.
+  records that earlier source/remote identity. B3 is implemented in the accepted
+  October 11 development candidate above; closure remains open.
 - Earlier recovery `0fb4c3f` and visual baseline `2bcb03f` remain historical;
   Main30/Galaxy and player acceptance stand. Finishing acceptance retains older
   product/capacity and unrun physical/Visualizer/multi-hour limits.

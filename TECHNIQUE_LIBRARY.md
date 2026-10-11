@@ -1,5 +1,16 @@
 # ZeraWave technique map
 
+## October 11 accepted B3 development checkpoint
+
+Robert accepted the verified B3 correction candidate and authorized publication.
+See the [current handoff](ZERAWAVE_HANDOFF.md#october-11-accepted-b3-development-checkpoint)
+and [publication receipt](work/publication-b3-accepted-20261011/review-index.json).
+Timing remains PARTIAL, one fallback switch timeout is unresolved, and scripted
+physical drag evidence remains unverified. Video Save writing stays OPEN; this
+checkpoint neither approves its proposal nor closes B3 or dispatches later work.
+Dated reports retain their task-time status and measurements.
+
+
 This document maps current code ownership and reuse boundaries. It is not a
 backlog; see [ROADMAP.md](ROADMAP.md) for priorities.
 
@@ -13,7 +24,8 @@ backlog; see [ROADMAP.md](ROADMAP.md) for priorities.
 | `artwork.py`, `media_registry.py`, `artwork_store.py`, `artwork_export.py` | Raster algorithms/import validation, bounded working storage and ordinary image export; B1 pixel acceptance/output precedes PNG durability. |
 | `native_raster.py`, `raster_tiles.py` | Optional B2 C ABI adapter, immutable 128px tiles/copy-on-write history and exact kernels; compatible B1 fallback. |
 | `image_layers.py`, `renderer.py` | Existing context-owned GPU composition/output; no second world renderer. |
-| `media_frames.py`, `model_layer.py` | Bounded silent native codec frames and supported static meshes. |
+| `media_frames.py`, `model_layer.py` | One media service with four bounded codec lanes, timestamp planes/prefetch and generation-bound shared publication; supported static meshes. |
+| `media_transfer.py`, `native/media/transfer.cpp` | Optional stateless x64 ABI-1 full-frame Qt copy/flip/channel transfer, exact Qt fallback; no codec, retained pointer, GL or audio ownership. |
 
 Approved direction retains Qt/Python authoring/control and GPU rendering. B1,
 B2 and finishing corrections are implemented in the accepted/pushed checkpoint
@@ -24,17 +36,20 @@ PNG durability; B2's optional C++ store/projection stays behind those interfaces
 Dated [B1](docs/agent-notes/b1-raster-20261008.md)/[B2](docs/agent-notes/b2-tiles-20261008.md)
 results retain historical status/measurements, not fresh performance certification.
 
-B3 media foundation is approved next, **not implemented**. Current `media_frames.py`
-still owns serial silent decode/conversion/shared publication; registry/control
-request policy, copying FrameReader consumption in Qt and `image_layers.py` GL
-uploads remain current paths. Planned B3 repairs fair per-source scheduling,
-generation/time/direction invalidation, bounded timestamp prefetch and leased
-transfer ownership. Codec/container access stays under one accountable service;
-Qt consumes immutable snapshots and the existing GL-context owner uploads/releases.
-No speculative C++ media module is registered here as shipped. Native media hot
-paths require measured justification, narrow batched boundaries and working visible
-fallback; independent audio ownership/B1 saves are preserved. See [B3 scope](ROADMAP.md#b3--bounded-media-foundation)
-and [media contract](docs/STUDIO_MEDIA_COMPOSITION.md#b3-media-boundary--approved-not-implemented).
+B3 now has an **implemented development candidate accepted by Robert**;
+its published identity and remaining limits are recorded above. `media_frames.py` retains one accountable service: four
+fixed single-owner codec lanes, one active/one latest pending request per lane,
+a paced scheduler, connected cancellation, timestamp-direction prefetch and
+current-clock selection. Under pressure, a closer valid-source cached floor
+(nearest for ping-pong) can be presented only as explicitly held/waiting with lag;
+paused/seek demands stay exact. Old-generation success/error cannot publish.
+The 96 MiB plane-cache and 128 MiB shared-slot caps are unchanged. Qt owns native
+editor images; `image_layers.py` owns active/inactive GL uploads and releases.
+The small measured C++ copy adapter is optional and selected only at process open.
+See [B3 native setup](docs/NATIVE_MEDIA_B3.md), [candidate contract](docs/STUDIO_MEDIA_COMPOSITION.md#b3-builder-candidate--2026-10-10)
+and [actual results](docs/agent-notes/b3-media-20261010.md), including failed trials,
+large-clip high-rate stalls and unrun physical/whole-Visualizer/multi-hour checks.
+The approved [B3 scope](ROADMAP.md#b3--bounded-media-foundation) remains the plan.
 
 After B3, the whole-existing-product gap assessment covers worlds, Visualizer,
 audio and all older systems, deciding C++/Python/GPU work before remaining migration
@@ -443,3 +458,42 @@ performance or broad product certificate. Latency, memory, failures and limits a
 `docs/agent-notes/b2-tiles-20261008.md` and `work/b2-completion-20261008`.
 Build, ABI, resource bounds and secured fallback are in the
 [B2 implementation contract](docs/NATIVE_RASTER_B2.md).
+
+
+### B3 finishing ownership — 2026-10-10
+
+`studio_video.py` owns selected Video widgets and one outstanding/latest pending
+intent over the existing ordered client. It reuses the existing sidebar and
+authoritative media settings; it creates no color authority or decoder. Frame
+navigation and positive-magnitude/direction clocks stay in `media_frames.py`;
+actual adjacent PTS remain bounded to the native cache/refill. Compatible old
+settings default Forward. `layer_ordering.py` owns sibling/explicit-parent policy;
+Qt drop geometry and feedback stay in `studio_composition.py`, accepted structural
+history in ControlOwner. Existing `artwork_save_ui.py` keeps still-image writing;
+Video Save is OPEN pending a separate approved writer addition. Native copy ABI,
+renderer, audio and caps are unchanged. Current results/limits are linked from
+the [B3 note](docs/agent-notes/b3-media-20261010.md), not acceptance or dispatch.
+
+
+### B3 bounded demand service — 2026-10-11
+
+`media_frames.py` retains the same four codec lanes, native planes, transfer,
+generation guards, budgets and existing renderer. Active playback demand refill
+uses the decoder's relative service allowance, preserving iterator progress and
+cumulative work bounds. One guarded native decode call prevents starvation after
+a slow seek; cancellation still wins. Exact paused/final selection is unchanged.
+No new codec/native engine, dependency, reduced pixels or slower requested clock.
+Measured AUTO threading is retained; alternatives and failed trials are in
+[this source-bound report](work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md). Existing Video widgets,
+shared color authority, layer ordering, raster history/save and independent audio
+keep their owners. Video writing remains OPEN; the corrected own-layer proposal
+keeps applicable ancestor effects from the existing image compositor.
+
+Playback may also retire a forward refill goal made obsolete by a newer display
+demand more than two source seconds ahead. It resynchronizes on its existing
+lane to the current keyframe; decoded cache planes and published/copied readers
+keep their ownership. Fixed-timestamp seeks and ordinary prefetch keep the
+512-frame/two-second cumulative work protection. No larger cache, altered clock,
+reduced source pixels or discarded accepted artwork is involved. Natural
+full-range 6×/12× trials and remaining stalls are bound in the
+[current results](work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md).

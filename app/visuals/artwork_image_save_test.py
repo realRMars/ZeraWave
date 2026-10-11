@@ -66,5 +66,16 @@ def run(out):
         except ValueError:pass
         setattr(editor,flag,None if flag=='pending_paint' else [])
     checks.append('pending/unknown/previews refused')
+    # Own-image capture retains ancestor isolation and Group masks; the video
+    # scope proposal must preserve this existing contract rather than omit it.
+    group=new_layer('Group',name='Ancestor scope');group['opacity']=.5;group['order']=20;scene['layers'].append(group);parent['parent']=group['id']
+    ancestor_pin=capture(editor,'own',[parent['id']]);assert {r['id'] for r in ancestor_pin['canvas'].editor.config['layers']}=={group['id'],parent['id']}
+    assert set(ancestor_pin['canvas'].editor.images)=={parent['id']}
+    inherited=compose(ancestor_pin);a=np.frombuffer(inherited.constBits(),np.uint8).reshape(inherited.height(),inherited.bytesPerLine())[:,3::4];assert a.max()>0
+    group['opacity']=1.;opaque=compose(capture(editor,'own',[parent['id']]));full_alpha=np.frombuffer(opaque.constBits(),np.uint8).reshape(opaque.height(),opaque.bytesPerLine())[:,3::4];assert full_alpha.sum()>a.sum()
+    group['masks']=[dict(shape='Rectangle',points=[[0,0],[.5,0],[.5,1],[0,1]],mode='Keep',enabled=True)]
+    clipped_pin=capture(editor,'own',[parent['id']]);clipped=compose(clipped_pin);clipped_alpha=np.frombuffer(clipped.constBits(),np.uint8).reshape(clipped.height(),clipped.bytesPerLine())[:,3::4]
+    assert 0<clipped_alpha.sum()<full_alpha.sum() and clipped_pin['bounds']==ancestor_pin['bounds']
+    checks.append('Own scope excludes descendants and ancestor source pixels, retains inherited isolation/Group masking and fixed geometric bounds')
     (out/'result.json').write_text(json.dumps(dict(checks=checks,native=backend().status(),format_results=result),indent=2),'utf8');print('passed',len(checks),checks,flush=True)
 if __name__=='__main__':run(Path(sys.argv[1]).resolve())

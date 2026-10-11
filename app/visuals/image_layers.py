@@ -68,7 +68,7 @@ class ImageLayers:
         self.config=None;self.desired=None;self.revision=-1;self.session=None;self.applied=-1;self.error='';self.pending=False
         self.condition=threading.Condition();self.task=None;self.result=None;self.cancel=None;self.closed=False;self.generation=0
         self.worker=threading.Thread(target=self.decode,name='Renderer still-image decode',daemon=True);self.worker.start()
-        self.frames=FrameReader();self.animated={};self.runtime={};self.buffers={};self.masks={};self.upload_ms=0.;self.target_size=None
+        self.frames=FrameReader();self.animated={};self.animated_spares={};self.animated_bindings={};self.animated_errors={};self.animated_presented={};self.upload_staging_bytes=0;self.peak_upload_staging_bytes=0;self.runtime={};self.buffers={};self.masks={};self.upload_ms=0.;self.target_size=None
     def request(self,config,revision,session):
         if type(revision) is not int or revision<0 or not isinstance(session,str) or not session or len(session)>64:raise ValueError('Invalid image-layer revision/session.')
         if self.closed:return
@@ -138,8 +138,7 @@ class ImageLayers:
             self.generation+=1;self.task=self.result=None;self.pending=False
         self.session=session;self.revision=revision;self.desired=None
         self.runtime={};self.frames.close()
-        for texture in self.animated.values():texture.release()
-        self.animated.clear()
+        for identity in list(self.animated):self.drop_animation(identity)
     def poll(self):
         with self.condition:result,self.result=self.result,None
         if result is None or result[0]!=self.generation:return
@@ -262,6 +261,11 @@ class ImageLayers:
         a=np.frombuffer(alpha.constBits(),np.uint8).reshape(size[1],alpha.bytesPerLine())[:,3::4].copy()[::-1]
         texture=self.ctx.texture(size,1,a.tobytes(),alignment=1);texture.filter=(moderngl.LINEAR,moderngl.LINEAR);texture.repeat_x=texture.repeat_y=False
         return texture
+    def drop_animation(self,identity):
+        for table in (self.animated,self.animated_spares):
+            texture=table.pop(identity,None)
+            if texture is not None:texture.release()
+        self.animated_bindings.pop(identity,None);self.animated_presented.pop(identity,None);self.animated_errors.pop(identity,None)
     def draw(self,size):
         self.target_size=tuple(size)
         self.upload_ms=0.
@@ -269,32 +273,50 @@ class ImageLayers:
         if self.config is None:return
         if self.config['presentation']=='World only':
             self.frames.close()
-            for texture in self.animated.values():texture.release()
-            self.animated.clear();return
+            for identity in list(self.animated):self.drop_animation(identity)
+            return
         from time import perf_counter
         names=set()
-        for identity,state in self.runtime.items():
+        wanted={r['id']:r for r in self.config['layers'] if r['type'] in ('Video','GIF','Sprite','Web') and effective(self.config,r,'enabled')}
+        for identity,row in wanted.items():
+            state=self.runtime.get(identity,{})
             descriptor=state.get('frame')
             if not descriptor:
-                row=next((r for r in self.config['layers'] if r['id']==identity),None)
-                if row and row['type']=='Web' and row['web']['offline']=='Hide' and identity in self.animated:self.animated.pop(identity).release()
+                # Web retains its explicit offline-last-good policy. Animated
+                # media never displays a removed/replaced/old-generation image.
+                if row['type']!='Web' or row['web']['offline']=='Hide':self.drop_animation(identity)
                 continue
-            names.add(descriptor['name'])
+            binding=(descriptor['name'],descriptor['generation'])
+            if self.animated_bindings.get(identity) not in (None,binding):self.drop_animation(identity)
+            self.animated_bindings[identity]=binding;names.add(descriptor['name'])
+            candidate=None
             try:
                 frame=self.frames.read(descriptor)
                 if frame:
                     began=perf_counter();old=self.animated.get(identity);dimensions=(frame['width'],frame['height'])
-                    if old is not None and old.size==dimensions:old.write(frame['data'],alignment=1)
-                    else:
-                        texture=self.ctx.texture(dimensions,4,frame['data'],alignment=1);texture.filter=(moderngl.LINEAR,moderngl.LINEAR);texture.repeat_x=texture.repeat_y=False
-                        self.animated[identity]=texture
-                        if old is not None:old.release()
+                    self.upload_staging_bytes=len(frame['data']);self.peak_upload_staging_bytes=max(self.peak_upload_staging_bytes,self.upload_staging_bytes)
+                    candidate=self.animated_spares.pop(identity,None)
+                    if candidate is not None and candidate.size!=dimensions:candidate.release();candidate=None
+                    if candidate is None:
+                        resident=sum(getattr(t,'byte_size',t.width*t.height*4) for t in self.textures.values())+sum(t.width*t.height*4 for t in list(self.animated.values())+list(self.animated_spares.values()))
+                        if resident+len(frame['data'])>256*1024*1024:raise ValueError('Animated GPU residency/replacement exceeds 256 MiB; valid previous texture retained.')
+                        candidate=self.ctx.texture(dimensions,4,frame['data'],alignment=1);candidate.filter=(moderngl.LINEAR,moderngl.LINEAR);candidate.repeat_x=candidate.repeat_y=False
+                    else:candidate.write(frame['data'],alignment=1)
+                    # Commit only a fully uploaded inactive texture. Failure
+                    # cannot corrupt the active last-good texture.
+                    self.animated[identity]=candidate;candidate=None
+                    if old is not None:self.animated_spares[identity]=old
                     self.upload_ms=(perf_counter()-began)*1000
-            except Exception as exc:self.error='Frame upload: '+str(exc)[:180]
+                    self.animated_presented[identity]=dict(pts=frame['pts'],sequence=frame['sequence'],generation=frame.get('generation',descriptor['generation']),uploaded_at=perf_counter(),upload_ms=self.upload_ms)
+                    self.animated_errors.pop(identity,None)
+            except Exception as exc:
+                if candidate is not None:candidate.release()
+                self.frames.last.pop(descriptor['name'],None) # retry this immutable publication
+                self.animated_errors[identity]='Frame upload: '+str(exc)[:180]
+            finally:self.upload_staging_bytes=0
         self.frames.retain(names)
-        wanted={r['id'] for r in self.config['layers'] if r['type'] in ('Video','GIF','Sprite','Web') and effective(self.config,r,'enabled')}
-        for identity in list(self.animated):
-            if identity not in wanted:self.animated.pop(identity).release()
+        for identity in list(self.animated_bindings):
+            if identity not in wanted:self.drop_animation(identity)
         if not self.textures and not self.animated:return
         if self.program is None:
             self.program=self.ctx.program(vertex_shader=FULL_VERTEX,fragment_shader=FRAGMENT);self.vao=self.ctx.simple_vertex_array(self.program,self.vertices,'in_position')
@@ -334,7 +356,7 @@ class ImageLayers:
             raw.blend_func=(moderngl.SRC_ALPHA,moderngl.ONE_MINUS_SRC_ALPHA)
             raw.viewport=saved_viewport
     def snapshot(self):
-        return dict(tile_upload=dict(self.tile_upload),session=self.session,revision=self.revision,applied_revision=self.applied,pending=self.pending,error=self.error,
+        return dict(tile_upload=dict(self.tile_upload),session=self.session,revision=self.revision,applied_revision=self.applied,pending=self.pending,error=self.error or '; '.join(list(self.animated_errors.values())+[v['error'] for v in self.runtime.values() if v.get('error')]),animated_states={k:dict(state=v.get('state'),held=v.get('held'),lag_seconds=v.get('lag_seconds'),error=v.get('error')) for k,v in self.runtime.items()},frame_reader=self.frames.snapshot(),animated_presented=dict(self.animated_presented),animated_upload_staging_bytes=self.upload_staging_bytes,peak_animated_upload_staging_bytes=self.peak_upload_staging_bytes,animated_spare_bytes=sum(t.width*t.height*4 for t in self.animated_spares.values()),
             textures=len(self.textures),texture_bytes=sum(getattr(t,'byte_size',t.width*t.height*4) for t in self.textures.values()),
             resident=[list(key) for key in self.textures],
             animated_textures=len(self.animated),animated_texture_bytes=sum(t.width*t.height*4 for t in self.animated.values()),mask_texture_bytes=sum(t.width*t.height for k,t in self.masks.values()),upload_ms=self.upload_ms,composition_target_bytes=sum(t.width*t.height*8 for pair in self.buffers.values() for t,f in pair),
@@ -346,8 +368,7 @@ class ImageLayers:
             self.condition.notify()
         self.worker.join(timeout=2.)
         self.frames.close()
-        for texture in self.animated.values():texture.release()
-        self.animated.clear()
+        for identity in list(self.animated):self.drop_animation(identity)
         for key,texture in self.masks.values():texture.release()
         self.masks.clear()
         for pair in self.buffers.values():

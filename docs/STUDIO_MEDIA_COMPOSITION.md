@@ -1,6 +1,17 @@
 # Studio media composition
 
-Current status — October 10: Robert accepted the finishing development checkpoint,
+## October 11 accepted B3 development checkpoint
+
+Robert accepted the verified B3 correction candidate and authorized publication.
+See the [current handoff](../ZERAWAVE_HANDOFF.md#october-11-accepted-b3-development-checkpoint)
+and [publication receipt](../work/publication-b3-accepted-20261011/review-index.json).
+Timing remains PARTIAL, one fallback switch timeout is unresolved, and scripted
+physical drag evidence remains unverified. Video Save writing stays OPEN; this
+checkpoint neither approves its proposal nor closes B3 or dispatches later work.
+Dated reports retain their task-time status and measurements.
+
+
+Historical finishing status — October 10: Robert accepted the finishing development checkpoint,
 committed/pushed as `f3d414be7ee380a38865c3579c057597dbb5fb06`. See the
 [current handoff](../ZERAWAVE_HANDOFF.md#october-10-drawing-and-storage-development-checkpoint)
 and [publication receipt](../work/publication-raster-recovery-20261010/review-index.json).
@@ -8,21 +19,26 @@ Scoped acceptance retains known tails, overload/rejected-stroke redraw, owner-de
 unsupported media and unverified broad/capacity/physical/multi-hour conditions.
 Dated reports/work packs retain their original uncommitted/pending identities;
 this current pointer supersedes those statuses, not their historical measurements.
-Earlier explicitly SUPERSEDED workflows remain superseded.
+Earlier explicitly SUPERSEDED workflows remain superseded. The newer
+[B3 Builder candidate](#b3-builder-candidate--2026-10-10) and October 11 correction
+are accepted as a development checkpoint; current status is recorded above.
+Dated statements retain their task-time scope and evidence.
 
 ## B3 media boundary — approved, not implemented
 
-Existing media is silent PyAV/FFmpeg Video, GIF and Sprite playback through the
+This prerequisite section describes the published `f3d414b` checkpoint before
+B3 coding; the later accepted development candidate is described [below](#b3-builder-candidate--2026-10-10).
+At that checkpoint, silent PyAV/FFmpeg Video, GIF and Sprite playback used the
 single serial `media_frames.py` service, timestamp lookup and shared double buffers.
 Four visible animated sources, 96 MiB aggregate decoder-cache, 128 MiB shared
 staging and 512-frame/two-second GOP refill limits remain. FrameReader clients copy
 frames; Qt converts editor images and the existing GL owner uploads output.
-Direction-aware prefetch/fair independent service is not yet implemented. The
-current loop cancellation event is not wired to transport invalidation; this is
+At that checkpoint, direction-aware prefetch/fair independent service was absent.
+The checkpoint loop cancellation event is not wired to transport invalidation; this is
 an inspection finding, not a universal diagnosis. Large-showcase reverse/refill
 limits at 6×/12× remain. Worker/shared-reader publications are not smooth-playback proof.
 
-Approved B3 will provide fair bounded source scheduling, generation-bound success
+The approved B3 brief requires fair bounded source scheduling, generation-bound success
 and error outcomes, active-direction timestamp cache/prefetch and requested-time
 presentation. One service owns codec/container access, decode/conversion/publication;
 Qt owns editor consumption and the current GL context owns GPU uploads/releases.
@@ -190,7 +206,8 @@ This later authorized correction **supersedes** the older Cutout/child/confirmat
 named-source Smudge, per-tool Main and Canvas-only drawing recovery instructions
 below. Existing artwork, saved masks and old aligned pieces remain compatible.
 This implemented correction is included in the accepted/pushed finishing checkpoint.
-Retain its recorded evidence limits; B3 remains approved work, not an implemented feature.
+Retain its recorded evidence limits. That correction did not implement B3; the
+newer uncommitted media candidate is described below.
 
 **Select (V/M)** rectangle, **Lasso (L)** free-form and **Magic Wand (W)** color-based
 selection are three separate direct toolbar buttons with distinct checked states. Rectangle/Lasso are usable on
@@ -470,8 +487,8 @@ owner-held history and ordered output publication before background PNG encoding
 [B1 results](agent-notes/b1-raster-20261008.md) retain task-time tests and limits;
 B2 subsequently changed physical storage/projection and finishing changed measured
 Smudge paths. Neither acceptance nor publication guarantees every workload.
-The next scoped assignment is [B3](../ROADMAP.md#b3--bounded-media-foundation),
-not another B2 implementation or a new editor. Preserve the contracts below.
+The current scoped [B3](../ROADMAP.md#b3--bounded-media-foundation) candidate is
+accepted for development publication, with the limits recorded above. Preserve the contracts below.
 
 ### Runtime transactions and recovery
 
@@ -557,7 +574,7 @@ never discard the live instance's accepted memory-only work.
 ## B2 boundary — implemented compatibility contract
 
 C++ tiled raster resources, copy-on-write history and incremental compositing
-are implemented in the optional B2 backend. B3 media foundation is next.
+are implemented in the optional B2 backend. B3 media foundation has an accepted development candidate, with timing/Video Save limits above.
 Preserve the runtime/save
 contract above and tool/lock/selection/Undo meanings below. Accepted tile versions
 must remain immutable and pinned across history, output and requested saves.
@@ -594,7 +611,7 @@ above remain authoritative. Preserve the detailed operating requirements below:
 
 Exercise this with slowed saving, rapid input, failed/unknown outcomes and
 replacement plus visible output; see [B1 acceptance](../ROADMAP.md#b1-acceptance-plan).
-B2 native tiles are implemented; B3 media foundation is next. Audio/timeline/export
+B2 native tiles are implemented; B3 media foundation has an accepted development candidate, with timing/Video Save limits above. Audio/timeline/export
 remain later separate scope; B3 adds neither new brush physics nor temporal video splits.
 
 ## A short review
@@ -638,7 +655,7 @@ remain later separate scope; B3 adds neither new brush physics nor temporal vide
    over the completed world. All three retain the underlying world's clocks and
    histories. Layers only is not a render optimization. Existing fixed/Native
    resolution and aspect fitting determine clean output pixels.
-7. Select a video/GIF/sprite, expand its row and use **Playback (silent)** Play/Pause,
+7. Select Video for the bottom Composition transport and shared sidebar; GIF/Sprite retain expanded-row **Playback (silent)** Play/Pause,
    Stop/restart, position slider, Rate, Loop/Ping-pong and in/out controls. Visual
    Pause freezes presented animation; visual Stop releases decoders and stops
    layer transport. Hiding a layer releases its decoder/frame resources, freezes
@@ -859,7 +876,8 @@ cannot recover nonexistent source pixels. Relink or restore the reference.
 
 128 visible library references plus up to 4,096 internal metadata records (8 MiB
 registry file cap), 32 collections, 16 pending jobs; one validation worker,
-one renderer still/model decode worker, one silent animation worker. A composition
+one renderer still/model decode worker, and one silent MediaFrames service with
+four fixed codec lanes plus its paced scheduler in the uncommitted B3 candidate. A composition
 has 32 layers/references, six nesting levels (raster parents included), 8 masks per layer/128 points per mask,
 256 KiB JSON edit state; one owner keeps 64 aggregate commands/8 MiB of
 serialized commands, latest recovery rows and nonhistorical flags across all
@@ -952,7 +970,7 @@ recovery was `0fb4c3f`. The current accepted/pushed finishing status supersedes
 that task-time review status; older unrun cases and manual dispatch remain separate.
 
 The earlier composition transport/time-range idea remains later scope, not B3.
-B1/B2 are implemented; B3 media foundation is next. Linked video audio, temporal splits
+B1/B2 are implemented; B3 media foundation has an accepted development candidate, with timing/Video Save limits above. Linked video audio, temporal splits
 and multitrack mixing need separate clock/storage/audio briefs in the
 [staged plan](../ROADMAP.md#later-planned-stages--separate-builder-assignments).
 
@@ -982,7 +1000,7 @@ Requested saves also export any referenced immutable source snapshot restored by
 ## Pass 1: sustainable working storage and normal shutdown — 2026-10-09
 
 This implemented Pass 1 is included in the accepted finishing checkpoint. Capacity
-Passes 2–4 remain separate; B3 is approved next, not implemented. Native ABI 1, the loaded
+Passes 2–4 remain separate; the accepted B3 media candidate retains the limits above. Native raster ABI 1, the loaded
 DLL, session version 5/composition version 4 and intended source pixels are unchanged.
 
 `artwork_store.py` uses bundled SQLite to index PNG bytes, distinct payloads,
@@ -1119,4 +1137,175 @@ failures, matched timing limits and guarded rollback. Capacity Passes 2–4, met
 protocol scaling, higher Library/layer counts, storage location/relocation controls
 and deeper stress remain deferred and must be retained by ROADMAP's owner through
 the manual handoff; this feature note is not another plan. New Session remains
-outside B3; B3 is approved next without completing/cancelling the deferred capacity work.
+outside B3; the uncommitted B3 candidate does not complete/cancel deferred capacity work.
+
+
+## B3 Builder candidate — 2026-10-10
+
+This uncommitted candidate follows verified documentation readiness, on top of
+accepted/pushed `f3d414be7ee380a38865c3579c057597dbb5fb06`. It is not a published
+checkpoint or Robert acceptance. The dated [actual results](agent-notes/b3-media-20261010.md)
+identify exact source, originals, binary, raw timings, motion and failed runs.
+
+One MediaFrames service now runs four fixed codec lanes. Each lane owns its
+container, seeks, native planes, conversion, shared writer and cleanup. One active
+and one latest pending request per lane bound concurrency. Expensive codec calls
+and shared-slot copies run outside the control lock. Commands invalidate actual
+cancellation tokens; success and error completions check source, generation,
+transport epoch, direction and clock turn. Immutable native planes can survive a
+turn; a new current-time selection must bind a new presentation request. A codec
+timeout does not prove exit; retirement keeps its lane/mapping until actual exit.
+
+The requested clock continues at the authored rate. PTS/time-base lookup uses a
+cached timestamp floor, nearest for the established ping-pong behavior. Byte-bound
+prefetch follows direction and cancels inappropriate lead-in. When decoding cannot
+cover current time, a closer valid-source cached floor/nearest can replace a farther
+last-good image only as explicitly **held/waiting**, with `ready_at_request=false`
+and lag; it is not a ready requested-time frame. Paused and seek demands remain
+exact. Seek/stop/replacement/hide/reset clear old-generation presentation; valid-
+source decode failure may retain last-good pixels with **Failed** state/error.
+Play retries that source. Pause, stopped, ended and cancelled retain their distinct
+transport meaning; the first requested frame may still be waiting.
+
+The existing four-visible-source, 8 MP, 96 MiB decoded-plane cache, 128 MiB shared
+slots and 512-frame/two-second demand-refill bounds remain. Cache shares follow
+observed plane size, not equal byte slices. One converted RGBA per decoder and
+bounded conversion/native temporaries are accounted separately. Shared headers,
+retiring jobs, Qt image copies, GL active/inactive textures and upload staging have
+separate diagnostics. Client mappings reference the owner's allocations; do not
+add mapped-address totals again to physical shared bytes. FFmpeg internal queues,
+other Studio/renderer/raster memory and process RSS remain separate.
+
+Qt consumes owned native-resolution QImages. The optional measured one-pass C++
+copy/flip/channel kernel holds no pointer or codec state and is fixed per process;
+missing/incompatible DLL uses exact, visible Qt fallback. The existing GL context
+uploads an inactive native-resolution texture and promotes it only after success;
+allocation/write failure retains valid active pixels and permits retry. Source
+generation/removal releases active/spare textures and reader handles. Normal close
+drains media ownership before owner exit, then releases client resources. See
+[build/fallback instructions](NATIVE_MEDIA_B3.md).
+
+Video remains silent. GIF VFR/disposal/alpha, sprites, orientation/aspect, drawing,
+scoped history, revision-pinned saves/recovery and existing independent audio
+ownership remain. No original or working reference is replaced by a proxy or
+hardware decode. Those exploratory measurements are in the evidence; CUDA failed
+exact pixel parity and the lossless intra fragment has substantial storage cost.
+Large original-clip 6×/12× stalls, cold-start variance and held-frame lag remain
+review limits, not a universal smooth-playback claim. Physical scanout/listening,
+live world-Visualizer integration, multi-hour and broad capacity checks are unrun.
+
+Whole-product migration assessment stays immediately after B3 through the manual
+route, covering worlds, Visualizer, audio and all older systems before remaining
+appropriate migration and unrelated expansion. Capacity Passes 2–4, higher counts,
+storage-location/relocation and New Session remain separate. No assessment,
+dispatch, installation, commit or push is part of this candidate.
+
+
+## B3 finishing candidate — 2026-10-10
+
+This extends the starting uncommitted B3 candidate, pending Robert review. It
+supersedes the older Video row playback placement above. GIF/Sprite retain their
+existing controls. Finishing results are linked by the
+[dated B3 report](agent-notes/b3-media-20261010.md); historical timing and failures
+remain evidence for their stated source. Video Save remains **OPEN**, not completed.
+
+Select Video to show the bottom Composition transport. Play/Pause/Stop, previous/
+next source-frame arrows, forward/reverse rate cycles, In/Out, Loop and Ping-pong
+are direct buttons. Rate/range/boundary details reuse Tool Settings and Colors;
+its resize/scroll/docking behavior remains. Choosing a drawing tool restores its
+settings, including a click on the already active tool. Main/Secondary and tool
+preferences are unchanged. Layers no longer maintains duplicate Video settings.
+
+The readout distinguishes total source duration, actually consumed frame PTS and
+requested/pending position. Source FPS is average/nominal; editor consumption and
+output texture-upload intervals/rates are measured distinct updates, with a
+bounded 60-sample window. Paused/stale/missing telemetry shows unavailable. They
+are neither decoder throughput nor Qt paint, visible playback FPS or scanout.
+
+Drag seeking publishes previews during the gesture. One outstanding UI request
+and one replaceable latest intent remain bounded, in addition to the existing
+per-source lane bounds. Scrubbing pauses progression. Paused stays paused; prior
+Play resumes only when the final valid seek frame is published. Explicit Pause,
+Stop, selection/session/source changes, settings or a newer action cancel the
+remembered resume. Coarse wheel over seek moves one source second per notch;
+Ctrl wheel and the arrows step actual adjacent PTS (including VFR), pause, and
+stay paused until Play. Multiple notches are bounded to 64 pending source steps;
+busy overflow is explicitly rejected, not queued indefinitely. Canvas zoom and
+other scrolling retain their existing handlers. A moved slider is not new pixels.
+
+Selection is timestamp floor; established Ping-pong uses nearest with its actual
+last-frame endpoint. Range boundaries clamp; stepping cannot invent timestamps
+from average FPS. Previous-frame misses use bounded codec refill, not a full-clip
+index. Ready/final publication obeys the selected timestamp policy; live playback
+may still display explicitly held/waiting pixels with lag under decode pressure.
+
+Stored magnitude remains positive 0.1–12, with compatible `media.direction` +1/-1
+(old sessions default Forward). Same-direction quick clicks cycle 1→2→4→6→8→1;
+changing direction, or cycling from a non-cycle manual magnitude, begins at 1×
+from the current position. Since Forward 1× is the default, its next click is 2×.
+Direct presets include 12× and exact entry retains three decimals. Direction/range
+changes start the chosen direction from the clamped current position; rate-only
+changes preserve the existing Ping-pong leg/phase. None ends at its endpoint;
+Loop wraps; Ping-pong reflects. Stop is paused at In even in Reverse; explicit
+Play at a finished reverse In restarts from Out. Reopen never autoplays.
+
+In/Out display source seconds, three decimals. Wheel is 0.01 s, Ctrl 0.001 s;
+unset Out displays automatic source end. Enforce 0 ≤ In < Out ≤ source duration;
+invalid entry restores the last valid setting. Wheel previews survive periodic
+refresh and finish as one gesture history item. Source changes stop old wheel
+timers before rebinding. Settings and direction use the existing owner history
+and revision-pinned session save; transport/sampling create no artwork edit.
+
+Layer edge quartiles indicate Above/Below; center explicitly enters eligible
+Group/raster parents. Expanded descendant bottom edges resolve to the complete
+sibling branch rather than silently parenting. Empty space means last sibling
+in the moving branch. Selected Up/Down and inline arrows move one sibling,
+carry descendants without changing their relationships/transforms, respect locks/
+protecting Groups and disable at boundaries. No-op moves add no history. A move
+uses one owner structural operation with stable IDs and Undo/Redo/reopen.
+
+Layers Video Save/Save As explicitly report the missing product video writer.
+They never open still-image formats. The distinct **Save current-frame image As**
+action, composition/raster image Save and File session Save retain their real
+scopes. [The OPEN export proposal](../work/b3-finishing-20261010-1791665388356313700/VIDEO_SAVE_PROPOSAL.md)
+requires manual approval; this candidate adds no exporter or dependency.
+
+
+## B3 remaining-work candidate — 2026-10-11
+
+This uncommitted correction preserves the finishing controls and scope above.
+Playback demand refills use nominal 40 ms codec-service slices, allowing latest
+clock selection/publication between slices. A delayed entry or slow seek must not
+prevent all progress: the allowance begins inside decoder service and permits
+one guarded native decode call. Native calls can exceed this allowance. Paused
+and final scrub demands still select exact source timestamps before remembered
+Play resumes. Cache/staging/concurrency/work bounds, full source pixels, requested
+rates/ranges, Loop/Ping-pong, generations and resource retirement remain unchanged.
+Held/waiting/failed frames and requested position remain truthful; a moved slider
+is not new pixels. Neither a published media frame nor session Save means video
+output was written.
+
+[Current actual results](../work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md) distinguish dispatched Qt
+press/move/release, button, keyboard and wheel evidence from controller/drop-object
+checks and physical Windows drag acceptance. They retain matched cold/warm,
+normal/Loop/Ping-pong, both-direction one/two-source timings, failures, tails,
+resource limits, recovery and normal-close evidence. This adds no user acceptance.
+
+Video Save/Save As remains OPEN, with a [corrected scope decision](../work/b3-remaining-20261011-1791735342975863300/VIDEO_SAVE_PROPOSAL.md)
+for manual approval. The recommended finite silent own-layer FFV1/MKV writer
+would exclude descendants/sibling/ancestor source pixels, but retain inherited
+transforms and applicable ancestor isolation/Group masks exactly as current own-
+image capture. It would bake one directional In/Out traversal at the authored
+rate using actual VFR intervals; no loop repetitions or audio. No product writer
+is implemented by this correction. Ordinary image/current-frame and File session
+saving remain distinct working functions. ROADMAP owns the post-B3 sequence and
+separate capacity commitments; this feature contract is not another plan.
+
+Playback may also retire a forward refill goal made obsolete by a newer display
+demand more than two source seconds ahead. It resynchronizes on its existing
+lane to the current keyframe; decoded cache planes and published/copied readers
+keep their ownership. Fixed-timestamp seeks and ordinary prefetch keep the
+512-frame/two-second cumulative work protection. No larger cache, altered clock,
+reduced source pixels or discarded accepted artwork is involved. Natural
+full-range 6×/12× trials and remaining stalls are bound in the
+[current results](../work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md).

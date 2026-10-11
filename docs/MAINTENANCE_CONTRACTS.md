@@ -1,5 +1,16 @@
 # Cosmic and Elemental maintenance contracts
 
+## October 11 accepted B3 development checkpoint
+
+Robert accepted the verified B3 correction candidate and authorized publication.
+See the [current handoff](../ZERAWAVE_HANDOFF.md#october-11-accepted-b3-development-checkpoint)
+and [publication receipt](../work/publication-b3-accepted-20261011/review-index.json).
+Timing remains PARTIAL, one fallback switch timeout is unresolved, and scripted
+physical drag evidence remains unverified. Video Save writing stays OPEN; this
+checkpoint neither approves its proposal nor closes B3 or dispatches later work.
+Dated reports retain their task-time status and measurements.
+
+
 ## Current checkpoint and approved B3 boundary
 
 B1/B2 and finishing corrections are implemented in the accepted/pushed checkpoint
@@ -9,9 +20,13 @@ supersede task-time uncommitted/pending status in dated reports, not their measu
 limits. Finishing acceptance does not certify all older product/capacity cases.
 Smudge/encoder tails, overload/rejected-stroke redraw, owner-process-death limits,
 unsupported media and broad/physical/multi-hour unrun cases remain explicit.
-Native ABI1/128px/x64 and generated DLL remain unchanged; no B3 build has shipped.
+Native raster ABI1/128px/x64 and its generated DLL remain unchanged. The newer
+accepted B3 development candidate adds a separate optional stateless copy DLL;
+this is not a release or universal timing/capacity acceptance. [B3 setup](NATIVE_MEDIA_B3.md) and
+[actual results](agent-notes/b3-media-20261010.md) bind source/build/test identities.
 
-B3 is approved next, not implemented. [ROADMAP B3](../ROADMAP.md#b3--bounded-media-foundation)
+The contract below was approved before coding; Robert has accepted the current
+development candidate, with timing/Video Save limits recorded above. [ROADMAP B3](../ROADMAP.md#b3--bounded-media-foundation)
 owns its increments and matrix. Preserve existing Qt/Python authoring/control,
 renderer/audio ownership, original pixels/rates/ranges/loops, B1 transactions,
 Undo/Redo, image/session Save/recovery and normal close. Planned media scheduling
@@ -624,7 +639,7 @@ guarantee or Robert acceptance.
 ## Pass 1: sustainable working storage and normal shutdown — 2026-10-09
 
 This implemented Pass 1 is included in the accepted finishing checkpoint. Capacity
-Passes 2–4 remain separate; B3 is approved next, not implemented. Native ABI 1, the loaded
+Passes 2–4 remain separate; the accepted B3 media candidate retains the limits above. Native raster ABI 1, the loaded
 DLL, session version 5/composition version 4 and intended source pixels are unchanged.
 
 `artwork_store.py` uses bundled SQLite to index PNG bytes, distinct payloads,
@@ -744,3 +759,104 @@ Focused finishing evidence uses native/B1 standalone drawing/image/editing/histo
 reliability/workflow and selected close checks. Qt-dispatched gestures/framebuffer
 reads are scripted evidence, not physical input/scanout, live Visualizer or Robert
 acceptance. Deferred capacity work and owner-death recovery remain outside this pass.
+
+
+## B3 candidate maintenance — 2026-10-10
+
+The [candidate media contract](STUDIO_MEDIA_COMPOSITION.md#b3-builder-candidate--2026-10-10)
+is implemented in the uncommitted Builder candidate, pending Robert review.
+Keep codec/container access on its lane, the aggregate caps unchanged, controls
+free of decode waits, current-clock selection distinct from held pixels, and
+errors generation-bound. A failed cleanup retains its native owner and separate
+diagnostic; it must not replace the primary failure. Exported writer views postpone
+mapping retirement until release. Clients return owned copies; Qt/native adapters
+release ctypes exports before releasing FrameReader views. GPU uploads use an
+inactive texture; failed writes cannot corrupt the active last-good image.
+
+Standalone coverage: `media_foundation_test.py` (real codecs, controlled slow/failure/
+generation/cache/export retirement), `media_presentation_test.py` (actual GL
+allocation/write failures and retries), `media_transfer_test.py` (native/Qt exact
+bytes/bounds), existing registry/frames/fidelity/recovery tests, isolated real Studio
+owner/drawing/Undo/Save/reopen/close, and audio/raster regressions. Raw identities,
+failed trials and unrun physical/whole-Visualizer/multi-hour/capacity checks are
+in [actual results](agent-notes/b3-media-20261010.md). Preserve every accepted raster
+edit and save pin during media failure/close; media retry does not replace raster
+Retry saving. No native media build changes raster ABI/session storage.
+
+
+## B3 finishing transport/order contract — 2026-10-10
+
+Video controls have one authority: stored composition media settings and the
+existing MediaFrames owner. UI holds at most one request/future plus one latest
+intent. Rebinding cancels remembered resume, obsolete pending work and wheel
+timers. Final-seek publication alone may restore prior Play; Pause/Stop/newer
+actions override it. Actual adjacent CFR/VFR timestamps are codec-owned, without
+an unbounded frame index or average-FPS stepping. Stored direction defaults +1
+for old sessions; magnitude remains positive. Exact settings/ranges create
+coherent existing history; ephemeral transport does not create artwork history.
+Invalid settings/overflow must not mutate clock/generation or lose valid values.
+Late source/session commands are rejected/logged or idempotently cancelled without
+opening Diagnostics over a new selection. Primary decode errors remain visible.
+
+Avoid synchronization restoring wheel previews before gesture completion; stop
+deferred callbacks on selection change. Readouts identify source average/nominal
+FPS separately from actual editor consumption and GL upload updates. Measure
+distinct sequence/generation events, report unavailable and retain held lag.
+Known opaque FFmpeg formats omit a redundant alpha scan; palette/RGBA/YUVA retain
+exact premultiplication. Full-size native/Qt/GPU byte parity still governs.
+
+Qt edge hit geometry resolves sibling subtree Above/Below, including expanded
+descendants; eligible centers remain explicit Inside. Pure ordering retains
+IDs/descendant transforms, bounds and protecting Group/lock rules. Boundary/no-op
+does not enter history; accepted move is one structural operation. Save/reopen
+uses the existing session schema and owner publication, not widget order.
+
+No product video writer exists. Video Save remains OPEN and must not enter image
+formats; explicitly labeled current-frame image and ordinary image/session saves
+retain their scopes. Installed fixture encoding is not a save subsystem. See
+the [manual export proposal](../work/b3-finishing-20261010-1791665388356313700/VIDEO_SAVE_PROPOSAL.md).
+Focused `media_finishing_test.py`, `studio_video_test.py`, `layer_ordering_test.py`
+supplement existing codec/fidelity/recovery/transfer/presentation/image/raster/
+audio checks. Preserve raw failures and timing limits in the dated B3 results.
+Finishing rollback restores the starting B3 candidate, never the earlier pre-B3
+baseline. Secure accepted work/reopen and close normally first; later file hashes
+block restoration. No task helper may clean unrelated sessions or history.
+
+
+## B3 demand-refill progress and input evidence — 2026-10-11
+
+Playback demand refill uses `DecoderWindow._refill(..., work_budget=.04)` at actual
+codec service. Caller/queue delay cannot consume all useful work. After a seek
+overruns the allowance, permit one native decode call while checking cancellation
+first; retain the iterator and returned plane across slices. Keep the cumulative
+512-frame/two-second refill bounds. An opaque call can overrun the nominal slice;
+it still owns its codec/readers until actual return. Prefetch's optional absolute
+deadline and exact paused/final demand behavior remain separate. Never convert
+slice expiry into source failure or artwork rejection. Latest-time selection,
+held/waiting labels and source/generation/epoch/direction/turn guards still govern
+publication; requested clocks continue independently.
+
+Existing standalone Studio/order checks now dispatch actual Qt pointer/button/key
+events and real CFR/VFR stepping, with private logs/saves and source identities.
+Native OLE dragging cannot be certified with QTest; its failed bounded-cancel
+attempt is retained, the optional test probe is guarded to offscreen, and physical
+acceptance remains Robert's review. Offscreen initiation without drop acceptance
+does not pass a physical drag gate. No user Studio owner is stopped by testing.
+Own-image save coverage confirms ancestor isolation/Group masking while excluding
+descendants and ancestor source pixels. The [manual Video Save proposal](../work/b3-remaining-20261011-1791735342975863300/VIDEO_SAVE_PROPOSAL.md)
+uses that existing compositor rule; product video writing stays OPEN.
+
+[Actual results](../work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md) bind matched modes/rates/directions,
+raw tails/failures and owned versus referenced memory. Preserve accepted raster
+work/history/save pins; real-owner Retry and revision-pinned Save/reopen/normal
+close remain required. This pack's guarded rollback restores this assignment's
+dirty finishing baseline, preserving earlier B3 and unrelated work.
+
+Playback may also retire a forward refill goal made obsolete by a newer display
+demand more than two source seconds ahead. It resynchronizes on its existing
+lane to the current keyframe; decoded cache planes and published/copied readers
+keep their ownership. Fixed-timestamp seeks and ordinary prefetch keep the
+512-frame/two-second cumulative work protection. No larger cache, altered clock,
+reduced source pixels or discarded accepted artwork is involved. Natural
+full-range 6×/12× trials and remaining stalls are bound in the
+[current results](../work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md).

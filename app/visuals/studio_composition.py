@@ -166,6 +166,7 @@ class _CanvasMethods:
         if name=='Cut':name='Select'
         if name!=self.tool and hasattr(self.editor,'pixel_editor'):self.editor.pixel_editor.cancel()
         if name!=self.tool and hasattr(self.editor,'fill_controller'):self.editor.fill_controller.cancel()
+        if hasattr(self.editor,'video'):self.editor.video.drawing_settings()
         self.tool=name
         if name in ('Brush','Pencil') and hasattr(self.editor,'color_target'):self.editor.color_target=name
         combo=getattr(self.editor,'editor_tools',None)
@@ -860,7 +861,10 @@ class InlineControls(QWidget):
         for label,cb in (('↑',lambda:editor.step_order(1)),('↓',lambda:editor.step_order(-1)),('Reparent…',editor.move_menu),('Ungroup',editor.ungroup)):
             if label=='Ungroup' and row['type']!='Group':continue
             b=QPushButton(label);b.setEnabled(not protected);b.clicked.connect(lambda checked=False,c=cb:editor.bound_action(self.identity,c));organization.addWidget(b)
-        if row['type'] in ('Video','GIF','Sprite'):
+            if label in ('↑','↓'):
+                from layer_ordering import can_step
+                b.setEnabled(can_step(editor.config,self.identity,1 if label=='↑' else -1));b.setAccessibleName('Move branch '+('up' if label=='↑' else 'down')+' one sibling')
+        if row['type'] in ('GIF','Sprite'):
             playback=QHBoxLayout();form.addRow('Playback (silent)',playback)
             for label,op in (('▶','play'),('Ⅱ','pause'),('■','stop')):
                 button=QPushButton(label);button.clicked.connect(lambda checked=False,o=op:editor.bound_action(self.identity,lambda:editor.transport(o)));playback.addWidget(button)
@@ -973,20 +977,49 @@ class LayerTree(QTreeWidget):
             node=self.itemAt(event.position().toPoint());identity=node.data(0,Qt.UserRole) if node else None
             payload=bytes(event.mimeData().data('application/x-zerawave-assets'));event.acceptProposedAction()
             QTimer.singleShot(0,lambda:self.editor.library_drop(payload,identity));return
-        if any(effective(self.editor.config,lookup(self.editor.config)[item.data(0,Qt.UserRole)],'locked') for item in self.selectedItems()):event.ignore();return
-        before=deepcopy(self.editor.config);super().dropEvent(event)
-        def scan(parent_item,parent):
-            items=[parent_item.child(i) for i in range(parent_item.childCount())] if parent_item else [self.topLevelItem(i) for i in range(self.topLevelItemCount())]
-            for order,item in enumerate(reversed(items)):
-                identity=item.data(0,Qt.UserRole);row=lookup(self.editor.config)[identity]
-                if parent is not None and any(a['type']=='Group' and a['locked'] for a in [lookup(self.editor.config)[parent]]+ancestors(self.editor.config,parent)) and row['parent']!=parent:raise ValueError('Unlock the protecting Group before reparenting.')
-                changed=row['parent']!=parent or row['order']!=order
-                if row['parent']!=parent:reparent(self.editor.config,identity,parent)
-                row['order']=order
-                if changed:row['cut_alignment']=None
-                scan(item,identity)
-        try:scan(None,None);validate_scene(self.editor.config);self.editor.commit('Reorder / reparent layers',before=before)
-        except ValueError as exc:self.editor.config=before;self.editor.status.setText(str(exc));self.editor.populate()
+        if event.source() is not self:event.ignore();return
+        ids=[item.data(0,Qt.UserRole) for item in self.selectedItems()]
+        anchor,placement=self.drop_intent(event.position().toPoint());self.insert_hint=None;self.viewport().update()
+        event.setDropAction(Qt.MoveAction);event.accept()
+        QTimer.singleShot(0,lambda:self.editor.drop_layers(ids,anchor,placement))
+    def drop_intent(self,point):
+        node=self.itemAt(point);selected=self.selectedItems();rows=lookup(self.editor.config)
+        if node is None:return None,'below'
+        identity=node.data(0,Qt.UserRole);row=rows[identity];rect=self.visualItemRect(node);edge=min(10,max(4,rect.height()//4));y=point.y()
+        placement='above' if y<=rect.top()+edge else 'below' if y>=rect.bottom()-edge else 'inside' if row['type'] in ('Group','Image','Artwork','Paint') else 'above' if y<rect.center().y() else 'below'
+        if placement!='inside' and selected:
+            parents={rows[n.data(0,Qt.UserRole)]['parent'] for n in selected}
+            if len(parents)==1:
+                parent=next(iter(parents));chain=[row]+ancestors(self.editor.config,identity)
+                sibling=next((r for r in chain if r['parent']==parent),None)
+                if sibling:identity=sibling['id']
+                elif identity==parent:
+                    from layer_ordering import siblings
+                    children=siblings(self.editor.config,parent)
+                    if children:return children[0]['id'],'above'
+                    return parent,'inside'
+        return identity,placement
+    def paintEvent(self,event):
+        super().paintEvent(event)
+        hint=getattr(self,'insert_hint',None)
+        if not hint:return
+        identity,placement=hint;item=self.editor.row_items.get(identity)
+        if identity is None and self.selectedItems():
+            from layer_ordering import siblings
+            selected=self.selectedItems()[0].data(0,Qt.UserRole);parent=lookup(self.editor.config)[selected]['parent'];rows=siblings(self.editor.config,parent)
+            if rows:item=self.editor.row_items.get(rows[-1]['id'])
+        if item is None:return
+        rect=self.visualItemRect(item)
+        if placement=='below':
+            last=item
+            while last.isExpanded() and last.childCount():last=last.child(last.childCount()-1)
+            rect=self.visualItemRect(last)
+        p=QPainter(self.viewport());p.setPen(QPen(QColor('#83c7d8'),2))
+        if placement=='inside':p.drawRect(rect.adjusted(1,1,-2,-2))
+        else:
+            y=rect.top() if placement=='above' else rect.bottom();p.drawLine(rect.left(),y,self.viewport().width()-2,y)
+        p.end()
+    def dragLeaveEvent(self,event):self.insert_hint=None;self.viewport().update();super().dragLeaveEvent(event)
     def dragEnterEvent(self,event):
         if event.mimeData().hasFormat('application/x-zerawave-assets'):event.acceptProposedAction();return
         super().dragEnterEvent(event)
@@ -995,6 +1028,8 @@ class LayerTree(QTreeWidget):
             node=self.itemAt(event.position().toPoint());row=lookup(self.editor.config).get(node.data(0,Qt.UserRole)) if node else None
             self.editor.status.setText('Drop '+('onto '+row['name']+' to choose child / sibling placement' if row else 'into Layers to add at top level')+'; native options can be cancelled.');event.acceptProposedAction();return
         super().dragMoveEvent(event)
+        self.insert_hint=self.drop_intent(event.position().toPoint());self.viewport().update()
+        self.editor.status.setText('Insert '+self.insert_hint[1]+(' branch '+str(self.insert_hint[0])[:8] if self.insert_hint[0] else ' last sibling in current branch')+'; center drops enter eligible layers.')
     def keyPressEvent(self,event):
         if self.editor.editor_key(event):event.accept();return
         super().keyPressEvent(event)
@@ -1037,6 +1072,8 @@ class CompositionEditor(QMainWindow):
         self.zoom_buttons=[]
         for name,label,factor in (('ZoomIn','Zoom in',1.25),('ZoomOut','Zoom out',1/1.25)):
             button=icon_button('',label,lambda checked=False,f=factor:self.zoom_step(f));button.setIcon(tool_icon(name,26));button.setIconSize(QSize(26,26));bar.addWidget(button);self.zoom_buttons.append(button)
+        from studio_video import attach as attach_video
+        attach_video(self,layers)
         saved=layers.shell.preferences.get('composition_toolbar')
         if saved:
             from PySide6.QtCore import QByteArray
@@ -1077,6 +1114,10 @@ class Layers(QWidget):
         for label,callback in (('+',self.add_menu),('Duplicate',self.duplicate),('Delete',lambda:self.delete())):
             b=QPushButton(label);b.clicked.connect(callback);row.addWidget(b)
         self.child_button=QPushButton('+ Add layer ▾');self.child_button.setToolTip('New blank raster above / inside the selection, import media, or cut selected own pixels • 32 layers / six levels.');self.child_button.clicked.connect(self.child_menu);self.child_button.hide()
+        order_row=QHBoxLayout();outer.addLayout(order_row)
+        self.order_up=QPushButton('↑ Up');self.order_down=QPushButton('↓ Down')
+        for button,direction in ((self.order_up,1),(self.order_down,-1)):
+            button.setAccessibleName('Move selected branch '+('up' if direction>0 else 'down')+' one sibling');button.setToolTip('Carry descendants; stay inside the current parent. Frontmost is at the top.');button.clicked.connect(lambda checked=False,d=direction:self.step_order(d));order_row.addWidget(button)
         self.expanded=set();self.tree=LayerTree(self);outer.addWidget(self.tree,1);self.tree.itemSelectionChanged.connect(self.tree_select);self.tree.setContextMenuPolicy(Qt.CustomContextMenu);self.tree.customContextMenuRequested.connect(self.context);self.tree.itemCollapsed.connect(lambda item:self.collapsed.add(item.data(0,Qt.UserRole)));self.tree.itemExpanded.connect(lambda item:self.collapsed.discard(item.data(0,Qt.UserRole)));self.tree.setAutoScroll(True);self.tree.setAutoExpandDelay(550)
         details=QWidget(self);details.hide();detail_layout=QVBoxLayout(details);self.legacy_details=details
         self.controls=QGroupBox('Selected layer');self.controls.setCheckable(True);self.controls.setChecked(True);body=QWidget();form=QFormLayout(body);layout=QVBoxLayout(self.controls);layout.addWidget(body);self.controls.toggled.connect(body.setVisible);detail_layout.addWidget(self.controls)
@@ -1209,6 +1250,10 @@ class Layers(QWidget):
         if hasattr(self,'color_swatch'):self.color_swatch.setStyleSheet('background:'+self.brush_color.name()+'; color:'+('#10171c' if self.brush_color.lightness()>128 else '#ffffff'));self.color_swatch.setText(self.brush_color.name())
         for key,box in getattr(self,'brush_boxes',{}).items():box.setVisible(self.canvas.tool in ('Brush','Pencil','Eraser','Smudge') and (key!='strength' or self.canvas.tool=='Smudge') and (key not in ('hardness','flow') or self.canvas.tool in ('Brush','Eraser')))
         for button,key,value in getattr(self,'preset_buttons',[]):button.setChecked(self.brush[key]==value)
+        if hasattr(self,'video'):self.video.sync()
+        if hasattr(self,'order_up'):
+            from layer_ordering import can_step
+            self.order_up.setEnabled(can_step(self.config,self.selected,1));self.order_down.setEnabled(can_step(self.config,self.selected,-1))
         row=self.selected_row()
         if self.canvas:
             state='No editing target' if row is None else row['name']+' • '+('hidden subtree' if not effective(self.config,row,'enabled') else 'locked' if effective(self.config,row,'locked') else row['type'])
@@ -1258,13 +1303,17 @@ class Layers(QWidget):
             recovery=history.get('editor',{});button.setEnabled(bool(recovery.get(key)));button.setText(key.title()+(' '+recovery[key] if recovery.get(key) else ''))
         row=self.selected_row();state=snap.get('media_frames',{}).get(self.selected,{})
         decode=(state.get('frame') or {}).get('decode_ms',0.)
-        self.time.setText(f"{state.get('position',0):.2f} / {self.duration():.2f} s • {'Playing' if state.get('playing') else 'Paused'} • muted"+(f'\nDecode/refill {decode:.0f} ms • '+('slow source: frames skipped; reverse may stall' if decode>100 else 'high rates skip source frames') if row and row['type']=='Video' else ''))
+        self.time.setText(f"{state.get('position',0):.2f} / {self.duration():.2f} s • {state.get('state','paused').title()} • muted"+(f'\nDecode/refill {decode:.0f} ms • '+('slow source: frames skipped; reverse may stall' if decode>100 else 'high rates skip source frames') if row and row['type']=='Video' else ''))
+        if state and getattr(self,'media_stats',None):
+            self.time.setText(self.time.text()+(f" • held {state['lag_seconds']:.3f} s" if state.get('held') and state.get('lag_seconds') is not None else ''))
+            self.time.setToolTip(self.media_stats['transfer']['message']+'; '+state.get('last_good_policy',''))
         if not self.seek.isSliderDown():self.seek.setValue(round(state.get('position',0)/max(.001,self.duration())*10000))
         asset=next((a for a in self.media_assets() if row and a['id']==row['asset']),None)
         source_error=(asset.get('error') if asset else 'Reference removed; cached pixels may remain. Undo or Relink to recover.' if row and row['asset'] else '')
-        error=state.get('error') or snap.get('preview',{}).get('image_layers',{}).get('error') or self.image_errors.get(row['asset'] if row else None,'') or source_error
+        error=state.get('error') or next((r['name']+': '+snap.get('media_frames',{}).get(r['id'],{})['error'] for r in self.config['layers'] if snap.get('media_frames',{}).get(r['id'],{}).get('error')),None) or snap.get('preview',{}).get('image_layers',{}).get('error') or self.image_errors.get(row['asset'] if row else None,'') or source_error
         self.status.routine(error or 'Select artwork to edit • Undo/Redo recovers editor changes in order')
         self.load_images()
+        if hasattr(self,'video'):self.video.sync()
     def populate(self):
         # Preserve identity-bound rows and editors; selection/ACK refresh must
         # not recreate every widget and trigger whole-tree Qt polish/layout.
@@ -1396,10 +1445,11 @@ class Layers(QWidget):
         if identity!=self.selected and pending:QTimer.singleShot(0,lambda:self.select(identity));return
         if identity!=self.selected and self.canvas and self.canvas.tool in ('Select','Selection','Wand','Fill','Brush','Pencil','Eraser','Smudge'):self.canvas.discard()
         if identity!=self.selected and not self.resolve_pending():self.populate();return
+        if identity!=self.selected and hasattr(self,'video'):self.video.cancel_intent()
         self.selected=identity;self.last_selection=identity;self.sync_controls()
         if self.canvas:self.canvas.update()
     def sync_controls(self):
-        self.syncing=True;row=self.selected_row();self.controls.setEnabled(row is not None);self.animation.setVisible(bool(row and row['type'] in ('Video','GIF','Sprite')));self.sprite.setVisible(bool(row and row['type']=='Sprite'));self.model_box.setVisible(bool(row and row['type']=='Model'));self.web_box.setVisible(bool(row and row['type']=='Web'))
+        self.syncing=True;row=self.selected_row();self.controls.setEnabled(row is not None);self.animation.setVisible(bool(row and row['type'] in ('GIF','Sprite')));self.sprite.setVisible(bool(row and row['type']=='Sprite'));self.model_box.setVisible(bool(row and row['type']=='Model'));self.web_box.setVisible(bool(row and row['type']=='Web'))
         self.child_button.setEnabled(True)
         try:
             self.presentation.setCurrentText(self.config['presentation'])
@@ -1740,7 +1790,9 @@ class Layers(QWidget):
         ids=[i.data(0,Qt.UserRole) for i in self.tree.selectedItems()]
         if row:
             if not ids:ids=[row['id']]
-            menu.addAction('Save artwork image…',lambda:self.artwork_save.save(ids=ids));menu.addAction('Save artwork image As…',lambda:self.artwork_save.save(True,ids=ids))
+            if row['type']=='Video':
+                menu.addAction('Save video… (proposal pending)',self.video.save_video);menu.addAction('Save video As… (proposal pending)',self.video.save_video);menu.addAction('Save current-frame image As…',lambda:self.artwork_save.save(True,ids=[row['id']],frame=True))
+            else:menu.addAction('Save artwork image…',lambda:self.artwork_save.save(ids=ids));menu.addAction('Save artwork image As…',lambda:self.artwork_save.save(True,ids=ids))
         if row and row['type'] in ('Image','Artwork','Paint'):menu.addAction('Create blank drawing child',lambda:self.blank_child(row['id']))
         if row and row['type'] in ('Video','GIF','Sprite'):menu.addAction('Snapshot current frame',self.snapshot_frame)
         if row:menu.addAction('Relink source…',self.relink_source)
@@ -1837,11 +1889,18 @@ class Layers(QWidget):
     def shortcut_reference(self):
         QMessageBox.information(self,'Editor shortcuts','V Select pixels • M Rectangle • L Lasso • W Magic Wand\nT Transform whole layer • G/R/S move/rotate/scale; Enter accepts, Esc cancels\nB Brush • P Pencil • E Eraser • I Sampler • U visible-artwork Smudge\nF Fill connected region: left Main / right Secondary • C Crop (Apply crop / Cancel crop)\nCtrl+C Copy pixels • Ctrl+X Cut pixels • Ctrl+V Paste new layer • Delete clears selected pixels\nCtrl+D Deselect • Ctrl+Z Undo editor • Ctrl+Shift+Z / Ctrl+Y Redo editor\nDrag inside pixel selection moves content on the same raster. Pasted layers use Transform handles.\nH Hand • wheel zoom 15% • Ctrl+wheel fine zoom 2% • magnifiers 25% • zoom 2%–25600% (wheel anchored at pointer) • Space held pan • [ / ] size • digits stroke opacity\nBrush/Pencil left Main, right Secondary; Fill/Sampler left Main, right Secondary. No canvas popup. Text fields retain ordinary typing/clipboard/Undo.\nLayers context menu provides explicit layer/subtree commands.')
     def step_order(self,direction):
+        from layer_ordering import can_step,step
         row=self.selected_row()
-        if not row or not self.editable_target(row):return
-        before=deepcopy(self.config);siblings=sorted((r for r in self.config['layers'] if r['parent']==row['parent']),key=lambda r:r['order']);i=siblings.index(row);j=max(0,min(len(siblings)-1,i+direction));siblings[i],siblings[j]=siblings[j],siblings[i]
-        for order,r in enumerate(siblings):r['order']=order;r['cut_alignment']=None
-        self.commit('Raise within siblings' if direction>0 else 'Lower within siblings',before)
+        if not row or not can_step(self.config,row['id'],direction) or not self.resolve_pending():return
+        before=deepcopy(self.config)
+        if step(self.config,row['id'],direction):self.commit('Raise within siblings' if direction>0 else 'Lower within siblings',before)
+    def drop_layers(self,ids,anchor,placement):
+        from layer_ordering import move
+        if not self.resolve_pending():return
+        before=deepcopy(self.config)
+        try:
+            if move(self.config,ids,anchor,placement):self.commit('Reorder / reparent layers',before)
+        except (ValueError,KeyError) as exc:self.config=before;self.status.setText(str(exc));self.populate()
     def move_to_parent(self):
         row=self.selected_row();parent=lookup(self.config).get(row['parent']) if row else None
         if parent:self.move_branch(parent['parent'])
@@ -2122,12 +2181,14 @@ class Layers(QWidget):
         if not hasattr(palette,'grids'):palette.grids=[]
         palette.grids.append((grid,buttons))
     def choose_selection(self,method):
+        if hasattr(self,'video'):self.video.drawing_settings()
         target='Wand' if method=='Wand' else 'Select';shape='Freehand' if method=='Lasso' else 'Rectangle'
         if self.canvas.tool!=target or self.canvas.shape!=shape:
             if not self.resolve_pending():return
             self.canvas.discard();self.canvas.shape=shape;self.canvas.set_tool(target)
         self.reveal();self.canvas.setFocus();self.sync_tool_ui()
     def choose_tool(self,tool):
+        if hasattr(self,'video'):self.video.drawing_settings()
         if tool in ('Select','Lasso','Wand'):return self.choose_selection(tool)
         if self.canvas.tool==tool:self.canvas.setFocus();self.sync_tool_ui();return
         if self.resolve_pending():
@@ -2392,18 +2453,29 @@ class Layers(QWidget):
         now=time.monotonic()
         if now-getattr(self,'last_frame_read',0)<(.033 if visible_canvas else .25):return
         self.last_frame_read=now
-        names=set()
-        for identity,state in self.shell.client.snapshot.get('media_frames',{}).items():
+        from media_transfer import backend as transfer_backend
+        transfer=transfer_backend();names=set();bindings=getattr(self,'media_bindings',{});presented=getattr(self,'media_presented',{})
+        media_rows={r['id']:r for r in self.config['layers'] if r['type'] in ('Video','GIF','Sprite','Web')}
+        for identity,row in media_rows.items():
+            state=self.shell.client.snapshot.get('media_frames',{}).get(identity,{})
             desc=state.get('frame')
-            if not desc:continue
-            names.add(desc['name'])
+            if not desc:
+                if row['type']!='Web' or row['web']['offline']=='Hide':
+                    changed=bool(self.images.pop(identity,None) is not None) or changed;bindings.pop(identity,None);presented.pop(identity,None)
+                continue
+            binding=(desc['name'],desc['generation'])
+            if bindings.get(identity) not in (None,binding):self.images.pop(identity,None);presented.pop(identity,None);changed=True
+            bindings[identity]=binding;names.add(desc['name'])
             try:
-                frame=self.reader.read(desc)
+                if sum(i.sizeInBytes() for k,i in self.images.items() if k!=identity)+desc['width']*desc['height']*4>192*1024*1024:raise ValueError('Native editor cache exceeds 192 MiB; hide/remove an unused source.')
+                frame=self.reader.read(desc,copy=transfer.image)
                 if frame:
-                    if sum(i.sizeInBytes() for k,i in self.images.items() if k!=identity)+frame['width']*frame['height']*4>192*1024*1024:raise ValueError('Native editor cache exceeds 192 MiB; hide/remove an unused source.')
-                    self.images[identity]=QImage(frame['data'],frame['width'],frame['height'],QImage.Format_RGBA8888_Premultiplied).mirrored(False,True).convertToFormat(QImage.Format_ARGB32_Premultiplied);changed=True
-            except Exception as exc:self.status.setText(str(exc)[:180])
-        self.reader.retain(names)
+                    self.images[identity]=frame['image'];presented[identity]=dict(pts=frame['pts'],sequence=frame['sequence'],generation=frame['generation'],consumed_at=time.perf_counter(),read_convert_ms=frame['read_ms']);changed=True
+            except Exception as exc:self.reader.last.pop(desc['name'],None);self.status.setText(str(exc)[:180])
+        for identity in list(bindings):
+            if identity not in media_rows:self.images.pop(identity,None);bindings.pop(identity,None);presented.pop(identity,None);changed=True
+        self.reader.retain(names);self.media_bindings=bindings;self.media_presented=presented
+        self.media_stats=dict(transfer=transfer.snapshot(),reader=self.reader.snapshot(),native_image_bytes=sum(self.images[k].sizeInBytes() for k in presented if k in self.images),presented=dict(presented))
         for row in self.config['layers']:
             if row['type']!='Model' or row['asset'] not in self.models:continue
             key=json.dumps(row['model'],sort_keys=True)
@@ -2441,6 +2513,7 @@ class Layers(QWidget):
         from raster_resources import release
         for lease in self.runtime_producers.values():release(lease)
         self.runtime_producers.clear()
+        if hasattr(self,'video'):self.video.close()
         if hasattr(self,'artwork_save'):self.artwork_save.close()
         self.opacity_timer.stop();self.cancel_preview();self.timer.stop();self.preview_timer.stop();self.numeric_timer.stop();self.web_sources.close();self.reader.close();self.pool.shutdown(wait=False,cancel_futures=True)
         if hasattr(self,'selection_controls'):self.selection_controls.cancel();self.selection_controls.timer.stop()

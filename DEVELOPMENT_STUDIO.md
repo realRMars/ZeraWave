@@ -1,5 +1,16 @@
 # ZeraWave Development Studio
 
+## October 11 accepted B3 development checkpoint
+
+Robert accepted the verified B3 correction candidate and authorized publication.
+See the [current handoff](ZERAWAVE_HANDOFF.md#october-11-accepted-b3-development-checkpoint)
+and [publication receipt](work/publication-b3-accepted-20261011/review-index.json).
+Timing remains PARTIAL, one fallback switch timeout is unresolved, and scripted
+physical drag evidence remains unverified. Video Save writing stays OPEN; this
+checkpoint neither approves its proposal nor closes B3 or dispatches later work.
+Dated reports retain their task-time status and measurements.
+
+
 Studio is the current development and review tool. It is not a consumer product
 or a shipped paid ZeraWave Studio 1. Expanded authoring/native stages are approved
 direction in ROADMAP, not current product features.
@@ -73,7 +84,10 @@ multi-hour/listening/capacity limits remain; acceptance is not a latency guarant
 
 ### B3 status — approved media foundation, not implemented
 
-Current silent PyAV/FFmpeg media uses the serial service, bounded decoder cache
+The following prerequisite status describes published `f3d414b`, before B3 coding.
+The later accepted candidate is described in the [B3 contract](docs/STUDIO_MEDIA_COMPOSITION.md#b3-builder-candidate--2026-10-10)
+and [actual results](docs/agent-notes/b3-media-20261010.md); current status is recorded above.
+At the prerequisite checkpoint, silent PyAV/FFmpeg media used the serial service, bounded decoder cache
 and shared staging; historical publication-rate checks do not prove smooth visible
 playback at every rate/direction. B3 will address fair bounded per-source service,
 generations/cancellation, timestamp-direction cache/prefetch and editor/output
@@ -1027,3 +1041,80 @@ performance or broad product certificate. Latency, memory, failures and limits a
 `docs/agent-notes/b2-tiles-20261008.md` and `work/b2-completion-20261008`.
 Build, ABI, resource bounds and secured fallback are in the
 [B2 implementation contract](docs/NATIVE_RASTER_B2.md).
+
+
+### B3 uncommitted review candidate — 2026-10-10
+
+Use the existing Video/GIF/Sprite controls. The transport label shows actual
+waiting/paused/stopped/ended/cancelled/failed state and held lag; its tooltip shows
+the process-fixed native/Qt copy route. Decode errors remain visible even when a
+raster is selected. Play retries valid-source decode failure; Refresh/Relink fixes
+changed/unavailable sources. Seek/stop/replacement/hide clears old-generation pixels.
+Close waits for actual media ownership to retire. Raster Retry saving and session/
+image Save retain their distinct accepted-work/durability meanings.
+
+Robert's manual review: (1) original short/long-GOP clips at 1×/6×/12× and both
+ping-pong legs in editor/output; (2) simultaneous sources, including slow work and
+repeated seeks; (3) pause/stop/hide/replace/reopen and errors/cleanup; (4) independent
+audio plus drawing/Undo/Save and normal close on a disposable copy. The
+[actual-results note](docs/agent-notes/b3-media-20261010.md) links the evidence,
+remaining stalls, preserved failures, build/fallback and guarded rollback. No
+physical acceptance, release, whole-product assessment or deferred capacity work
+is claimed. The assessment remains the next manual assignment immediately after B3.
+
+
+### B3 finishing review — 2026-10-10
+
+Video selection shows the compact bottom Composition toolbar. Use In/Out or Rate
+to reveal advanced values in the existing Tool Settings and Colors sidebar;
+choose a drawing tool to restore drawing controls. Live seek pauses progression;
+release resumes previous Play only after final frame publication. Wheel over seek
+is one second, Ctrl wheel/arrow buttons use real adjacent source timestamps.
+Separate direction cycles, 12× exact entry, fine In/Out and range validation are
+described in the [finishing contract](docs/STUDIO_MEDIA_COMPOSITION.md#b3-finishing-candidate--2026-10-10).
+Editor/output update readouts are consumption/upload measurements, not scanout.
+Selected Up/Down and explicit tree edges order siblings with descendants; center
+enters eligible parents. Undo/Redo and session Save/reopen retain these settings.
+
+Video-layer Save is OPEN pending the [minimal export proposal](work/b3-finishing-20261010-1791665388356313700/VIDEO_SAVE_PROPOSAL.md).
+Its pending message and explicit current-frame image action distinguish a still
+from video output; File session Save remains separate. No product video writer
+was added. [Actual results](docs/agent-notes/b3-media-20261010.md) bind the starting
+B3 source, finishing-only diff/rollback, final checks, remaining timing misses and
+Robert's concise five-step review. Close normally after securing accepted work.
+The next whole-product migration assessment remains a manual post-B3 assignment.
+
+
+### B3 remaining-work review — 2026-10-11
+
+This uncommitted pass preserves the implemented bottom Video controls and existing
+sidebar/editor. Active playback now services native demand refills in nominal
+40 ms slices, then selects the latest ready or explicitly held frame. The allowance
+starts at codec service and allows one guarded decode call after a slow seek;
+opaque native calls can overrun it. Paused/final seeks remain exact, with the
+existing cumulative work bounds. This is not a playback FPS guarantee.
+
+Use [the current results](work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md) for source-bound cold/warm,
+one/two-source None/Loop/Ping-pong, both-direction 1×/6×/12× evidence and remaining
+stalls. Historical failures retain their original source identities. Qt pointer,
+button, keyboard and wheel checks supplement controller tests; physical Windows
+drag acceptance remains Robert's review. Source average FPS, editor consumption,
+upload cadence and requested time remain distinct from scanout and displayed pixels.
+
+Robert review: bottom transport/readouts and shared sidebar; rapid paused/playing
+scrub, wheel/Ctrl wheel/frame buttons and both cycles; keyboard/fine-wheel In/Out,
+two-source modes and timing limits; branch edges/Up/Down/Undo/Redo; session Save As,
+reopen, recovery and normal close. Video writing stays OPEN for
+[manual scope approval](work/b3-remaining-20261011-1791735342975863300/VIDEO_SAVE_PROPOSAL.md). The proposal retains
+applicable ancestor effects consistently with own-image capture. Current-frame
+image Save and File session Save remain separate. This pass grants no acceptance,
+dispatch, installation, checkpoint publication or follow-on assessment.
+
+Playback may also retire a forward refill goal made obsolete by a newer display
+demand more than two source seconds ahead. It resynchronizes on its existing
+lane to the current keyframe; decoded cache planes and published/copied readers
+keep their ownership. Fixed-timestamp seeks and ordinary prefetch keep the
+512-frame/two-second cumulative work protection. No larger cache, altered clock,
+reduced source pixels or discarded accepted artwork is involved. Natural
+full-range 6×/12× trials and remaining stalls are bound in the
+[current results](work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md).

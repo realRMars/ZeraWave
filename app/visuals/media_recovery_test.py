@@ -18,7 +18,7 @@ def run():
     try:
         end=time.monotonic()+5
         while registry.loading and time.monotonic()<end:registry.poll();time.sleep(.01)
-        record=inspect(str(root/'images n vids/Xeraphina_video.mp4'),threading.Event());record['id']=uuid.uuid4().hex;registry.assets[record['id']]=record
+        record=inspect(str(root/'videos/Xeraphina_video.mp4'),threading.Event());record['id']=uuid.uuid4().hex;registry.assets[record['id']]=record
         scene=defaults();row=new_layer('Video',record['id']);scene.update(assets=[record],layers=[row]);frames.sync(scene,registry.assets);owner=SimpleNamespace(rasters=SimpleNamespace(rows={}),media_registry=registry,media_frames=frames,media_scene=scene,removed_media={},composition_history=History(),media_revision=7,send_media=Mock(side_effect=OSError('Injected renderer command failure')))
         before=deepcopy(scene);state=frames.layers[row['id']];generation=state['generation'];data=dict(op='remove',asset=record['id'],choice='layers',selection=row['id'])
         import media_registry

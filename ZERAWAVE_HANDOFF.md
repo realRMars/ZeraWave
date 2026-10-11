@@ -1,6 +1,30 @@
 # ZeraWave handoff
 
-Updated: 2026-10-10 (accepted/pushed finishing checkpoint; manual B3 documentation handoff).
+## October 11 accepted B3 development checkpoint
+
+Robert reviewed and accepted the B3 correction candidate and authorized commit,
+normal push and Page reconciliation. The verified 239-file app bundle is
+`4a6ba5f8c10f0403b7be726a527190608309529c99a5e6cc6f8eb6ff140132a7`,
+on parent `9c14a349e351d3e56dbf11e24ac28dba00bc5dff`. The
+[publication receipt](work/publication-b3-accepted-20261011/review-index.json)
+records the exact published identity; [latest actual results](work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md)
+retain failed/unrun checks. This current acceptance supersedes task-time
+uncommitted/pending and pre-implementation wording below, not historical evidence.
+
+Timing remains PARTIAL: primary fairness improved 348.93 → 117.50 ms, but stalls
+reached 1684.55 ms and one fallback source-switch timeout remains unexplained.
+The scripted physical Windows drag-acceptance gap is retained; Robert's acceptance
+is his reported review, not a newly captured physical-input/scanout test.
+**Video Save writing remains OPEN**, with its [manual scope proposal](work/b3-remaining-20261011-1791735342975863300/VIDEO_SAVE_PROPOSAL.md)
+not approved or implemented by publication. Session Save and current-frame image
+Save remain separate. B3 stage closure is not declared by this checkpoint.
+After finishing B3, assess the whole existing product (worlds, Visualizer, audio
+and all older systems), then complete appropriate migration before unrelated
+expansion. Capacity Passes 2–4, higher counts and storage-location/relocation
+remain separate commitments. No next-stage dispatch, install or release build.
+
+
+Updated: 2026-10-11 (accepted B3 development candidate publication; retained open limits).
 [ROADMAP.md](ROADMAP.md) is the sole plan; [AGENTS.md](AGENTS.md) owns the working
 procedure. Prior checkpoints and their limitations remain below.
 
@@ -49,7 +73,7 @@ Broad/alternate-DPI/transformed-case/multi-hour/listening review, higher capacit
 large-clip reverse/refill limits and unsupported browser/video-audio/rigged-model
 capabilities retain their documented limits. Acceptance does not erase them.
 
-**Next scoped stage: B3 media foundation, approved but not implemented.**
+**Historical October 10 next stage: B3 media foundation, then not implemented.**
 [ROADMAP B3](ROADMAP.md#b3--bounded-media-foundation) owns its scope and acceptance
 matrix. Retain Qt/Python controls, the existing renderer, silent PyAV/FFmpeg media,
 original pixels and B1/B2 transaction/save behavior. Measured bounded C++ media

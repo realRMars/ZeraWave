@@ -1,5 +1,16 @@
 # ZeraWave
 
+## October 11 accepted B3 development checkpoint
+
+Robert accepted the verified B3 correction candidate and authorized publication.
+See the [current handoff](ZERAWAVE_HANDOFF.md#october-11-accepted-b3-development-checkpoint)
+and [publication receipt](work/publication-b3-accepted-20261011/review-index.json).
+Timing remains PARTIAL, one fallback switch timeout is unresolved, and scripted
+physical drag evidence remains unverified. Video Save writing stays OPEN; this
+checkpoint neither approves its proposal nor closes B3 or dispatches later work.
+Dated reports retain their task-time status and measurements.
+
+
 ZeraWave is a Windows music-reactive visualizer. The current checkout is the
 development source; the portable preview is a preserved, older checkpoint.
 
@@ -35,7 +46,7 @@ checkpoint for publication on October 5. Water/capture/startup improvements,
 compiler tradeoffs and remaining real-time limits are recorded in the handoff. See [Studio controls](DEVELOPMENT_STUDIO.md#main-audio-tuning-and-mapping-monitor)
 and the [current checkpoint and limits](ZERAWAVE_HANDOFF.md).
 
-Current accepted/pushed finishing development checkpoint:
+Earlier accepted/pushed finishing development checkpoint:
 [`f3d414be7ee380a38865c3579c057597dbb5fb06`](https://github.com/realRMars/ZeraWave/commit/f3d414be7ee380a38865c3579c057597dbb5fb06).
 B1 transactions/Undo/Redo and output before PNG durability, B2 optional C++ tiled
 resources/history/editor projection, storage recovery/normal close, ordinary image
@@ -47,8 +58,8 @@ rejected-stroke redraw, owner-death and unrun broad/product/capacity limits.
 acceptance is not a release or universal responsiveness guarantee.
 
 Approved direction retains Qt, Python authoring/control and the existing GPU
-renderer. **[B3 media foundation](ROADMAP.md#b3--bounded-media-foundation) is next,
-approved but not implemented**: fair bounded decode service, generations,
+renderer. **[B3 media foundation](ROADMAP.md#b3--bounded-media-foundation) has an accepted
+implemented development candidate**, with Video Save open and timing partial: fair bounded decode service, generations,
 direction-aware prefetch and timestamp-correct editor/output ownership.
 Then a manual whole-existing-product migration assessment covers worlds,
 Visualizer, audio and older systems, followed by remaining appropriate migration

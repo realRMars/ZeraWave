@@ -15,7 +15,7 @@ def run():
     root=Path(__file__).resolve().parents[2];out=Path(os.environ['ZERAWAVE_MEDIA_EVIDENCE'])/('native-gpu-'+str(time.time_ns()));out.mkdir()
     app=QApplication([]);ctx=moderngl.create_standalone_context(require=330);vertices=ctx.buffer(np.array([[-1,-1],[1,-1],[-1,1],[1,1]],'f4').tobytes());report=dict(evidence=__doc__,gpu=ctx.info['GL_RENDERER'],runs=[])
     for name in ('Xeraphina.jpg','Bobs Mock up.jpg','Xeraphina_video.mp4'):
-        path=root/'images n vids'/name;asset=inspect(str(path),threading.Event());asset['id']=uuid.uuid4().hex;meta=asset['metadata'];size=(meta['width'],meta['height']);target=ctx.simple_framebuffer(size,components=4);target.use();ctx.viewport=(0,0,*size)
+        path=root/('videos' if name.endswith('.mp4') else 'images')/name;asset=inspect(str(path),threading.Event());asset['id']=uuid.uuid4().hex;meta=asset['metadata'];size=(meta['width'],meta['height']);target=ctx.simple_framebuffer(size,components=4);target.use();ctx.viewport=(0,0,*size)
         class Proxy:
             screen=target
             def __getattr__(self,key):return getattr(ctx,key)

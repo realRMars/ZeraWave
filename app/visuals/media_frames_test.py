@@ -57,7 +57,7 @@ def fixtures(out):
 
 def run():
     root=Path(__file__).resolve().parents[2];out=Path(os.environ.get('ZERAWAVE_MEDIA_EVIDENCE',str(root/'work/media-composition-20261007')));rows={'original_fixtures':fixtures(out)}
-    for path in (root/'images n vids/Xeraphina_video.mp4',root/'images n vids/ZeraphinaX showcase 1.mp4',out/'alpha-disposal-vfr.gif'):
+    for path in (root/'videos/Xeraphina_video.mp4',root/'videos/ZeraphinaX showcase 1.mp4',out/'alpha-disposal-vfr.gif'):
         metadata=inspect_animation(str(path),threading.Event());decoder=DecoderWindow(str(path),MAX_CACHE_BYTES);base=120. if metadata['duration']>120 else .2;observations=[]
         try:
             for target in [base+i*.08 for i in range(15)]+[base+i*.08 for i in reversed(range(15))]:
@@ -69,7 +69,7 @@ def run():
             rows[path.name]=dict(metadata=metadata,frames=observations,seeks=decoder.seek_count)
         finally:decoder.close()
     # Proportional real-time ping-pong soak on a middle passage of the long clip.
-    path=root/'images n vids/ZeraphinaX showcase 1.mp4';meta=rows[path.name]['metadata'];identity=uuid.uuid4().hex;asset=dict(id=identity,path=str(path),kind='Video',name='Long clip',status='Ready',metadata=meta)
+    path=root/'videos/ZeraphinaX showcase 1.mp4';meta=rows[path.name]['metadata'];identity=uuid.uuid4().hex;asset=dict(id=identity,path=str(path),kind='Video',name='Long clip',status='Ready',metadata=meta)
     scene=defaults();row=new_layer('Video',identity);row['media'].update(start=120.,end=122.,loop='Ping-pong');scene['layers']=[row];scene['assets']=[{k:asset[k] for k in ('id','path','kind','name')}]
     owner=MediaFrames();reader=FrameReader();samples=[]
     def wait_frame(timeout=5.):

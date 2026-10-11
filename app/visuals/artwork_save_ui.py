@@ -66,7 +66,9 @@ class ArtworkSaveController:
     def association(self,scope,ids):
         key=output_key(scope,ids)
         return next((v for v in self.e.shell.client.snapshot.get('values',{}).get('artwork_outputs',[]) if output_key(v['scope'],v['targets'])==key),None)
-    def save(self,save_as=False,ids=None):
+    def save(self,save_as=False,ids=None,frame=False):
+        if not frame and ids and any(r['id'] in ids and r['type']=='Video' for r in self.e.config['layers']):
+            self.e.video.save_video();return
         if getattr(self.e.shell,'close_request',None):self.e.status.setText('Image save unavailable during close; Cancel close to continue.');return
         if self.request:self.e.status.setText('An artwork save request is already reconciling.');return
         if len(self.saves.jobs)>=2:self.e.status.setText('Two image saves pending; wait before another capture.');return

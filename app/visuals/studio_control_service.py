@@ -21,6 +21,9 @@ from studio_scope import playback_scope,leaf_destination,compatible_scope,valida
 from renderer import LIVE_FORMS
 from session_performance import ResourceSampler
 
+class ObsoleteMediaCommand(ValueError):
+    """Rejected ephemeral intent; log/ACK it without affecting a new selection."""
+
 class ControlOwner(Studio):
     def __init__(self,root,host):
         self.host=host;super().__init__(root)
@@ -249,6 +252,7 @@ def main():
             'media_library':library,
             'media_control':dict(session=owner.media_session,revision=owner.media_revision,history=owner.composition_history.snapshot(),transactions=owner.outcomes.state(),raster=owner.rasters.state()),
             'media_frames':dict(owner.media_frames.snapshot(),**owner.web_frames),
+            'media_resources':owner.media_frames.resources(),
             'tuning_drafts':list(drafts.values()),'tuning_dirty':any(d['dirty'] for d in drafts.values()),
             'close_state':dict(owner.close_state),'session_path':str(owner.session_path) if owner.session_path else None,
             'active_preview':owner.active_preview.get(),'status':owner.status.get(),'errors':list(errors)}
@@ -412,8 +416,15 @@ def main():
                     if audio['mode']!='Audio File' or normalized(audio['path'])!=normalized(record['path']):owner.audio_owner.submit('open',path=record['path'])
                 else:raise ValueError('Unsupported media action.')
         elif name=='media_transport':
-            if data.get('media_session')!=owner.media_session:raise ValueError('Animation command belongs to an obsolete session.')
-            owner.media_frames.command(data.get('layer'),data.get('op'),data.get('value'))
+            state=owner.media_frames.layers.get(data.get('layer'))
+            obsolete=data.get('media_session')!=owner.media_session or state is None or data.get('source') is not None and list(state['key'])!=data['source']
+            if obsolete:
+                # Ephemeral intent from a replaced session/source has no action
+                # in this owner. A late cancel is idempotent; other commands
+                # retain an explicit rejected ACK without opening Diagnostics.
+                if data.get('op')=='cancel_resume':return
+                raise ObsoleteMediaCommand('Animation command belongs to an obsolete session/source.')
+            owner.media_frames.command(data.get('layer'),data.get('op'),data.get('value'),data.get('source'))
         elif name=='web_frame':
             if data.get('media_session')!=owner.media_session:raise ValueError('Web pixels belong to an obsolete session.')
             row=next((r for r in owner.media_scene['layers'] if r['id']==data.get('layer') and r['type']=='Web'),None)
@@ -752,7 +763,7 @@ def main():
             owner.media_frames.freeze(intent[1] if intent and serial<intent[0] else owner.preview_state.get('paused',False))
         try:owner.media_frames.sync(owner.media_scene,{**owner.media_registry.assets,**owner.rasters.rows})
         except ValueError as exc:owner.media_registry.error=str(exc) # Retain last frames; keep control/audio ticks alive.
-        frames=owner.media_frames.snapshot();frame_key=[(key,(value.get('frame') or {}).get('name'),(value.get('frame') or {}).get('generation')) for key,value in frames.items()]
+        frames=owner.media_frames.snapshot();frame_key=[(key,(value.get('frame') or {}).get('name'),(value.get('frame') or {}).get('generation'),value.get('state'),value.get('error')) for key,value in frames.items()]
         if frame_key!=owner.frame_key:
             owner.frame_key=frame_key;owner.send_media()
         for _ in range(8):
@@ -769,7 +780,7 @@ def main():
                 # Expected admission backpressure is already an explicit rejected
                 # ledger outcome and Qt edit status. Preserve its trace, but do
                 # not promote it to an unrelated runtime-error pane/focus change.
-                failure(type(exc),exc,exc.__traceback__,notify=outcome.get('status')!='rejected')
+                failure(type(exc),exc,exc.__traceback__,notify=outcome.get('status')!='rejected' and not isinstance(exc,ObsoleteMediaCommand))
                 emit({'id':message.get('id'),'error':str(exc),'outcome_uncertain':outcome.get('status')=='applied'})
         if owner.close_state['phase']=='draining':
             state=owner.close_state
@@ -784,6 +795,10 @@ def main():
             # EOF is an exceptional route, with cooperative cancellation. Normal
             # close arrives only after every PNG/save future has actually ended.
             if not owner.rasters.prepare_close(True):root.after(10,tick);return
+            owner.media_frames.begin_close()
+            if not owner.media_frames.is_closed():
+                owner.close_state['error']='Waiting for decoder work to exit; readers and accepted artwork remain protected.'
+                root.after(10,tick);return
             protected=[a['path'] for a in owner.media_registry.assets.values() if not a.get('internal')]
             for cleanup in (owner.stop,lambda:owner.rasters.close(discard=True,protected_paths=protected),owner.media_frames.close,owner.media_registry.close,owner.audio_owner.close,sampler.close,view.close,owner.color_editor.close):
                 try:cleanup()
