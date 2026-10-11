@@ -1,6 +1,6 @@
 # ZeraWave engineering and creative working agreement
 
-Version: 1.6 - 2026-10-09 (implemented B1/B2 development checkpoint)
+Version: 1.7 - 2026-10-10 (accepted finishing checkpoint; scoped B3 media handoff)
 Project: ZeraWave
 Root: `C:\ZeraWave`
 
@@ -41,10 +41,12 @@ tradeoffs and implement the solution that serves the visual result. Do not force
 everything into one shader or reduce the art to avoid extending existing systems.
 
 Robert approved selective native migration: retain Qt, Python authoring/control
-and the GPU renderer. B1/B2 are implemented development candidates with user
-acceptance pending. B1 added no C++; B2 adds the small C++ tiled resource/history
-core and incremental compositing. Publication is authorized, not broad acceptance
-or B3 dispatch. Approval is not a
+and the GPU renderer. B1/B2 and finishing corrections are implemented in the
+accepted/pushed `f3d414be7ee380a38865c3579c057597dbb5fb06` checkpoint; older broad
+product/capacity and unrun conditions retain their limits. B1 added no C++; B2
+adds the small C++ tiled resource/history core and incremental compositing.
+B3 media foundation is approved next, not implemented or automatically dispatched.
+Its bounded native exception is described in section 20. Approval is not a
 wholesale rewrite or renderer/engine replacement. Native stage/toolchain details
 and dependencies outside assigned scope still need a concrete brief and any
 missing installation approval. ROADMAP owns the ordering.
@@ -269,8 +271,10 @@ changes physical module boundaries.
 Renderer/engine replacement, wholesale rewrite or an unassigned stage needs its
 own proposal. Ordinary scene extensions in sections 3 and 8 remain allowed.
 Existing Python paths do not impose a language ban. C++/toolchain work belongs
-to scoped B2, not the implemented B1 transaction stage. Keep Python policy and
-Qt UI; preserve B1 behavior across any native resource adapter.
+to scoped B2 and the approved bounded B3 media assignment, not the original B1
+transaction stage. In B3, justify narrow batched native media work by measured
+workload/ownership; PyAV/FFmpeg already decodes natively. Keep Python policy,
+Qt UI and the existing renderer; preserve B1 behavior across native adapters.
 
 ## 15. Prime Directive
 
@@ -335,11 +339,12 @@ rollout; future scenes must not need a separate editor.
 
 ## 18. B1 raster transaction and recovery agreement
 
-B1 is implemented; Robert's acceptance remains pending. Publication authorization
-is distinct from user acceptance.
-[B1 results](docs/agent-notes/b1-raster-20261008.md) retain limits/failures. Handoff
-uses section 13's route; ROADMAP owns priorities and acceptance. B2/corrections
-are implemented candidates; this checkpoint does not declare the editor accepted.
+B1 is implemented in the accepted/pushed finishing checkpoint; acceptance is
+scoped and does not certify every older product/capacity or unrun case.
+[B1 results](docs/agent-notes/b1-raster-20261008.md) retain their historical limits,
+failures and task-time status. Handoff uses section 13's manual route; ROADMAP owns
+priorities and acceptance. Preserve the implemented B1/B2 and finishing behavior
+through B3 without treating technical checks as additional human acceptance.
 
 Keep one logical document authority/private GUI gesture buffers. Define immutable
 runtime pixel identity/lifetime, document/session/target revision, operation IDs
@@ -367,8 +372,9 @@ no automatic critic, release or native migration follows from passing tests.
 
 ## 19. B2 native resource and incremental composition agreement
 
-B2 and focused corrections are implemented experimental candidates, not a
-consumer release or accepted editor. ROADMAP is the sole scope/acceptance plan.
+B2 and focused finishing corrections are implemented in the accepted development
+checkpoint, not a consumer release or broad product/capacity certificate.
+ROADMAP is the sole scope/acceptance plan.
 Bind the current source and resource/evidence hashes before edits; preserve
 all uncommitted work and original reports. Qt/Python tools/control, ControlOwner
 logical authority and existing renderer remain. No automatic dispatch/install,
@@ -394,3 +400,42 @@ reference pixels, sustained tile/history pressure, failures and B1's acceptance
 matrix. Real pointer/keyboard and visible output remain required alongside focused
 checks. Do not claim user acceptance, scanout/FPS or native performance before
 actual evidence; retain B1's documented limits until separately resolved.
+
+## 20. B3 media-foundation agreement and manual prerequisite
+
+B3 is approved next scope, not implemented. The sole Builder must first read and
+verify the Overseer's [reconciliation receipt](work/docs-b3-reconciliation-20261010/READINESS.md)
+and written [B3 scope/matrix](ROADMAP.md#b3--bounded-media-foundation). Preparation
+and publication do not grant dispatch authority. Follow the manual Prompter →
+Overseer → Builder route; no automatic worker/critic/follow-on assignment.
+
+Retain Qt/Python authoring/control, the existing renderer, one accountable media
+service and PyAV/FFmpeg capabilities. The bounded migration exception permits a
+small C++ media component where measured hot paths/ownership warrant it; do not
+infer that rewriting native codec bindings diagnoses a stall. Keep narrow batched
+interfaces, original native pixels/rates/ranges and loop/ping-pong behavior.
+Media decode/conversion/publication belongs to the service, Qt consumption to the
+GUI owner, GPU creation/upload/release to the existing GL-context owner. Bind
+successes and errors to source/generation/time/direction; cancellation cannot
+free buffers still read or make timeout mean exit. Bound queues/concurrency,
+prefetch, caches, staging and retiring readers; retain working visible fallback.
+Video remains silent and never owns or replays the independent audio clock/output.
+B1/B2 tools, locks, selections, history, Save/recovery and normal close remain.
+
+Inspect installed tools; install nothing. Report exact missing prerequisites and
+usable completed work instead of claiming blocked requirements shipped. Bind the
+starting dirty candidate and this separate documentation delta; preserve originals,
+unrelated work, evidence, resources and saved/unsaved artwork. Use existing standalone
+checks; retain failed/unrun cases and distinguish decoder/paint/swap timing from
+visible motion/physical scanout. Robert handles general hands-on acceptance;
+Computer Use is for implementation/debugging when needed. Leave B3 uncommitted
+for manual review; no commit/push, Pages or engine replacement under this brief.
+
+Required later order: B3 media foundation → whole-existing-product migration gap
+assessment → remaining appropriate migration → unrelated feature expansion.
+The post-B3 manual assessment covers worlds, Visualizer, audio and all older
+systems and assigns appropriate C++/Python/GPU ownership. It must not be advanced,
+narrowed to the editor, omitted or automatically dispatched. Historical B4–B8
+proposals remain references subject to it. Separately preserve capacity Passes
+2–4, higher Library/layer counts and storage-location/relocation commitments;
+B3 neither completes nor cancels them. ROADMAP remains the sole plan.

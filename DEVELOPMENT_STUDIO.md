@@ -8,8 +8,9 @@ direction in ROADMAP, not current product features.
 
 For the current checkout, double-click **`run_zerawave_studio.vbs`**. It uses the
 existing Qt Studio, ADS docking layout, renderer and isolated control owner.
-The media-composition candidate below is available for Robert's review; existing full-size
-rendering limits still apply. Older Tk and diagnostic entry points remain available.
+The finishing development checkpoint is accepted/pushed at
+`f3d414be7ee380a38865c3579c057597dbb5fb06`; existing full-size rendering and
+unrun broad/product/capacity limits still apply. Older Tk and diagnostic entry points remain available.
 
 ### Media composition — current candidate
 
@@ -38,8 +39,9 @@ short review path, exact supported formats, bounds, coordinate/transport contrac
 and pending capabilities. Loudman browser display is **pending matching Qt
 WebEngine installation approval and validation**. Video audio/multitrack editing
 and rigged/animated 3D still need an agreed scope. They are not functioning features
-in this candidate. Recovery source is published at `0fb4c3f`, but the editor
-remains unaccepted; publication does not close Robert's review issues.
+in this checkpoint. Recovery `0fb4c3f` is historical; current accepted source and
+retained limits are in the [handoff](ZERAWAVE_HANDOFF.md#october-10-drawing-and-storage-development-checkpoint).
+Finishing acceptance does not certify every older editor/capacity case.
 
 ### Blank children and ordinary artwork images — October 10 candidate
 
@@ -54,22 +56,32 @@ PNG retains transparency; JPEG explicitly chooses an opaque background.
 Composition, layer own artwork, branch and selected set have independent stable
 destinations carried by session Save/reopen. These do not replace **File → Save
 session** or owner **Retry saving**. Scope/bounds, supported formats, async failure/
-close behavior and the uncommitted status are detailed in the
+close behavior and current publication status are detailed in the
 [current image instructions](docs/STUDIO_MEDIA_COMPOSITION.md#direct-blank-children-captured-drawing-and-artwork-images--2026-10-10).
 
 ### Finishing review — October 10 candidate
 
-Robert's latest review specifically accepts artwork Save/Save As, direct blank
-children, normal close, improved Brush/Pencil and quick Eraser. Smudge mixing is
-good; its remaining response cost and larger-tip/sustained drawing are review
-targets. This does not accept the whole editor or deferred capacity work.
-The finishing candidate improves measured Smudge pickup without changing its pixels,
-raises shared Composition zoom to 256× with crisp pixel inspection, fixes a
-demonstrated Round size-1 Pencil defect, removes only the canvas idle tooltip,
-freezes legacy canvas geometry independently of output changes and offers atomic
-first Fill creation for Main/Secondary. See the [controls and limits](docs/STUDIO_MEDIA_COMPOSITION.md#finishing-controls--2026-10-10)
-and dated B2 actual results for source-bound timing, scripted checks and remaining
-physical pointer/Visualizer review. It remains uncommitted for Robert's quick check.
+Robert accepted the finishing pass, now published at the checkpoint above.
+It preserves pixels while improving measured Smudge pickup, adds shared 256×
+zoom/crisp inspection, corrects Round size-1 Pencil, removes only the canvas idle
+tooltip, freezes authored geometry and provides atomic confirmed first Fill for
+Main/Secondary. [Controls and limits](docs/STUDIO_MEDIA_COMPOSITION.md#finishing-controls--2026-10-10)
+and [dated results](docs/agent-notes/b2-tiles-20261008.md) retain source-bound timings,
+scripted checks, failures and unrun conditions. Measured Smudge/encoder tails,
+true overload/rejected-stroke redraw, owner-death and broad physical/Visualizer/
+multi-hour/listening/capacity limits remain; acceptance is not a latency guarantee.
+
+### B3 status — approved media foundation, not implemented
+
+Current silent PyAV/FFmpeg media uses the serial service, bounded decoder cache
+and shared staging; historical publication-rate checks do not prove smooth visible
+playback at every rate/direction. B3 will address fair bounded per-source service,
+generations/cancellation, timestamp-direction cache/prefetch and editor/output
+presentation ownership. Existing Play/Pause, Stop, seek/rate/range/loop/ping-pong
+controls remain; no new transport, video audio, timeline or export is promised.
+[ROADMAP B3](ROADMAP.md#b3--bounded-media-foundation) is the sole scope and acceptance
+plan. The [manual receipt](work/docs-b3-reconciliation-20261010/READINESS.md) must be
+verified before coding; no Builder is dispatched by this guide.
 
 ### B1 status — development raster publication candidate
 
@@ -81,7 +93,7 @@ Save pins a revision plus Qt metadata; Retry saving/Save As secure failed resour
 and retained checkpoints. Admission/backpressure and close protection are bounded.
 See [actual results and review](docs/agent-notes/b1-raster-20261008.md) and the
 [runtime/save contract](docs/STUDIO_MEDIA_COMPOSITION.md#runtime-transactions-and-recovery).
-Robert's acceptance remains pending. Keep the latest
+Finishing checkpoint acceptance stands with older/unrun limits retained. Keep the latest
 [tool/lock/selection/recovery meanings](docs/STUDIO_MEDIA_COMPOSITION.md#b1-preservation-requirements).
 The [acceptance matrix](ROADMAP.md#b1-acceptance-plan) includes rapid input,
 delayed saving, Undo/Redo, failures and real input/visible output.
@@ -92,8 +104,9 @@ delayed saving, Undo/Redo, failures and real input/visible output.
 implements experimental C++ tiled raster resources, copy-on-write history and
 renderer-owned editor projection behind B1's transaction/save behavior, followed
 by focused selection/clipboard/Smudge and usability/performance corrections. Retain Qt/Python tools and existing GPU output. B1's
-release snapshot copying, Smudge/dense Add costs, uncertain-owner/close limits
-and pending user review remain; a native performance improvement needs evidence.
+historical copy/Smudge measurements are not unchanged current algorithms;
+full-image PNG, Smudge/dense Add costs and uncertain-owner/close limits remain.
+Broader unrun review stays open; native performance claims need bound evidence.
 See [native setup/fallback](docs/NATIVE_RASTER_B2.md) and [latest actual results](docs/agent-notes/b2-tiles-20261008.md)
 for current controls, source identity, costs and unrun checks. Publication retains
 user-review limits; native DLL selection requires a new process.
@@ -1009,8 +1022,8 @@ There is no mandatory display-loop readback. The Layers editor label distinguish
 these routes; `ZERAWAVE_EDITOR_GPU=cpu` selects the compatible CPU editor at open.
 Native initialization failure also preserves a usable CPU Canvas.
 
-This is a reviewable candidate, not Robert acceptance or a universal performance
-claim. Latency, memory, failures and remaining limitations are bound in
+This backend is included in the accepted finishing checkpoint, not a universal
+performance or broad product certificate. Latency, memory, failures and limits are bound in
 `docs/agent-notes/b2-tiles-20261008.md` and `work/b2-completion-20261008`.
 Build, ABI, resource bounds and secured fallback are in the
 [B2 implementation contract](docs/NATIVE_RASTER_B2.md).

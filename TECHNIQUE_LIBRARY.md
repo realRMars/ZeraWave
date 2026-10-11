@@ -7,23 +7,39 @@ backlog; see [ROADMAP.md](ROADMAP.md) for priorities.
 
 | Current owner | Implemented responsibility |
 | --- | --- |
-| `studio_qt.py`, `studio_composition.py` | Qt widgets/input, private raster gestures, CPU composition preview and tools. |
+| `studio_qt.py`, `studio_composition.py` | Qt widgets/input and private gestures/tools; renderer-owned GPU editor projection with compatible Qt reference paths. |
 | `studio_control_client.py`, `studio_control_service.py`, `composition.py` | Python command/ACK, authoritative composition/history and revision/session policy over the retained control process. |
 | `raster_resources.py`, `studio_control_service.py` | Immutable shared raster leases, bounded owner admission/persistence, duplicate ledger and revision-pinned portable saves. |
-| `artwork.py`, `media_registry.py` | Unchanged native raster algorithms and durable PNG/import validation; completed B1 pixel edits publish before background PNG work. |
+| `artwork.py`, `media_registry.py`, `artwork_store.py`, `artwork_export.py` | Raster algorithms/import validation, bounded working storage and ordinary image export; B1 pixel acceptance/output precedes PNG durability. |
+| `native_raster.py`, `raster_tiles.py` | Optional B2 C ABI adapter, immutable 128px tiles/copy-on-write history and exact kernels; compatible B1 fallback. |
 | `image_layers.py`, `renderer.py` | Existing context-owned GPU composition/output; no second world renderer. |
 | `media_frames.py`, `model_layer.py` | Bounded silent native codec frames and supported static meshes. |
 
-Approved direction retains Qt/Python control and GPU rendering with a small C++
-core in B2. B1 runtime snapshots/asynchronous outcomes are implemented in the
-development review candidate; [actual results](docs/agent-notes/b1-raster-20261008.md)
-do not establish user acceptance. B1 separates history/output acceptance from PNG persistence;
-B2 implements experimental C++ tiled storage, copy-on-write history and
-renderer-owned editor projection behind B1's transaction/save interfaces. See
-[native ownership/setup](docs/NATIVE_RASTER_B2.md); its generated DLL remains local. Audio/media native work
-follows separate stages. Module paths describe current ownership, not a language
-ban. See [ROADMAP](ROADMAP.md#b1--raster-transactions-recovery-and-immediate-publication)
-and [media contracts](docs/STUDIO_MEDIA_COMPOSITION.md#current-status-and-b1-boundary).
+Approved direction retains Qt/Python authoring/control and GPU rendering. B1,
+B2 and finishing corrections are implemented in the accepted/pushed checkpoint
+`f3d414be7ee380a38865c3579c057597dbb5fb06`; [current handoff](ZERAWAVE_HANDOFF.md#october-10-drawing-and-storage-development-checkpoint)
+records identity and retained limits. B1 separates history/output acceptance from
+PNG durability; B2's optional C++ store/projection stays behind those interfaces.
+[Native setup](docs/NATIVE_RASTER_B2.md) describes local generated DLLs/fallback.
+Dated [B1](docs/agent-notes/b1-raster-20261008.md)/[B2](docs/agent-notes/b2-tiles-20261008.md)
+results retain historical status/measurements, not fresh performance certification.
+
+B3 media foundation is approved next, **not implemented**. Current `media_frames.py`
+still owns serial silent decode/conversion/shared publication; registry/control
+request policy, copying FrameReader consumption in Qt and `image_layers.py` GL
+uploads remain current paths. Planned B3 repairs fair per-source scheduling,
+generation/time/direction invalidation, bounded timestamp prefetch and leased
+transfer ownership. Codec/container access stays under one accountable service;
+Qt consumes immutable snapshots and the existing GL-context owner uploads/releases.
+No speculative C++ media module is registered here as shipped. Native media hot
+paths require measured justification, narrow batched boundaries and working visible
+fallback; independent audio ownership/B1 saves are preserved. See [B3 scope](ROADMAP.md#b3--bounded-media-foundation)
+and [media contract](docs/STUDIO_MEDIA_COMPOSITION.md#b3-media-boundary--approved-not-implemented).
+
+After B3, the whole-existing-product gap assessment covers worlds, Visualizer,
+audio and all older systems, deciding C++/Python/GPU work before remaining migration
+and unrelated expansion. It is a later manual assignment, not current ownership.
+Module paths are not a language ban; ROADMAP remains the only implementation plan.
 
 ## Dated rendering inventory reference
 
@@ -422,8 +438,8 @@ There is no mandatory display-loop readback. The Layers editor label distinguish
 these routes; `ZERAWAVE_EDITOR_GPU=cpu` selects the compatible CPU editor at open.
 Native initialization failure also preserves a usable CPU Canvas.
 
-This is a reviewable candidate, not Robert acceptance or a universal performance
-claim. Latency, memory, failures and remaining limitations are bound in
+This backend is included in the accepted finishing checkpoint, not a universal
+performance or broad product certificate. Latency, memory, failures and limits are bound in
 `docs/agent-notes/b2-tiles-20261008.md` and `work/b2-completion-20261008`.
 Build, ABI, resource bounds and secured fallback are in the
 [B2 implementation contract](docs/NATIVE_RASTER_B2.md).

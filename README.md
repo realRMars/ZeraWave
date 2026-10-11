@@ -35,23 +35,23 @@ checkpoint for publication on October 5. Water/capture/startup improvements,
 compiler tradeoffs and remaining real-time limits are recorded in the handoff. See [Studio controls](DEVELOPMENT_STUDIO.md#main-audio-tuning-and-mapping-monitor)
 and the [current checkpoint and limits](ZERAWAVE_HANDOFF.md).
 
-Recovery [0fb4c3f](https://github.com/realRMars/ZeraWave/commit/0fb4c3fa28632a6aaedb472be50b1837926b9caa)
-includes Qt controls, audio timeline/Band Analyzer, media composition and raster
-corrections. **The editor remains unaccepted**, with transaction/recovery/input
-review problems. See [Studio](DEVELOPMENT_STUDIO.md), [media editing](docs/STUDIO_MEDIA_COMPOSITION.md)
-and [current handoff](ZERAWAVE_HANDOFF.md#current-recovery-checkpoint-and-b1-handoff).
+Current accepted/pushed finishing development checkpoint:
+[`f3d414be7ee380a38865c3579c057597dbb5fb06`](https://github.com/realRMars/ZeraWave/commit/f3d414be7ee380a38865c3579c057597dbb5fb06).
+B1 transactions/Undo/Redo and output before PNG durability, B2 optional C++ tiled
+resources/history/editor projection, storage recovery/normal close, ordinary image
+Save and finishing controls are implemented. The earlier `0fb4c3f` recovery is
+historical. [Current handoff](ZERAWAVE_HANDOFF.md#october-10-drawing-and-storage-development-checkpoint)
+and [dated results](docs/agent-notes/b2-tiles-20261008.md) retain measured tails,
+rejected-stroke redraw, owner-death and unrun broad/product/capacity limits.
+[Native setup/fallback](docs/NATIVE_RASTER_B2.md) explains optional local DLLs;
+acceptance is not a release or universal responsiveness guarantee.
 
-B1 raster transactions/Undo/Redo and publication before PNG saving are implemented
-in the **development candidate**, awaiting user acceptance. See [B1 results](docs/agent-notes/b1-raster-20261008.md)
-for review steps, source identity, evidence and limits; the recovery commit alone
-does not contain B1.
-
-Approved direction retains Qt, Python authoring/control and GPU rendering.
-[B2](ROADMAP.md#b2--c-tiled-raster-resources-copy-on-write-history-and-incremental-compositing)
-provides experimental C++ tiled raster resources, copy-on-write history and
-renderer-owned editor compositing, preserving B1 transactions/saves. Focused
-selection/clipboard/Smudge and usability/performance corrections are implemented.
-[Native build/fallback](docs/NATIVE_RASTER_B2.md) explains optional setup; DLLs
-are not included. October 9 publication is a development checkpoint with review
-and performance limits retained in [actual results](docs/agent-notes/b2-tiles-20261008.md). Media scheduling, audio graph, timeline/export and distribution remain later
-stages in ROADMAP, the sole plan.
+Approved direction retains Qt, Python authoring/control and the existing GPU
+renderer. **[B3 media foundation](ROADMAP.md#b3--bounded-media-foundation) is next,
+approved but not implemented**: fair bounded decode service, generations,
+direction-aware prefetch and timestamp-correct editor/output ownership.
+Then a manual whole-existing-product migration assessment covers worlds,
+Visualizer, audio and older systems, followed by remaining appropriate migration
+before unrelated expansion. ROADMAP is the sole plan; historical B4–B8 proposals
+are subject to that assessment. Capacity Passes 2–4, higher counts and storage
+location/relocation remain separate. No dispatch follows documentation readiness.

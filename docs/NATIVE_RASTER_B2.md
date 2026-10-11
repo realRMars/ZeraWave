@@ -1,20 +1,67 @@
 # B2 native tiled raster and renderer-owned editor candidate
 
-This is a development/experimental candidate authorized for publication October 9,
-not Robert acceptance. Generated DLLs remain local; source/build instructions are
-published and the compatible fallback remains available. The
-actual-results note and newest manifest in
-`work/raster-reliability-20261009-1791583929312117900` bind this uncommitted repair.
-The preceding published correction remains bound to its original usability-performance pack.
-Earlier `work/b2-completion-20261008` and `work/b2-tiles-20261008` packs are preserved.
-ControlOwner remains logical document/history authority; Qt remains the authoring
-UI; the existing renderer owns graphics. No owner-death recovery is provided.
+B2 is implemented as the optional experimental raster backend in the accepted
+finishing development checkpoint below; this is not a consumer release. Generated
+DLLs remain local, with source/build instructions and a compatible B1 fallback.
+ControlOwner remains logical document/history authority, Qt the authoring UI and
+the existing renderer the graphics owner. No owner-death recovery is provided.
+Earlier `work/b2-completion-20261008`, `work/b2-tiles-20261008` and subsequent
+reliability/finishing packs remain source-bound historical evidence.
+
+## Current checkpoint and approved B3 boundary
+
+B1/B2 and finishing corrections are implemented in the accepted/pushed checkpoint
+`f3d414be7ee380a38865c3579c057597dbb5fb06`. [Current handoff](../ZERAWAVE_HANDOFF.md#october-10-drawing-and-storage-development-checkpoint)
+and [publication receipt](../work/publication-raster-recovery-20261010/review-index.json)
+supersede task-time uncommitted/pending status in dated reports, not their measured
+limits. Finishing acceptance does not certify all older product/capacity cases.
+Smudge/encoder tails, overload/rejected-stroke redraw, owner-process-death limits,
+unsupported media and broad/physical/multi-hour unrun cases remain explicit.
+Native ABI1/128px/x64 and generated DLL remain unchanged; no B3 build has shipped.
+
+B3 is approved next, not implemented. [ROADMAP B3](../ROADMAP.md#b3--bounded-media-foundation)
+owns its increments and matrix. Preserve existing Qt/Python authoring/control,
+renderer/audio ownership, original pixels/rates/ranges/loops, B1 transactions,
+Undo/Redo, image/session Save/recovery and normal close. Planned media scheduling
+must bind success/error to source/generation/requested time/direction and retain
+buffers/readers until actual cancellation/exit. Fair bounded service must not
+serialize healthy sources behind slow codec work. Direction-aware timestamp caches
+and prefetch remain within justified aggregate budgets; no cap-raising, resolution
+or layer-count reduction as a substitute for measured improvement.
+
+Media service owns codec/container access and decode/conversion/publication; Qt
+owns editor consumption, existing GL-context owner creates/uploads/releases textures.
+Immutable snapshots/leases or proven equivalent lifetimes must account for decoded
+planes, RGBA/shared slots/headers, in-flight/retiring jobs, editor copies and GPU
+upload staging, distinguishing references/budgets from actual allocations/RSS.
+No control lock spans expensive decode. Late frames/errors cannot publish or stop
+new generations, and timeouts do not prove decoder exit. Preserve silent video,
+independent audio clock/output, native pixels/alpha/disposal/orientation/aspect and
+GIF/sprite behavior. Optional native B3 work needs measured ownership justification,
+installed-tool inspection and visible functional fallback; no installation/engine
+replacement or unsafe runtime backend switching.
+
+Maintain matched short/long-GOP 1×/6×/12× forward/reverse/range/ping-pong checks,
+slow-source fairness, seeks/visibility/replacement/session/close cancellation,
+audio and raster/save coexistence, missing-native and decode/write/upload failures.
+Separate request/queue/decode/convert/PTS/editor/output times and peak allocations;
+retain cold/warm tails/stalls, failures/unrun cases and bounded visible-motion
+evidence. Decoder/shared-reader/paint/swap return is not physical scanout.
+General hands-on acceptance stays with Robert. Verify the [manual documentation
+receipt](../work/docs-b3-reconciliation-20261010/READINESS.md) before coding.
+
+After B3, a separate manual whole-product migration assessment covers worlds,
+Visualizer, audio and all older systems, then remaining appropriate migration,
+then unrelated feature expansion. Historical B4–B8 references are subject to that
+assessment. Capacity Passes 2–4, higher counts and storage-location/relocation
+remain separate commitments, neither completed nor cancelled by B3.
 
 ## Raster recovery and mouse-channel correction — 2026-10-09
 
-This uncommitted correction starts at published `6aed22041bd15392857c676f832a4f25f07bd765`.
-Robert's hands-on acceptance remains pending; the dated actual-results section in
-`agent-notes/b2-tiles-20261008.md` binds the new evidence and its limits.
+This correction is included in the accepted/pushed finishing checkpoint above.
+Its task-time start was `6aed22041bd15392857c676f832a4f25f07bd765`; the dated
+actual-results sections in `agent-notes/b2-tiles-20261008.md` retain evidence and
+limits without implying newly rerun checks or broad product acceptance.
 
 The Composition canvas consumes context-menu events for every tool, including
 queued and modified events. It has no right-click popup. Layers, Library and
@@ -354,8 +401,8 @@ guarantee or Robert acceptance.
 
 ## Pass 1: sustainable working storage and normal shutdown — 2026-10-09
 
-This uncommitted candidate extends the starting recovery implementation; Robert
-owns acceptance. Passes 2–4 and B3 remain unimplemented. Native ABI 1, the loaded
+This implemented Pass 1 is included in the accepted finishing checkpoint. Capacity
+Passes 2–4 remain separate; B3 is approved next, not implemented. Native ABI 1, the loaded
 DLL, session version 5/composition version 4 and intended source pixels are unchanged.
 
 `artwork_store.py` uses bundled SQLite to index PNG bytes, distinct payloads,
@@ -427,4 +474,4 @@ There is no compulsory per-frame readback or native build change. Optional top-l
 from portable session Save and owner Retry; Pass 1's stores, retirement, pressure,
 accepted-work ownership and shutdown remain the preservation contract. Exact pixels,
 resource/timing results, native/fallback cases and limitations are bound in the
-newest dated B2 actual-results section; Robert acceptance remains pending.
+newest dated B2 actual-results section; current scoped acceptance is recorded above.

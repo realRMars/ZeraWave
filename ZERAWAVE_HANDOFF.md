@@ -1,46 +1,80 @@
 # ZeraWave handoff
 
-Updated: 2026-10-10 (drawing, artwork saving, storage/shutdown and finishing checkpoint).
+Updated: 2026-10-10 (accepted/pushed finishing checkpoint; manual B3 documentation handoff).
 [ROADMAP.md](ROADMAP.md) is the sole plan; [AGENTS.md](AGENTS.md) owns the working
 procedure. Prior checkpoints and their limitations remain below.
 
 ## October 10 drawing and storage development checkpoint
 
-Robert authorized commit and normal GitHub push from parent
-`6aed22041bd15392857c676f832a4f25f07bd765`. Exact committed source/staged scope,
-checks and remote verification belong in [publication receipt](work/publication-raster-recovery-20261010/review-index.json).
-This checkpoint includes raster/mouse-channel recovery, short-stroke disposition,
-Pass 1 sustainable artwork storage and normal shutdown, direct blank children,
-captured drawing, ordinary artwork image Save/Save As, and the focused finishing
-controls documented in [actual results](docs/agent-notes/b2-tiles-20261008.md).
+**Accepted and pushed:** [`f3d414be7ee380a38865c3579c057597dbb5fb06`](https://github.com/realRMars/ZeraWave/commit/f3d414be7ee380a38865c3579c057597dbb5fb06),
+parent `6aed22041bd15392857c676f832a4f25f07bd765`. Fresh local verification
+for this documentation prerequisite finds branch `main`, HEAD and local
+`origin/main` at the accepted SHA, with an empty index. The
+[publication receipt](work/publication-raster-recovery-20261010/review-index.json)
+records `remote_verified: true` and remote `main` at the same full SHA. This pass
+reads that receipt; it does not rerun the network/push or application checks.
+All 34 receipt-recorded staged Git blob identities match the current HEAD.
 
-Latest source identity is `work/finishing-20261010-1791615314962580500/`:
-230-file app bundle `607ace8177c84ec3809fc79b3965476a1b543690394fbf4da5c48747a0c519ed`.
-Before publication edits, all 393 candidate files and 230 app-source hashes matched
-its final manifest/baseline. The native DLL is unchanged; no native rebuild,
-installation, user-session interruption or portable release is part of publication.
-Earlier packs/task reports retain their original hashes and task-time status.
+Robert accepted the finishing pass. Implemented scope includes raster/mouse-channel
+recovery, short-stroke disposition, Pass 1 sustainable storage/normal shutdown,
+direct blank children/captured drawing, ordinary artwork Save/Save As, Smudge
+pickup improvements, pointer-anchored 0.02–256× inspection, crisp size-1 Pencil,
+atomic confirmed zero-layer Fill and authored geometry independent of output size.
+The earlier specific hands-on approvals remain; finishing acceptance supersedes
+its report's task-time uncommitted/pending wording, without certifying every older
+product, capacity or unrun review case.
 
-Robert specifically accepted artwork Save/Save As, immediate blank children,
-normal closing, improved Brush/Pencil and quick Eraser. Smudge mixing looks good
-to him; responsiveness/larger-tip sustained trailing remain review targets.
-These supersede earlier blanket unaccepted wording only for those behaviors;
-whole-editor/capacity, physical pointer/live Visualizer and multi-hour/listening
-acceptance remain open. Finishing adds pointer-anchored 0.02–256x inspection,
-crisp one-cell size-1 Pencil, atomic confirmed zero-layer Fill and stable authored
-canvas dimensions independently of later output/viewport changes.
+Latest finishing evidence: [FINISH_REVIEW.md](work/finishing-20261010-1791615314962580500/FINISH_REVIEW.md),
+its final/source manifests, check/evidence indexes, matched raw runs, task-only
+patch and guarded rollback. The finishing report's pre-publication 230-file app
+bundle was `607ace8177c84ec3809fc79b3965476a1b543690394fbf4da5c48747a0c519ed`;
+publication separately records the EOF-only `artwork_export.py` correction and
+ROADMAP/HANDOFF status delta. Do not use that pre-publication bundle as the exact
+published-byte identity. [Dated B2 results](docs/agent-notes/b2-tiles-20261008.md)
+and all prior packs retain their original hashes/status/failures.
+Native remains x64 ABI1/128px, DLL SHA256
+`0e13c7e88532251ce15105bc6386fd1351efdbddf49a87d4c58ecf544f7e1cf1`;
+no rebuild or portable release follows this documentation handoff.
 
-Keep the documented overload/backpressure and rejection/redraw requirements.
-Full-image PNG persistence remains; true encoder overload can fill its bounded
-queue. Unknown/crashed work and saved dependencies retain conservative protection.
-Owner-death/power-loss recovery, arbitrary filesystem stalls and multi-instance
-storage coordination are not established. Native/B1 timing tails/outliers remain;
-no universal speedup, physical latency/FPS or stall-free response is claimed.
+Remaining limits: matched finishing native/B1 after-release-pump acceptance waits
+reached 80.70/106.86 ms, with short-condition regressions/outliers retained. These
+are scripted dispatch/paint proxies, not physical latency/FPS/scanout or live
+Visualizer certification. Full-image PNG encoding and the bounded queue still
+produce real overload; individual encoder throughput was not isolated. A completed
+stroke rejected before admission is discarded, not saved, and must be redrawn
+after drain or real-owner Retry; accepted failed work stays pinned/recoverable.
+Unknown ACK is not durable success. Owner-process-death/reconnection, power loss,
+arbitrary filesystem stalls and multi-instance coordination are not established.
+Broad/alternate-DPI/transformed-case/multi-hour/listening review, higher capacities,
+large-clip reverse/refill limits and unsupported browser/video-audio/rigged-model
+capabilities retain their documented limits. Acceptance does not erase them.
 
-Passes 2–4, higher capacities/storage relocation, New Session and B3 remain
-deferred pending scoped briefs. Publication starts no worker/critic or new pass.
-Original media/research/plans, unrelated color/startup/plan notes, generated DLLs,
-work evidence and the frozen portable remain local and preserved.
+**Next scoped stage: B3 media foundation, approved but not implemented.**
+[ROADMAP B3](ROADMAP.md#b3--bounded-media-foundation) owns its scope and acceptance
+matrix. Retain Qt/Python controls, the existing renderer, silent PyAV/FFmpeg media,
+original pixels and B1/B2 transaction/save behavior. Measured bounded C++ media
+work is allowed in that future assignment; no installation or engine replacement.
+The explicit subsequent sequence is whole-existing-product migration gap assessment
+(worlds, Visualizer, audio and all older systems; C++/Python/GPU decisions), then
+remaining appropriate migration, then unrelated feature expansion. Historical
+B4–B8 proposals remain references subject to that assessment, not dispatch authority.
+Capacity Passes 2–4, metadata/protocol scaling, higher Library/layer counts, storage
+location/relocation controls and deeper stress remain separate commitments. B3
+does not complete/cancel them; New Session remains outside B3.
+
+Pre-edit dirty state: three modified color/palette notes; untracked `DW Research/`,
+`Plan and brainstorms/`, startup-performance and ZeraphinaX-plan notes, and
+`images n vids/`. Preserve these, original media, all retained evidence, generated
+DLLs, settings and frozen portable. This documentation-only delta is separately
+bound in the [manual reconciliation receipt](work/docs-b3-reconciliation-20261010/READINESS.md).
+Builder must read and verify its hashes and actual written guidance before B3
+coding. Completion sends no message or assignment automatically. Implementation
+will remain uncommitted for Robert's manual review; this pass does no coding,
+installation, commit/push, Pages update or follow-on assessment.
+
+The sections below are **historical checkpoint records**. Their task-time pending,
+uncommitted and no-B3 language is retained evidence, superseded for current status
+and priorities by this checkpoint and ROADMAP; it is not today's dispatch policy.
 
 ## October 9 raster/editor development checkpoint
 

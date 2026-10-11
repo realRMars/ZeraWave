@@ -1,19 +1,52 @@
 # Studio media composition
 
-Publication status — October 9: Robert authorized the B1/B2 and focused correction
-development checkpoint for commit/normal push. User acceptance remains pending.
-The candidate descriptions below retain their task-time evidence, including
-earlier uncommitted/planned statuses; current implementation and remaining limits
-are summarized in [handoff](../ZERAWAVE_HANDOFF.md#october-9-rastereditor-development-checkpoint).
-Earlier report sections and sealed work packs retain their original evidence.
+Current status — October 10: Robert accepted the finishing development checkpoint,
+committed/pushed as `f3d414be7ee380a38865c3579c057597dbb5fb06`. See the
+[current handoff](../ZERAWAVE_HANDOFF.md#october-10-drawing-and-storage-development-checkpoint)
+and [publication receipt](../work/publication-raster-recovery-20261010/review-index.json).
+Scoped acceptance retains known tails, overload/rejected-stroke redraw, owner-death,
+unsupported media and unverified broad/capacity/physical/multi-hour conditions.
+Dated reports/work packs retain their original uncommitted/pending identities;
+this current pointer supersedes those statuses, not their historical measurements.
+Earlier explicitly SUPERSEDED workflows remain superseded.
+
+## B3 media boundary — approved, not implemented
+
+Existing media is silent PyAV/FFmpeg Video, GIF and Sprite playback through the
+single serial `media_frames.py` service, timestamp lookup and shared double buffers.
+Four visible animated sources, 96 MiB aggregate decoder-cache, 128 MiB shared
+staging and 512-frame/two-second GOP refill limits remain. FrameReader clients copy
+frames; Qt converts editor images and the existing GL owner uploads output.
+Direction-aware prefetch/fair independent service is not yet implemented. The
+current loop cancellation event is not wired to transport invalidation; this is
+an inspection finding, not a universal diagnosis. Large-showcase reverse/refill
+limits at 6×/12× remain. Worker/shared-reader publications are not smooth-playback proof.
+
+Approved B3 will provide fair bounded source scheduling, generation-bound success
+and error outcomes, active-direction timestamp cache/prefetch and requested-time
+presentation. One service owns codec/container access, decode/conversion/publication;
+Qt owns editor consumption and the current GL context owns GPU uploads/releases.
+Immutable snapshots/leases must retain jobs/readers until actual exit. Stop/seek/
+replacement/session/visibility/rate/direction changes cannot let stale work publish
+or free live buffers. Preserve original resolution, alpha/disposal, orientation,
+pixel aspect, variable GIF delays, sprite behavior, ranges/rates and loop/ping-pong.
+No decode audio stream/output, captured-audio replay or independent audio-clock takeover.
+B1/B2 drawing/history/Save/recovery and normal shutdown remain intact. Optional native
+media work must be measured, narrow, bounded and visibly fall back; install nothing.
+
+[ROADMAP B3](../ROADMAP.md#b3--bounded-media-foundation) owns increments and the acceptance
+matrix; this is a preservation/ownership contract, not another plan. Verify the
+[documentation receipt](../work/docs-b3-reconciliation-20261010/READINESS.md) before
+coding. Whole-product migration assessment follows B3 manually, before remaining
+appropriate migration and unrelated expansion. B3 neither completes nor cancels
+capacity Passes 2–4, higher counts or storage-location/relocation controls.
 
 ## Finishing controls — 2026-10-10
 
-Robert specifically accepted ordinary artwork Save/Save As, direct blank children,
-normal closing, improved Brush/Pencil and quick Eraser in the starting candidate.
-Smudge mixing looks good to him; its response and subtle larger-tip/sustained
-Brush/Pencil trailing remain this finishing pass's review targets. These specific
-results do not establish comprehensive editor/capacity acceptance.
+The finishing pass is accepted/pushed at the current checkpoint above. Its earlier
+specific approvals and task-time review targets remain in the dated results.
+Known response/timing tails and unrun physical/Visualizer/capacity cases remain;
+scoped finishing acceptance is not comprehensive editor/product certification.
 
 Wheel, Ctrl fine wheel, native detail and both magnifiers now share **0.02–256×**
 (2%–25600%). Wheel keeps the artwork point under the pointer; existing increments,
@@ -48,13 +81,15 @@ blend paths avoid redundant setup/copies. The evolving selected layer, hidden
 exclusion, transforms, crop/masks, blend strength, tips and smear math remain.
 The dated [actual results](agent-notes/b2-tiles-20261008.md) bind exact pixel parity,
 matched native/B1 timings, outliers, scripted framebuffer checks and unrun physical
-pointer/Visualizer checks. No broad capacity acceptance or B3 follows.
+pointer/Visualizer checks. Broad capacity acceptance is not established. B3 is
+approved next in ROADMAP, but these finishing checks did not implement it.
 
 ## Raster recovery and mouse-channel correction — 2026-10-09
 
-This uncommitted correction starts at published `6aed22041bd15392857c676f832a4f25f07bd765`.
-Robert's hands-on acceptance remains pending; the dated actual-results section in
-`agent-notes/b2-tiles-20261008.md` binds the new evidence and its limits.
+This correction is included in the accepted/pushed finishing checkpoint above.
+Its task-time start was `6aed22041bd15392857c676f832a4f25f07bd765`; the dated
+actual-results sections in `agent-notes/b2-tiles-20261008.md` retain evidence and
+limits without implying newly rerun checks or broad product acceptance.
 
 The Composition canvas consumes context-menu events for every tool, including
 queued and modified events. It has no right-click popup. Layers, Library and
@@ -144,7 +179,8 @@ integer weighting. Busy feedback reports real worker phases without percentages,
 then existing owner acceptance, ordered publication and separate PNG durability.
 Snapshot/source/selection/revision guards and the original 30-second budget remain.
 
-The candidate is uncommitted. No B3 or user acceptance is implied. See the newest
+This implemented correction is in the accepted finishing checkpoint; older unrun
+review limits remain. It implements no B3 behavior. See the newest
 [actual results](agent-notes/b2-tiles-20261008.md) for exact source identity, matched
 workloads, failures, rollback and Robert's six-step review checklist.
 
@@ -153,7 +189,8 @@ workloads, failures, rollback and Robert's six-step review checklist.
 This later authorized correction **supersedes** the older Cutout/child/confirmation,
 named-source Smudge, per-tool Main and Canvas-only drawing recovery instructions
 below. Existing artwork, saved masks and old aligned pieces remain compatible.
-The candidate is uncommitted and awaits Robert's hands-on acceptance; no B3 begins.
+This implemented correction is included in the accepted/pushed finishing checkpoint.
+Retain its recorded evidence limits; B3 remains approved work, not an implemented feature.
 
 **Select (V/M)** rectangle, **Lasso (L)** free-form and **Magic Wand (W)** color-based
 selection are three separate direct toolbar buttons with distinct checked states. Rectangle/Lasso are usable on
@@ -423,20 +460,18 @@ world. Visualizer remains clean output.
 
 ## Current status and B1 boundary
 
-Recovery base is `0fb4c3fa28632a6aaedb472be50b1837926b9caa`; B1 runtime/save
-behavior below is an additional uncommitted implementation awaiting user review.
-**The current editor is not accepted.** Recorded evidence and remaining problems
-belong in B1 results; technical passes do not establish broad user acceptance.
-See [handoff](../ZERAWAVE_HANDOFF.md#current-recovery-checkpoint-and-b1-handoff).
+Recovery `0fb4c3f` is historical. B1 runtime/save behavior, B2 and finishing
+corrections are implemented in the accepted/pushed checkpoint above. Broad older
+product/capacity and unrun conditions remain open. [Current handoff](../ZERAWAVE_HANDOFF.md#october-10-drawing-and-storage-development-checkpoint)
+binds publication identity; dated task reports retain original source/status.
 
-The uncommitted B1 candidate keeps Qt/Python control, the existing ControlOwner
-process and GPU output. Completed raster snapshots now enter owner-held history
-and ordered output publication before background PNG encoding/storage. Brush
-pixels and the interfaces below are preserved. This is implemented candidate
-behavior, not Robert's acceptance. Source identities, executed checks, timing
-limits and the native walkthrough are in
-[B1 actual results](agent-notes/b1-raster-20261008.md).
-The next scoped assignment is [B2 in ROADMAP](../ROADMAP.md#b2--c-tiled-raster-resources-copy-on-write-history-and-incremental-compositing).
+B1 keeps Qt/Python control, ControlOwner and GPU output. Completed snapshots enter
+owner-held history and ordered output publication before background PNG encoding.
+[B1 results](agent-notes/b1-raster-20261008.md) retain task-time tests and limits;
+B2 subsequently changed physical storage/projection and finishing changed measured
+Smudge paths. Neither acceptance nor publication guarantees every workload.
+The next scoped assignment is [B3](../ROADMAP.md#b3--bounded-media-foundation),
+not another B2 implementation or a new editor. Preserve the contracts below.
 
 ### Runtime transactions and recovery
 
@@ -517,10 +552,13 @@ termination/power loss until a PNG or recovery session is durable. To roll back 
 the old PNG path, first Save As, verify its dependencies and reopen that checkpoint;
 never discard the live instance's accepted memory-only work.
 
-## B2 boundary — planned only
+<a id="b2-boundary--planned-only"></a>
+
+## B2 boundary — implemented compatibility contract
 
 C++ tiled raster resources, copy-on-write history and incremental compositing
-are the next scoped stage; none is implemented here. Preserve the runtime/save
+are implemented in the optional B2 backend. B3 media foundation is next.
+Preserve the runtime/save
 contract above and tool/lock/selection/Undo meanings below. Accepted tile versions
 must remain immutable and pinned across history, output and requested saves.
 Fallback/portable saving must materialize compatible pixels/dependencies; unavailable
@@ -530,8 +568,9 @@ resource bounds and remaining interaction/cost limits are not solved by this pla
 
 ## B1 preservation requirements
 
-These meanings must survive B2 as well as B1, including still-open review cases. They
-do not certify acceptance. Preserve the detailed operating requirements below:
+These meanings must survive B3 as well as B1/B2, including still-open review cases.
+The list does not certify every case; later explicitly superseding tool instructions
+above remain authoritative. Preserve the detailed operating requirements below:
 
 - One Layers hierarchy, independent inline rows/stable IDs, transparent New Layer
   and atomic Library insertion/reparent. Direct tools work with settings closed;
@@ -555,8 +594,8 @@ do not certify acceptance. Preserve the detailed operating requirements below:
 
 Exercise this with slowed saving, rapid input, failed/unknown outcomes and
 replacement plus visible output; see [B1 acceptance](../ROADMAP.md#b1-acceptance-plan).
-B2 native tiles are next; media scheduling and audio/timeline/export are later stages;
-B1 adds neither new brush physics nor temporal video splits.
+B2 native tiles are implemented; B3 media foundation is next. Audio/timeline/export
+remain later separate scope; B3 adds neither new brush physics nor temporal video splits.
 
 ## A short review
 
@@ -909,18 +948,18 @@ serve reverse pixels instead of an independent media-player/audio owner.
 See [actual-results handoff](agent-notes/raster-workflow-repair.md) for source
 identity, task-only diff, executed checks, retained failures, native observations
 and limits. That report retains its task-time dirty source/status; the later
-recovery is `0fb4c3f`. Review current Studio's unaccepted editor. User acceptance
-and any later critic dispatch remain separate.
+recovery was `0fb4c3f`. The current accepted/pushed finishing status supersedes
+that task-time review status; older unrun cases and manual dispatch remain separate.
 
-The earlier composition transport/time-range idea remains later scope, not the
-next batch. B1 is implemented/uncommitted; B2 is next. Linked video audio, temporal splits
+The earlier composition transport/time-range idea remains later scope, not B3.
+B1/B2 are implemented; B3 media foundation is next. Linked video audio, temporal splits
 and multitrack mixing need separate clock/storage/audio briefs in the
 [staged plan](../ROADMAP.md#later-planned-stages--separate-builder-assignments).
 
 
 ## B2 native raster/editor continuation - 2026-10-08
 
-The uncommitted B2 candidate retains128-pixel immutable C++ tiles, copy-on-write
+The implemented B2 backend retains 128-pixel immutable C++ tiles, copy-on-write
 history, exact region editing, B1 transactions, revision-pinned portable PNG saves
 and the existing output publication path. The continuation corrects redundant
 CPU presentation refresh, adds an optional exact float32 region kernel, and hosts
@@ -931,8 +970,8 @@ There is no mandatory display-loop readback. The Layers editor label distinguish
 these routes; `ZERAWAVE_EDITOR_GPU=cpu` selects the compatible CPU editor at open.
 Native initialization failure also preserves a usable CPU Canvas.
 
-This is a reviewable candidate, not Robert acceptance or a universal performance
-claim. Latency, memory, failures and remaining limitations are bound in
+This backend is included in the accepted finishing checkpoint, not a universal
+performance or broad product certificate. Latency, memory, failures and limits are bound in
 `docs/agent-notes/b2-tiles-20261008.md` and `work/b2-completion-20261008`.
 Build, ABI, resource bounds and secured fallback are in the
 [B2 implementation contract](NATIVE_RASTER_B2.md).
@@ -942,8 +981,8 @@ Requested saves also export any referenced immutable source snapshot restored by
 
 ## Pass 1: sustainable working storage and normal shutdown — 2026-10-09
 
-This uncommitted candidate extends the starting recovery implementation; Robert
-owns acceptance. Passes 2–4 and B3 remain unimplemented. Native ABI 1, the loaded
+This implemented Pass 1 is included in the accepted finishing checkpoint. Capacity
+Passes 2–4 remain separate; B3 is approved next, not implemented. Native ABI 1, the loaded
 DLL, session version 5/composition version 4 and intended source pixels are unchanged.
 
 `artwork_store.py` uses bundled SQLite to index PNG bytes, distinct payloads,
@@ -1073,10 +1112,11 @@ I/O still may finish after a bounded wait, retaining its readers. Image Save nev
 marks the editable session saved. **File → Save session** and **Retry saving**
 retain their distinct session/recovery purposes and Pass 1 safeguards.
 
-This is an uncommitted review candidate. Robert owns acceptance. See the dated
+This implemented image-save behavior is in the accepted/pushed finishing checkpoint.
+Broader unrun cases retain their limits. See the dated
 [actual results](agent-notes/b2-tiles-20261008.md) for exact identities, raw evidence,
 failures, matched timing limits and guarded rollback. Capacity Passes 2–4, metadata/
 protocol scaling, higher Library/layer counts, storage location/relocation controls
 and deeper stress remain deferred and must be retained by ROADMAP's owner through
-the manual handoff; this feature note is not another plan. New Session and B3 are
-outside this pass.
+the manual handoff; this feature note is not another plan. New Session remains
+outside B3; B3 is approved next without completing/cancelling the deferred capacity work.

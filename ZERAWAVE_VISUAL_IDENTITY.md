@@ -27,11 +27,13 @@ Experimental means working but unfinished.
 
 Preserve richness while smooth; quality adaptation follows measured hardware.
 Approved technical direction retains Qt, Python authoring/control and GPU
-rendering. B1 raster transactions/recovery and B2 are implemented candidates
-awaiting user acceptance. B1 introduced no C++; B2 implements tiled C++ resources,
-copy-on-write history and incremental compositing, preserving B1 behavior. This supports expressive hands-on authoring, not a
-claim that current editing is accepted or future export/simulation/product tools
-exist. A wholesale rewrite or engine switch remains a separate proposal.
+rendering. B1 raster transactions/recovery, B2 and finishing corrections are
+implemented in the accepted/pushed `f3d414be7ee380a38865c3579c057597dbb5fb06`
+development checkpoint, with older product/capacity and unrun limits retained.
+B1 introduced no C++; B2 implements tiled C++ resources, copy-on-write history and
+incremental compositing while preserving B1 behavior. This supports expressive
+hands-on authoring; it does not certify every editing case or mean future
+export/simulation/product tools exist. B3 media work is approved next, not implemented. A wholesale rewrite or engine switch remains a separate proposal.
 ZeraphinaX grows through useful reuse; [ROADMAP](ROADMAP.md) owns the staged plan. Offline claims require
 implemented/available/downloaded resources; online AI optional. Pricing/semantic
 capabilities remain hypotheses, not current features or authorized commerce.

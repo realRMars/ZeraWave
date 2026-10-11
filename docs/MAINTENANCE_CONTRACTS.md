@@ -1,11 +1,61 @@
 # Cosmic and Elemental maintenance contracts
 
+## Current checkpoint and approved B3 boundary
+
+B1/B2 and finishing corrections are implemented in the accepted/pushed checkpoint
+`f3d414be7ee380a38865c3579c057597dbb5fb06`. [Current handoff](../ZERAWAVE_HANDOFF.md#october-10-drawing-and-storage-development-checkpoint)
+and [publication receipt](../work/publication-raster-recovery-20261010/review-index.json)
+supersede task-time uncommitted/pending status in dated reports, not their measured
+limits. Finishing acceptance does not certify all older product/capacity cases.
+Smudge/encoder tails, overload/rejected-stroke redraw, owner-process-death limits,
+unsupported media and broad/physical/multi-hour unrun cases remain explicit.
+Native ABI1/128px/x64 and generated DLL remain unchanged; no B3 build has shipped.
+
+B3 is approved next, not implemented. [ROADMAP B3](../ROADMAP.md#b3--bounded-media-foundation)
+owns its increments and matrix. Preserve existing Qt/Python authoring/control,
+renderer/audio ownership, original pixels/rates/ranges/loops, B1 transactions,
+Undo/Redo, image/session Save/recovery and normal close. Planned media scheduling
+must bind success/error to source/generation/requested time/direction and retain
+buffers/readers until actual cancellation/exit. Fair bounded service must not
+serialize healthy sources behind slow codec work. Direction-aware timestamp caches
+and prefetch remain within justified aggregate budgets; no cap-raising, resolution
+or layer-count reduction as a substitute for measured improvement.
+
+Media service owns codec/container access and decode/conversion/publication; Qt
+owns editor consumption, existing GL-context owner creates/uploads/releases textures.
+Immutable snapshots/leases or proven equivalent lifetimes must account for decoded
+planes, RGBA/shared slots/headers, in-flight/retiring jobs, editor copies and GPU
+upload staging, distinguishing references/budgets from actual allocations/RSS.
+No control lock spans expensive decode. Late frames/errors cannot publish or stop
+new generations, and timeouts do not prove decoder exit. Preserve silent video,
+independent audio clock/output, native pixels/alpha/disposal/orientation/aspect and
+GIF/sprite behavior. Optional native B3 work needs measured ownership justification,
+installed-tool inspection and visible functional fallback; no installation/engine
+replacement or unsafe runtime backend switching.
+
+Maintain matched short/long-GOP 1×/6×/12× forward/reverse/range/ping-pong checks,
+slow-source fairness, seeks/visibility/replacement/session/close cancellation,
+audio and raster/save coexistence, missing-native and decode/write/upload failures.
+Separate request/queue/decode/convert/PTS/editor/output times and peak allocations;
+retain cold/warm tails/stalls, failures/unrun cases and bounded visible-motion
+evidence. Decoder/shared-reader/paint/swap return is not physical scanout.
+General hands-on acceptance stays with Robert. Verify the [manual documentation
+receipt](../work/docs-b3-reconciliation-20261010/READINESS.md) before coding.
+
+After B3, a separate manual whole-product migration assessment covers worlds,
+Visualizer, audio and all older systems, then remaining appropriate migration,
+then unrelated feature expansion. Historical B4–B8 references are subject to that
+assessment. Capacity Passes 2–4, higher counts and storage-location/relocation
+remain separate commitments, neither completed nor cancelled by B3.
+
+
 
 ## Raster recovery and mouse-channel correction — 2026-10-09
 
-This uncommitted correction starts at published `6aed22041bd15392857c676f832a4f25f07bd765`.
-Robert's hands-on acceptance remains pending; the dated actual-results section in
-`agent-notes/b2-tiles-20261008.md` binds the new evidence and its limits.
+This correction is included in the accepted/pushed finishing checkpoint above.
+Its task-time start was `6aed22041bd15392857c676f832a4f25f07bd765`; the dated
+actual-results sections in `agent-notes/b2-tiles-20261008.md` retain evidence and
+limits without implying newly rerun checks or broad product acceptance.
 
 The Composition canvas consumes context-menu events for every tool, including
 queued and modified events. It has no right-click popup. Layers, Library and
@@ -80,7 +130,7 @@ saved data and shared systems. Current creative scope lives in
 
 ## B1 raster transaction preservation — candidate contract
 
-The uncommitted B1 candidate implements immutable shared raster resources,
+The implemented B1 contract provides immutable shared raster resources,
 ordered asynchronous outcomes and background persistence in the retained Python
 ControlOwner; no native core is introduced. Preserve world/audio/hosting contracts below, originals
 and session migrations. Qt widgets stay on the GUI thread; GL resources belong
@@ -117,9 +167,11 @@ late durability callback. Save must retain its whole requested revision and Qt
 metadata; failed export pins block closure until retry/recovery. See
 [limits and user recovery](STUDIO_MEDIA_COMPOSITION.md#save-close-and-persistence-failure).
 
-## B2 native tiles and incremental composition — planned checks
+<a id="b2-native-tiles-and-incremental-composition--planned-checks"></a>
 
-No C++ backend is implemented yet. B2 must preserve B1 transactions, exactly-once
+## B2 native tiles and incremental composition — implemented preservation checks
+
+The optional C++ backend is implemented. B2 and later B3 must preserve B1 transactions, exactly-once
 history/outcomes, output independent of PNG, revision-pinned portable saves,
 failed checkpoint recovery and close/session/source guards. Retain current/history/
 save/output resource pins through tile eviction and backend shutdown. Capacity
@@ -135,7 +187,7 @@ Use real pointer/keyboard plus canvas/clean output. Bind matched B1/B2 workloads
 latency tails and separate CPU/GPU/staging allocations; no assumed speedup or
 reduced resolution. Preserve existing CPU reference, tool semantics, original
 assets and saved compatibility. These are acceptance requirements, not executed
-checks or a declaration that B1's pending user review is complete.
+checks or a declaration that all older B1 review/capacity cases are complete.
 
 ## Planet Canvas and its existing Cosmic diagnostics
 
@@ -432,7 +484,7 @@ assigned through Prompter/Bob; these checks do not grant user acceptance.
 
 ## B2 native raster/editor continuation - 2026-10-08
 
-The uncommitted B2 candidate retains128-pixel immutable C++ tiles, copy-on-write
+The implemented B2 backend retains 128-pixel immutable C++ tiles, copy-on-write
 history, exact region editing, B1 transactions, revision-pinned portable PNG saves
 and the existing output publication path. The continuation corrects redundant
 CPU presentation refresh, adds an optional exact float32 region kernel, and hosts
@@ -443,8 +495,8 @@ There is no mandatory display-loop readback. The Layers editor label distinguish
 these routes; `ZERAWAVE_EDITOR_GPU=cpu` selects the compatible CPU editor at open.
 Native initialization failure also preserves a usable CPU Canvas.
 
-This is a reviewable candidate, not Robert acceptance or a universal performance
-claim. Latency, memory, failures and remaining limitations are bound in
+This backend is included in the accepted finishing checkpoint, not a universal
+performance or broad product certificate. Latency, memory, failures and limits are bound in
 `docs/agent-notes/b2-tiles-20261008.md` and `work/b2-completion-20261008`.
 Build, ABI, resource bounds and secured fallback are in the
 [B2 implementation contract](NATIVE_RASTER_B2.md).
@@ -571,8 +623,8 @@ guarantee or Robert acceptance.
 
 ## Pass 1: sustainable working storage and normal shutdown — 2026-10-09
 
-This uncommitted candidate extends the starting recovery implementation; Robert
-owns acceptance. Passes 2–4 and B3 remain unimplemented. Native ABI 1, the loaded
+This implemented Pass 1 is included in the accepted finishing checkpoint. Capacity
+Passes 2–4 remain separate; B3 is approved next, not implemented. Native ABI 1, the loaded
 DLL, session version 5/composition version 4 and intended source pixels are unchanged.
 
 `artwork_store.py` uses bundled SQLite to index PNG bytes, distinct payloads,
