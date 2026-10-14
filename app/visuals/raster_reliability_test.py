@@ -123,6 +123,8 @@ def run():
    if fn():return
   raise AssertionError('Timeout '+(e.status.text() if e else 'startup'))
  def idle():wait(lambda:not e.edit_jobs and not e.art_jobs)
+ def request(action,**data):
+  future=shell.client.submit(action,**data);wait(future.done);return future.result()
  def pixels():return e.canvas.source_image(e.selected_row())
  def digest(im):
   converted=im.convertToFormat(QImage.Format_RGBA8888_Premultiplied)
@@ -139,7 +141,7 @@ def run():
   c.paint_finish();idle();pump(.02)
  try:
   wait(lambda:hasattr(shell,'image_editor') and not shell.client.snapshot['media_library']['loading']);e=shell.image_editor;c=e.canvas
-  shell.panels['composition'].toggleView(True);shell.panels['image_layers'].toggleView(True);e.resize_canvas((96,64),False);e.blank_layer();idle();wait(lambda:pixels() is not None)
+  shell.panels['composition'].toggleView(True);shell.panels['image_layers'].toggleView(True);e.resize_canvas((96,64),False);idle();e.blank_layer();idle();wait(lambda:pixels() is not None)
   original=e.selected
   seed=QImage(96,64,QImage.Format_ARGB32_Premultiplied)
   for y in range(64):
@@ -162,7 +164,7 @@ def run():
   diagnostic=dict(accepted=accepted,restored=digest(pixels()),accepted_asset=accepted_id,restored_asset=e.selected_row()['asset'],owner_mapped=digest(mapped_image(expected_asset['runtime'],native=False)),history=deepcopy(shell.client.snapshot['media_control']['history']))
   (out/'undo-diagnostic.json').write_text(json.dumps(diagnostic,indent=2),encoding='utf8');assert digest(pixels())==accepted,diagnostic
   source=out/'library-source.png';im=QImage(96,64,QImage.Format_ARGB32_Premultiplied);im.fill(QColor('#7d29af'));im.save(str(source))
-  shell.client.request('media_import',paths=[str(source.resolve())]);wait(lambda:not shell.client.snapshot['media_library']['pending'])
+  request('media_import',paths=[str(source.resolve())]);wait(lambda:not shell.client.snapshot['media_library']['pending'])
   asset=next(a for a in shell.client.snapshot['media_library']['assets'] if a['path']==str(source.resolve()));assert e.add_asset(asset);imported=e.selected;wait(lambda:pixels() is not None)
   count=len(e.config['layers']);e.blank_child();idle();assert len(e.config['layers'])==count
   e.select(original);e.history(False,'drawing');idle();undo=digest(pixels());e.history(True,'drawing');idle();assert digest(pixels())==accepted and undo!=accepted
@@ -197,10 +199,10 @@ def run():
   e.select(imported);wait(lambda:pixels() is not None);source_pixels=digest(pixels());source_asset=e.selected_row()['asset'];source_path=next(a['path'] for a in e.media_assets() if a['id']==source_asset)
   stroke('Brush');e.history(False);idle();assert e.selected_row()['asset']==source_asset and digest(pixels())==source_pixels
   changed=QImage(96,64,QImage.Format_ARGB32_Premultiplied);changed.fill(QColor('#9c1746'));assert changed.save(source_path)
-  frozen_save=out/'frozen-source-save.json';requested=e.binding[1];shell.client.request('save',path=str(frozen_save.resolve()));wait(lambda:any(v['status']=='durable' and v['revision']==requested for v in shell.client.snapshot['media_control']['raster']['saves']))
+  frozen_save=out/'frozen-source-save.json';requested=e.binding[1];request('save',path=str(frozen_save.resolve()));wait(lambda:any(v['status']=='durable' and v['revision']==requested for v in shell.client.snapshot['media_control']['raster']['saves']))
   frozen=json.loads(frozen_save.read_text());frozen_row=next(r for r in frozen['media']['layers'] if r['id']==imported);frozen_ref=next(a for a in frozen['media']['assets'] if a['id']==frozen_row['asset']);assert frozen_ref['id']!=source_asset and frozen_ref['internal'] and digest(QImage(frozen_ref['path']))==source_pixels
   library_ref=next(a for a in shell.client.snapshot['media_library']['assets'] if a['id']==source_asset);assert library_ref['path']==source_path and not library_ref.get('managed')
-  shell.client.request('load',path=str(frozen_save.resolve()));e.refresh(True);e.select(imported);wait(lambda:pixels() is not None);assert digest(pixels())==source_pixels
+  request('load',path=str(frozen_save.resolve()));e.refresh(True);e.select(imported);wait(lambda:pixels() is not None);assert digest(pixels())==source_pixels
   checks.append('Undo-restored frozen external source saves/reopens exact requested pixels after test original changes; private saved snapshot leaves library original identity/path untouched')
   e.select(identity);wait(lambda:pixels() is not None)
   stage('buttons')
@@ -233,8 +235,8 @@ def run():
   assert menus and 'Copy layer/subtree' in menus[-1],menus
   checks.append('All 16 tool canvas boundaries consume direct/queued/modified context events, including after stroke; Layers context menu retained')
   stage('save reopen')
-  saved_pixels=digest(pixels());target=e.selected;save=out/'review-save-as.json';requested=e.binding[1];shell.client.request('save',path=str(save.resolve()));wait(lambda:any(s['status']=='durable' and s['revision']==requested for s in shell.client.snapshot['media_control']['raster']['saves']));state('save durable')
-  shell.client.request('load',path=str(save.resolve()));e.refresh(True);e.select(target);wait(lambda:pixels() is not None);assert digest(pixels())==saved_pixels
+  saved_pixels=digest(pixels());target=e.selected;save=out/'review-save-as.json';requested=e.binding[1];request('save',path=str(save.resolve()));wait(lambda:any(s['status']=='durable' and s['revision']==requested for s in shell.client.snapshot['media_control']['raster']['saves']));state('save durable')
+  request('load',path=str(save.resolve()));e.refresh(True);e.select(target);wait(lambda:pixels() is not None);assert digest(pixels())==saved_pixels
   checks.append('Revision-pinned Save As is durable, then same-instance reopen matches accepted native pixels exactly; old-context recovery checkpoint isolated under task store')
   (out/'result.json').write_text(json.dumps(dict(checks=checks,backend=backend().status(),states=states,limits='Controlled Qt/owner/native or B1; exact natural user failure not established'),indent=2),encoding='utf8');print(json.dumps(dict(checks=checks,out=str(out)),indent=2))
  except BaseException:

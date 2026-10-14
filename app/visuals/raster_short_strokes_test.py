@@ -46,6 +46,8 @@ def wait(fn,t=40):
   if fn():return
  raise RuntimeError('Timeout '+(e.status.text() if e else 'startup'))
 def idle():wait(lambda:not e.edit_jobs and not e.art_jobs)
+def request(action,**data):
+ future=shell.client.submit(action,**data);wait(future.done);return future.result()
 def pixels():return e.canvas.source_image(e.selected_row())
 def digest(im):
  converted=im.convertToFormat(QImage.Format_RGBA8888_Premultiplied)
@@ -69,7 +71,7 @@ def stroke(tool,i):
 try:
  wait(lambda:hasattr(shell,'image_editor') and not shell.client.snapshot['media_library']['loading']);e=shell.image_editor
  shell.panels['composition'].toggleView(True);shell.panels['image_layers'].toggleView(True)
- e.resize_canvas((size,size),False);e.blank_layer();idle();wait(lambda:pixels() is not None);e.editor_view.fit();pump(.1)
+ e.resize_canvas((size,size),False);idle();e.blank_layer();idle();wait(lambda:pixels() is not None);e.editor_view.fit();pump(.1)
  seed=QImage(size,size,QImage.Format_ARGB32_Premultiplied);seed.fill(QColor('#345be2'))
  from PySide6.QtGui import QPainter
  p=QPainter(seed)
@@ -90,7 +92,7 @@ try:
    if 'rejected' in s['status'].lower():result['post_drain_failure']=s;print('Post-drain failure '+json.dumps(s),flush=True);break
   state('more_short_strokes_after_drain')
  if os.environ.get('ZERAWAVE_NATURAL_SAVE_RECOVERY'):
-  accepted_hash=digest(pixels());requested=e.binding[1];save=out/'recovery-save-as.json';shell.client.request('save',path=str(save));wait(lambda:any(s['status']=='durable' and s['revision']==requested for s in shell.client.snapshot['media_control']['raster']['saves']));state('recovery_save_durable');assert digest(pixels())==accepted_hash
+  accepted_hash=digest(pixels());requested=e.binding[1];save=out/'recovery-save-as.json';request('save',path=str(save));wait(lambda:any(s['status']=='durable' and s['revision']==requested for s in shell.client.snapshot['media_control']['raster']['saves']));state('recovery_save_durable');assert digest(pixels())==accepted_hash
   wait(lambda:not shell.client.snapshot['media_control']['raster']['failures'] and not shell.client.snapshot['media_control']['raster']['pending']);result['recovery_exact']=True
  if os.environ.get('ZERAWAVE_NATURAL_RESUMED_COUNT'):
   rejected_before={r['id'] for r in shell.client.snapshot['media_control']['transactions'] if r['status']=='rejected'};resumed_rejected=set();resumed_blocked=0
@@ -103,8 +105,8 @@ try:
  idle();state('before_layer_creation_drain');wait(lambda:shell.client.snapshot['media_control']['raster']['pending']==0);state('layer_creation_quiescent')
  original_count=len(e.config['layers']);e.blank_layer();idle();result['blank_created']=len(e.config['layers'])==original_count+1
  e.select(target);e.blank_child();idle();result['child_created']=len(e.config['layers'])==original_count+2;state('blank_child')
- e.select(target);wait(lambda:pixels() is not None);saved_hash=digest(pixels());requested=e.binding[1];save=out/'save-as.json';shell.client.request('save',path=str(save));wait(lambda:any(s['status']=='durable' and s['revision']==requested for s in shell.client.snapshot['media_control']['raster']['saves']));state('save_durable')
- shell.client.request('load',path=str(save));e.refresh(True);e.select(target);wait(lambda:pixels() is not None);result['reopen_exact']=digest(pixels())==saved_hash;state('reopened')
+ e.select(target);wait(lambda:pixels() is not None);saved_hash=digest(pixels());requested=e.binding[1];save=out/'save-as.json';request('save',path=str(save));wait(lambda:any(s['status']=='durable' and s['revision']==requested for s in shell.client.snapshot['media_control']['raster']['saves']));state('save_durable')
+ request('load',path=str(save));e.refresh(True);e.select(target);wait(lambda:pixels() is not None);result['reopen_exact']=digest(pixels())==saved_hash;state('reopened')
  result['saved_hash']=saved_hash;result['errors']=list(shell.errors)
 except BaseException:result['exception']=traceback.format_exc();print(result['exception'],flush=True)
 finally:

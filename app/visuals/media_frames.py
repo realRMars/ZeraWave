@@ -115,12 +115,21 @@ class DecoderWindow:
         started=time.perf_counter();self.conversion_bytes=frame.width*frame.height*8;self._metrics()
         try:
             data=frame.to_ndarray(format='rgba');rotation=int(getattr(frame,'rotation',0) or self.stream.metadata.get('rotate',0))%360
-            if rotation:data=np.rot90(data,-rotation//90)
             # FFmpeg gives these explicitly alpha-free formats opaque RGBA.
             # Avoid scanning every full-size alpha plane on ordinary H264.
             # Palette, RGBA, YUVA and other formats keep the exact alpha path.
             opaque=frame.format.name in ('yuv420p','yuvj420p','yuv422p','yuvj422p','yuv444p','yuvj444p','nv12','nv21','rgb24','bgr24','gray')
+            from media_transfer import backend as transfer_backend
+            # Matched 720p opaque/zero-rotation publication is faster in NumPy.
+            # Use the coarse native loop where alpha or rotation amortizes it.
+            native=None if opaque and rotation==0 else transfer_backend().publication(data,rotation,opaque)
+            if native is not None:
+                self.convert_ms=(time.perf_counter()-started)*1000;self.converted_ready=time.perf_counter();return native
+            if rotation:data=np.rot90(data,-rotation//90)
             if not opaque and np.min(data[:,:,3])<255:
+                # RGBA ndarray can borrow a cached codec plane. Never mutate
+                # that immutable source when premultiplying a publication.
+                self.conversion_bytes=data.nbytes*3;self._metrics();data=data.copy()
                 # Bound the uint16 alpha conversion to rows rather than several
                 # additional full native images.
                 for y in range(data.shape[0]):data[y,:,:3]=((data[y,:,:3].astype(np.uint16)*data[y,:,3:4].astype(np.uint16)+127)//255).astype(np.uint8)
@@ -654,7 +663,7 @@ class MediaFrames:
                 converted_rgba_bytes=sum(r['decoder'].get('converted_rgba',0) for r in rows),decode_temporary_planes_bytes=sum(r['decoder'].get('decode_temporary_planes',0) for r in rows),conversion_temporary_bytes=sum(r['decoder'].get('conversion_temporaries',0) for r in rows),
                 shared_slots_bytes=self.staging_bytes,shared_header_bytes=sum(HEADER for lane in self.lanes if lane.shm),sprite_sheet_bytes=sum(r.get('sprite_sheet',0) for r in rows),sprite_conversion_temporary_bytes=sum(r.get('sprite_frame_temporary',0) for r in rows),peak_sprite_frame_bytes=sum(r.get('sprite_frame_peak',0) for r in rows),staging_budget=MAX_STAGING_BYTES,
                 jobs=sum(r['in_flight'] for r in rows),pending=sum(r['pending'] for r in rows),retiring=sum(r['retiring'] and r['worker_alive'] and r['identity'] is not None for r in rows),published=self.published,coalesced=self.coalesced,stale=self.stale,failed=self.failed,cleanup_errors=list(self.cleanup_errors),
-                temporary_bound='At most one incoming native plane and two full RGBA buffers per lane plus row-sized alpha scratch; codec-internal references/FFmpeg queues and process RSS are separate.',client_accounting='Qt/GL report owned copies/textures and reader handles separately; mappings reference these same shared allocations.')
+                temporary_bound='At most one incoming native plane and two full RGBA buffers per lane for native publication, three for owned transparent/rotated Qt publication, plus row-sized alpha scratch; codec-internal references/FFmpeg queues and process RSS are separate.',client_accounting='Qt/GL report owned copies/textures and reader handles separately; mappings reference these same shared allocations.')
     def request(self,identity,s,lane,now):
         self.serial+=1
         return dict(identity=identity,state=deepcopy(s),stamp=self.stamp(s),target=s['position'],direction=s['direction'],at=now,serial=self.serial,cancel=threading.Event(),prefetch_cancel=threading.Event(),budget=self.cache_share(s))

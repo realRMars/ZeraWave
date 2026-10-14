@@ -16,7 +16,8 @@ class Stats(C.Structure):_fields_=[(k,C.c_uint64) for k in ('bytes','peak_bytes'
 
 class Backend:
     def __init__(self):
-        directory=Path(__file__).resolve().parents[2]/'work/native-raster/x64';candidate=directory/'abi1-fill-20261009-v2/zerawave_raster.dll'
+        directory=Path(__file__).resolve().parents[2]/'work/native-raster/x64';candidate=directory/'abi1-migration-20261013-b/zerawave_raster.dll'
+        if not candidate.is_file():candidate=directory/'abi1-fill-20261009-v2/zerawave_raster.dll'
         if not candidate.is_file():candidate=directory/'abi1-completion/zerawave_raster.dll'
         self.dll=None;self.reason='';self.core=None;self.lock=threading.RLock();self.path=Path(os.environ.get('ZERAWAVE_RASTER_DLL') or (candidate if candidate.is_file() else directory/'abi1/zerawave_raster.dll'))
         try:
@@ -28,6 +29,8 @@ class Backend:
             if hasattr(dll,'zw_constrain'):dll.zw_constrain.argtypes=[p,p,p,p,v,C.c_double,e];dll.zw_constrain.restype=C.c_int32
             if hasattr(dll,'zw_connected'):dll.zw_connected.argtypes=[p,v,u,u,u,u,p,v,C.POINTER(C.c_int32),C.c_double,e];dll.zw_connected.restype=C.c_int32
             if hasattr(dll,'zw_cancel'):dll.zw_cancel.argtypes=[C.POINTER(C.c_int32),C.c_int32,e];dll.zw_cancel.restype=C.c_int32
+            if hasattr(dll,'zw_materialize'):dll.zw_materialize.argtypes=[C.POINTER(Tile),u,u,u,p,v,v,e];dll.zw_materialize.restype=C.c_int32
+            if hasattr(dll,'zw_mix'):dll.zw_mix.argtypes=[p,p,p,v,u,e];dll.zw_mix.restype=C.c_int
             abi=u();side=u();bits=u()
             if dll.zw_abi(C.byref(abi),C.byref(side),C.byref(bits)) or (abi.value,side.value,bits.value)!=(1,128,64):raise OSError('Incompatible raster ABI/tile/architecture')
             self.dll=dll;self.reason='Native tiles ABI 1 / 128 px / x64'
@@ -39,7 +42,7 @@ class Backend:
             if not self.available:raise ValueError(self.reason)
             if self.core is None:self.core=Core(self,384*1024*1024)
             return self.core
-    def status(self):return dict(backend='native' if self.available else 'b1',message=self.reason,path=str(self.path),abi=1 if self.available else None,constraint_kernel=bool(self.dll and hasattr(self.dll,'zw_constrain')),fill_kernel=bool(self.dll and hasattr(self.dll,'zw_connected') and hasattr(self.dll,'zw_cancel')),presentation_bytes=_display_bytes,presentation_limit=512*1024*1024)
+    def status(self):return dict(backend='native' if self.available else 'b1',message=self.reason,path=str(self.path),abi=1 if self.available else None,constraint_kernel=bool(self.dll and hasattr(self.dll,'zw_constrain')),fill_kernel=bool(self.dll and hasattr(self.dll,'zw_connected') and hasattr(self.dll,'zw_cancel')),materialize_kernel=bool(self.dll and hasattr(self.dll,'zw_materialize')),presentation_bytes=_display_bytes,presentation_limit=512*1024*1024)
 
 _backend=None
 _backend_lock=threading.RLock()
@@ -135,6 +138,15 @@ class NativeImage:
         if self._table is None:
             count=(self.w+127)//128*((self.h+127)//128);self._table=(Tile*count)();n=C.c_uint32();self.core.call('zw_tiles',self.core.context,self.handle,self._table,count,C.byref(n))
         return self._table
+    def transparent_zero(self):
+        # Immutable version-local fact, with no extra retained native handle or
+        # presentation image. Check all channels: unusual zero-alpha pigment
+        # must still take the reference path rather than changing its pixels.
+        if not hasattr(self,'_transparent_zero'):
+            import numpy as np
+            self._transparent_zero=not any(np.any(np.ctypeslib.as_array(
+                C.cast(t.data,C.POINTER(C.c_uint8)),shape=(t.length,))) for t in self.tiles())
+        return self._transparent_zero
     def stamp(self,bounds):
         x,y,w,h=bounds
         if w<=0 or h<=0:return ()
@@ -202,6 +214,21 @@ class NativeImage:
         # pinned saves must never swap the cache while Qt reads its pixels.
         with self.display.lock:return self.materialize().save(*args)
 
+def native_mix(first,second,factor):
+    selection=backend()
+    if not selection.available or not hasattr(selection.dll,'zw_mix'):return None
+    if first.size()!=second.size() or factor<0 or factor>255:raise ValueError('Invalid blend interpolation sizes/factor')
+    if any(im.format()!=QImage.Format_ARGB32_Premultiplied or im.bytesPerLine()!=im.width()*4 for im in (first,second)):raise ValueError('Interpolation requires packed premultiplied pixels')
+    result=QImage(first.size(),QImage.Format_ARGB32_Premultiplied)
+    if result.isNull():raise MemoryError('Cannot allocate interpolated blend result')
+    pointers=[]
+    try:
+        pointers=[C.c_uint8.from_buffer(im.bits()) for im in (first,second,result)];error=Error()
+        code=selection.dll.zw_mix(*(C.addressof(p) for p in pointers),result.sizeInBytes(),factor,C.byref(error))
+        if code:raise ValueError(error.message.decode('utf8','replace'))
+        return result
+    finally:pointers.clear()
+
 def native_add(back,source):
     selection=backend()
     if not selection.available:return None
@@ -255,3 +282,24 @@ def connected_region(matches,seed,cancel,seconds):
     finally:
         finished.set()
         if watcher:watcher.join()
+
+
+def native_materialize(desc,lease):
+    """One coarse exact tile -> Qt conversion; caller owns the immutable leases."""
+    selection=backend()
+    if not selection.available or not hasattr(selection.dll,'zw_materialize'):return None
+    w,h=desc['width'],desc['height'];result=QImage(w,h,QImage.Format_ARGB32_Premultiplied)
+    if result.isNull():raise MemoryError('Materialization allocation failed; accepted storage retained')
+    table=(Tile*len(desc['tiles']))();pointers=[];pointer=None;destination=None
+    try:
+        if len(lease.leases)!=len(table):raise ValueError('Incomplete materialization leases')
+        for i,(tile,mapping) in enumerate(zip(desc['tiles'],lease.leases)):
+            if tile['bytes']>mapping.size:raise ValueError('Materialization mapping is shorter than its tile')
+            pointer=C.c_uint8.from_buffer(mapping.buf);pointers.append(pointer)
+            table[i]=Tile(i+1,tile['x'],tile['y'],tile['width'],tile['height'],tile['bytes'],C.addressof(pointer))
+        destination=C.c_uint8.from_buffer(result.bits());error=Error()
+        code=selection.dll.zw_materialize(table,len(table),w,h,C.addressof(destination),result.sizeInBytes(),result.bytesPerLine(),C.byref(error))
+        if code:raise ValueError(error.message.decode('utf8','replace'))
+        return result
+    finally:
+        destination=None;pointer=None;pointers.clear();table=None

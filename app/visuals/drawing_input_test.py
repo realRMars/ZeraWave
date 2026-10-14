@@ -64,6 +64,16 @@ def run(out,baseline):
  history.api.records=[(150,1,1),(140,2,2),(130,3,3),(120,2,2)];points,_,_=history.samples(event(150,1,1));assert [(p.x(),p.y()) for p in points]==[(2,2),(1,1)];checks.append('WinAPI-shape gesture window ordering, exact duplicate dedup and reversal retained')
  history.last=QPointF(0,0);history.stamp=history.start=100;history.api.records=[(90,0,0)];history.pin_boundary();assert history.key==(90,0,0)
  history.api.records=[(100,3,3),(100,2,2),(100,1,1),(90,0,0),(80,-1,-1)];points,_,_=history.samples(event(100,3,3));assert [(p.x(),p.y()) for p in points]==[(1,1),(2,2),(3,3)];assert history.samples(event(100,3,3))[0]==[];checks.append('press pins actual preceding OS record; equal-millisecond captured moves preserved once')
+ # Optional native history failure must retain every delivered Qt coordinate.
+ if __import__('os').name=='nt':
+  class FailedFunction:
+   def __init__(self,value):self.value=value
+   def __call__(self,*args):return self.value
+  unavailable=SimpleNamespace(GetMouseMovePointsEx=FailedFunction(0),ClientToScreen=FailedFunction(0),ScreenToClient=FailedFunction(1))
+  with patch('stroke_input.C.WinDLL',return_value=unavailable):fallback=MouseHistory(c,event(100,0,0))
+  assert fallback.api is None and fallback.initialization_error
+  points,_,_=fallback.samples(event(101,1,1));assert [(p.x(),p.y()) for p in points]==[(1,1)]
+  checks.append('Unavailable Win32 surface history falls back to delivered Qt points without aborting stroke')
  # Compare exact Qt projection after the prefix optimization, including changes
  # to earlier siblings and nested masks/blends. Baseline class is frozen source.
  import importlib.util

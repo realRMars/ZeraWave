@@ -306,8 +306,8 @@ class ImageLayers:
                     # cannot corrupt the active last-good texture.
                     self.animated[identity]=candidate;candidate=None
                     if old is not None:self.animated_spares[identity]=old
-                    self.upload_ms=(perf_counter()-began)*1000
-                    self.animated_presented[identity]=dict(pts=frame['pts'],sequence=frame['sequence'],generation=frame.get('generation',descriptor['generation']),uploaded_at=perf_counter(),upload_ms=self.upload_ms)
+                    source_upload_ms=(perf_counter()-began)*1000;self.upload_ms+=source_upload_ms
+                    self.animated_presented[identity]=dict(pts=frame['pts'],sequence=frame['sequence'],generation=frame.get('generation',descriptor['generation']),uploaded_at=perf_counter(),upload_ms=source_upload_ms)
                     self.animated_errors.pop(identity,None)
             except Exception as exc:
                 if candidate is not None:candidate.release()
@@ -321,6 +321,8 @@ class ImageLayers:
         if self.program is None:
             self.program=self.ctx.program(vertex_shader=FULL_VERTEX,fragment_shader=FRAGMENT);self.vao=self.ctx.simple_vertex_array(self.program,self.vertices,'in_position')
         assets={key[0]:texture for key,texture in self.textures.items()}
+        geometry_key=(self.session,self.applied,id(self.config),tuple(size),tuple((r['id'],(self.animated.get(r['id']) or assets.get(r['asset'])).size if (self.animated.get(r['id']) or assets.get(r['asset'])) is not None else None,(self.runtime.get(r['id'],{}).get('frame') or {}).get('pixel_aspect',1.)) for r in self.config['layers']))
+        if geometry_key!=getattr(self,'geometry_key',None):self.geometry_key=geometry_key;self.geometry_matrices={}
         raw=getattr(self.ctx,'raw',self.ctx)
         saved_viewport=raw.viewport
         try:
@@ -340,9 +342,14 @@ class ImageLayers:
                     if texture is None:continue
                     if row['type']=='Model':texture=texture.render(row)
                     frame=(self.runtime.get(row['id'],{}).get('frame') or {});sar=frame.get('pixel_aspect',1.)
-                    inverse=np.eye(3) if group else np.linalg.inv(asset_matrix(self.config,row,size,(texture.width*sar,texture.height)))
-                    self.program['inverse_transform'].write(inverse.T.astype('f4').tobytes());self.program['crop'].value=(0.,0.,1.,1.) if group else tuple(row['crop']);self.program['flips'].value=(0.,0.) if group else (float(row['flip_x']),float(row['flip_y']))
-                    self.program['group_layer'].value=int(row['type']=='Group');self.program['group_crop'].value=tuple(row['crop']);self.program['mask_inverse'].write((np.linalg.inv(np.diag([*canvas_fit,1.])@world_matrix(self.config,row['id'])) if row['type']=='Group' else np.eye(3)).T.astype('f4').tobytes())
+                    geometry_id=(row['id'],group,bool(row.get('_own')))
+                    geometry=self.geometry_matrices.get(geometry_id)
+                    if geometry is None:
+                        inverse=np.eye(3) if group else np.linalg.inv(asset_matrix(self.config,row,size,(texture.width*sar,texture.height)))
+                        mask_inverse=np.linalg.inv(np.diag([*canvas_fit,1.])@world_matrix(self.config,row['id'])) if row['type']=='Group' else np.eye(3)
+                        geometry=(inverse.T.astype('f4').tobytes(),mask_inverse.T.astype('f4').tobytes());self.geometry_matrices[geometry_id]=geometry
+                    self.program['inverse_transform'].write(geometry[0]);self.program['crop'].value=(0.,0.,1.,1.) if group else tuple(row['crop']);self.program['flips'].value=(0.,0.) if group else (float(row['flip_x']),float(row['flip_y']))
+                    self.program['group_layer'].value=int(row['type']=='Group');self.program['group_crop'].value=tuple(row['crop']);self.program['mask_inverse'].write(geometry[1])
                     use_mask=bool(row['masks']) and (not group or row['type']=='Group');self.program['use_mask'].value=int(use_mask)
                     if use_mask:self.mask_texture(row,texture.size).use(2)
                     self.program['opacity'].value=row['opacity'];self.program['blend_strength'].value=row['blend_strength'];self.program['mode'].value=5 if not row.get('_own') and partition_aligned(self.config,row) else BLENDS.index(row['blend']);texture.use(0);pair[index][0].use(1)
@@ -356,7 +363,7 @@ class ImageLayers:
             raw.blend_func=(moderngl.SRC_ALPHA,moderngl.ONE_MINUS_SRC_ALPHA)
             raw.viewport=saved_viewport
     def snapshot(self):
-        return dict(tile_upload=dict(self.tile_upload),session=self.session,revision=self.revision,applied_revision=self.applied,pending=self.pending,error=self.error or '; '.join(list(self.animated_errors.values())+[v['error'] for v in self.runtime.values() if v.get('error')]),animated_states={k:dict(state=v.get('state'),held=v.get('held'),lag_seconds=v.get('lag_seconds'),error=v.get('error')) for k,v in self.runtime.items()},frame_reader=self.frames.snapshot(),animated_presented=dict(self.animated_presented),animated_upload_staging_bytes=self.upload_staging_bytes,peak_animated_upload_staging_bytes=self.peak_upload_staging_bytes,animated_spare_bytes=sum(t.width*t.height*4 for t in self.animated_spares.values()),
+        return dict(tile_upload=dict(self.tile_upload),session=self.session,revision=self.revision,applied_revision=self.applied,pending=self.pending,error=self.error or '; '.join(list(self.animated_errors.values())+[v['error'] for v in self.runtime.values() if v.get('error')]),animated_states={k:dict(state=v.get('state'),held=v.get('held'),lag_seconds=v.get('lag_seconds'),error=v.get('error')) for k,v in self.runtime.items()},frame_reader=self.frames.snapshot(),animated_presented=dict(self.animated_presented),animated_upload_staging_bytes=self.upload_staging_bytes,peak_animated_upload_staging_bytes=self.peak_upload_staging_bytes,prepared_geometry_rows=len(getattr(self,'geometry_matrices',{})),animated_spare_bytes=sum(t.width*t.height*4 for t in self.animated_spares.values()),
             textures=len(self.textures),texture_bytes=sum(getattr(t,'byte_size',t.width*t.height*4) for t in self.textures.values()),
             resident=[list(key) for key in self.textures],
             animated_textures=len(self.animated),animated_texture_bytes=sum(t.width*t.height*4 for t in self.animated.values()),mask_texture_bytes=sum(t.width*t.height for k,t in self.masks.values()),upload_ms=self.upload_ms,composition_target_bytes=sum(t.width*t.height*8 for pair in self.buffers.values() for t,f in pair),

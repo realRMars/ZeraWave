@@ -51,10 +51,16 @@ and [actual results](docs/agent-notes/b3-media-20261010.md), including failed tr
 large-clip high-rate stalls and unrun physical/whole-Visualizer/multi-hour checks.
 The approved [B3 scope](ROADMAP.md#b3--bounded-media-foundation) remains the plan.
 
-After B3, the whole-existing-product gap assessment covers worlds, Visualizer,
-audio and all older systems, deciding C++/Python/GPU work before remaining migration
-and unrelated expansion. It is a later manual assignment, not current ownership.
-Module paths are not a language ban; ROADMAP remains the only implementation plan.
+The whole-product audit is complete; [ROADMAP's dispositions](ROADMAP.md#later-planned-stages--separate-builder-assignments)
+retain Python authoring/document policy/orchestration and GPU/context ownership,
+with measured CPU kernels/deadline servicing at substantial batched C++ boundaries.
+The first scoped candidate is the existing Studio control/resource boundary:
+nonblocking ACK completion, ordered outcomes, revisioned projections and truthful
+allocation/alias/pin/retirement exposure. It is planned, not implemented here.
+Residual B3 issues are not a blanket migration gate. CPU/Qt references, explicit
+fallbacks and present clocks remain; module paths are not a language ban.
+ROADMAP owns the separate image follow-up, editor research/gap review and approved
+multitrack brief before expansion; these are not capabilities added by this pass.
 
 ## Dated rendering inventory reference
 
@@ -497,3 +503,37 @@ keep their ownership. Fixed-timestamp seeks and ordinary prefetch keep the
 reduced source pixels or discarded accepted artwork is involved. Natural
 full-range 6×/12× trials and remaining stalls are bound in the
 [current results](work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md).
+
+
+## Studio control boundary candidate — 2026-10-12
+
+The pre-task planned wording above records Overseer's reconciliation. The sole
+Builder has now implemented an **uncommitted candidate**, pending Robert's review;
+[actual results](docs/agent-notes/control-boundary-20261012.md) bind its baseline, source, evidence and open checks.
+`studio_boundary.py` owns bounded immutable command admission, same-ID completion,
+momentary delivery and atomic read-only versioned projections. It creates no
+widgets or editable document. `studio_control_client.py` adapts the transport;
+Qt polls ready results. `studio_control_service.py` remains the Tk-derived single
+document/history/save authority. Full Tk extraction is deferred.
+`raster_resources.py` projects existing allocations, aliases and pins. Neither
+that projection nor `studio_resources.py` is a global allocator or physical-RAM
+estimate. Raster/media kernels, current caps and GL/audio ownership are unchanged.
+Shared planning/checkpoint proposals follow the manual Overseer route; no later
+stage, publication or user acceptance follows from this technique entry.
+
+## Selective existing-functionality migration candidate — 2026-10-13
+
+Uncommitted preservation work, pending Robert's review:
+
+| Existing technique | Implementation and owner |
+|---|---|
+| Raster tile materialization and display blend strength | Optional exact ABI-1 C++ batch kernels; Python retains artistic/document policy and the Qt reference. |
+| Transformed editor/compositor preparation | Dependency-complete Python recipes and context-owned caches; only proven zero leaves and obsolete display variants are omitted. |
+| Cavern clipped crystals and required rows | Optional exact C++ specimen batch; existing recipes, seeds, full resident meshes and bounded helper servicing remain. |
+| Aftershock frame-invariant depth order | Existing renderer owns an 8×1 GPU preparation stage; all authored event/shading equations and the reference route remain. |
+| Static model missing normals | Existing NumPy bulk math in bounded batches preserves ordered accumulation, mesh/material policy and GL rendering. |
+
+Roots/Sky preparation, Marsh lamp interpretation, Main Arc33 per-pixel equations,
+FFT/Cymatics bulk math and native PNG/codec/device ownership retain their current
+forms for the measured reasons in [actual results](docs/agent-notes/selective-migration-20261013.md).
+No scene redesign, new sampler/keying feature or expansion phase was introduced.

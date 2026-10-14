@@ -31,7 +31,7 @@ def run():
     except ValueError:pass
     assert scene==before;wm=world_matrix(scene,b['id']).copy();assert move(scene,[b['id']],bottom['id'],'inside');assert lookup(scene)[b['id']]['parent']==bottom['id'] and np.allclose(wm,world_matrix(scene,b['id']));checks.append('Branch edges, protecting Group, explicit center parenting, cycle rejection and world placement')
     # Real widget positions decide edges, not QTreeWidget default OnItem insertion.
-    scene=before;editor=SimpleNamespace(config=scene,row_items={},status=SimpleNamespace(setText=lambda t:None),editor_key=lambda e:False);calls=[];editor.drop_layers=lambda *a:calls.append(a)
+    scene=before;editor=SimpleNamespace(config=scene,row_items={},status=SimpleNamespace(setText=lambda t:None),editor_key=lambda e:False,binding=('fixture',0),resolve_pending=lambda:True);calls=[];editor.drop_layers=lambda *a:calls.append(a)
     class PointerTree(LayerTree):
         def startDrag(self,actions):
             self.drag_starts=getattr(self,'drag_starts',0)+1;super().startDrag(actions)

@@ -53,9 +53,14 @@ media work must be measured, narrow, bounded and visibly fall back; install noth
 [ROADMAP B3](../ROADMAP.md#b3--bounded-media-foundation) owns increments and the acceptance
 matrix; this is a preservation/ownership contract, not another plan. Verify the
 [documentation receipt](../work/docs-b3-reconciliation-20261010/READINESS.md) before
-coding. Whole-product migration assessment follows B3 manually, before remaining
-appropriate migration and unrelated expansion. B3 neither completes nor cancels
-capacity Passes 2–4, higher counts or storage-location/relocation controls.
+coding. That prerequisite is historical; the whole-product audit is now complete.
+[ROADMAP's current sequence](../ROADMAP.md#completed-audit-and-final-owner-sequence)
+starts with bounded existing-functionality migration, then a separate small image
+follow-up, editor workflow research/independent gap review and approved multitrack
+brief before expansion. Residual B3 items do not impose blanket closure before
+migration; separate capacity/storage commitments remain. Merge-selected,
+sampler-local sampled-background removal and freeze/bake are future capabilities,
+not the existing Group/still-export behavior or migration prerequisites.
 
 ## Finishing controls — 2026-10-10
 
@@ -621,8 +626,9 @@ remain later separate scope; B3 adds neither new brush physics nor temporal vide
    selects its matching layer; **Add another instance** intentionally duplicates
    its use. Importing/assigning starts neither visuals nor audio.
 2. Layers starts empty. The main **+** offers **Media Library / New Layer /
-   New Group / Web Source**. New Layer is a transparent editable overlay. A row's
-   **+** adds inside that specific raster. Its edit icon expands controls directly
+   New Group / Web Source**. New Layer creates a transparent editable **top-level**
+   overlay regardless of selection, including after deleting every layer. A row's
+   **+** / Inside action explicitly adds a child inside that specific raster. Its edit icon expands controls directly
    below the real row; other expansions remain independent. Frontmost is first.
    Drag rows to reorder/reparent; inline sibling arrows, Reparent and Ungroup
    retain placement. Drag Library references into Layers, including floating
@@ -1309,3 +1315,43 @@ keep their ownership. Fixed-timestamp seeks and ordinary prefetch keep the
 reduced source pixels or discarded accepted artwork is involved. Natural
 full-range 6×/12× trials and remaining stalls are bound in the
 [current results](../work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md).
+
+
+## Asynchronous Studio control candidate — 2026-10-12
+
+This sole-Builder correction remains uncommitted for Robert's review. See
+[actual results](../docs/agent-notes/control-boundary-20261012.md) for exact identities, checks, failed runs and limits.
+Tuning, colors, audio controls, Library actions, ordinary composition changes,
+history, preview/cancel, Retry and session Save submit through the same bounded
+control facade. Qt receives ready completions through its event loop. A pending
+action is not accepted artwork; rejected strokes/actions must be redrawn/repeated.
+Accepted failed persistence remains pinned/recoverable; Retry uses the real owner
+path and reports queued, pending, failed or secured state. Save As pins a requested
+authoritative revision after its ordered predecessor and reports actual durability.
+It does not convert a displayed preview or moving video into durable output.
+
+The owner retains composition/history and immutable resource lifetimes. Revisioned
+sections prevent mixed document/history/save state. During full resynchronization,
+the last coherent pixels remain visible, editing admission pauses and accepted work
+is retained. Hold release has reserved delivery; preview cancellation remains ordered
+and acknowledged. Existing tools, colors, masks, hierarchy, clipboard, docking,
+quality, audio semantics and source clocks keep their contracts. B3 timing remains
+PARTIAL; its historical 1684.55 ms stall and fallback switch timeout are not repaired
+or requalified by this migration. Video Save writing and later expansion stay OPEN.
+
+## Preservation-focused migration — 2026-10-13
+
+The current candidate optimizes existing composition and media preparation while
+retaining native resolution, blend/isolation, transforms, masks, editable rows,
+stable IDs, source clocks and shared color authority. Qt controls still make
+their intended document changes through the ordered owner; they do not wait for
+an ACK inside the input callback. The earlier Layers and control repairs remain
+part of the captured dirty baseline, not new features of this pass.
+
+For a rejected completed stroke, the preview is discarded and the stroke must
+be redrawn after drainage or successful owner Retry. An accepted unsaved edit
+remains pinned and recoverable until its requested revision is durable. Save
+immediately after a known rejected command saves existing accepted work; an
+unresolved command still requires reconciliation. No recovery requires deleting
+artwork. [Actual checks and owner-review limits](agent-notes/selective-migration-20261013.md)
+include real Qt operations, native Windows observations and disposable saves.

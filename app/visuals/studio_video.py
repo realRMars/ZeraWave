@@ -109,7 +109,7 @@ class VideoControls(QWidget):
                 # Submit one batched bounded count, preserving each notch.
                 count=packet['value'];packet['value']={'count':count}
             elif packet['op']=='step':return
-            self.submitted=packet;self.future=self.e.shell.client.edits.submit(self.e.shell.client.request,'media_transport',**packet)
+            self.submitted=packet;self.future=self.e.shell.client.submit('media_transport',**packet)
     def cancel_intent(self):
         self.scrub=None;self.coarse_intent=None;self.pending=None
         if self.binding:

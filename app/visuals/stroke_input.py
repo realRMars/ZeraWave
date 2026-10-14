@@ -11,15 +11,21 @@ def delta(a,b):return ((int(a)-int(b)+0x80000000)&0xffffffff)-0x80000000
 
 class MouseHistory:
     def __init__(self,canvas,event):
-        self.canvas=canvas;self.last=QPointF(event.position());self.stamp=int(event.timestamp())&0xffffffff;self.start=self.stamp;self.key=None;self.api=None
+        self.canvas=canvas;self.last=QPointF(event.position());self.stamp=int(event.timestamp())&0xffffffff;self.start=self.stamp;self.key=None;self.api=None;self.initialization_error=None
         if os.name!='nt' or not event.spontaneous() or not self.stamp:return
         from ctypes import wintypes as W
         class Move(C.Structure):_fields_=[('x',C.c_int),('y',C.c_int),('time',W.DWORD),('extra',C.c_size_t)]
         self.Move=Move;self.Point=W.POINT;self.api=C.WinDLL('user32',use_last_error=True)
         self.api.GetMouseMovePointsEx.argtypes=[W.UINT,C.POINTER(Move),C.POINTER(Move),C.c_int,W.DWORD];self.api.GetMouseMovePointsEx.restype=C.c_int
         self.api.ClientToScreen.argtypes=[W.HWND,C.POINTER(W.POINT)];self.api.ScreenToClient.argtypes=[W.HWND,C.POINTER(W.POINT)]
-        self.hwnd=int(canvas.winId());self.key=self.screen_key(self.last,self.stamp)
-        self.pin_boundary()
+        try:
+            self.hwnd=int(canvas.winId());self.key=self.screen_key(self.last,self.stamp)
+            self.pin_boundary()
+        except (OSError,ValueError) as exc:
+            # A Qt fallback/offscreen surface or a changing native handle may
+            # lack Win32 history. Keep all delivered Qt points; the optional
+            # captured-history extension must never abort the active gesture.
+            self.api=None;self.key=None;self.initialization_error=str(exc)
     def pin_boundary(self):
         # A button timestamp need not equal the previous WM_MOUSEMOVE timestamp.
         # Remember the actual preceding record so equal-millisecond subsequent
@@ -34,7 +40,7 @@ class MouseHistory:
         return stamp,q.x,q.y
     def samples(self,event):
         p=QPointF(event.position());stamp=int(event.timestamp())&0xffffffff;points=[];ages=[];gap=False
-        self.delivery_age_ms=None;self.last_count=None;self.last_error=None
+        self.delivery_age_ms=None;self.last_count=None;self.last_error=self.initialization_error
         now=int(C.windll.kernel32.GetTickCount())&0xffffffff if self.api else stamp
         age=delta(now,stamp)
         if self.api and 0<=age<=60000:self.delivery_age_ms=age

@@ -1,5 +1,27 @@
 # ZeraWave engineering and creative working agreement
 
+## October 13 selective-migration publication checkpoint
+
+Robert authorized publication of the consolidated existing-functionality candidate
+and its earlier control-boundary/Layers dependencies. The reviewed source/native
+bundle is `ee4b324750a7fa494460568799522ea08f2b43faab9e5c1df74b21f24d9a0f4c`,
+on parent `15a980c34b47f22ce27c4290084635b5643edf56`. The
+[publication receipt](work/publication-selective-migration-20261013/review-index.json)
+records staged identities and verified remote commit. [Actual results](docs/agent-notes/selective-migration-20261013.md)
+account for all 12 audit areas as implementations or measured retention decisions;
+no blanket language rewrite, quality reduction or higher capacity is implied.
+
+This checkpoint supersedes earlier awaiting-implementation/publication wording,
+not task-time reports or their failures. Ordinary physical OLE drag acceptance,
+listening/audible device clock/scanout/multi-hour coverage, the exact historical
+fallback timeout and cold/complex CPU/high-rate media tails remain limited or
+unverified. Passing repeats do not repair the historical intermittent failure.
+Session/current-frame still saving works; moving-video Save remains OPEN.
+Separate capacity/storage commitments and future image/editor/export requirements
+remain outside this migration. Next-stage wording/review-route reconciliation is
+separate; this publication dispatches no Builder/Reviewer or implementation.
+
+
 ## October 11 accepted B3 development checkpoint
 
 Robert accepted the verified B3 correction candidate and authorized publication.
@@ -11,7 +33,7 @@ checkpoint neither approves its proposal nor closes B3 or dispatches later work.
 Dated reports retain their task-time status and measurements.
 
 
-Version: 1.8 - 2026-10-11 (accepted B3 development checkpoint; closure limits retained)
+Version: 1.9 - 2026-10-11 (completed audit; bounded migration and final owner sequence)
 Project: ZeraWave
 Root: `C:\ZeraWave`
 
@@ -51,8 +73,13 @@ automatically constitute an architectural replacement. Explain meaningful design
 tradeoffs and implement the solution that serves the visual result. Do not force
 everything into one shader or reduce the art to avoid extending existing systems.
 
-Robert approved selective native migration: retain Qt, Python authoring/control
-and the GPU renderer. B1/B2 and finishing corrections are implemented in the
+Robert approved selective native migration: retain Qt and Python authoring,
+document policy and orchestration; migrate measured CPU kernels or deadline-sensitive
+servicing to substantial batched C++ boundaries. Keep rendering/composition and GL
+resource operations with their context owners, CPU/Qt references and explicit
+fallbacks. No wholesale C++ rewrite, engine/API replacement, speculative native
+wrappers, raised limits or automatic quality reduction in migration.
+B1/B2 and finishing corrections are implemented in the
 accepted/pushed `f3d414be7ee380a38865c3579c057597dbb5fb06` checkpoint; older broad
 product/capacity and unrun conditions retain their limits. B1 added no C++; B2
 adds the small C++ tiled resource/history core and incremental compositing.
@@ -441,14 +468,24 @@ starting dirty candidate and this separate documentation delta; preserve origina
 unrelated work, evidence, resources and saved/unsaved artwork. Use existing standalone
 checks; retain failed/unrun cases and distinguish decoder/paint/swap timing from
 visible motion/physical scanout. Robert handles general hands-on acceptance;
-Computer Use is for implementation/debugging when needed. Leave B3 uncommitted
-for manual review; no commit/push, Pages or engine replacement under this brief.
+Computer Use is for implementation/debugging when needed.
+The B3 candidate is accepted/published; future candidates follow their own manual
+review boundary, with no implied commit/push, Pages or engine replacement.
 
-Required later order: B3 media foundation → whole-existing-product migration gap
-assessment → remaining appropriate migration → unrelated feature expansion.
-The post-B3 manual assessment covers worlds, Visualizer, audio and all older
-systems and assigns appropriate C++/Python/GPU ownership. It must not be advanced,
-narrowed to the editor, omitted or automatically dispatched. Historical B4–B8
-proposals remain references subject to it. Separately preserve capacity Passes
-2–4, higher Library/layer counts and storage-location/relocation commitments;
-B3 neither completes nor cancels them. ROADMAP remains the sole plan.
+The whole-product architecture/migration audit is complete. Follow
+[ROADMAP's final owner sequence](ROADMAP.md#completed-audit-and-final-owner-sequence):
+existing-functionality migration/cleanup/measured validation only, then the separate
+small image follow-up, then official editor-workflow research/independent gap review,
+then approval of the multitrack brief before expansion implementation. B3's Video
+Save/timing/interaction limits remain; they are not a blanket closure prerequisite
+for migration. Historical B4–B8 proposals are dispositions/references, not automatic
+assignments. Capacity Passes 2–4, higher counts and storage relocation stay separate.
+
+The first bounded candidate is existing Studio control/resource servicing: remove
+synchronous ACK waits from Qt input callbacks without dropping/reordering completed
+edits or losing unknown-outcome reconciliation; use revisioned projections and
+accurate allocation/alias/pin/retirement reporting. Rebind source, binaries and inputs;
+retain original clocks, accepted work, save/reopen/normal close and docking/tabs.
+Require hypothesis-led bounded parity, latency/resource, failure/cleanup and safe
+rollback checks; approximately 30 FPS is not a responsiveness/acceptance guarantee.
+No benchmark campaign, implementation or Builder dispatch follows this doc pass.

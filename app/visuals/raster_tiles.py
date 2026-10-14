@@ -108,7 +108,14 @@ def read(desc,lease=None):
 def image(desc,native=True,lease=None):
     if not native:
         from PySide6.QtGui import QImage
-        meta,data=read(desc,lease=lease)
+        from native_raster import native_materialize
+        owned=lease is None;reader=TileLease(desc,native=False) if owned else lease
+        try:
+            result=native_materialize(desc,reader)
+            if result is not None:return result
+            meta,data=read(desc,lease=reader)
+        finally:
+            if owned:reader.close()
         return QImage(data,meta['width'],meta['height'],QImage.Format_RGBA8888_Premultiplied).mirrored(False,True).convertToFormat(QImage.Format_ARGB32_Premultiplied)
     lease=TileLease(desc)
     try:

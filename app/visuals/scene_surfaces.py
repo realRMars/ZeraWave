@@ -3,7 +3,7 @@
 Rasterizes their authored surfaces; the existing dream shader owns material,
 lighting, audio presentation and overlays. No separate playback/scene engine.
 """
-import math
+import math,time
 from functools import lru_cache
 import numpy as np
 import moderngl
@@ -64,7 +64,7 @@ def citadel_focal(eye,forward,up):
  return max(1.13,slope/(.48-.09))
 
 class Mesh:
- def __init__(self):self.rows=[];self.chunks=[]
+ def __init__(self):self.rows=[];self.native_rows=[];self.chunks=[]
  def poly(self,points,normal=None,kind=1.,motion=None,tag=0.):
   points=np.asarray(points,dtype='f8')
   if len(points)<3:return
@@ -73,7 +73,7 @@ class Mesh:
   if moves.ndim==1:moves=np.tile(moves,(len(points),1))
   for i in range(1,len(points)-1):
    for j in (0,i,i+1):self.rows.append((*points[j],*n,*moves[j],kind,tag))
- def data(self):return np.concatenate([np.asarray(self.rows,dtype='f4').reshape(-1,12),*self.chunks])
+ def data(self):return np.concatenate([np.asarray(self.rows,dtype='f4').reshape(-1,12),*self.native_rows,*self.chunks])
  def grid(self,points,normals,kind,tag=0.,motion=None):
   h,w=points.shape[:2];ids=np.arange(h*w).reshape(h,w);a=ids[:-1,:-1].ravel();b=ids[:-1,1:].ravel();c=ids[1:,1:].ravel();d=ids[1:,:-1].ravel();indices=np.stack((a,b,c,a,c,d),axis=1).ravel()
   data=np.zeros((len(indices),12),dtype='f4');data[:,:3]=points.reshape(-1,3)[indices];data[:,3:6]=normals.reshape(-1,3)[indices];data[:,10]=kind;data[:,11]=tag
@@ -195,6 +195,8 @@ def specimen(m,cell,desc,foot,rot,crystal):
 @lru_cache(maxsize=64)
 def cavern_row(z):
  m=Mesh();offset=z*2.8
+ from native_surfaces import backend
+ native=backend();batch=[]
  # Inner chamber shell, smooth rounded normals. World sampling stays fixed on rows.
  v=np.linspace(offset,offset+2.8,5)[:,None];angle=np.linspace(0,math.tau,65)[None,:];axis=np.array([cavern_axis(z) for z in v[:,0]])[:,None];slope=np.array([cavern_path(z)[1] for z in v[:,0]])[:,None];radius=np.full((5,65),4.4)
  for _ in range(5):
@@ -211,7 +213,11 @@ def cavern_row(z):
    down=np.linspace(0,desc[1],11)[:,None];angle=np.linspace(0,math.tau,17)[None,:];co=np.broadcast_to(np.cos(angle),(11,17));si=np.broadcast_to(np.sin(angle),(11,17));yy=np.broadcast_to(down,(11,17));rad=desc[2]*(1-down/desc[1])**1.5;derivative=-1.5*desc[2]/desc[1]*(1-down/desc[1])**.5
    points=np.stack(((x+.5)*2.8+foot[0]-foot[2]*yy+rad*co,desc[3]-yy,(z+.5)*2.8+foot[1]-foot[3]*yy+rad*si),axis=-1);normals=np.stack((co,np.broadcast_to(derivative,(11,17))-foot[2]*co-foot[3]*si,si),axis=-1);m.grid(points,normals,2.5)
   if abs((x+.5)*2.8-cavern_axis((z+.5)*2.8))>1.1:
-   for i in range(3):specimen(m,cell,desc,foot,values[2+i*2],values[3+i*2])
+   for i in range(3):
+    rot,crystal=values[2+i*2],values[3+i*2]
+    if native.dll is not None and desc[0]>=.27 and crystal[2]>.18:batch.append([*cell,desc[0],*foot[:2],*rot,*crystal])
+    else:specimen(m,cell,desc,foot,rot,crystal)
+ if batch:m.native_rows.append(native.specimens(batch))
  data=m.data();data[:,2]-=offset;return data
 
 class SurfaceRows:
@@ -266,22 +272,37 @@ class SurfaceStage:
  def prepare_cavern(self,travel):
   origin=math.floor(travel/2.8)-2
   if origin==self.cavern_origin:return
+  started=time.perf_counter();generation=wait=upload=0.;generated=waited=uploaded=inline_pending=0
   for z in range(origin,origin+24):
    if z in self.row_buffers:continue
    a=self.ready.pop(z,None)
-   if a is None:a=self.pending.pop(z).result() if z in self.pending else cavern_row(z)
+   if a is None:
+    began=time.perf_counter()
+    if z in self.pending and self.pending[z].done():
+     a=self.pending.pop(z).result();wait+=(time.perf_counter()-began)*1000;waited+=1
+    else:
+     # A required row cannot await helper startup or queued preparation. Make
+     # the exact row locally; keep the at-most-two outstanding helper futures
+     # until their reader consumes the replies, then retire redundant results.
+     inline_pending+=int(z in self.pending)
+     a=cavern_row(z);generation+=(time.perf_counter()-began)*1000;generated+=1
+   began=time.perf_counter()
    retired=next((key for key in self.row_buffers if not origin<=key<origin+24),None)
    if retired is not None:
     buffer=self.row_buffers.pop(retired);vao=self.row_vaos.pop(retired);self.row_counts.pop(retired);buffer.orphan(a.nbytes);buffer.write(a.tobytes())
    else:
     buffer=self.ctx.buffer(a.tobytes());vao=self.ctx.vertex_array(self.program,[(buffer,'3f 3f 4f 1f 1f','in_position','in_normal','in_motion','in_kind','in_tag')])
    self.row_buffers[z]=buffer;self.row_vaos[z]=vao;self.row_counts[z]=len(a)
+   upload+=(time.perf_counter()-began)*1000;uploaded+=1
+  self.metrics.update(required_generation_ms=generation,required_wait_ms=wait,required_upload_ms=upload,required_prepare_ms=(time.perf_counter()-started)*1000,required_generated_rows=generated,required_waited_rows=waited,required_uploaded_rows=uploaded,required_inline_pending_rows=inline_pending)
   self.cavern_origin=origin;self.metrics['cavern_vertices']=sum(self.row_counts.values());self.metrics['cavern_gpu_rows']=len(self.row_buffers)
  def warm_rows(self,travel):
   if self.worker is None:self.worker=SurfaceRows()
   origin=math.floor(travel/2.8)-2
   for z,future in list(self.pending.items()):
-   if future.done():self.ready[z]=future.result();del self.pending[z]
+   if future.done():
+    a=future.result();del self.pending[z]
+    if z not in self.row_buffers:self.ready[z]=a
   self.ready=OrderedDict((z,a) for z,a in self.ready.items() if origin<=z<origin+32)
   for z in range(origin,origin+26):
    if len(self.pending)>=2:break

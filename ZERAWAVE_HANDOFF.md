@@ -1,11 +1,94 @@
 # ZeraWave handoff
 
+## October 13 selective-migration publication checkpoint
+
+Robert authorized publication of the consolidated existing-functionality candidate
+and its earlier control-boundary/Layers dependencies. The reviewed source/native
+bundle is `ee4b324750a7fa494460568799522ea08f2b43faab9e5c1df74b21f24d9a0f4c`,
+on parent `15a980c34b47f22ce27c4290084635b5643edf56`. The
+[publication receipt](work/publication-selective-migration-20261013/review-index.json)
+records staged identities and verified remote commit. [Actual results](docs/agent-notes/selective-migration-20261013.md)
+account for all 12 audit areas as implementations or measured retention decisions;
+no blanket language rewrite, quality reduction or higher capacity is implied.
+
+This checkpoint supersedes earlier awaiting-implementation/publication wording,
+not task-time reports or their failures. Ordinary physical OLE drag acceptance,
+listening/audible device clock/scanout/multi-hour coverage, the exact historical
+fallback timeout and cold/complex CPU/high-rate media tails remain limited or
+unverified. Passing repeats do not repair the historical intermittent failure.
+Session/current-frame still saving works; moving-video Save remains OPEN.
+Separate capacity/storage commitments and future image/editor/export requirements
+remain outside this migration. Next-stage wording/review-route reconciliation is
+separate; this publication dispatches no Builder/Reviewer or implementation.
+
+Implemented: exact native raster materialization/mix; immutable alpha/rotation
+media conversion; Cavern batched geometry/required-row handling; Aftershock GPU
+ordering; compositor caching/Qt state restoration; control reconciliation/Save
+frontier and resource telemetry; batched static-model normals. Measured retention:
+Roots/Sky, Marsh and Main Arc33 GPU paths; single-source SoundFile/NumPy/WASAPI
+with diagnostics; FFT/Cymatics, opaque-video conversion and PNG/SQLite/I/O routes.
+These decisions retain Python policy, Qt and existing context owners/fallbacks.
+
+The full migration [review packet](work/selective-migration-20261013-1791871963382345700/REVIEW.md)
+and [readiness](work/selective-migration-20261013-1791871963382345700/READINESS.json)
+bind final source/native artifacts and retained failures. Publication reuses that
+source-bound technical evidence; it does not rerun GPU/device/listening tests.
+Earlier [boundary results](docs/agent-notes/control-boundary-20261012.md) and
+[Layers repair](docs/agent-notes/layers-repair-20261012.md) retain their task-time
+identities. Optional native source/build instructions are included; generated
+DLLs/evidence, original media, unrelated notes/research and frozen portable remain
+local. This is a development checkpoint, not a release or universal latency pass.
+
+
+## Current audit reconciliation and next ownership handoff
+
+Local inspection found `main`, HEAD and local `origin/main` at accepted/published
+`15a980c34b47f22ce27c4290084635b5643edf56`, an empty index, three unrelated dirty
+color/palette notes and the retained untracked research/planning, startup/plan
+notes and originals. No application/native delta. All 239 accepted Python hashes
+and both existing native DLL hashes matched; this is identity verification, not
+new runtime/performance acceptance or a new live GitHub check.
+
+The [external whole-product audit](<C:/Users/Sweet/AppData/Local/Temp/zerawave-audit-20261012-15a980c/full-report.md>) was read in full, including
+freeze/render-in-place and the final owner sequence annotation. It is unchanged,
+56,052 bytes, SHA256 `5571260b0a11cc17d0262cf051c48d6483412ec7c6336c2d337166ab1e1024b9`;
+Library copy ID `libfile_76159998d03081919b228c110eb33bb5` is retained as provenance.
+Its October 12 report label is preserved; this pass uses the October 11 client date.
+The accepted Python bundle is not a hash of every shader/asset/repository file.
+Native media DLL remains `4604b28a640919a119f311f5e9b3a88ffefe43f6cc2edffa252adf4faf201dda`;
+native raster DLL remains `0e13c7e88532251ce15105bc6386fd1351efdbddf49a87d4c58ecf544f7e1cf1`.
+Future work must rebind source/binaries/inputs and preserve historical measurements.
+
+**Audit complete → existing-functionality migration/cleanup/measured validation
+only → separate merge-selected and sampler-local sampled-background color removal
+→ official Premiere/Final Cut/Resolve workflow research and independent gap review
+→ approval of multitrack brief before expansion implementation.**
+[ROADMAP](ROADMAP.md#completed-audit-and-final-owner-sequence) owns the plan and
+audit dispositions. Residual B3 limits are separate, not a blanket migration gate.
+
+The next scoped candidate is the existing Studio control/resource boundary:
+nonblocking Qt ACK completion, ordered edits and unknown-outcome reconciliation,
+revisioned state projections, accurate allocation/alias/pin/retirement exposure.
+No broader migration or new editor contract is dispatched. Preserve Python policy,
+batched measured native boundaries, GL context owners, CPU/Qt references/fallbacks,
+docking/tabs, accepted edits/art, source clocks, save/reopen and normal close.
+
+**Ownership/approval handoff:** this pass owns only the necessary guidance edits.
+The task listing showed Builder not loaded, Prompter and audit idle, and no other
+active project writer; every edited guide is hash-guarded against the initial
+checkout. Prompter may prepare the coherent boundary-only brief for Bob/Robert
+approval, then the sole Builder must verify this reconciliation and re-establish
+shared-file ownership before dependent coding. No message or dispatch occurred.
+Migration implementation, the small image additions, editor research and multitrack
+implementation were not performed. This pass does not commit/push or change Pages.
+
 ## October 11 accepted B3 development checkpoint
 
 Robert reviewed and accepted the B3 correction candidate and authorized commit,
-normal push and Page reconciliation. The verified 239-file app bundle is
+normal push and Page reconciliation. The verified 239-file Python source bundle is
 `4a6ba5f8c10f0403b7be726a527190608309529c99a5e6cc6f8eb6ff140132a7`,
-on parent `9c14a349e351d3e56dbf11e24ac28dba00bc5dff`. The
+published as `15a980c34b47f22ce27c4290084635b5643edf56`, with parent
+`9c14a349e351d3e56dbf11e24ac28dba00bc5dff`. The
 [publication receipt](work/publication-b3-accepted-20261011/review-index.json)
 records the exact published identity; [latest actual results](work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md)
 retain failed/unrun checks. This current acceptance supersedes task-time
@@ -18,13 +101,14 @@ is his reported review, not a newly captured physical-input/scanout test.
 **Video Save writing remains OPEN**, with its [manual scope proposal](work/b3-remaining-20261011-1791735342975863300/VIDEO_SAVE_PROPOSAL.md)
 not approved or implemented by publication. Session Save and current-frame image
 Save remain separate. B3 stage closure is not declared by this checkpoint.
-After finishing B3, assess the whole existing product (worlds, Visualizer, audio
-and all older systems), then complete appropriate migration before unrelated
-expansion. Capacity Passes 2–4, higher counts and storage-location/relocation
+The whole-product architecture/migration audit is complete. Residual B3 items
+remain recorded separately and are not a blanket prerequisite for migration.
+Follow the owner's current sequence in ROADMAP; publication dispatches nothing.
+Capacity Passes 2–4, higher counts and storage-location/relocation
 remain separate commitments. No next-stage dispatch, install or release build.
 
 
-Updated: 2026-10-11 (accepted B3 development candidate publication; retained open limits).
+Updated: 2026-10-11 (completed audit/final sequence documentation reconciliation; no implementation).
 [ROADMAP.md](ROADMAP.md) is the sole plan; [AGENTS.md](AGENTS.md) owns the working
 procedure. Prior checkpoints and their limitations remain below.
 

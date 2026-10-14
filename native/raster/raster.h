@@ -29,3 +29,9 @@ ZW_API zw_constrain(const void*,const void*,const void*,void*,uint64_t,double,Zw
 ZW_API zw_connected(const void*,uint64_t,uint32_t,uint32_t,uint32_t,uint32_t,void*,uint64_t,volatile int32_t*,double,ZwError*);
 
 ZW_API zw_cancel(volatile int32_t*,int32_t,ZwError*);
+
+// Optional ABI-1 extension: one validated immutable tile-table -> top-down BGRA
+// premultiplied destination. No handles, allocations or borrowed readers escape.
+ZW_API zw_materialize(const ZwTile*,uint32_t,uint32_t,uint32_t,void*,uint64_t,uint64_t,ZwError*);
+
+ZW_API zw_mix(const void* first,const void* second,void* destination,uint64_t length,uint32_t factor,ZwError* error);

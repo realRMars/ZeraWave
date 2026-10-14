@@ -65,12 +65,13 @@ def exact_output_and_conversion():
             assert count==self.requests[-1];self.blocks.append(bytes(self.buffer))
     native=Native();out=FrameOutput.__new__(FrameOutput)
     out.player=native;out.ffi=FFI();out.submitted=out.released=out.maximum_padding=0
+    out.last_padding=out.waits=out.deadline_failures=0;out.last_play_ms=out.maximum_play_ms=0.
     pcm=np.arange(4099*2,dtype=np.float32).reshape(-1,2)/10000
     out.play(pcm[:2048]);out.play(pcm[2048:4096]);out.play(pcm[4096:]);out.drain()
     assert native.requests==[2048,2048,3] and out.submitted==out.released==4099
     assert b''.join(native.blocks)==pcm.tobytes()
     native._render_available_frames=lambda:0
-    with patch('wasapi_output.time.perf_counter',side_effect=[0.,1.]):
+    with patch('wasapi_output.time.perf_counter',side_effect=[0.,0.,1.]):
         try:out.play(pcm[:1])
         except RuntimeError:pass
         else:raise AssertionError('Stalled output accepted indefinitely')

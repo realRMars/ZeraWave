@@ -1,11 +1,34 @@
 # ZeraWave development plan
 
+## October 13 selective-migration publication checkpoint
+
+Robert authorized publication of the consolidated existing-functionality candidate
+and its earlier control-boundary/Layers dependencies. The reviewed source/native
+bundle is `ee4b324750a7fa494460568799522ea08f2b43faab9e5c1df74b21f24d9a0f4c`,
+on parent `15a980c34b47f22ce27c4290084635b5643edf56`. The
+[publication receipt](work/publication-selective-migration-20261013/review-index.json)
+records staged identities and verified remote commit. [Actual results](docs/agent-notes/selective-migration-20261013.md)
+account for all 12 audit areas as implementations or measured retention decisions;
+no blanket language rewrite, quality reduction or higher capacity is implied.
+
+This checkpoint supersedes earlier awaiting-implementation/publication wording,
+not task-time reports or their failures. Ordinary physical OLE drag acceptance,
+listening/audible device clock/scanout/multi-hour coverage, the exact historical
+fallback timeout and cold/complex CPU/high-rate media tails remain limited or
+unverified. Passing repeats do not repair the historical intermittent failure.
+Session/current-frame still saving works; moving-video Save remains OPEN.
+Separate capacity/storage commitments and future image/editor/export requirements
+remain outside this migration. Next-stage wording/review-route reconciliation is
+separate; this publication dispatches no Builder/Reviewer or implementation.
+
+
 ## October 11 accepted B3 development checkpoint
 
 Robert reviewed and accepted the B3 correction candidate and authorized commit,
-normal push and Page reconciliation. The verified 239-file app bundle is
+normal push and Page reconciliation. The verified 239-file Python source bundle is
 `4a6ba5f8c10f0403b7be726a527190608309529c99a5e6cc6f8eb6ff140132a7`,
-on parent `9c14a349e351d3e56dbf11e24ac28dba00bc5dff`. The
+published as `15a980c34b47f22ce27c4290084635b5643edf56`, with parent
+`9c14a349e351d3e56dbf11e24ac28dba00bc5dff`. The
 [publication receipt](work/publication-b3-accepted-20261011/review-index.json)
 records the exact published identity; [latest actual results](work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md)
 retain failed/unrun checks. This current acceptance supersedes task-time
@@ -18,13 +41,14 @@ is his reported review, not a newly captured physical-input/scanout test.
 **Video Save writing remains OPEN**, with its [manual scope proposal](work/b3-remaining-20261011-1791735342975863300/VIDEO_SAVE_PROPOSAL.md)
 not approved or implemented by publication. Session Save and current-frame image
 Save remain separate. B3 stage closure is not declared by this checkpoint.
-After finishing B3, assess the whole existing product (worlds, Visualizer, audio
-and all older systems), then complete appropriate migration before unrelated
-expansion. Capacity Passes 2–4, higher counts and storage-location/relocation
+The whole-product architecture/migration audit is complete. Residual B3 items
+remain recorded separately and are not a blanket prerequisite for migration.
+Follow the owner's current sequence below; publication dispatches nothing.
+Capacity Passes 2–4, higher counts and storage-location/relocation
 remain separate commitments. No next-stage dispatch, install or release build.
 
 
-Updated: 2026-10-11 (B3 development candidate accepted for publication; Video Save open, timing partial).
+Updated: 2026-10-11 (completed external audit and final owner sequence reconciled; documentation only).
 This is the sole prioritized plan. The user's latest assignment sets scope;
 code establishes implementation and user review establishes artistic acceptance.
 Historical plans remain in [history](docs/history/README.md). The accepted visual
@@ -77,13 +101,64 @@ and October 8 B1 hash verification identify historical source, not today's HEAD.
 retain their original identities, failures, bounds and mixed performance.
 Fresh checkouts can use the B1 fallback or build the optional native backend.
 
-The required manual sequence is **B3 media foundation → whole-existing-product
-migration gap assessment → remaining appropriate migration → unrelated feature
-expansion**. After B3, the assessment must inspect worlds, Visualizer, audio and
-all older systems and decide which work should become C++, remain Python or run
-on GPU. It must not be moved ahead of B3, narrowed to the editor or omitted.
-Historical B4–B8 proposals are references subject to that assessment; they do not
-authorize automatic assignments or expand this B3 brief.
+### Completed audit and final owner sequence
+
+The [preserved whole-product audit](<C:/Users/Sweet/AppData/Local/Temp/zerawave-audit-20261012-15a980c/full-report.md>) is complete, including its
+freeze/render-in-place addendum and final sequence annotation. It is supporting
+evidence outside the repository, not a second plan. The report labels its audit
+October 12; this reconciliation uses the client date October 11 and does not
+redate its historical findings. Delivered Library copy: `libfile_76159998d03081919b228c110eb33bb5`.
+Audit SHA256: `5571260b0a11cc17d0262cf051c48d6483412ec7c6336c2d337166ab1e1024b9`.
+
+1. **Architecture/migration audit — complete.** It covers worlds, Visualizer,
+   audio, Studio and older systems, with Python/C++/GPU dispositions.
+2. **Existing-functionality migration, focused cleanup and measured performance
+   validation only.** Select bounded candidates through the manual approval route;
+   this is not authority for every proposed migration or a deletion campaign.
+3. **Separate small image follow-up:** merge-selected and sampler-local
+   sampled-background color removal. These are planned additions, not existing
+   controls or part of migration. Prepare their own scope and acceptance checks.
+4. **Separate editor requirements/workflow research:** official Premiere, Final
+   Cut and Resolve documentation, then independent gap review for a usable
+   foundation that fits current Studio. This research has not been performed here.
+5. **Approve the resulting multitrack brief before editor expansion implementation.**
+
+B3's accepted candidate does not establish blanket closure. Video Save writing
+remains OPEN; timing is PARTIAL, the intermittent fallback timeout is unresolved,
+physical-interaction gaps and unrun qualification remain. A passing repeat does
+not repair that intermittent failure. None creates a blanket B3-closure gate
+before existing-functionality migration. Session and still/current-frame saving
+work and remain distinct from moving-video saving.
+
+### Next scoped candidate — existing Studio control/resource boundary
+
+Remove remaining synchronous ACK waits from Qt input callbacks; retain ordered
+completed edits and unknown-outcome reconciliation without duplicate history or
+pixels. Use revisioned state projections and expose existing allocations,
+aliases, pins, staging and retiring resources accurately. This is scoped next
+work awaiting its coherent approved Builder brief, not implemented by this pass
+or expanded to all audit stages, a C++ document model or new editor contracts.
+
+Keep Qt/Python authoring, document policy and orchestration. Selectively migrate
+measured CPU kernels or deadline-sensitive servicing to substantial, batched C++
+boundaries; do not add speculative wrappers or merge native DLLs for tidiness.
+Keep GPU rendering/composition and GL creation/upload/release with their context
+owners, CPU/Qt correctness references and explicit fallbacks. Preserve docking,
+tabs, tools/colors/locks/selection, artistic behavior, original pixels and source
+clocks, accepted edits, save/reopen and normal close. No wholesale C++ rewrite,
+engine/API replacement, raised capacity limits or automatic quality reduction.
+
+Bind the then-current dirty source, binaries/ABI, input/settings and task-only
+rollback before coding. Use hypothesis-led bounded checks: pixel/semantic parity;
+input/ACK/projection latency tails and resource accounting; delayed/lost ACKs,
+retries, failures, replacement and normal-close cleanup; secure accepted unsaved
+work and restore only task changes. Retain the owner/client route and process-fixed
+fallback. Include real pointer/keyboard and visible canvas/output where relevant;
+scripted/paint/swap evidence is not physical response or listening acceptance.
+Define affected workload criteria before comparisons, retain failed/unrun cases,
+and stop on parity loss or unsupported gains. Approximately 30 FPS is a reference,
+not proof of responsiveness or universal acceptance. No benchmark campaign or
+new performance claim is authorized by this reconciliation.
 
 <a id="next-bounded-work-and-separate-monitor-scope"></a>
 
@@ -227,8 +302,10 @@ FPS/speedup. Historical B1 timing is a reference, not fresh B2 performance evide
 
 Scoped finishing acceptance stands; report newly discovered B1/B2 regressions
 rather than declaring older review cases solved by native storage. B3 media work
-below is next; audio migration, timeline/export, new brush physics and broad Studio
-redesign are outside B3. This reconciliation dispatches no Builder or critic.
+below records the accepted candidate's preservation requirements; the current
+next candidate is the control/resource boundary above. New timeline/export, brush
+physics and broad Studio redesign remain separate expansion. This reconciliation
+dispatches no Builder or critic.
 
 ### B3 — bounded media foundation
 
@@ -259,7 +336,7 @@ Inspect `app/visuals/media_frames.py`, registry/control callers,
 media tests. Map request → scheduling → decode → conversion → publication → editor
 read/paint → renderer upload/presentation, including waits, copies, clocks and owners.
 
-Current source has one serial service worker, two codec threads per video decoder,
+The original pre-B3 inspection found one serial service worker and two codec threads per video decoder,
 generation/publication guards, double-buffer shared frames, four visible animated
 sources, 96 MiB aggregate decoder-cache and 128 MiB shared-staging limits, and a
 512-frame/two-second bounded GOP refill. FrameReader clients copy frames; Qt converts
@@ -268,6 +345,9 @@ explicit direction-aware prefetch does not. The decode-loop cancellation event i
 not connected to transport invalidation. These findings are not proof of every
 reported stall/lifetime defect. Historical rate checks measured publications,
 not smooth visible playback; the large showcase retains 6×/12× reverse/refill limits.
+That pre-B3 topology is historical: the accepted candidate now has four bounded
+codec-owner lanes, connected cancellation and direction-aware prefetch. Its
+remaining stalls and fairness misses stay recorded; do not rebuild the old brief.
 
 Use a small C++ component only where measured workload/ownership justify it;
 PyAV/FFmpeg already decodes natively. Keep Python policy and narrow batched
@@ -321,8 +401,8 @@ Shutdown must not release shared mappings or GPU resources still in use.
 
 #### B3 acceptance matrix
 
-Verify the existing originals `C:\ZeraWave\images n vids\Xeraphina_video.mp4` and
-`C:\ZeraWave\images n vids\ZeraphinaX showcase 1.mp4`; inspect keyframes/GOP structure
+Verify the existing originals `C:\ZeraWave\videos\Xeraphina_video.mp4` and
+`C:\ZeraWave\videos\ZeraphinaX showcase 1.mp4`; inspect keyframes/GOP structure
 rather than assuming short duration means short GOP. Reuse originals; disposable
 fixtures may use installed capabilities only when necessary. No broad file hunt.
 Use existing standalone conventions/project environment; extend focused coverage
@@ -358,21 +438,38 @@ and written guidance. This prerequisite itself implements no B3 behavior.
 
 ### Later planned stages — separate Builder assignments
 
-After B3, the next **manual assignment** is the whole-existing-product migration
-gap assessment covering worlds, Visualizer, audio and all older systems. Its
-C++/Python/GPU decisions determine remaining appropriate migration before unrelated
-feature expansion. Do not dispatch that assessment as part of B3.
+The completed audit reconciles the prior recommendations below. These concise
+dispositions retain its full evidence reference; they are not automatic stage
+assignments. The control/resource candidate above is the first bounded scope.
+Later migration candidates require current attribution and their own approved
+brief; no migration feature is implied by appearing in this table.
 
-The historical assessment's B4–B8 proposals below remain references subject to
-that assessment; this table is not an automatic implementation sequence.
-
-| Historical proposal | Reference outcome, subject to assessment |
+| Recommendation group | Current disposition |
 | --- | --- |
-| B4 | Toolkit-independent document/control facade after parity; retain Python policy where useful. |
-| B5 | Native audio clock/prepared processing graph under a separate audio/dependency brief. |
-| B6 | Timeline/cues and deterministic offline export under separate clock/media/storage scope. |
-| B7 | Modular authoring, worlds and optional geometry/simulation through stable interfaces. |
-| B8 | Distribution, updates, licensing and customization under a product/release assignment; frozen portable preserved. |
+| CPU audio-uniform resolution/water invariants; bounded capture/telemetry; prepared uniform handles/cadence; contributing surface allocation; hosted preview; Main director traits/recency; B1/B2/B3 and storage Pass 1 | Retain implemented foundations and their scoped evidence. Do not repeat superseded diagnoses or certify extended listening from code. Synchronous readback, broad snapshots and full PNG persistence still have conditional costs. |
+| B4 control facade, revisioned projections and resource ledger | Retain narrowly as the next existing-functionality candidate; document/history policy stays Python, allocations and aliases must not be double-counted as RSS/VRAM. Existing component caps are not one complete-workload reservation. |
+| Transformed editor composition, regional constraints/materialization, frame conversion | Conditional later hot paths: substantial batched native kernels or exact context-owned GPU work only after measurement and CPU/Qt parity. Preserve Smudge sequence, masks, alpha, Groups and transforms. |
+| Existing media servicing/conversion/copy and retirement | Retain PyAV/FFmpeg and bounded lanes/caches first; diagnose the intermittent fallback switch and measured transfers before native ownership consolidation. Hardware decode/proxies remain explicit measured options, not silently enabled remedies. |
+| B5 existing single-source audio servicing/clock and block preparation | Retain native deadline-servicing direction conditionally; preserve rates/pitch, sample order, mute/raw analysis and device ownership. Defer mixer/plugin graph, routing, compensation/time stretch; JUCE is an option, not a dependency decision. NumPy FFT/DSP and Cymatics bulk math already run natively. |
+| Worlds/Visualizer: Roots/Sky, Marsh, Main Arc33, Aftershock and required Cavern rows | Retain GPU shading/resident meshes, Python artistic policy/clocks/palettes and bounded event state. Investigate current costs and exact frame-invariant preparation or row servicing; preserve all passes in total cost, Main versus Experimental identity, audio/history/color/motion and necessary prefetch. Other worlds, Fractals and static models retain their current representations. |
+| Renderer/engine/API replacement, wholesale C++/DSP/model rewrite, blanket authored-canvas removal, speculative wrappers | Rejected for this migration; removing proven zero contributions or measured kernel work is different. Qt/native codecs/GL calls already execute natively; language changes alone do not diagnose waits. OpenGL 3.3 is not an established compute-shader contract. |
+| Automatic render-quality adaptation, approximate loop reductions, shader-family/lazy/background compilation or shipped driver binaries | Deferred/default remedies rejected where prior experiments failed or were mixed. Full and explicit 75%/50% choices remain; exact preparation/bounds first. Reopen only with a concrete measured requirement and artistic review. |
+| Startup/performance notes, GPU waits and asynchronous readback | Retain historical evidence; at most a hypothesis-led bounded later check. Warm/hidden startup, utilization, draw/paint/swap return and isolated copy timings do not establish present bottlenecks, scanout or total gains. |
+| Capacity Passes 2–4, higher Library/layer counts and storage-location/relocation controls | Separate retained commitments. Improve truthful accounting at current limits in migration; do not raise admission limits or add relocation UI here. |
+| Separate small image follow-up | Merge-selected and sampler-local sampled-background color removal after migration; not implemented or dispatched. Grouping/still export are not merge-selected or freeze. Preserve stack/backdrop semantics when its own brief is prepared. |
+| B6/B7 future editor, timeline/cues, node/rack authoring, audio expansion, cameras, keying/brightness, editable text/subtitles, possible whisper.cpp and moving-video export | Requirements for the separate official-workflow research and independent gap review, then approved multitrack brief. No project/source/audio-time, demand evaluation or export contract is claimed implemented or a migration prerequisite. Keep live source clocks independent now. |
+| Freeze/render-in-place addendum | Future requirement, separate from merge-selected: preserve editable originals/revert, revision/source/time-bound immutable cache, backdrop/order dependencies (noncontiguous layers cannot generally become one equivalent replacement), history/tails and no doubled audio. Retire inactive resources only after readers/jobs exit; retain originals on cancel/failure and handle missing caches/portability. No established performance benefit or migration prerequisite. |
+| B8 release/updater/licensing/extensions, output bridges, onboarding/accessibility, executable mods/AI authoring and commercial claims | Deferred product/research work; preserve ABI/fallback/build provenance and frozen portable. No install or engine replacement. |
+| Remaining ZeraphinaX blank-procedural/general-mapping/seed-lock/image-relief/particle, oscillator/band/Sand ideas and richer Dream Wave analysis | Retain existing implemented pieces; defer remaining creation/simulation, centroid/chroma/harmonic-percussive/semantic and output features. Retired research particle/raymarching/one-shader bans are not current policy. |
+
+Future workflows must distinguish source identity, clip instance, project time,
+source time and audible device time; choose live-only, timestamped recording or
+unavailable-source policy for live inputs. Worldforms need explicit analytic,
+replay/checkpointable or live-only state capabilities: Echo/Fractal/Galaxy history
+is not made seek-equivalent by setting a timestamp. Versioned project/export
+ownership and aggregate admission belong in the later research/gap brief, not
+new multitrack contracts inserted into migration. Keep editable text/cues and
+cancellable transcription provenance distinct from baked pixels/deadline work.
 
 No wholesale rewrite, engine/graphics-API switch, installation or worker/critic
 dispatch follows this reconciliation. See [current handoff](ZERAWAVE_HANDOFF.md#october-10-drawing-and-storage-development-checkpoint)

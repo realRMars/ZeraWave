@@ -79,7 +79,9 @@ class ArtworkSaveController:
             if result['status']=='durable':
                 association={k:result[k] for k in ('scope','targets','path','format','background','quality','fingerprint')}
                 if result['session']==self.e.binding[0]:
-                    future=self.e.shell.client.edits.submit(self.e.shell.client.request,'artwork_output',media_session=result['session'],association=association);self.association_jobs.append((future,result))
+                    try:
+                        future=self.e.shell.client.submit('artwork_output',media_session=result['session'],association=association);self.association_jobs.append((future,result))
+                    except Exception as exc:self.e.status.setText('Image saved to '+result['path']+'; association not submitted. Repeat Save after commands drain: '+str(exc))
                 else:self.e.status.setText('Artwork image saved for previous session: '+result['path']+'. No current-session association changed.')
             else:self.e.status.setText('Artwork image save '+result['status']+'; prior output and association retained: '+result.get('error',''))
         for future,result in list(self.association_jobs):

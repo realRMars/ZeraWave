@@ -135,7 +135,7 @@ class AudioOwner:
         self.state = dict(mode=MODES[0], device=None, path='', status='Stopped', error='',
             playing=False, speed=1., file_revision=0,last_seek_id=None, repeat=False, mute=False, volume=1., raw_waveform=False, drive_revision=0, playhead=0., duration=None,
             generation=0, sequence=0, pcm_frames=0, pcm_wall=None, rms=None, peak=None, source_clipped=0, output_rms=None, output_peak=None, output_clipped=0, dropped=0,
-            output=False, pending=False, decoder='SoundFile' if importlib.util.find_spec('soundfile') else 'PCM WAV only')
+            output=False, pending=False, service=None,decoder='SoundFile' if importlib.util.find_spec('soundfile') else 'PCM WAV only')
         self.capture = self.decoder = self.output = self.output_stack = None;self.blocked = False
         self.output_release_error = None
         self.closed = threading.Event();self.token = uuid.uuid4().hex
@@ -189,7 +189,7 @@ class AudioOwner:
 
     def boundary(self,hold_analyzer=False):
         with self.lock:
-            self.state['generation'] += 1;self.packets.clear();self.peaks.clear();self.state['pcm_wall'] = None
+            self.state['generation'] += 1;self.state['service']=None;self.packets.clear();self.peaks.clear();self.state['pcm_wall'] = None
             self.analyzer_packet=(dict(self.analyzer_packet,held=True,
                 origin_generation=self.analyzer_packet.get('origin_generation',self.analyzer_packet['generation']),
                 generation=self.state['generation']) if hold_analyzer and self.analyzer_packet else None)
@@ -389,7 +389,7 @@ class AudioOwner:
                             if health['last_packet_at'] is not None and time.perf_counter() - health['last_packet_at'] > 2.:
                                 raise ValueError('Listening device stopped delivering PCM.')
                         elif self.decoder and not self.blocked and self.state['playing'] and time.perf_counter() >= self.next_file:
-                            pcm = self.decoder.read(self.state['speed'])
+                            decode_started=time.perf_counter();pcm = self.decoder.read(self.state['speed']);decode_ms=(time.perf_counter()-decode_started)*1000
                             if not len(pcm):
                                 if self.state['repeat']:
                                     self.decoder.seek(0. if self.state['speed']>0 else self.decoder.duration);self.boundary();self.change(playhead=0. if self.state['speed']>0 else self.decoder.duration)
@@ -398,13 +398,16 @@ class AudioOwner:
                                     self.release_output();self.change(playing=False, status='Ended')
                             else:
                                 # Output-only gain; original PCM continues to analysis and raw drive.
-                                audible=pcm*self.state['volume']
+                                prepare_started=time.perf_counter();audible=pcm*self.state['volume']
                                 clipped=0 if self.state['mute'] else int(np.count_nonzero(np.abs(audible)>1.))
                                 audible=np.zeros_like(pcm) if self.state['mute'] else np.clip(audible,-1.,1.)
-                                self.output.play(audible)
+                                prepare_ms=(time.perf_counter()-prepare_started)*1000;output_started=time.perf_counter();self.output.play(audible);output_ms=(time.perf_counter()-output_started)*1000
                                 output_metrics=dict(output_rms=float(np.sqrt(np.mean(audible*audible))),output_peak=float(np.max(np.abs(audible))),output_clipped=clipped)
                                 self.change(playhead=min(self.decoder.duration, self.decoder.output_index / RATE))
-                                self.publish(pcm,output_metrics)
+                                publish_started=time.perf_counter();self.publish(pcm,output_metrics)
+                                service=dict(generation=self.state['generation'],observed_at=time.perf_counter(),decode_ms=decode_ms,prepare_ms=prepare_ms,output_ms=output_ms,publish_ms=(time.perf_counter()-publish_started)*1000,block_frames=len(pcm),block_ms=len(pcm)/RATE*1000,
+                                    output=self.output.snapshot() if hasattr(self.output,'snapshot') else None)
+                                self.change(service=service)
                                 self.next_file = time.perf_counter() if getattr(self.output,'paces_audio',False) else max(self.next_file + len(pcm) / RATE, time.perf_counter())
                     except Exception as exc:
                         self.boundary();self.change(playing=False, pending=False, status='Unavailable', error=str(exc)[:240])

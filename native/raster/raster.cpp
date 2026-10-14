@@ -93,3 +93,54 @@ ZW_API zw_connected(const void* input,uint64_t input_length,uint32_t w,uint32_t 
 });}
 
 ZW_API zw_cancel(volatile int32_t* flag,int32_t value,ZwError* e){return protect(e,[&]{if(!flag)throw std::invalid_argument("Missing cancellation flag");_InterlockedExchange(reinterpret_cast<volatile long*>(flag),value);});}
+
+ZW_API zw_materialize(const ZwTile* input,uint32_t count,uint32_t w,uint32_t h,void* output,uint64_t length,uint64_t stride,ZwError* e) {
+    return protect(e,[&] {
+        dimensions(w,h);
+        if(!input || !output || count!=((w+side-1)/side)*((h+side-1)/side) || stride<uint64_t(w)*4 ||
+           (h>1 && stride>(std::numeric_limits<uint64_t>::max()-uint64_t(w)*4)/(h-1)) || length<stride*(h-1)+uint64_t(w)*4)
+            throw std::invalid_argument("Invalid materialization destination/table");
+        // Validate the entire table before writing a destination pixel.
+        uint32_t index=0;
+        for(uint32_t y=0;y<h;y+=side)for(uint32_t x=0;x<w;x+=side) {
+            const auto& t=input[index++];
+            if(t.x!=x || t.y!=y || t.width!=std::min(side,w-x) || t.height!=std::min(side,h-y) ||
+               t.length!=uint64_t(t.width)*t.height*4 || !t.data)
+                throw std::invalid_argument("Invalid immutable materialization tile");
+        }
+        for(uint32_t i=0;i<count;i++) {
+            const auto& t=input[i];
+            for(uint32_t y=0;y<t.height;y++) {
+                const auto* src=static_cast<const uint8_t*>(t.data)+uint64_t(y)*t.width*4;
+                auto* dst=static_cast<uint8_t*>(output)+uint64_t(h-1-t.y-y)*stride+uint64_t(t.x)*4;
+                uint32_t x=0;
+                const __m128i green_alpha=_mm_set1_epi32(static_cast<int>(0xff00ff00u));
+                const __m128i red=_mm_set1_epi32(0x000000ff),blue=_mm_set1_epi32(0x00ff0000);
+                for(;x+4<=t.width;x+=4) {
+                    auto v=_mm_loadu_si128(reinterpret_cast<const __m128i*>(src+x*4));
+                    auto rb=_mm_or_si128(_mm_slli_epi32(_mm_and_si128(v,red),16),_mm_srli_epi32(_mm_and_si128(v,blue),16));
+                    _mm_storeu_si128(reinterpret_cast<__m128i*>(dst+x*4),_mm_or_si128(_mm_and_si128(v,green_alpha),rb));
+                }
+                for(;x<t.width;x++){dst[x*4]=src[x*4+2];dst[x*4+1]=src[x*4+1];dst[x*4+2]=src[x*4];dst[x*4+3]=src[x*4+3];}
+            }
+        }
+    });
+}
+
+// Exact interpolation between completed premultiplied Qt blend results.
+// Stateless, coarse ABI call; all channels use the existing integer policy.
+ZW_API zw_mix(const void* first,const void* second,void* destination,uint64_t length,uint32_t factor,ZwError* e){return protect(e,[&]{
+    if(!first||!second||!destination||!length||length%4||length>8388608ull*4||factor>255)throw std::invalid_argument("Invalid blend interpolation buffers/factor");
+    auto a=static_cast<const uint8_t*>(first),b=static_cast<const uint8_t*>(second);auto d=static_cast<uint8_t*>(destination);
+    const auto zero=_mm_setzero_si128(),f=_mm_set1_epi16(short(factor)),g=_mm_set1_epi16(short(255-factor)),round=_mm_set1_epi16(127),one=_mm_set1_epi16(1);
+    uint64_t i=0;
+    for(;i+16<=length;i+=16){
+        const auto x=_mm_loadu_si128(reinterpret_cast<const __m128i*>(a+i)),y=_mm_loadu_si128(reinterpret_cast<const __m128i*>(b+i));
+        auto lo=_mm_add_epi16(_mm_add_epi16(_mm_mullo_epi16(_mm_unpacklo_epi8(x,zero),g),_mm_mullo_epi16(_mm_unpacklo_epi8(y,zero),f)),round);
+        auto hi=_mm_add_epi16(_mm_add_epi16(_mm_mullo_epi16(_mm_unpackhi_epi8(x,zero),g),_mm_mullo_epi16(_mm_unpackhi_epi8(y,zero),f)),round);
+        lo=_mm_srli_epi16(_mm_add_epi16(_mm_add_epi16(lo,one),_mm_srli_epi16(lo,8)),8);
+        hi=_mm_srli_epi16(_mm_add_epi16(_mm_add_epi16(hi,one),_mm_srli_epi16(hi,8)),8);
+        _mm_storeu_si128(reinterpret_cast<__m128i*>(d+i),_mm_packus_epi16(lo,hi));
+    }
+    for(;i<length;i++)d[i]=uint8_t((uint32_t(a[i])*(255-factor)+uint32_t(b[i])*factor+127)/255);
+});}

@@ -99,3 +99,21 @@ failed profiles and original-clip performance criteria; no general speedup is
 claimed. The compatible `media.direction` metadata extension keeps existing
 scene/session version numbers and defaults older sessions Forward; the earlier
 no-schema-change statement described the starting B3 candidate.
+
+## Selective migration candidate — 2026-10-13
+
+The distinct `abi1-migration-20261013-a` media artifact adds optional coarse
+RGBA publication with exact alpha rounding, four rotations and bottom-up
+orientation. Repeated conversions never modify a cached PyAV plane. The Qt
+reference explicitly owns RGBA storage before premultiplication. The opaque,
+unrotated route retains NumPy because matched tests found it faster than the
+coarse native publication kernel. Missing exports and process-fixed Qt transfer
+remain supported; codecs, four source lanes, cache/staging limits, PTS, generation
+guards and reader retirement stay in their existing owners.
+
+No source-resolution reduction, hardware decoder, new clock or proxy was added.
+Publication timing, held frames, carried decoder diagnostics and renderer upload
+time are different measurements. Current bounded native/Qt switch and recovery
+checks do not erase the historical intermittent fallback timeout or establish
+multi-hour qualification. [Actual results](agent-notes/selective-migration-20261013.md)
+bind the artifacts, original inputs, tails, cleanup and unrun limits.

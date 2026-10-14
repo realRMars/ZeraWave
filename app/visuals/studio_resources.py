@@ -69,4 +69,13 @@ def resource_text(snapshot, now=None):
     lines.append('Output '+size('output')+' • framebuffer '+size('framebuffer')+' • internal '+size('internal'))
     policy=(preview.get('resolution') or {}).get('policy')
     lines.append(('Resolution: '+('Native physical viewport pixels' if policy['mode']=='native' else 'Fixed internal pixels, aspect fit')+' • no additional Quality reduction') if policy else 'Existing Quality scale: '+number(dimensions.get('scale'),'',.01)+'% • explicit resolution selection replaces this scale')
+    ownership=snapshot.get('media_control',{}).get('ownership') or {}
+    if ownership:
+        lines.append('Raster component allocations: '+number(ownership['unique_allocation_bytes'],'MiB',2**20)+f" in {ownership['allocation_count']} unique allocations; {ownership['alias_references']} references (shared aliases counted once)")
+        resources=ownership['resources']
+        lines.append('Raster resource pins: '+str(sum(r['document'] for r in resources))+' document, '+str(sum(r['history'] for r in resources))+' history, '+str(sum(bool(r['saves']) for r in resources))+' save, '+str(sum(bool(r['publications']) for r in resources))+' publication; '+str(sum(r['job'] for r in resources))+' pending jobs, '+str(sum(r['retiring'] for r in resources))+' retiring resources')
+        lines.append(ownership['mapping_note']+' '+ownership['reader_note'])
+        if ownership['detail_truncated']:lines.append('Allocation detail truncated at '+str(ownership['allocation_detail_limit'])+' rows; totals include all allocations.')
+        if ownership.get('alias_detail_truncated'):lines.append('Alias detail shows up to eight resource IDs per allocation; reference totals include all aliases.')
+        if ownership['cleanup_failures'] or ownership['lease_cleanup_failures']:lines.append('Raster cleanup failures remain retained and inspectable in owner state.')
     return '\n\n'.join(lines)

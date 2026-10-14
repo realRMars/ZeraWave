@@ -4,6 +4,7 @@ No Tk interpreter/window is created here. Values remain owned in the service;
 these facades only adapt the existing proof's presentation calls.
 """
 from collections import deque
+from studio_boundary import CommandBoundary, StateSections, MomentaryMailbox
 from concurrent.futures import ThreadPoolExecutor
 import uuid
 import ctypes as c
@@ -41,8 +42,9 @@ class OwnedJob:
 class ControlClient:
     def __init__(self,host,log_path=None,cancel_event=None):
         self.condition=threading.Condition();self.responses={};self.snapshot={};self.serial=0;self.analyzer_telemetry=None
-        self.edits=ThreadPoolExecutor(max_workers=1,thread_name_prefix='Ordered raster commands');self.edit_count=0;self.edit_sequence=0;self.edit_stream=uuid.uuid4().hex
-        self.closed=False;self.disconnected=False;self.latencies=deque(maxlen=256);self.pending=0
+        self.boundary=CommandBoundary(self.request,lambda:not self.closed and not self.disconnected)
+        self.sections=StateSections();self.momentary=MomentaryMailbox();self.write_lock=threading.Lock();self.admission_lock=threading.RLock();self.gui_thread=None;self.completions=deque();self.full_needed=threading.Event();self.last_operation=None
+        self.closed=False;self.disconnected=False;self.protocol_errors=deque(maxlen=8);self.protocol_error_count=0;self.latencies=deque(maxlen=256);self.pending=0
         self.job=OwnedJob();self.log_path=Path(log_path or ROOT/'work/studio/qt-control.log')
         self.log_path.parent.mkdir(parents=True,exist_ok=True)
         env=os.environ.copy();env['ZERAWAVE_CONTROL_HOST']=json.dumps(host);env['ZERAWAVE_CONTROL_LOG']=str(self.log_path)
@@ -50,6 +52,7 @@ class ControlClient:
         self.process=subprocess.Popen([sys.executable,'-B','-X','utf8',str(ROOT/'app/visuals/studio_control_service.py')],cwd=ROOT,env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=self.stderr,text=True,encoding='utf8',bufsize=1,creationflags=subprocess.CREATE_NO_WINDOW)
         try:self.job.assign(self.process)
         except Exception:self.process.terminate();self.job.close();raise
+        self.notifier=threading.Thread(target=self.write_notifications,daemon=True,name='Studio momentary writer');self.notifier.start()
         self.reader=threading.Thread(target=self.read,daemon=True,name='Studio owner snapshots');self.reader.start()
         deadline=time.perf_counter()+15.
         while not self.snapshot and not self.disconnected:
@@ -57,31 +60,63 @@ class ControlClient:
             if time.perf_counter()>deadline:self.close(force=True);raise RuntimeError('Control owner startup timed out; '+str(self.log_path))
             with self.condition:self.condition.wait(timeout=.1)
         if not self.snapshot:self.close(force=True);raise RuntimeError('Control owner failed to start; '+str(self.log_path))
+    def projection_fault(self,exc):
+        with self.condition:
+            previous=self.snapshot;self.sections.invalidate()
+            if self.sections.owner:self.snapshot=self.sections.snapshot
+            else:self.snapshot=dict(previous,control_boundary=dict(valid=False,stale=True))
+            self.protocol_error_count+=1;self.protocol_errors.append(str(exc)[:240]);self.full_needed.set();self.condition.notify_all()
+        if self.protocol_error_count<=8:
+            print('Owner projection retained/resync requested: '+str(exc)[:240],file=self.stderr);self.stderr.flush()
     def read(self):
         try:
             for line in self.process.stdout:
-                if len(line)>2*1024*1024:raise ValueError('Owner snapshot exceeds protocol limit') # includes up to 128 bounded media references
-                message=json.loads(line)
-                with self.condition:
-                    if 'snapshot' in message:
-                        from raster_tiles import unwire_resource
-                        snap=message['snapshot'];library=snap.get('media_library',{})
-                        library['resources']=[unwire_resource(r) for r in library.get('resources',[])]
-                        self.snapshot=snap
-                    if 'audio_analyzer' in message:
-                        data=message['audio_analyzer'];current=self.analyzer_telemetry
-                        packet=data.get('band_analyzer') or {};old_packet=(current or {}).get('band_analyzer') or {}
-                        newer=(current is None or data.get('generation',-1)>current.get('generation',-1)
-                            or data.get('generation',-1)==current.get('generation',-1) and (not packet or packet.get('sequence',-1)>=old_packet.get('sequence',-1)))
-                        if newer:self.analyzer_telemetry=data
-                    if message.get('id') is not None:
-                        self.responses[message['id']]=message
-                        while len(self.responses)>32:self.responses.pop(next(iter(self.responses)))
-                    self.condition.notify_all()
+                message=None
+                try:
+                    if len(line)>2*1024*1024:raise ValueError('Owner snapshot exceeds protocol limit')
+                    message=json.loads(line)
+                    if not isinstance(message,dict):raise ValueError('Owner message must be an object')
+                    if message.get('id') is not None and type(message['id']) is not int:raise ValueError('Invalid owner reply identity')
+                    self.install_message(message)
+                except (ValueError,TypeError,KeyError,AttributeError) as exc:
+                    self.projection_fault(exc)
+                    if isinstance(message,dict) and type(message.get('id')) is int:
+                        with self.condition:
+                            self.responses[message['id']]=dict(id=message['id'],error='Coherent state unavailable; outcome uncertain. Same-ID reconciliation required.',outcome_uncertain=True)
+                            self.condition.notify_all()
         except Exception:
             traceback.print_exc(file=self.stderr);self.stderr.flush()
         finally:
             with self.condition:self.disconnected=True;self.condition.notify_all()
+    def install_message(self,message):
+        with self.condition:
+            if 'snapshot' in message:
+                from raster_tiles import unwire_resource
+                snap=message['snapshot']
+                if snap.get('version')==2:
+                    document=snap.get('sections',{}).get('document')
+                    if document:
+                        library=document.get('media_library',{})
+                        library['resources']=[unwire_resource(r) for r in library.get('resources',[])]
+                    if self.sections.install(snap):self.snapshot=self.sections.snapshot
+                    elif not self.sections.valid:
+                        self.sections.invalidate();self.snapshot=self.sections.snapshot
+                        self.full_needed.set()
+                        if message.get('id') is not None:message.update(error='Coherent state unavailable; command outcome is uncertain.',outcome_uncertain=True)
+                else:
+                    library=snap.get('media_library',{})
+                    library['resources']=[unwire_resource(r) for r in library.get('resources',[])]
+                    self.snapshot=snap
+            if 'audio_analyzer' in message:
+                data=message['audio_analyzer'];current=self.analyzer_telemetry
+                packet=data.get('band_analyzer') or {};old_packet=(current or {}).get('band_analyzer') or {}
+                newer=(current is None or data.get('generation',-1)>current.get('generation',-1)
+                    or data.get('generation',-1)==current.get('generation',-1) and (not packet or packet.get('sequence',-1)>=old_packet.get('sequence',-1)))
+                if newer:self.analyzer_telemetry=data
+            if message.get('id') is not None:
+                self.responses[message['id']]=message
+                while len(self.responses)>32:self.responses.pop(next(iter(self.responses)))
+            self.condition.notify_all()
     def latest_analyzer(self):
         with self.condition:
             if self.disconnected:return dict(status='Disconnected',playing=False,generation=-1,band_analyzer=None)
@@ -89,7 +124,8 @@ class ControlClient:
             if fast is None or full.get('generation',-1)>fast.get('generation',-1):return full
             return fast
     def request(self,action,**data):
-        if self.closed or self.disconnected:raise RuntimeError('Control owner is unavailable. Reopen Studio; diagnostics: '+str(self.log_path))
+        if self.gui_thread==threading.get_ident():raise RuntimeError('Owner ACK wait attempted on Qt input thread; use command submission.')
+        if self.closed or self.disconnected:raise RuntimeError('Control connection unavailable; command not submitted. Retain this instance and recoverable accepted work; diagnostics: '+str(self.log_path))
         began=time.perf_counter()
         if action in ('tune','range','override','reset_audio','restore_draft','authored','color_commit','color_reset','image_layers','composition'):
             data.setdefault('destination_revision',self.snapshot.get('destination_revision',0))
@@ -103,7 +139,10 @@ class ControlClient:
             line=json.dumps({'id':serial,'action':action,'data':data},separators=(',',':'))
             if len(line)>524288:self.pending-=1;raise ValueError('Command exceeds protocol limit')
             try:
-                self.process.stdin.write(line+'\n');self.process.stdin.flush()
+                self.condition.release()
+                try:
+                    with self.write_lock:self.process.stdin.write(line+'\n');self.process.stdin.flush()
+                finally:self.condition.acquire()
                 timeout=20 if action=='close' else 8 if action=='stop' else 2
                 def reconciled():
                     op=data.get('operation_id')
@@ -120,43 +159,59 @@ class ControlClient:
                     raise ValueError(response['error'])
                 return self.snapshot
             finally:self.pending-=1;self.latencies.append((action,(time.perf_counter()-began)*1000))
+    @property
+    def edit_count(self):
+        with self.boundary.lock:return self.boundary.pending
+    @property
+    def state(self):return self.sections.immutable
     def submit(self,action,**data):
-        """Ordered completed edits; no ACK wait on Qt's input thread."""
-        def work():
-            try:
-                while not self.closed and not self.disconnected:
-                    try:return self.request(action,**data)
-                    except RuntimeError as exc:
-                        if 'uncertain' not in str(exc):raise
-                        # Retry identical immutable metadata/operation identity.
-                        # The owner ledger returns the previous result exactly once.
-                        continue
-                raise RuntimeError('Owner disconnected; operation outcome unknown. Retain recovery pixels.')
-            finally:
-                with self.condition:self.edit_count-=1
+        with self.admission_lock:return self._submit(action,data)
+    def _submit(self,action,data):
+        # Capture binding at admission, never when a delayed worker starts.
+        if self.sections.owner and not self.sections.valid:raise ValueError('Owner state is resynchronizing; action not submitted. Accepted work retained. Wait and repeat it.')
+        snap=self.snapshot;media=snap.get('media_control',{})
+        if action in ('tune','range','override','reset_audio','restore_draft','authored','color_commit','color_reset','image_layers','composition','composition_preview'):
+            data.setdefault('destination_revision',snap.get('destination_revision',0));data.setdefault('preview_run',snap.get('preview_run'))
+        if action in ('image_layers','composition','composition_preview','composition_cancel','composition_history','save','raster_retry','save_retry'):
+            data.setdefault('media_session',media.get('session'))
+        if action in ('image_layers','composition','composition_preview'):data.setdefault('media_revision',media.get('revision'))
+        if action=='save':data.setdefault('save_after',self.last_operation)
+        future=self.boundary.submit(action,data);self.last_operation=future.operation_id
+        return future
+    def command(self,action,**data):
+        # Bound retained UI completions as well as active transport. Do not drop a
+        # callback or its explicit failure to make room for another command.
         with self.condition:
-            if self.closed or self.disconnected:raise ValueError('Owner unavailable; operation not submitted. Retain the current accepted document.')
-            if self.edit_count>=16:raise ValueError('Sixteen completed commands pending; edit not submitted. Wait and retry.')
-            self.edit_count+=1;self.edit_sequence+=1
-            data.update(operation_id=uuid.uuid4().hex,operation_stream=self.edit_stream,operation_sequence=self.edit_sequence)
-            try:future=self.edits.submit(work)
-            except BaseException:
-                self.edit_count-=1;self.edit_sequence-=1;raise
-        future.operation_id=data['operation_id'];return future
-
+            if len(self.completions)>=256:raise ValueError('UI completion queue busy; action not submitted. Wait and repeat it.')
+            future=self.submit(action,**data)
+            self.completions.append((future,self.snapshot.get('media_control',{}).get('session')))
+        return future
+    def ready_completions(self):
+        ready=[]
+        with self.condition:
+            for item in list(self.completions):
+                if item[0].done():self.completions.remove(item);ready.append(item)
+        return ready
+    def outcome(self,identity):return self.boundary.outcome(identity)
     def notify(self,action,**data):
-        """Momentary input; application arrives in ordinary owner snapshots.
-
-        Focus/Hold release cannot wait behind a blocked lifecycle ACK. The
-        owning service and renderer still validate and apply this command.
-        """
         if self.closed or self.disconnected:return False
-        line=json.dumps({'id':None,'action':action,'data':data},separators=(',',':'))
-        if len(line)>524288:raise ValueError('Command exceeds protocol limit')
-        with self.condition:
-            try:self.process.stdin.write(line+'\n');self.process.stdin.flush()
-            except (OSError,ValueError):return False
-        return True
+        data.setdefault('preview_run',self.snapshot.get('preview_run'))
+        data.setdefault('destination_revision',self.snapshot.get('destination_revision',0))
+        return self.momentary.put(action,data)
+    def write_notifications(self):
+        while not self.closed and not self.disconnected:
+            if self.full_needed.is_set():
+                item=('state_full',{});self.full_needed.clear()
+            else:
+                item=self.momentary.take()
+                if item is None:
+                    with self.momentary.condition:self.momentary.condition.wait(timeout=.05)
+                    continue
+            action,data=item
+            try:
+                line=json.dumps({'id':None,'action':action,'data':data},separators=(',',':'))
+                with self.write_lock:self.process.stdin.write(line+'\n');self.process.stdin.flush()
+            except (OSError,ValueError):return
     def close(self,force=False,mode=None):
         if self.closed:return
         if not force and self.process.poll() is None and not self.disconnected:
@@ -165,7 +220,7 @@ class ControlClient:
         try:self.process.wait(timeout=20 if not force else 5)
         except subprocess.TimeoutExpired:
             raise RuntimeError('Owner has not exited. Close remains incomplete; no forced termination was used.')
-        self.closed=True;self.edits.shutdown(wait=True,cancel_futures=True)
+        self.closed=True;self.momentary.close();self.boundary.close();self.notifier.join(timeout=2)
         try:self.process.stdin.close()
         except (OSError,ValueError):pass
         self.reader.join(timeout=2);self.job.close();self.stderr.close()
@@ -198,11 +253,11 @@ class AudioView:
     @property
     def form_var(self):return Value(lambda:self.data['form_label'])
     @property
-    def target_var(self):return Value(lambda:self.data['target_label'],lambda v:self.client.request('target',label=v))
+    def target_var(self):return Value(lambda:self.data['target_label'],lambda v:self.client.command('target',label=v))
     @property
-    def pin(self):return Value(lambda:self.data['pin'],lambda v:self.client.request('pin',value=v))
+    def pin(self):return Value(lambda:self.data['pin'],lambda v:self.client.command('pin',value=v))
     @property
-    def enabled(self):return Value(lambda:self.data['enabled'],lambda v:self.client.request('override',value=v,binding=self.binding()))
+    def enabled(self):return Value(lambda:self.data['enabled'],lambda v:self.client.command('override',value=v,binding=self.binding()))
     @property
     def status(self):return Value(lambda:self.data['status'])
     @property
@@ -214,20 +269,20 @@ class AudioView:
     @property
     def sliders(self):return [WidgetState(lambda n=i:self.data['editable'][n]) for i in range(len(self.bounds))]
     @property
-    def range_vars(self):return {key:Value(lambda k=key:self.data['ranges'][k]['value'],lambda value,k=key:self.client.request('range',key=k,value=value,binding=self.binding())) for key in self.data['ranges']}
+    def range_vars(self):return {key:Value(lambda k=key:self.data['ranges'][k]['value'],lambda value,k=key:self.client.command('range',key=k,value=value,binding=self.binding())) for key in self.data['ranges']}
     @property
     def range_checks(self):return {key:WidgetState(lambda k=key:self.data['ranges'][k]['editable']) for key in self.data['ranges']}
     @property
     def author_button(self):return WidgetState(lambda:self.data['author_enabled'],lambda:self.data['author_label'])
-    def edit(self,key,value,binding):return self.client.request('tune',key=key,value=value,binding=[list(binding[0]),binding[1]])
-    def select_form(self,event=None,form=None,target=None):return self.client.request('form',form=form)
+    def edit(self,key,value,binding):return self.client.command('tune',key=key,value=value,binding=[list(binding[0]),binding[1]])
+    def select_form(self,event=None,form=None,target=None):return self.client.command('form',form=form)
     def select_target(self,*args,**kwargs):pass
     def pin_changed(self):pass
     def toggle(self):pass
     def changed(self,*args):pass
     def refresh(self,*args):pass
-    def reset(self):return self.client.request('reset_audio',binding=self.binding())
-    def save_authored(self):return self.client.request('authored',binding=self.binding(),revision=self.data['revision'])
+    def reset(self):return self.client.command('reset_audio',binding=self.binding())
+    def save_authored(self):return self.client.command('authored',binding=self.binding(),revision=self.data['revision'])
 
 class ColorView:
     def __init__(self,client):self.client=client
@@ -242,18 +297,18 @@ class ColorView:
     @scene.setter
     def scene(self,value):pass
     @property
-    def target_choice(self):return Value(lambda:self.client.snapshot['color_target'],lambda label:self.client.request('color_target',label=label))
+    def target_choice(self):return Value(lambda:self.client.snapshot['color_target'],lambda label:self.client.command('color_target',label=label))
     def target(self):return next(t for t in self.targets if t.label==self.target_choice.get())
-    def refresh(self):return self.client.request('color_refresh')
-    def commit(self,key,fields):return self.client.request('color_commit',target=self.target().id,role=key,fields=fields)
-    def reset_target(self):return self.client.request('color_reset',target=self.target().id)
+    def refresh(self):pass
+    def commit(self,key,fields):return self.client.command('color_commit',target=self.target().id,role=key,fields=fields)
+    def reset_target(self):return self.client.command('color_reset',target=self.target().id)
 
 class OwnerView:
     def __init__(self,client):self.client=client;self.star_tuning_window=AudioView(client);self.color_editor=ColorView(client);self.held_gesture=False
     @property
-    def vars(self):return {key:Value(lambda k=key:self.client.snapshot['values'][k],lambda value,k=key:self.client.request('var',key=k,value=value)) for key in self.client.snapshot['values']}
+    def vars(self):return {key:Value(lambda k=key:self.client.snapshot['values'][k],lambda value,k=key:self.client.command('var',key=k,value=value)) for key in self.client.snapshot['values']}
     @property
-    def bonk_mode(self):return Value(lambda:self.client.snapshot['preview'].get('bonk_mode','normal').title(),lambda value:self.client.request('bonk_mode',value=value))
+    def bonk_mode(self):return Value(lambda:self.client.snapshot['preview'].get('bonk_mode','normal').title(),lambda value:self.client.command('bonk_mode',value=value))
     def values(self):return self.client.snapshot['values']
     def color_scene(self):return self.client.snapshot['color_scene']
     @property
@@ -275,12 +330,12 @@ class OwnerView:
     @property
     def color_link(self):
         return SimpleNamespace(audio_run=True,get_audio=lambda:self.client.snapshot['latest_audio'],get_window=lambda:self.client.snapshot['window']) if self.client.snapshot['running'] else None
-    def select(self,path,scope=None,show=False):return self.client.request('select',path=path,scope=scope or 'main')
-    def launch(self,*args):return self.client.request('start')
+    def select(self,path,scope=None,show=False):return self.client.command('select',path=path,scope=scope or 'main')
+    def launch(self,*args):return self.client.command('start')
     def run_folder(self):return None
-    def stop(self):return self.client.request('stop')
-    def pause_preview(self):return self.client.request('pause')
-    def bonk_preview(self):return self.client.request('bonk')
+    def stop(self):return self.client.command('stop')
+    def pause_preview(self):return self.client.command('pause')
+    def bonk_preview(self):return self.client.command('bonk')
     def release_preview_holds(self):
         if not self.client.closed and not self.client.disconnected and (self.held_gesture or self.preview_state.get('held')):
             self.held_gesture=False;return self.client.notify('release')

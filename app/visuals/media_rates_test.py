@@ -5,7 +5,7 @@ worker/shared-frame measurements, not renderer FPS, scanout or motion acceptance
 """
 from pathlib import Path
 from copy import deepcopy
-import importlib.util,sys,time,json,uuid,threading,hashlib
+import importlib.util,sys,time,json,uuid,threading,hashlib,os
 import numpy as np
 from composition import defaults,new_layer
 from PySide6.QtGui import QImage,QPainter
@@ -15,10 +15,10 @@ def stats(v):
     a=np.asarray(v,float);return dict(n=len(a),median=float(np.median(a)),p95=float(np.percentile(a,95)),maximum=float(a.max())) if len(a) else None
 
 def run():
-    root=Path(__file__).resolve().parents[2];base=root/'work/media-corrections-20261007';out=base/('rate-run-'+str(time.time_ns()));out.mkdir();baseline='--baseline' in sys.argv
+    root=Path(__file__).resolve().parents[2];base=root/'work/media-corrections-20261007';out=Path(os.environ.get('ZERAWAVE_MEDIA_EVIDENCE') or base/('rate-run-'+str(time.time_ns())));out.mkdir(parents=True,exist_ok=True);baseline='--baseline' in sys.argv
     path=base/'baseline/app/visuals/media_frames.py' if baseline else Path(__file__).with_name('media_frames.py');spec=importlib.util.spec_from_file_location('bound_frames',path);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);report=dict(source=str(path),sha256=hashlib.sha256(path.read_bytes()).hexdigest(),evidence=__doc__,runs=[])
     for filename,start in (('Xeraphina_video.mp4',2.),('ZeraphinaX showcase 1.mp4',120.)):
-        original=root/'images n vids'/filename;meta=module.inspect_animation(str(original),threading.Event());asset=dict(id=uuid.uuid4().hex,kind='Video',path=str(original),name=filename,status='Ready',metadata=meta);scene=defaults();row=new_layer('Video',asset['id']);row['media'].update(start=start,end=start+6,loop='Ping-pong');scene['layers']=[row];scene['assets']=[{k:asset[k] for k in ('id','kind','path','name')}];owner=module.MediaFrames();reader=module.FrameReader()
+        original=root/'videos'/filename;meta=module.inspect_animation(str(original),threading.Event());asset=dict(id=uuid.uuid4().hex,kind='Video',path=str(original),name=filename,status='Ready',metadata=meta);scene=defaults();row=new_layer('Video',asset['id']);row['media'].update(start=start,end=start+6,loop='Ping-pong');scene['layers']=[row];scene['assets']=[{k:asset[k] for k in ('id','kind','path','name')}];owner=module.MediaFrames();reader=module.FrameReader()
         try:
             owner.sync(scene,{asset['id']:asset});owner.command(row['id'],'play')
             for rate in (1.,6.,12.):

@@ -1,5 +1,27 @@
 # ZeraWave
 
+## October 13 selective-migration publication checkpoint
+
+Robert authorized publication of the consolidated existing-functionality candidate
+and its earlier control-boundary/Layers dependencies. The reviewed source/native
+bundle is `ee4b324750a7fa494460568799522ea08f2b43faab9e5c1df74b21f24d9a0f4c`,
+on parent `15a980c34b47f22ce27c4290084635b5643edf56`. The
+[publication receipt](work/publication-selective-migration-20261013/review-index.json)
+records staged identities and verified remote commit. [Actual results](docs/agent-notes/selective-migration-20261013.md)
+account for all 12 audit areas as implementations or measured retention decisions;
+no blanket language rewrite, quality reduction or higher capacity is implied.
+
+This checkpoint supersedes earlier awaiting-implementation/publication wording,
+not task-time reports or their failures. Ordinary physical OLE drag acceptance,
+listening/audible device clock/scanout/multi-hour coverage, the exact historical
+fallback timeout and cold/complex CPU/high-rate media tails remain limited or
+unverified. Passing repeats do not repair the historical intermittent failure.
+Session/current-frame still saving works; moving-video Save remains OPEN.
+Separate capacity/storage commitments and future image/editor/export requirements
+remain outside this migration. Next-stage wording/review-route reconciliation is
+separate; this publication dispatches no Builder/Reviewer or implementation.
+
+
 ## October 11 accepted B3 development checkpoint
 
 Robert accepted the verified B3 correction candidate and authorized publication.
@@ -61,8 +83,11 @@ Approved direction retains Qt, Python authoring/control and the existing GPU
 renderer. **[B3 media foundation](ROADMAP.md#b3--bounded-media-foundation) has an accepted
 implemented development candidate**, with Video Save open and timing partial: fair bounded decode service, generations,
 direction-aware prefetch and timestamp-correct editor/output ownership.
-Then a manual whole-existing-product migration assessment covers worlds,
-Visualizer, audio and older systems, followed by remaining appropriate migration
-before unrelated expansion. ROADMAP is the sole plan; historical B4–B8 proposals
-are subject to that assessment. Capacity Passes 2–4, higher counts and storage
+The whole-product architecture/migration audit is complete. Follow
+[ROADMAP's final sequence](ROADMAP.md#completed-audit-and-final-owner-sequence):
+existing-functionality migration/cleanup/measured validation, separate small image
+follow-up, official editor-workflow research/independent gap review, then an approved
+multitrack brief before expansion. The scoped next candidate is the Studio
+control/resource boundary; residual B3 issues are not a blanket migration gate.
+Capacity Passes 2–4, higher counts and storage
 location/relocation remain separate. No dispatch follows documentation readiness.

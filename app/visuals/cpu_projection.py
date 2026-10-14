@@ -11,11 +11,11 @@ import numpy as np
 from PySide6.QtCore import QRectF,Qt
 from PySide6.QtGui import QImage,QPainter,QColor
 from composition import ordered_children,effective,is_branch,world_matrix,partition_aligned
-from native_raster import NativeImage,native_add
+from native_raster import NativeImage,native_add,native_mix
 
 class Projection:
     def __init__(self,limit=128*1024*1024):
-        self.cache=OrderedDict();self.bytes=0;self.limit=limit;self.signature=None;self.scratch={};self.scratch_bytes=0
+        self.cache=OrderedDict();self.latest={};self.bytes=0;self.limit=limit;self.signature=None;self.scratch={};self.scratch_bytes=0
         self.stats=dict(recomposited_pixels=0,reused_regions=0,produced_regions=0,cache_bytes=0,broad_invalidations=0)
     def scratch_image(self,key,width,height):
         if key not in self.scratch:
@@ -30,7 +30,19 @@ class Projection:
             value=self.cache.pop(key);self.cache[key]=value;self.stats['reused_regions']+=1;return value
         value=produce();size=value.sizeInBytes()
         if size>self.limit:raise MemoryError('Projection region exceeds 128 MiB cache limit')
-        while self.cache and self.bytes+size>self.limit:self.bytes-=self.cache.popitem(last=False)[1].sizeInBytes()
+        # Each spatial recipe keeps its current dependency version. Old
+        # opacity/raster variants cannot service this render; retaining them
+        # evicted still-current sibling branches under mixed-blend pressure.
+        # Returned QImages keep their own Qt references; native history/save
+        # snapshots live outside this display cache and are never retired here.
+        slot=key[:-1];previous=self.latest.get(slot)
+        if previous is not None:
+            retired=self.cache.pop(previous,None)
+            if retired is not None:self.bytes-=retired.sizeInBytes()
+        while self.cache and self.bytes+size>self.limit:
+            retired_key,retired=self.cache.popitem(last=False);self.bytes-=retired.sizeInBytes()
+            if self.latest.get(retired_key[:-1])==retired_key:self.latest.pop(retired_key[:-1],None)
+        self.latest[slot]=key
         self.cache[key]=value;self.bytes+=size;self.stats['produced_regions']+=1;self.stats['recomposited_pixels']+=value.width()*value.height();self.stats['cache_bytes']=self.bytes;return value
     def render(self,canvas,width,height,full_projection,damage=None):
         from studio_composition import qtransform,masked_image
@@ -45,11 +57,11 @@ class Projection:
         grain=128
         structure=[]
         for row in config['layers']:
-            image=source(row);r=dict(row);r['asset']=image.family if isinstance(image,NativeImage) else row['asset'];structure.append((r,tuple(matrices[row['id']].flat)))
+            image=source(row);r=dict(row);r['asset']=image.family if isinstance(image,NativeImage) else row['asset'];r.pop('opacity',None);structure.append((r,tuple(matrices[row['id']].flat)))
         signature=json.dumps([structure,grain,config.get('canvas'),width,height,list(full_projection.flat),smooth],sort_keys=True)
         reset=signature!=self.signature
         if reset:
-            self.cache.clear();self.scratch.clear();self.scratch_bytes=0;self.bytes=0;self.signature=signature;self.stats['broad_invalidations']+=1
+            self.cache.clear();self.latest.clear();self.scratch.clear();self.scratch_bytes=0;self.bytes=0;self.signature=signature;self.stats['broad_invalidations']+=1
         if reset or not hasattr(self,'output'):
             self.output=QImage(width,height,QImage.Format_ARGB32_Premultiplied);self.output.fill(0)
         result=self.output;p=QPainter(result);p.setCompositionMode(QPainter.CompositionMode_Source)
@@ -70,6 +82,18 @@ class Projection:
         self.stats['region_policy']='integer-1:1' if incremental else 'broad-preserve-Qt-filter-phase'
         step_x,step_y=(grain,grain) if incremental else (width,height)
         self.stats['region_side']=grain if incremental else None
+        inverses={row['id']:np.linalg.inv(full_projection@matrices[row['id']]) for row in config['layers'] if isinstance(source(row),NativeImage)}
+        # Opacity changes only invalidate the affected branch/prefix. Retain
+        # all other recipe/view dependencies in the broad structural signature.
+        descendants={}
+        def ids(parent):
+            if parent not in descendants:
+                found=[]
+                for row in ordered_children(config,parent):
+                    found.append(row['id'])
+                    if is_branch(config,row):found.extend(ids(row['id']))
+                descendants[parent]=tuple(found)
+            return descendants[parent]
         start_x,start_y,end_x,end_y=0,0,width,height
         if incremental and not reset and damage is not None:
             start_x=max(0,math.floor(damage.left()/grain)*grain);start_y=max(0,math.floor(damage.top()/grain)*grain);end_x=min(width,math.ceil(damage.right()/grain)*grain);end_y=min(height,math.ceil(damage.bottom()/grain)*grain)
@@ -81,19 +105,13 @@ class Projection:
                 dependencies={}
                 for row in config['layers']:
                     image=source(row)
-                    if image is None:dependencies[row['id']]=None;continue
-                    if not isinstance(image,NativeImage):dependencies[row['id']]=image.cacheKey();continue
-                    inverse=np.linalg.inv(full_projection@matrices[row['id']]);corners=[inverse@np.array([px,py,1.]) for px in (x-2,x+iw+2) for py in (y-2,y+ih+2)]
+                    if image is None:dependencies[row['id']]=(row['opacity'],None);continue
+                    if not isinstance(image,NativeImage):dependencies[row['id']]=(row['opacity'],image.cacheKey());continue
+                    inverse=inverses[row['id']];corners=[inverse@np.array([px,py,1.]) for px in (x-2,x+iw+2) for py in (y-2,y+ih+2)]
                     c=row['crop'];coords=[((1-(pt[0]+.5) if row['flip_x'] else pt[0]+.5)*(c[2]-c[0])+c[0],(1-(pt[1]+.5) if row['flip_y'] else pt[1]+.5)*(c[3]-c[1])+c[1]) for pt in corners]
                     x0=max(0,math.floor(min(v[0] for v in coords)*image.width())-4);y0=max(0,math.floor(min(v[1] for v in coords)*image.height())-4)
                     x1=min(image.width(),math.ceil(max(v[0] for v in coords)*image.width())+4);y1=min(image.height(),math.ceil(max(v[1] for v in coords)*image.height())+4)
-                    dependencies[row['id']]=(image.family,image.stamp((x0,y0,max(0,x1-x0),max(0,y1-y0))))
-                def ids(parent):
-                    found=[]
-                    for row in ordered_children(config,parent):
-                        if is_branch(config,row):found.extend(ids(row['id']))
-                        else:found.append(row['id'])
-                    return found
+                    dependencies[row['id']]=(row['opacity'],image.family,image.stamp((x0,y0,max(0,x1-x0),max(0,y1-y0))))
                 modes={'Normal':QPainter.CompositionMode_SourceOver,'Multiply':QPainter.CompositionMode_Multiply,'Screen':QPainter.CompositionMode_Screen,'Add':QPainter.CompositionMode_Plus,'Difference':QPainter.CompositionMode_Difference}
                 w,h=canvas.canvas_size
                 def children(parent):return self.get((parent,x,y,tuple((i,dependencies.get(i)) for i in ids(parent))),lambda:produce(parent))
@@ -109,7 +127,8 @@ class Projection:
                     def prefix_key(stop):
                         relevant=[]
                         for r in rows[:stop]:
-                            relevant.extend(ids(r['id']) if is_branch(config,r) else [r['id']])
+                            relevant.append(r['id'])
+                            if is_branch(config,r):relevant.extend(ids(r['id']))
                         return ('prefix',parent,x,y,stop,tuple((i,dependencies.get(i)) for i in relevant))
                     # An unchanged completed backdrop is exactly the pixels Qt
                     # would draw again, at the same global sampling phase. Keep
@@ -124,6 +143,10 @@ class Projection:
                         if not effective(config,row,'enabled') or not is_branch(config,row) and not row['source_visible']:continue
                         group=is_branch(config,row);image=children(row['id']) if group else source(row)
                         if image is None:continue
+                        # A proven all-zero immutable leaf is the identity for
+                        # these premultiplied blends. A branch still renders its
+                        # children, masks and own-content surrogate normally.
+                        if not group and isinstance(image,NativeImage) and image.transparent_zero():continue
                         if row['type']=='Group' and (row['masks'] or row['crop']!=[0.,0.,1.,1.]):
                             white=QImage(w,h,QImage.Format_ARGB32_Premultiplied);white.fill(0xffffffff);local=masked_image(white,row)
                             mask=self.scratch_image((parent,'mask'),width,height);mp=painter_for(mask);mp.setRenderHint(QPainter.SmoothPixmapTransform,False);mp.setCompositionMode(QPainter.CompositionMode_Source);mp.fillRect(x,y,iw,ih,QColor(0,0,0,0));mp.setCompositionMode(QPainter.CompositionMode_SourceOver);mp.setTransform(qtransform(full_projection@world_matrix(config,row['id'])));c=row['crop'];mp.setClipRect(QRectF(c[0]-.5,c[1]-.5,c[2]-c[0],c[3]-c[1]),Qt.IntersectClip);mp.drawImage(QRectF(-.5,-.5,1.,1.),local);mp.end()
@@ -146,7 +169,11 @@ class Projection:
                                     mixed=add_image(original,foreground)
                             else:mixed=original.copy();bp=QPainter(mixed);bp.setCompositionMode(modes[blend]);bp.drawImage(0,0,foreground);bp.end()
                             if strength<1.:
-                                normal=original.copy();bp=QPainter(normal);bp.drawImage(0,0,foreground);bp.end();a=np.frombuffer(normal.constBits(),np.uint8).astype(np.uint16);b=np.frombuffer(mixed.constBits(),np.uint8).astype(np.uint16);factor=round(strength*255);data=((a*(255-factor)+b*factor+127)//255).astype(np.uint8).tobytes();mixed=QImage(data,iw,ih,QImage.Format_ARGB32_Premultiplied).copy()
+                                normal=original.copy();bp=QPainter(normal);bp.drawImage(0,0,foreground);bp.end();factor=round(strength*255)
+                                interpolated=native_mix(normal,mixed,factor)
+                                if interpolated is None:
+                                    a=np.frombuffer(normal.constBits(),np.uint8).astype(np.uint16);b=np.frombuffer(mixed.constBits(),np.uint8).astype(np.uint16);data=((a*(255-factor)+b*factor+127)//255).astype(np.uint8).tobytes();interpolated=QImage(data,iw,ih,QImage.Format_ARGB32_Premultiplied).copy()
+                                mixed=interpolated
                             q=painter_for(target);q.setCompositionMode(QPainter.CompositionMode_Source);q.drawImage(x,y,mixed);q.setCompositionMode(QPainter.CompositionMode_SourceOver)
                         if 1<=index<len(rows)-1:
                             self.get(prefix_key(index+1),lambda:target.copy(x,y,iw,ih))

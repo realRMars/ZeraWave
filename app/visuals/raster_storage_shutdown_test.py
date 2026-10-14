@@ -132,6 +132,8 @@ def child(out,case):
    if fn():return
   raise AssertionError('Timeout '+shell.statusBar().currentMessage())
  def idle():wait(lambda:not e.edit_jobs and not e.art_jobs)
+ def request(action,**data):
+  future=shell.client.submit(action,**data);wait(future.done);return future.result()
  def pixels():return e.canvas.source_image(e.selected_row())
  def digest():
   im=pixels().convertToFormat(QImage.Format_RGBA8888_Premultiplied);return hashlib.sha256(bytes(im.constBits())).hexdigest()
@@ -139,11 +141,11 @@ def child(out,case):
  result=dict(case=case,pid=os.getpid(),native=backend().status(),native_sha256=hashlib.sha256(Path(backend().path).read_bytes()).hexdigest() if backend().available else None)
  wait(lambda:hasattr(shell,'image_editor') and not shell.client.snapshot['media_library']['loading']);e=shell.image_editor;result['owner_pid']=shell.client.process.pid
  if case!='clean':
-  shell.panels['composition'].toggleView(True);e.resize_canvas((128,96),False);e.blank_layer();idle();wait(lambda:pixels() is not None)
+  shell.panels['composition'].toggleView(True);e.resize_canvas((128,96),False);idle();e.blank_layer();idle();wait(lambda:pixels() is not None)
   c=e.canvas;r=e.selected_row();e.choose_tool('Brush');c.paint_press(r,c.screen_point(r,(.2,.3)));c.paint_move(c.screen_point(r,(.3,.35)));c.paint_finish();idle();result['accepted_hash']=digest()
  if case in ('failure','recovery'):wait(lambda:bool(shell.client.snapshot['media_control']['raster']['failures']))
  if case=='recovery':
-  requested=e.binding[1];save=out/'recovered.json';shell.client.request('save',path=str(save));wait(lambda:any(s['status']=='durable' and s['revision']==requested for s in shell.client.snapshot['media_control']['raster']['saves']));assert digest()==result['accepted_hash']
+  requested=e.binding[1];save=out/'recovered.json';request('save',path=str(save));wait(lambda:any(s['status']=='durable' and s['revision']==requested for s in shell.client.snapshot['media_control']['raster']['saves']));assert digest()==result['accepted_hash']
   e.blank_layer();idle();e.blank_child();idle();assert len(e.config['layers'])==3;result['recovery_then_creation']=True
  if case=='save_failure':
   save=out/'save.json';save.write_text('{"last_good":true}');save.chmod(0o444)

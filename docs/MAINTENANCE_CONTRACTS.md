@@ -57,13 +57,33 @@ evidence. Decoder/shared-reader/paint/swap return is not physical scanout.
 General hands-on acceptance stays with Robert. Verify the [manual documentation
 receipt](../work/docs-b3-reconciliation-20261010/READINESS.md) before coding.
 
-After B3, a separate manual whole-product migration assessment covers worlds,
-Visualizer, audio and all older systems, then remaining appropriate migration,
-then unrelated feature expansion. Historical B4–B8 references are subject to that
-assessment. Capacity Passes 2–4, higher counts and storage-location/relocation
-remain separate commitments, neither completed nor cancelled by B3.
+The whole-product audit is complete. [ROADMAP's final owner sequence](../ROADMAP.md#completed-audit-and-final-owner-sequence)
+and retained/deferred/rejected dispositions govern bounded existing-functionality
+migration, separate image follow-up, editor research/gap review and approved brief
+before expansion. Residual B3 issues are not a blanket migration-closure gate.
+Capacity Passes 2–4, higher counts and storage relocation remain separate.
 
 
+
+### Planned Studio control/resource boundary preservation
+
+Remove synchronous ACK waits only through bounded asynchronous completion;
+completed edits/Undo/Redo remain ordered, and timeout/lost ACK remains unknown
+until same-operation reconciliation. Revisioned projections must not expose stale
+state as current. Report unique allocations, shared aliases, history/save/output
+pins, staging and retiring jobs/readers separately from component caps and RSS/VRAM.
+Keep current limits, Qt/Python policy, GL context ownership and explicit fallbacks.
+Preserve docking/tabs, tools/locks/selections/colors, source clocks, accepted pixels,
+Save/Save As/reopen and normal close. This planned boundary is not implemented here.
+
+Future scoped checks bind source/binary/input/settings and a recoverable baseline;
+use one stated hypothesis and bounded matched workload with pixel/semantic parity,
+input/ACK/projection latency tails and allocation/lifetime accounting. Exercise
+lost/delayed ACKs, retries, exhaustion, switch/replacement and failure/normal-close
+cleanup; distinguish physical pointer/keyboard/visible output from scripted paint
+or swap return. Preserve failed/unrun cases. Secure accepted unsaved work, close
+normally and restore only task changes; retain CPU/Qt references and process-fixed
+fallback. No new benchmark, native build, performance claim or device use here.
 
 ## Raster recovery and mouse-channel correction — 2026-10-09
 
@@ -860,3 +880,65 @@ keep their ownership. Fixed-timestamp seeks and ordinary prefetch keep the
 reduced source pixels or discarded accepted artwork is involved. Natural
 full-range 6×/12× trials and remaining stalls are bound in the
 [current results](../work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md).
+
+
+## Studio control boundary candidate contract — 2026-10-12
+
+The earlier planned subsection records the pre-task documentation reconciliation.
+This uncommitted implementation is bound by [actual results](../docs/agent-notes/control-boundary-20261012.md). Qt input
+callbacks submit without owner ACK waits, worker-result waits or pipe writes.
+One ordered worker delivers immutable completed actions/history/save barriers;
+16 active commands and 256 retained UI completions are bounded. Rejection means
+not submitted; an uncertain outcome keeps its identity until the owner ledger
+reconciles it. Acknowledgement, renderer publication and durability stay separate.
+Three known Hold owners plus release-all have a reserved coalescing mailbox on
+both transport sides. Completed edits/history do not coalesce. Existing video
+intent and one outstanding composition preview remain bound to their session,
+source/target and generation. Save captures the authoritative revision/dependencies
+after its accepted predecessor; stale saves/recovery cannot act on a loaded session.
+
+Protocol v2 publishes catalog, configuration, coherent document/history/outcome/
+save/resource state and independently sampled runtime telemetry. Section versions,
+owner/session/document revision and destination/run identities install atomically.
+Unchanged sections are reused, with initial/explicit/nominal five-second full sync.
+Missing/invalid deltas retain the last coherent state, mark it stale, request full
+sync and reject new editing admission until recovery. Old owners/revisions cannot
+replace current state. Analyzer cadence and independent source clocks are retained.
+
+Read-only raster ownership identifies immutable resource versions and shared
+allocation aliases; totals count each allocation once. Document/history/save/output
+pins, pending jobs, retiring leases and cleanup failures remain inspectable. Detail
+is capped at 512 allocation rows with truthful truncation and complete totals.
+Mapping references, process working sets, media staging and device VRAM are separate;
+external reader/GPU allocation counts are unavailable, not zero. Actual worker exit
+and lease release determine retirement. Component caps and durability stay intact.
+Normal close waits or remains open truthfully. Rollback secures accepted work,
+verifies an isolated reopen, closes normally and restores only hash-guarded task
+files; it must preserve later edits and live sessions with unresolved work.
+
+## Selective migration candidate boundaries — 2026-10-13
+
+Invalid control replies retain the last coherent snapshot, invalidate the
+affected revisioned projection and request full reconciliation. An accepted but
+uncertain command keeps its operation identity; resubmission cannot create a
+second transaction. Save waits on unresolved predecessors. A definitively
+rejected predecessor has settled its sequence and does not prohibit saving the
+authoritative accepted revision. Rejected pixels never become part of that save.
+
+Native drawing inside Qt preserves the host VAO, program, array/pixel-unpack
+buffers, texture bindings, read/draw framebuffers and unpack settings. GPU
+resources remain owned by their actual context. Aftershock's optional 8×1 order
+stage uses unchanged authored GLSL equations and restores its framebuffer and
+viewport; reference selection/failure disables that stage. Cavern keeps full
+resident geometry and bounded prefetch. Incomplete helper futures are never
+awaited by required preparation: the exact row is generated locally, and the
+late helper result is consumed before redundant storage is retired.
+
+Single-source audio decode/preparation/output/publication observations are bound
+to generation and block size. Output occupancy waits are pacing, not pure DSP
+cost. Device position remains unavailable; submitted playhead is not audible
+time. Raster staging, shared allocation aliases, native versions/history pins,
+media caches, GPU targets and process/device memory are separate. No aggregate
+physical-memory guarantee or higher admission limits follow from these counters.
+See [actual results](agent-notes/selective-migration-20261013.md). Normal shutdown,
+failure retention and the prior control-boundary contract continue to apply.

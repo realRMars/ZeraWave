@@ -32,6 +32,14 @@ class EditorSurface:
     def draw(self,canvas,size,projection,target):
         if self.host_gl is None:return self._draw(canvas,size,projection,target)
         gl=self.host_gl;active=gl.glGetIntegerv(0x84e0);bindings=[]
+        # Qt resumes its cached painter after native drawing. Leaving our VAO
+        # bound lets that painter alter renderer-owned attribute state; leaving
+        # ModernGL's cached FBO bound also targets the wrong Qt paint surface.
+        host_state={key:gl.glGetIntegerv(value) for key,value in (
+            ('vao',0x85b5),('array_buffer',0x8894),('program',0x8b8d),
+            ('draw_fbo',0x8ca6),('read_fbo',0x8caa),
+            ('unpack_alignment',0xcf5),('unpack_row_length',0xcf2),
+            ('unpack_skip_rows',0xcf3),('unpack_skip_pixels',0xcf4),('unpack_buffer',0x88ef))}
         for unit in self.host_texture_units:
             gl.glActiveTexture(0x84c0+unit);bindings.append(gl.glGetIntegerv(0x8069))
         gl.glActiveTexture(active)
@@ -42,6 +50,15 @@ class EditorSurface:
             for unit,binding in zip(self.host_texture_units,bindings):
                 gl.glActiveTexture(0x84c0+unit);gl.glBindTexture(0x0de1,binding)
             gl.glActiveTexture(active)
+            gl.glBindVertexArray(host_state['vao'])
+            gl.glBindBuffer(0x8892,host_state['array_buffer'])
+            gl.glUseProgram(host_state['program'])
+            gl.glBindFramebuffer(0x8ca9,host_state['draw_fbo'])
+            gl.glBindFramebuffer(0x8ca8,host_state['read_fbo'])
+            gl.glBindBuffer(0x88ec,host_state['unpack_buffer'])
+            for key,enum in (('unpack_alignment',0xcf5),('unpack_row_length',0xcf2),
+                             ('unpack_skip_rows',0xcf3),('unpack_skip_pixels',0xcf4)):
+                gl.glPixelStorei(enum,host_state[key])
     def _draw(self,canvas,size,projection,target):
         from PySide6.QtCore import QRectF
         texture=self.layers.render_editor(canvas,size,projection)
@@ -302,6 +319,8 @@ class Renderer:
         self.surface_stage = None
         self.original_loop_stage = None
         self.root_branch_stage = None
+        self.blast_order_stage = None
+        self.blast_order_error = None
         self.enveloper_stage = None
         self.enveloper_failed = False
         self.echo_resources = None
@@ -769,7 +788,11 @@ class Renderer:
             from resolved_audio import AudioUniformContract
             self.audio_uniform_contract=AudioUniformContract(fragment_shader) if not self.fractal_only else None
             if self.audio_uniform_contract is not None:fragment_shader=self.audio_uniform_contract.source
-            if not self.fractal_only:fragment_shader=RootBranchStage.main_source(fragment_shader)
+            if not self.fractal_only:
+                fragment_shader=RootBranchStage.main_source(fragment_shader)
+                if os.environ.get('ZERAWAVE_FRAME_PREPARATION')!='reference':
+                    from scene_blast_order import BlastOrderStage
+                    fragment_shader=BlastOrderStage.main_source(fragment_shader)
 
             if self.startup_callback is not None:self.startup_callback('compiling')
             if notice:
@@ -803,7 +826,13 @@ class Renderer:
             if not self.fractal_only:
                 self.root_branch_stage=RootBranchStage(self.ctx,self.vertices)
                 self.root_branch_stage.draw(self.program)
-                self.vao.before_render=lambda:self.root_branch_stage.draw(self.program)
+                if 'u_blast_order_on' in self.program:
+                    self.program['u_blast_order_on'].value=0
+                    try:
+                        from scene_blast_order import BlastOrderStage
+                        self.blast_order_stage=BlastOrderStage(self.ctx,self.vertices,VERTEX_SHADER,shader_path.read_text(encoding='utf-8'))
+                    except Exception as exc:self.blast_order_error=str(exc)[:240]
+                self.vao.before_render=self.prepare_frame
             if self.debug_state==37:self.install_cymatics_controls()
             self.startup_metrics['create_seconds'] = time.perf_counter() - began
             # Compilation success is not presentation readiness. Keep the
@@ -1657,6 +1686,20 @@ class Renderer:
             notice.close(pump=glfw.poll_events)
             self.startup_metrics['notice_close_seconds']=time.perf_counter()-close_start
 
+    def prepare_frame(self):
+        self.root_branch_stage.draw(self.program)
+        if self.blast_order_stage is not None:
+            state=self.program['u_debug_state'].value
+            present=state==18 or (state==0 and self.blend_values.get('u_world_mix',(0.,0.,0.,0.))[3]>0. and self.blend_values.get('u_fire_mix',(0.,0.,0.,0.))[3]>0.)
+            if not present:
+                self.program['u_blast_order_on'].value=0
+                return
+            try:self.blast_order_stage.draw(self.program)
+            except Exception as exc:
+                self.program['u_blast_order_on'].value=0
+                self.blast_order_error=str(exc)[:240]
+                self.blast_order_stage.release();self.blast_order_stage=None
+
     def get_time(self):
         if self.start_time is None:
             return 0.0
@@ -1684,6 +1727,7 @@ class Renderer:
             self.surface_stage.release();self.surface_stage=None
         if self.original_loop_stage is not None:self.original_loop_stage.release();self.original_loop_stage=None
         if self.root_branch_stage is not None:self.root_branch_stage.release();self.root_branch_stage=None
+        if self.blast_order_stage is not None:self.blast_order_stage.release();self.blast_order_stage=None
         if self.enveloper_stage:self.enveloper_stage.release();self.enveloper_stage=None
         if self.color_inbox: self.color_inbox.close()
         if self.image_layers:self.image_layers.close();self.image_layers=None

@@ -72,7 +72,7 @@ class MediaLibrary(QWidget):
         paths,_=QFileDialog.getOpenFileNames(self,'Import media references','',FILTER)
         if paths:self.import_paths(paths,self.collection_selected)
     def import_paths(self,paths,collection=None):
-        if paths:self.shell.safe(lambda:self.shell.client.request('media_import',paths=paths,collection=collection))
+        if paths:self.shell.safe(lambda:self.shell.client.command('media_import',paths=paths,collection=collection))
     def selected_ids(self):return list(dict.fromkeys(i.data(0,Qt.UserRole) for i in self.tree.selectedItems() if i.data(0,Qt.UserRole) in self.assets))
     def eventFilter(self,watched,event):
         if watched is self.tree.viewport() and event.type() in (QEvent.DragEnter,QEvent.DragMove,QEvent.Drop) and event.mimeData().hasUrls():
@@ -86,7 +86,7 @@ class MediaLibrary(QWidget):
         if event.mimeData().hasUrls():event.acceptProposedAction()
     def dropEvent(self,event):
         paths=[u.toLocalFile() for u in event.mimeData().urls() if u.isLocalFile()]
-        if paths:self.shell.safe(lambda:self.shell.client.request('media_import',paths=paths));event.acceptProposedAction()
+        if paths:self.shell.safe(lambda:self.shell.client.command('media_import',paths=paths));event.acceptProposedAction()
     def refresh(self):
         data=self.shell.client.snapshot.get('media_library',{});key=json.dumps({k:v for k,v in data.items() if k!='resources'},sort_keys=True)
         if key==self.key:self.poll_thumbnails();return
@@ -132,7 +132,7 @@ class MediaLibrary(QWidget):
             self.detail.setText(info)
         else:self.detail.setText('Import references to original files. Browsing starts nothing.')
     def action(self,op,**values):
-        self.shell.safe(lambda:self.shell.client.request('media_action',op=op,asset=self.selected,**values));self.refresh()
+        self.shell.safe(lambda:self.shell.client.command('media_action',op=op,asset=self.selected,**values));self.refresh()
     def rename(self):
         if self.selected in self.assets and self.name.text()!=self.assets[self.selected]['name']:self.action('rename',name=self.name.text())
     def relink_file(self):
@@ -221,7 +221,7 @@ class MediaLibrary(QWidget):
 
 class ImageLayerEditor(QWidget):
     def __init__(self,shell):
-        super().__init__();self.shell=shell;self.config=defaults();self.binding=None;self.asset_key=None;self.syncing=False;self.widgets=[]
+        super().__init__();self.shell=shell;self.config=defaults();self.binding=None;self.asset_key=None;self.syncing=False;self.widgets=[];self.pending_commits=[]
         layout=QVBoxLayout(self);layout.setContentsMargins(8,8,8,8)
         self.presentation=TwoWaySwitch('Presentation',PRESENTATIONS,lambda active:self.edit_presentation(PRESENTATIONS[int(active)]));layout.addWidget(self.presentation)
         hint=QLabel('Use visual Start / Pause / Stop. Main previews support both modes; legacy Experimental does not. Image only covers the world while its histories continue.');hint.setWordWrap(True);layout.addWidget(hint)
@@ -245,6 +245,11 @@ class ImageLayerEditor(QWidget):
         snap=self.shell.client.snapshot;media=snap.get('media_control',{})
         return dict(media_session=media.get('session'),media_revision=media.get('revision'),preview_run=snap.get('preview_run'),destination_revision=snap.get('destination_revision'))
     def refresh(self,force=False):
+        for future in list(self.pending_commits):
+            if not future.done():return
+            self.pending_commits.remove(future)
+            try:future.result()
+            except Exception as exc:self.shell.error(exc);force=True
         snap=self.shell.client.snapshot;binding=self.current_binding();changed=force or binding!=self.binding
         if changed:
             self.timer.stop();self.binding=binding;self.config=deepcopy(snap['values'].get('media',defaults()))
@@ -282,4 +287,7 @@ class ImageLayerEditor(QWidget):
         row=self.config['layers'][index];row.update(opacity=1.,fit='Fit',x=0.,y=0.,scale=1.);self.timer.stop();self.commit()
     def commit(self):
         if self.syncing or self.binding is None:return
-        self.shell.safe(lambda:self.shell.client.request('image_layers',presentation=self.config['presentation'],layers=deepcopy(self.config['layers']),**self.binding));self.refresh(True)
+        future=self.shell.safe(lambda:self.shell.client.submit('image_layers',presentation=self.config['presentation'],layers=deepcopy(self.config['layers']),**self.binding))
+        if future is not None:
+            self.pending_commits.append(future);self.binding=dict(self.binding,media_revision=self.binding['media_revision']+1)
+        self.refresh(True)

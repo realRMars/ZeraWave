@@ -28,7 +28,8 @@ supersede task-time uncommitted/pending status in dated reports, not their measu
 limits. Finishing acceptance does not certify all older product/capacity cases.
 Smudge/encoder tails, overload/rejected-stroke redraw, owner-process-death limits,
 unsupported media and broad/physical/multi-hour unrun cases remain explicit.
-Native ABI1/128px/x64 and generated DLL remain unchanged; no B3 build has shipped.
+Raster ABI1/128px/x64 and generated DLL remain unchanged. The B3 media-transfer
+source/adapter is separate; [its optional build/fallback](NATIVE_MEDIA_B3.md) is published.
 
 B3 has an accepted implemented media candidate, with Video Save open and timing partial. [ROADMAP B3](../ROADMAP.md#b3--bounded-media-foundation)
 owns its increments and matrix. Preserve existing Qt/Python authoring/control,
@@ -61,11 +62,11 @@ evidence. Decoder/shared-reader/paint/swap return is not physical scanout.
 General hands-on acceptance stays with Robert. Verify the [manual documentation
 receipt](../work/docs-b3-reconciliation-20261010/READINESS.md) before coding.
 
-After B3, a separate manual whole-product migration assessment covers worlds,
-Visualizer, audio and all older systems, then remaining appropriate migration,
-then unrelated feature expansion. Historical B4–B8 references are subject to that
-assessment. Capacity Passes 2–4, higher counts and storage-location/relocation
-remain separate commitments, neither completed nor cancelled by B3.
+The whole-product audit is complete. [ROADMAP's final owner sequence](../ROADMAP.md#completed-audit-and-final-owner-sequence)
+and retained/deferred/rejected dispositions govern bounded existing-functionality
+migration, separate image follow-up, editor research/gap review and approved brief
+before expansion. Residual B3 issues are not a blanket migration-closure gate.
+Capacity Passes 2–4, higher counts and storage relocation remain separate.
 
 ## Raster recovery and mouse-channel correction — 2026-10-09
 
@@ -486,3 +487,25 @@ from portable session Save and owner Retry; Pass 1's stores, retirement, pressur
 accepted-work ownership and shutdown remain the preservation contract. Exact pixels,
 resource/timing results, native/fallback cases and limitations are bound in the
 newest dated B2 actual-results section; current scoped acceptance is recorded above.
+
+## Selective migration candidate — 2026-10-13
+
+This uncommitted candidate adds optional ABI-1 `zw_materialize` and `zw_mix`
+exports. Materialization validates the complete tile table before writing exact
+top-down Qt BGRA premultiplied pixels. Mix retains the Qt reference integer
+formula, including scalar tails. Existing ABI-1 DLLs remain supported; missing
+exports select the existing reference. B1 remains process-fixed and supported.
+The distinct selected artifact is
+`work/native-raster/x64/abi1-migration-20261013-b/zerawave_raster.dll`.
+No loaded DLL, tile/version cap, history or save ownership was replaced.
+
+CPU composition hoists unchanged transforms, reuses dependency-complete backdrop
+prefixes, and retires only obsolete display-cache variants. It can skip a leaf
+only when its immutable native version proves every stored channel is zero;
+branch sources, children, masks and unusual transparent pigment retain reference
+evaluation. This does not retire artwork/history/save readers. PNG worker
+telemetry separates owned materialization and encoded buffers from lease aliases;
+Qt encoder internal workspace remains unavailable, not zero. A completed stroke
+rejected before admission is discarded and must be redrawn. Accepted failures
+retain owner recovery/history pins; real Retry and revision-pinned Save remain
+the recovery route. See [matched evidence and limits](agent-notes/selective-migration-20261013.md).

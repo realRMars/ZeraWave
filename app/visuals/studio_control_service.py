@@ -4,6 +4,7 @@ JSON commands are bounded and execute on the owning Tk thread. Renderer stdin,
 ACKs, scopes, authored storage and shutdown remain owned by the existing Studio.
 """
 from collections import deque
+from studio_boundary import SectionPublisher, MomentaryMailbox
 from copy import deepcopy
 import json
 import os
@@ -163,7 +164,7 @@ def main():
     log_path=Path(os.environ['ZERAWAVE_CONTROL_LOG']);log_path.parent.mkdir(parents=True,exist_ok=True)
     log=log_path.open('w',encoding='utf8',buffering=1);sys.stdout=sys.stderr=log
     host=json.loads(os.environ['ZERAWAVE_CONTROL_HOST']);root=tk.Tk();root.withdraw()
-    errors=deque(maxlen=16);commands=queue.Queue(maxsize=32);eof=threading.Event();closing=False
+    momentary=MomentaryMailbox();errors=deque(maxlen=16);commands=queue.Queue(maxsize=32);eof=threading.Event();closing=False
     def failure(kind,exc,tb,notify=True):
         text=''.join(traceback.format_exception(kind,exc,tb))
         if notify:errors.append(text)
@@ -190,74 +191,99 @@ def main():
                 editor.target_choice.set(choice.label)
             editor.targets=choices;editor.scene=owner.color_scene();editor.refresh()
     colors()
-    resource_sent=None
-    def snapshot():
-        nonlocal resource_sent
+    resource_sent=None;configuration_epoch=0;document_epoch=0;runtime_epoch=0;force_full=False
+    publisher=SectionPublisher(uuid.uuid4().hex)
+    from starfield_tuning import choices_for_form,target_windows,EDIT_FORMS
+    def snapshot(full=False):
+        nonlocal force_full
+        began=time.perf_counter()
+        # Only bounded ownership metadata is inspected for change detection.
+        # Catalog/configuration/history are not rebuilt or hashed on a timer.
         running=owner.process is not None and owner.process.poll() is None
-        resolution=owner.preview_state.get('resolution') or {}
-        if running and resolution and (owner.resolution_pending is None or resolution.get('serial',-1)>=owner.resolution_pending):
-            owner.resolution_policy=resolution.get('policy');owner.resolution_pending=None
-        if owner.color_editor.scene!=owner.color_scene():colors()
-        window=owner.color_link.get_window() if owner.color_link else None
-        sampler.configure({'Qt GUI':int(host['ZERAWAVE_WORKSPACE_PID']),'control owner':os.getpid(),
-            'renderer':window['pid'] if running and window else None},owner.preview_state.get('gpu_name'))
-        resource=sampler.snapshot()
-        stamp=(owner.preview_run,resource.get('wall'))
-        if running and owner.diagnostics.get() and resource.get('wall') and stamp!=resource_sent:
-            sample=dict(resource)
-            renderer_sample=next((v for v in sample.get('processes',{}).values() if 'renderer' in v['roles']),{})
-            for key in ('process_cpu_percent','process_cpu_seconds','process_working_set_bytes','process_peak_working_set_bytes'):
-                sample[key]=renderer_sample.get(key)
-            sample['sampling_owner']='control owner; renderer process counters identified by native PID'
-            owner.preview_command('resources',sample=sample);resource_sent=stamp
+        # Refresh once before choosing versions. This also binds an automatic
+        # tuning destination change into the same configuration packet.
         latest=owner.color_link.get_audio() if owner.color_link and owner.color_link.audio_run else None
         view.refresh(latest,running)
-        from starfield_tuning import choices_for_form,target_windows,EDIT_FORMS
-        audio={'owner_key':list(view.owner_key()),'form':view.form,'form_label':view.form_var.get(),
-            'target_id':view.target.target_id,'target_label':view.target.label,
-            'choices':[[t.target_id,t.label] for t in choices_for_form(view.form)],
-            'bounds':view.bounds,'values':{k:view.vars[k].get() for k in view.bounds},
-            'titles':[v[0].get() for v in view.focus_labels[:len(view.bounds)]],
-            'authored':view.authored,'pin':view.pin.get(),'enabled':view.enabled.get(),
-            'editable':[str(w.cget('state'))!='disabled' for w in view.sliders[:len(view.bounds)]],
-            'ranges':{k:{'value':v.get(),'editable':str(view.range_checks[k].cget('state'))!='disabled'} for k,v in view.range_vars.items() if k in target_windows(view.target.target_id)},
-            'status':view.status.get(),'target_info':view.target_info.get(),
-            'author_label':str(view.author_button.cget('text')),'author_enabled':str(view.author_button.cget('state'))!='disabled',
-            'revision':view.revision,'profile_status':view.profile_status.get(),'authored_path':str(view.store.authored_path)}
-        from raster_tiles import wire_resource
-        current_assets={r['asset'] for r in owner.media_scene['layers']}
-        library=owner.media_registry.snapshot(current_assets)
-        # History/save/publication ownership stays in the owner. Qt receives
-        # current readers only, with geometry implicit in the ABI's tile size.
-        library['resources']=[wire_resource(r) for r in owner.rasters.rows.values() if not r.get('retired') and r['id'] in current_assets]+library['resources']
-        return {'version':1,'owner_pid':os.getpid(),'sequence':sequence,'values':owner.values(),
-            'selection':owner.selection,'selection_scope':owner.selection_scope,'selection_title':selection_title(owner.selection),
-            'active_title':selection_title(owner.running_values['selection']) if running else selection_title(owner.selection),
-            'catalog':STUDIO_TREES,'sources':list(SOURCES),'edit_forms':EDIT_FORMS,'color_scene':owner.color_scene(),
-            'color_target':owner.color_editor.target_choice.get(),'color_overrides':owner.color_overrides,
-            'color_status':owner.color_status.get(),'audio':audio,'running':running,
-            'color_transport':{'revision':owner.last_color_revision,'ack':owner.color_link.get_status() if owner.color_link else {}},
-            'preview_transport':{'submitted_serial':owner.color_link.preview_serial,'run':owner.color_link.preview_run,'closed':owner.color_link.closed,'pending':len(owner.color_link.pending_controls),'writer_alive':owner.color_link.writer.is_alive(),'reader_alive':owner.color_link.reader.is_alive()} if owner.color_link else None,
-            'renderer_launcher_pid':owner.process.pid if running else None,
-            'preview':owner.preview_state,'window':owner.color_link.get_window() if owner.color_link else None,
-            'committed_scope':owner.committed_scope,'destination_revision':owner.destination_revision,
-            'scope_note':'Category BONK unavailable for separate legacy routes; this Experimental leaf is isolated.' if owner.committed_scope and not compatible_scope(owner.committed_scope) else '',
-            'preview_run':owner.preview_run,
-            'resources':resource,
-            'resolution':dict(policy=owner.resolution_policy,pending=owner.resolution_pending is not None,
-                limit=resolution.get('limit',16384),error=resolution.get('error') if running else None),
-            'startup':(owner.color_link.get_status().get('startup') or {}) if owner.color_link else {},
-            'latest_audio':latest,'running_values':getattr(owner,'running_values',None),
-            'audio_hub':owner.audio_owner.snapshot(),
-            'media_library':library,
-            'media_control':dict(session=owner.media_session,revision=owner.media_revision,history=owner.composition_history.snapshot(),transactions=owner.outcomes.state(),raster=owner.rasters.state()),
-            'media_frames':dict(owner.media_frames.snapshot(),**owner.web_frames),
-            'media_resources':owner.media_frames.resources(),
-            'tuning_drafts':list(drafts.values()),'tuning_dirty':any(d['dirty'] for d in drafts.values()),
-            'close_state':dict(owner.close_state),'session_path':str(owner.session_path) if owner.session_path else None,
-            'active_preview':owner.active_preview.get(),'status':owner.status.get(),'errors':list(errors)}
+        registry=owner.media_registry
+        raster_token=owner.rasters.projection_token()
+        outcome_token=tuple((r['id'],r['status'],r.get('output'),r.get('durability')) for r in owner.outcomes.rows.values())
+        pins_token=tuple((r,tuple(sorted(p))) for r,p in owner.publication_pins.items())
+        doc_token=(document_epoch,owner.media_session,owner.media_revision,registry.revision,registry.loading,registry.error,tuple(registry.pending),len(registry.import_results),raster_token,outcome_token,pins_token,owner.close_state['phase'],owner.close_state.get('error'))
+        config_token=(configuration_epoch,owner.destination_revision,owner.preview_run,owner.color_scene(),view.revision,running)
+        tokens=dict(catalog=1,configuration=config_token,document=doc_token,runtime=(runtime_epoch,int(time.perf_counter()*5)))
+        def build(section):
+            nonlocal resource_sent
+            if section=='catalog':return dict(catalog=STUDIO_TREES,sources=list(SOURCES),edit_forms=EDIT_FORMS)
+            if section=='configuration':
+                if owner.color_editor.scene!=owner.color_scene():colors()
+                latest=owner.color_link.get_audio() if owner.color_link and owner.color_link.audio_run else None
+                audio={'owner_key':list(view.owner_key()),'form':view.form,'form_label':view.form_var.get(),
+                    'target_id':view.target.target_id,'target_label':view.target.label,
+                    'choices':[[t.target_id,t.label] for t in choices_for_form(view.form)],
+                    'bounds':view.bounds,'values':{k:view.vars[k].get() for k in view.bounds},
+                    'titles':[v[0].get() for v in view.focus_labels[:len(view.bounds)]],
+                    'authored':view.authored,'pin':view.pin.get(),'enabled':view.enabled.get(),
+                    'editable':[str(w.cget('state'))!='disabled' for w in view.sliders[:len(view.bounds)]],
+                    'ranges':{k:{'value':v.get(),'editable':str(view.range_checks[k].cget('state'))!='disabled'} for k,v in view.range_vars.items() if k in target_windows(view.target.target_id)},
+                    'status':view.status.get(),'target_info':view.target_info.get(),
+                    'author_label':str(view.author_button.cget('text')),'author_enabled':str(view.author_button.cget('state'))!='disabled',
+                    'revision':view.revision,'profile_status':view.profile_status.get(),'authored_path':str(view.store.authored_path)}
+                values=owner.values();values.pop('media',None);values.pop('artwork_outputs',None)
+                return dict(values=values,selection=owner.selection,selection_scope=owner.selection_scope,selection_title=selection_title(owner.selection),
+                    color_scene=owner.color_scene(),color_target=owner.color_editor.target_choice.get(),color_overrides=owner.color_overrides,color_status=owner.color_status.get(),audio=audio,
+                    committed_scope=owner.committed_scope,destination_revision=owner.destination_revision,preview_run=owner.preview_run,
+                    scope_note='Category BONK unavailable for separate legacy routes; this Experimental leaf is isolated.' if owner.committed_scope and not compatible_scope(owner.committed_scope) else '')
+            if section=='document':
+                from raster_tiles import wire_resource
+                current_assets={r['asset'] for r in owner.media_scene['layers']}
+                library=owner.media_registry.snapshot(current_assets)
+                # History/save/publication ownership stays in the owner. Qt receives
+                # current readers only, with geometry implicit in the ABI's tile size.
+                library['resources']=[wire_resource(r) for r in owner.rasters.rows.values() if not r.get('retired') and r['id'] in current_assets]+library['resources']
+                document={a['id'] for a in owner.media_scene['assets']};history={r['asset'] for r in owner.composition_history.rows.values()}
+                for item in owner.composition_history.undo+owner.composition_history.redo:
+                    history.update(a['id'] for scene in (item['before'],item['after']) for a in scene['assets'])
+                ownership=owner.rasters.ownership(document,history,owner.publication_pins)
+                return dict(values=dict(media=owner.media_scene,artwork_outputs=getattr(owner,'artwork_outputs',[])),media_library=library,
+                    media_control=dict(session=owner.media_session,revision=owner.media_revision,history=owner.composition_history.snapshot(),transactions=owner.outcomes.state(),raster=owner.rasters.state(),ownership=ownership),
+                    tuning_drafts=list(drafts.values()),tuning_dirty=any(d['dirty'] for d in drafts.values()),close_state=dict(owner.close_state),session_path=str(owner.session_path) if owner.session_path else None)
+            resolution=owner.preview_state.get('resolution') or {}
+            if running and resolution and (owner.resolution_pending is None or resolution.get('serial',-1)>=owner.resolution_pending):
+                owner.resolution_policy=resolution.get('policy');owner.resolution_pending=None
+            if owner.color_editor.scene!=owner.color_scene():colors()
+            window=owner.color_link.get_window() if owner.color_link else None
+            sampler.configure({'Qt GUI':int(host['ZERAWAVE_WORKSPACE_PID']),'control owner':os.getpid(),
+                'renderer':window['pid'] if running and window else None},owner.preview_state.get('gpu_name'))
+            resource=sampler.snapshot()
+            stamp=(owner.preview_run,resource.get('wall'))
+            if running and owner.diagnostics.get() and resource.get('wall') and stamp!=resource_sent:
+                sample=dict(resource)
+                renderer_sample=next((v for v in sample.get('processes',{}).values() if 'renderer' in v['roles']),{})
+                for key in ('process_cpu_percent','process_cpu_seconds','process_working_set_bytes','process_peak_working_set_bytes'):
+                    sample[key]=renderer_sample.get(key)
+                sample['sampling_owner']='control owner; renderer process counters identified by native PID'
+                owner.preview_command('resources',sample=sample);resource_sent=stamp
+            latest=owner.color_link.get_audio() if owner.color_link and owner.color_link.audio_run else None
+            return dict(version=2,owner_pid=os.getpid(),sequence=sequence,running=running,active_title=selection_title(owner.running_values['selection']) if running else selection_title(owner.selection),
+                color_transport=dict(revision=owner.last_color_revision,ack=owner.color_link.get_status() if owner.color_link else {}),
+                preview_transport=dict(submitted_serial=owner.color_link.preview_serial,run=owner.color_link.preview_run,closed=owner.color_link.closed,pending=len(owner.color_link.pending_controls),writer_alive=owner.color_link.writer.is_alive(),reader_alive=owner.color_link.reader.is_alive()) if owner.color_link else None,
+                renderer_launcher_pid=owner.process.pid if running else None,preview=owner.preview_state,window=window,resources=resource,
+                resolution=dict(policy=owner.resolution_policy,pending=owner.resolution_pending is not None,limit=resolution.get('limit',16384),error=resolution.get('error') if running else None),
+                startup=(owner.color_link.get_status().get('startup') or {}) if owner.color_link else {},latest_audio=latest,running_values=getattr(owner,'running_values',None),audio_hub=owner.audio_owner.snapshot(),
+                media_frames=dict(owner.media_frames.snapshot(),**owner.web_frames),media_resources=owner.media_frames.resources(),active_preview=owner.active_preview.get(),status=owner.status.get(),errors=list(errors),
+                telemetry=dict(sampled_at=time.perf_counter(),audio_generation=owner.audio_owner.generation if hasattr(owner.audio_owner,'generation') else None,preview_run=owner.preview_run,independent_clocks=True))
+        identity=dict(document_session=owner.media_session,document_revision=owner.media_revision,destination_revision=owner.destination_revision,preview_run=owner.preview_run)
+        packet=publisher.packet(tokens,build,identity,full=full or force_full);force_full=False
+        packet['projection']['packet_build_ms']=(time.perf_counter()-began)*1000
+        return packet
     out_lock=threading.Lock();sequence=0
     def emit(value):
+        # Isolated regression hook, disabled in normal sessions. Corrupt only
+        # one post-admission reply to exercise the actual pipe/owner ledger.
+        corrupt=os.environ.get('ZERAWAVE_CONTROL_TEST_CORRUPT_REPLY')
+        if corrupt and Path(corrupt).exists() and value.get('id') is not None and 'snapshot' in value:
+            Path(corrupt).unlink()
+            value=deepcopy(value);value['snapshot']['sections'].setdefault('document',{})['media_library']={'resources':[None]}
         line=json.dumps(value,separators=(',',':'))
         if len(line)+1>2*1024*1024:raise RuntimeError('Control snapshot exceeded bounded protocol size')
         with out_lock:protocol.write(line+'\n');protocol.flush()
@@ -268,6 +294,8 @@ def main():
                 if not line:break
                 if len(line)>524288:raise ValueError('Control command too large')
                 message=json.loads(line)
+                if message.get('id') is None and message.get('action') in ('hold','release'):
+                    momentary.put(message['action'],message.get('data',{}));continue
                 try:commands.put(message,timeout=.2)
                 except queue.Full:emit({'id':message.get('id'),'error':'Control queue is busy; retry the operation.'})
         except Exception as exc:failure(type(exc),exc,exc.__traceback__)
@@ -283,8 +311,16 @@ def main():
         if owner.process is not None and owner.process.poll() is None and owner.running_values.get('playback_scope') and owner.preview_state.get('destination_revision')!=owner.destination_revision:
             raise ValueError('Destination is changing; wait for its renderer acknowledgement.')
     def perform_action(name,data):
-        nonlocal closing
+        nonlocal closing,force_full
         editor=owner.color_editor
+        if name=='state_full':force_full=True;return
+        if name in ('raster_retry','save_retry','save') and data.get('media_session',owner.media_session)!=owner.media_session:raise ValueError('Recovery/save belongs to an obsolete session.')
+        if name=='save' and data.get('save_after'):
+            predecessor=owner.outcomes.rows.get(data['save_after'])
+            # A known rejection settles its sequence without accepting pixels.
+            # It must not poison every later Save/Save As; save only the owner
+            # revision after that settled outcome. Missing/unknown remains a barrier.
+            if not predecessor or predecessor['status'] not in ('applied','rejected'):raise ValueError('Save barrier predecessor is unresolved; reconcile the pending action before saving.')
         if name in ('select','form','target','pin'):
             owner.release_preview_holds();view.keyboard.stop()
         if name=='select':owner.select(data['path'],data['scope']);colors()
@@ -657,11 +693,12 @@ def main():
             if owner.close_state['phase']=='draining':owner.close_state=dict(phase='open',error='')
         else:raise ValueError('Unsupported control command: '+str(name))
     def action(name,data):
-        if owner.close_state['phase']=='draining' and name not in ('close_cancel','close','cancel_save'):raise ValueError('Closing; cancel close before editing.')
+        nonlocal configuration_epoch,document_epoch,runtime_epoch
         ordered='operation_id' in data
         if ordered and not owner.outcomes.begin(name,data):return
         admitted={}
         try:
+            if owner.close_state['phase']=='draining' and name not in ('close_cancel','close','cancel_save','state_full','operation_status'):raise ValueError('Closing; cancel close before editing.')
             if data.get('raster_assets') or data.get('raster_sources'):
                 if owner.color_link and sum(bool(p.get('ordered')) for p in owner.color_link.pending_controls.values())>=60:raise ValueError('Renderer publication queue full; raster not accepted. Retry after output catches up.')
                 if name!='composition':raise ValueError('Raster resources require a composition transaction.')
@@ -693,6 +730,10 @@ def main():
                     if source['id'] not in owner.rasters.rows:sources.append(dict(source,source_snapshot=True))
                 admitted=owner.rasters.admit(data.get('raster_assets',[])+sources)
             perform_action(name,data)
+            runtime_epoch+=1
+            if name not in ('hold','release','media_transport','operation_status','state_full','attach'):
+                if not name.startswith(('composition','media_','raster_')) and name not in ('image_layers','save','save_retry','cancel_save','close','close_cancel','web_frame','artwork_output'):configuration_epoch+=1
+                if name.startswith(('composition','media_','raster_')) or name in ('image_layers','save','save_retry','cancel_save','load','tune','range','override','reset_audio','restore_draft','authored','web_frame','artwork_output'):document_epoch+=1
             if ordered:owner.outcomes.finish(data,status='applied',revision=owner.media_revision,session=owner.media_session,publication=owner.media_publication_revision,accepted=time.perf_counter(),resources=[a['id'] for a in owner.media_scene['assets'] if a['id'] in owner.rasters.rows],output='queued' if owner.process is not None else 'inactive')
             # No fallible encoder or registry work precedes acceptance/publication.
             for key in admitted:
@@ -766,6 +807,14 @@ def main():
         frames=owner.media_frames.snapshot();frame_key=[(key,(value.get('frame') or {}).get('name'),(value.get('frame') or {}).get('generation'),value.get('state'),value.get('error')) for key,value in frames.items()]
         if frame_key!=owner.frame_key:
             owner.frame_key=frame_key;owner.send_media()
+        for _ in range(4):
+            item=momentary.take()
+            if item is None:break
+            name,data=item
+            # A release is safe across a destination transition; a stale press is not.
+            if name=='hold' and data.get('active') and (data.get('preview_run')!=owner.preview_run or data.get('destination_revision')!=owner.destination_revision):continue
+            try:action(name,data)
+            except Exception as exc:failure(type(exc),exc,exc.__traceback__)
         for _ in range(8):
             try:message=commands.get_nowait()
             except queue.Empty:break

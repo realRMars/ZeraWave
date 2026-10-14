@@ -1,6 +1,6 @@
 """Original generated glTF/GLB, real mesh rendering on the existing GL context."""
 from pathlib import Path
-import json,struct,threading,uuid,time
+import json,struct,threading,uuid,time,os
 import numpy as np,moderngl
 from model_layer import load_model
 from media_registry import inspect
@@ -15,7 +15,7 @@ def fixture(path):
     return doc
 
 def run():
-    root=Path(__file__).resolve().parents[2];out=root/'work/media-composition-20261007';path=out/'original-triangle.glb';fixture(path);model=load_model(path);assert model['metadata']['vertices']==3
+    root=Path(__file__).resolve().parents[2];out=Path(os.environ.get('ZERAWAVE_MODEL_EVIDENCE') or root/'work/media-composition-20261007');out.mkdir(parents=True,exist_ok=True);path=out/'original-triangle.glb';fixture(path);model=load_model(path);assert model['metadata']['vertices']==3
     asset=inspect(str(path),threading.Event());asset['id']=uuid.uuid4().hex;scene=defaults();scene['assets']=[asset];row=new_layer('Model',asset['id']);scene['layers']=[row]
     ctx=moderngl.create_standalone_context(require=330);target=ctx.simple_framebuffer((192,128),components=4);target.use();ctx.viewport=(0,0,192,128)
     class Proxy:

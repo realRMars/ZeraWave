@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 import json,math,threading,time,os
 import numpy as np
 from PySide6.QtCore import Qt,QTimer,QPointF,QRectF,QSize,Signal,QEvent,QMimeData
-from PySide6.QtGui import QImage,QPainter,QPainterPath,QPolygonF,QColor,QPen,QTransform,QIcon,QPixmap,QCursor
+from PySide6.QtGui import QImage,QPainter,QPainterPath,QPolygonF,QColor,QPen,QTransform,QIcon,QPixmap,QCursor,QDrag
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QFormLayout,QLabel,QPushButton,QComboBox,QTreeWidget,QTreeWidgetItem,QTreeWidgetItemIterator,QLineEdit,QDoubleSpinBox,QSlider,QCheckBox,QGroupBox,QMenu,QMessageBox,QInputDialog,QSpinBox,QScrollArea,QTabWidget,QApplication,QToolButton,QGridLayout,QFileDialog,QDialog,QDialogButtonBox,QColorDialog,QToolTip,QHeaderView,QSizeGrip,QMainWindow,QToolBar,QStyle,QStyleOptionSlider
 from composition import defaults,validate_scene,new_layer,lookup,ancestors,effective,asset_matrix,world_matrix,matrix,coefficients,transform,properties,reparent,renumber,PRESENTATIONS,BLENDS,MAX_LAYERS,is_branch,ordered_children,partition_aligned,piece_geometry,IDENTITY
 from media_frames import FrameReader
@@ -972,16 +972,33 @@ class LayerTree(QTreeWidget):
         row=lookup(self.editor.config).get(identity)
         if row:
             before=deepcopy(self.editor.config);key='enabled' if column==1 else 'locked' if column==2 else 'source_visible';row[key]=not row[key];self.editor.commit('Layer '+key,before)
+    def startDrag(self,actions):
+        # QAbstractItemView.startDrag removes the source rows after MoveAction.
+        # The document transaction owns this move; Qt must never remove items.
+        if not self.editor.resolve_pending():return
+        items=self.selectedItems()
+        if not items:return
+        self.layer_drag_ids=tuple(item.data(0,Qt.UserRole) for item in items)
+        self.layer_drag_binding=self.editor.binding
+        drag=QDrag(self);drag.setMimeData(self.mimeData(items))
+        try:drag.exec(Qt.MoveAction)
+        finally:
+            self.layer_drag_ids=();self.insert_hint=None;self.viewport().update();drag.deleteLater()
     def dropEvent(self,event):
         if event.mimeData().hasFormat('application/x-zerawave-assets'):
             node=self.itemAt(event.position().toPoint());identity=node.data(0,Qt.UserRole) if node else None
             payload=bytes(event.mimeData().data('application/x-zerawave-assets'));event.acceptProposedAction()
             QTimer.singleShot(0,lambda:self.editor.library_drop(payload,identity));return
         if event.source() is not self:event.ignore();return
-        ids=[item.data(0,Qt.UserRole) for item in self.selectedItems()]
+        ids=list(getattr(self,'layer_drag_ids',())) or [item.data(0,Qt.UserRole) for item in self.selectedItems()]
+        binding=getattr(self,'layer_drag_binding',self.editor.binding)
         anchor,placement=self.drop_intent(event.position().toPoint());self.insert_hint=None;self.viewport().update()
         event.setDropAction(Qt.MoveAction);event.accept()
-        QTimer.singleShot(0,lambda:self.editor.drop_layers(ids,anchor,placement))
+        def apply():
+            if self.editor.binding!=binding:
+                self.editor.status.setText('Layer document changed during drag; nothing moved. Repeat the drag.');return
+            self.editor.drop_layers(ids,anchor,placement)
+        QTimer.singleShot(0,apply)
     def drop_intent(self,point):
         node=self.itemAt(point);selected=self.selectedItems();rows=lookup(self.editor.config)
         if node is None:return None,'below'
@@ -1204,17 +1221,24 @@ class Layers(QWidget):
         if answer==QMessageBox.Apply:self.canvas.apply();return not self.canvas.points
         self.canvas.discard();return True
     def retry_saving(self):
-        try:
-            outcome=self.shell.client.request('raster_retry')['media_control']['raster']
-            saves=self.shell.client.snapshot.get('media_control',{}).get('raster',{}).get('saves',[])
+        if getattr(self,'retry_future',None) is not None and not self.retry_future.done():
+            self.status.setText('Retry is awaiting owner acknowledgement; accepted pixels retained.');return
+        session=self.binding[0]
+        def finished(snapshot):
+            if not self.binding or self.binding[0]!=session:return
+            outcome=snapshot['media_control']['raster'];saves=outcome.get('saves',[])
             failed=next((s for s in reversed(saves) if s['status']=='failed'),None)
             if failed:
                 path,_=QFileDialog.getSaveFileName(self,'Recover retained revision '+str(failed['revision']),failed['path'],'Session (*.json)')
                 if not path:self.status.setText('Retained checkpoint remains unsaved; choose Retry saving to export it.');return
-                self.shell.client.request('save_retry',save_id=failed['id'],path=path)
-            self.retry_watch=dict(session=self.binding[0],state=None)
+                self.shell.defer('save_retry',save_id=failed['id'],path=path,media_session=session)
+            self.retry_watch=dict(session=session,state=None)
             self.status.setText('Retry requested through owner: '+str(outcome['pending'])+' PNG jobs pending, '+str(outcome.get('retry_waiting',0))+' waiting; failures remain visible until secured. Pixels/history retained.')
-        except Exception as exc:self.status.setText(str(exc))
+        try:
+            self.retry_watch=dict(session=session,state=None,queued=True)
+            self.retry_future=self.shell.defer('raster_retry',on_done=finished,media_session=session)
+            self.status.setText('Retry submitted; awaiting owner acknowledgement. Accepted pixels/history retained.')
+        except Exception as exc:self.retry_watch=None;self.status.setText(str(exc))
     def selected_row(self):return lookup(self.config).get(self.selected)
     def focus_pane(self,widget):
         layers=widget is self or widget is not None and self.isAncestorOf(widget)
@@ -1278,8 +1302,10 @@ class Layers(QWidget):
         if size is None and policy and policy.get('mode')=='fixed':size=policy.get('size')
         prior_size=self.canvas_size;self.canvas_size=tuple(self.config.get('canvas') or size or (1280,720))
         if self.canvas and self.canvas_size!=prior_size:self.canvas.update()
-        if self.edit_jobs:return
-        if force or binding!=self.binding:
+        if self.edit_jobs or self.opacity_job is not None and not self.opacity_job.done():return
+        from shiboken6 import isValid
+        damaged_rows=any(not isValid(node) or node.treeWidget() is not self.tree or not isValid(getattr(self,'row_widgets',{}).get(identity)) or self.tree.itemWidget(node,0) is not self.row_widgets.get(identity) for identity,node in getattr(self,'row_items',{}).items())
+        if force or binding!=self.binding or damaged_rows:
             if self.canvas and (self.canvas.drag or self.canvas.stroke or self.canvas.interactive) or self.slider_before is not None or self.numeric_before is not None:return
             session_changed=self.binding and binding[0]!=self.binding[0]
             if session_changed:
@@ -1322,6 +1348,13 @@ class Layers(QWidget):
         focus=QApplication.focusWidget();focus_name=focus.objectName() if focus else '';cursor=focus.cursorPosition() if isinstance(focus,QLineEdit) else None
         selected_ids={item.data(0,Qt.UserRole) for item in self.tree.selectedItems()};scroll=self.tree.verticalScrollBar().value();self.rebuilding=True;blocked=self.tree.blockSignals(True);self.tree.setUpdatesEnabled(False)
         self.row_widgets=getattr(self,'row_widgets',{});self.row_items=getattr(self,'row_items',{});self.row_signatures=getattr(self,'row_signatures',{});desired=lookup(self.config);removed=[]
+        # An invalid cached C++ item cannot be reused, including after a prior
+        # failed drag. Rebuild only affected items; preserve healthy row editors.
+        for identity,node in list(self.row_items.items()):
+            if isValid(node):continue
+            self.row_items.pop(identity);self.row_signatures.pop(identity,None)
+            widget=self.row_widgets.pop(identity,None)
+            if widget is not None and isValid(widget):widget.hide();widget.setParent(None);widget.deleteLater()
         def children(parent,parent_node=None):
             siblings=sorted((r for r in self.config['layers'] if r['parent']==parent),key=lambda r:r['order'],reverse=True)
             for index,row in enumerate(siblings):
@@ -1349,7 +1382,7 @@ class Layers(QWidget):
                     row_state['_working_geometry']=tuple(meta.get(k,1) for k in ('width','height','pixel_aspect'))
                 signature=(row_state,identity in self.expanded,protected,inherited,self.canvas_size)
                 widget=self.row_widgets.get(identity)
-                if moved or widget is None or not isValid(widget) or self.row_signatures.get(identity)!=signature:
+                if moved or widget is None or not isValid(widget) or self.tree.itemWidget(node,0) is not widget or self.row_signatures.get(identity)!=signature:
                     if widget is not None and isValid(widget):widget.hide();self.tree.removeItemWidget(node,0);widget.setParent(None);widget.deleteLater()
                     widget=LayerRow(self,row);self.tree.setItemWidget(node,0,widget);node.setSizeHint(0,widget.sizeHint());self.row_widgets[identity]=widget;self.row_signatures[identity]=signature
                 if getattr(widget,'source_asset',None)!=row['asset']:
@@ -1482,18 +1515,17 @@ class Layers(QWidget):
             selection=self.selected if self.selected in lookup(prior) else getattr(self,'last_selection',None)
             data=dict(version=4,editor=deepcopy(self.config.get('editor',{})),canvas=self.config.get('canvas'),presentation=self.config['presentation'],layers=deepcopy(self.config['layers']),label=label,selection=self.selected,before_selection=selection,history_scope=scope,history_target=target,**self.binding_args())
             assets=list(self.unsubmitted_assets.values())
-            if assets or self.edit_jobs or label=='Layer opacity slider':
-                sources=getattr(self,'unsubmitted_sources',{})
-                data.update(raster_assets=assets,raster_sources=list(sources.values()),raster_target=getattr(self,'raster_target',None))
-                job=self.shell.client.submit('composition',**data)
-                self.edit_jobs.append((job,[a['id'] for a in assets]+list(sources)))
-                self.unsubmitted_sources={}
-                self.unsubmitted_assets.clear();self.raster_target=None
-                self.binding=(self.binding[0],self.binding[1]+1)
-                self.populate();self.sync_controls();self.status.setText('Submitted '+label+' • awaiting owner acceptance; PNG saving is separate.')
-            else:
-                self.shell.client.request('composition',**data);self.preview_active=False
-                media=self.shell.client.snapshot['media_control'];self.binding=(media['session'],media['revision']);self.refresh(True)
+            sources=getattr(self,'unsubmitted_sources',{})
+            data.update(raster_assets=assets,raster_sources=list(sources.values()),raster_target=getattr(self,'raster_target',None))
+            job=self.shell.client.submit('composition',**data)
+            self.edit_jobs.append((job,[a['id'] for a in assets]+list(sources)))
+            self.unsubmitted_sources={}
+            self.unsubmitted_assets.clear();self.raster_target=None
+            self.binding=(self.binding[0],self.binding[1]+1);self.preview_active=False
+            try:self.populate();self.sync_controls()
+            except Exception as exc:
+                self.status.setText('Submitted '+label+'; row display needs refresh: '+str(exc));return True
+            self.status.setText('Submitted '+label+' • awaiting owner acceptance; PNG saving is separate.')
         except Exception as exc:
             from raster_resources import release
             for key in list(self.unsubmitted_assets)+list(getattr(self,'unsubmitted_sources',{})):
@@ -1539,7 +1571,7 @@ class Layers(QWidget):
         if not self.opacity_job.done():return False
         job,self.opacity_job=self.opacity_job,None
         try:
-            job.result();media=self.shell.client.snapshot['media_control'];self.binding=(media['session'],media['revision']);self.preview_active=True;return True
+            job.result();return True
         except Exception as exc:
             self.opacity_dirty=False;self.opacity_gesture=False;self.slider_before=None
             self.cancel_preview();self.refresh(True);self.status.setText('Opacity preview failed; owner state restored: '+str(exc));return True
@@ -1550,17 +1582,21 @@ class Layers(QWidget):
             if not self.opacity_dirty:return
             self.opacity_dirty=False
             data=dict(version=4,canvas=self.config.get('canvas'),presentation=self.config['presentation'],layers=deepcopy(self.config['layers']),selection=self.selected,**self.binding_args())
-            self.opacity_job=self.shell.client.edits.submit(self.shell.client.request,'composition_preview',**data)
+            self.opacity_job=self.shell.client.submit('composition_preview',**data)
+            self.binding=(self.binding[0],self.binding[1]+1);self.preview_active=True
             self.preview_timer.start(16);return
+        if not self.finish_opacity_preview():self.preview_timer.start(16);return
         try:
-            self.shell.client.request('composition_preview',version=4,canvas=self.config.get('canvas'),presentation=self.config['presentation'],layers=deepcopy(self.config['layers']),selection=self.selected,**self.binding_args());self.preview_active=True
-            media=self.shell.client.snapshot['media_control'];self.binding=(media['session'],media['revision'])
+            self.opacity_job=self.shell.client.submit('composition_preview',version=4,canvas=self.config.get('canvas'),presentation=self.config['presentation'],layers=deepcopy(self.config['layers']),selection=self.selected,**self.binding_args())
+            self.binding=(self.binding[0],self.binding[1]+1);self.preview_active=True
         except Exception as exc:self.status.setText(str(exc));self.cancel_preview()
     def cancel_preview(self):
         self.preview_timer.stop()
         if self.preview_active and self.binding:
-            self.shell.safe(lambda:self.shell.client.request('composition_cancel',media_session=self.binding[0]));self.preview_active=False
-            media=self.shell.client.snapshot['media_control'];self.binding=(media['session'],media['revision'])
+            try:
+                job=self.shell.client.submit('composition_cancel',media_session=self.binding[0])
+                self.edit_jobs.append((job,[]));self.binding=(self.binding[0],self.binding[1]+1);self.preview_active=False
+            except Exception as exc:self.status.setText('Cancel not submitted; preview retained: '+str(exc))
     def base_dimensions(self,row):
         from composition import fit_size
         meta=self.metadata(row);fw,fh=(1.,1.) if row['type']=='Group' else fit_size(self.canvas_size,(meta.get('width',1)*meta.get('pixel_aspect',1),meta.get('height',1)),row)
@@ -1642,7 +1678,7 @@ class Layers(QWidget):
             dock=self.shell.panels.get(key)
             if dock:dock.toggleView(True);dock.setAsCurrentTab()
     def add_menu(self):
-        menu=QMenu(self);menu.addAction('Media Library',lambda:self.shell.panels['media'].toggleView(True));menu.addAction('New Layer',lambda:self.blank_layer(False));menu.addAction('New Group',self.group);menu.addAction('Web Source',self.web);menu.exec(QCursor.pos())
+        menu=QMenu(self);menu.addAction('Media Library',lambda:self.shell.panels['media'].toggleView(True));menu.addAction('New Layer',lambda:self.blank_layer(root=True));menu.addAction('New Group',self.group);menu.addAction('Web Source',self.web);menu.exec(QCursor.pos())
     def duplicate(self):
         row=self.selected_row()
         if not row or not self.resolve_pending() or effective(self.config,row,'locked'):return
@@ -1733,19 +1769,16 @@ class Layers(QWidget):
         history=self.shell.client.snapshot.get('media_control',{}).get('history',{})
         state=history.get('drawing',{}).get(target,{}) if scope=='drawing' else history.get('editor',{}) if scope=='editor' else history
         if not self.edit_jobs and not state.get(key):self.status.setText('Nothing to '+key+' in '+('this layer drawing history.' if scope=='drawing' else 'editor history.' if scope=='editor' else 'Layers management history.'));return
-        if self.edit_jobs or self.runtime_assets:
-            try:
-                job=self.shell.client.submit('composition_history',redo=redo,scope=scope,target=target,media_session=self.binding[0])
-                self.edit_jobs.append((job,[]));self.await_recovery=True;self.status.setText('Applying '+key+' • '+scope+' recovery; saving continues independently.')
-            except Exception as exc:self.status.setText(str(exc))
-        else:
-            self.shell.safe(lambda:self.shell.client.request('composition_history',redo=redo,scope=scope,target=target,media_session=self.binding[0]));self.refresh(True)
+        try:
+            job=self.shell.client.submit('composition_history',redo=redo,scope=scope,target=target,media_session=self.binding[0])
+            self.edit_jobs.append((job,[]));self.await_recovery=True;self.status.setText('Applying '+key+' • '+scope+' recovery; saving continues independently.')
+        except Exception as exc:self.status.setText(str(exc))
         if self.canvas:self.canvas.update()
     def duration(self):
         row=self.selected_row();return float(self.metadata(row).get('duration',1.)) if row else 1.
     def transport(self,op,value=None):
         if not self.selected:return
-        self.shell.safe(lambda:self.shell.client.request('media_transport',layer=self.selected,op=op,value=value,media_session=self.binding[0]))
+        self.shell.safe(lambda:self.shell.client.command('media_transport',layer=self.selected,op=op,value=value,media_session=self.binding[0]))
     def media_edit(self,key,value):
         if self.syncing:return
         row=self.selected_row()
@@ -2062,8 +2095,9 @@ class Layers(QWidget):
             self.images.setdefault(asset['id'],piece)
             if self.commit('Cut own pixels to child' if remove else 'Copy own pixels to child',prior):self.canvas.discard();self.reveal();self.canvas.setFocus(Qt.OtherFocusReason)
         self.generated(piece,'Native extraction from '+parent['name'],finish,target);return True
-    def blank_layer(self,inside=False):
-        parent=self.selected_row();parent_id=parent['id'] if inside and parent else None
+    def blank_layer(self,inside=False,*,root=False):
+        if not self.resolve_pending():return False
+        parent=None if root else self.selected_row();parent_id=parent['id'] if inside and parent else None
         if parent and any(a['type']=='Group' and a['locked'] for a in ([parent] if inside else [])+ancestors(self.config,parent['id'])):self.status.setText('Unlock the protecting Group before adding inside.');return
         if inside and parent and parent['type'] not in ('Group','Image','Artwork','Paint'):self.status.setText('Choose a raster or mixed-media group parent.');return
         size=self.canvas_size;image=QImage(*size,QImage.Format_ARGB32_Premultiplied);image.fill(0)
@@ -2079,7 +2113,7 @@ class Layers(QWidget):
             if asset['id'] not in {a['id'] for a in self.config['assets']}:self.config['assets'].append(reference(asset))
             self.selected=row['id'];self.last_selection=before_selection;self.images.setdefault(asset['id'],image)
             if parent_id:self.collapsed.discard(parent_id)
-            self.commit('New Layer '+('inside row' if inside else 'above selection'),prior)
+            self.commit('New Layer '+('at top level' if root or parent is None else 'inside row' if inside else 'above selection'),prior)
         if len(self.config['layers'])>=MAX_LAYERS:self.status.setText('32-layer limit.');return
         self.generated(image,'Transparent new layer',finish,parent if inside else None)
     def snapshot_frame(self):
@@ -2118,8 +2152,8 @@ class Layers(QWidget):
             # A replacement uses a new reference and the existing management
             # transaction; old drawing/history consumers retain their pixels.
             self.drop_files([path],row['id'],'replace')
-        elif row['asset'] in known:self.shell.safe(lambda:self.shell.client.request('media_action',op='relink',asset=row['asset'],path=path))
-        else:self.shell.safe(lambda:self.shell.client.request('media_recover',asset=row['asset'],path=path))
+        elif row['asset'] in known:self.shell.safe(lambda:self.shell.client.command('media_action',op='relink',asset=row['asset'],path=path))
+        else:self.shell.safe(lambda:self.shell.client.command('media_recover',asset=row['asset'],path=path))
     def as_sprite(self):
         row=self.selected_row()
         if not row or row['type']!='Image':self.status.setText('Sprite sheets use a still image; static images are already sprites/elements.');return
@@ -2128,7 +2162,7 @@ class Layers(QWidget):
         from media_registry import normalized
         if not 1<=len(paths)<=16:self.status.setText('Drop one to sixteen local files.');return
         if policy=='replace' and len(paths)!=1:self.status.setText('Replace accepts one source; use Add for mixed files.');return
-        self.shell.safe(lambda:self.shell.client.request('media_import',paths=paths));self.drops.append(dict(paths=list(dict.fromkeys(normalized(p) for p in paths)),target=target,policy=policy,session=self.binding[0],results=[]))
+        self.shell.safe(lambda:self.shell.client.command('media_import',paths=paths));self.drops.append(dict(paths=list(dict.fromkeys(normalized(p) for p in paths)),target=target,policy=policy,session=self.binding[0],results=[]))
     def working_options(self,asset):
         dialog=QDialog(self);dialog.setWindowTitle('Artwork working pixels');form=QFormLayout(dialog);meta=asset['metadata'];form.addRow(QLabel(f"Native source: {meta['width']} × {meta['height']} px\nOriginal remains unchanged. Canvas/output are separate."));mode=QComboBox();mode.addItems(['Native (default)','Separate resized derivative']);form.addRow('Working pixels',mode);width=QSpinBox();height=QSpinBox()
         for name,widget,value in (('Width',width,meta['width']),('Height',height,meta['height'])):widget.setRange(1,8192);widget.setValue(value);widget.setEnabled(False);form.addRow(name,widget)
@@ -2390,7 +2424,10 @@ class Layers(QWidget):
             elif outcome and outcome['status']=='failed':
                 self.shell.requested_save=None;self.shell.statusBar().showMessage('Save failed; prior session and accepted content retained. Save As to recover: '+outcome['error'])
         if raster.get('failures'):self.status.routine('Accepted pixels retained, PNG not durable. Retry saving or Save As/recovery export. '+next(iter(raster['failures'].values())))
-        if self.retry_watch:
+        if self.retry_watch and self.binding and self.retry_watch['session']!=self.binding[0]:self.retry_watch=None
+        if self.retry_watch and self.retry_watch.get('queued') and self.retry_future.done() and self.retry_future.exception():
+            self.status.setText('Retry failed before completion; accepted pixels/history retained: '+str(self.retry_future.exception()));self.retry_watch=None
+        if self.retry_watch and not self.retry_watch.get('queued'):
             if self.retry_watch['session']!=self.binding[0]:self.retry_watch=None
             else:
                 pending=raster.get('pending',0);waiting=raster.get('retry_waiting',0);saves=raster.get('saves',[])

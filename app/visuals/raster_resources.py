@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, CancelledError
 from copy import deepcopy
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
-import hashlib,json,os,time,uuid,mmap
+import hashlib,json,os,time,uuid,mmap,threading
 
 MAX_BYTES=384*1024*1024
 MAX_MAPPING_BYTES=512*1024*1024
@@ -113,6 +113,7 @@ class Resources:
     def __init__(self,folder=None):
         self.folder=Path(folder or os.environ.get('ZERAWAVE_ARTWORK_STORE') or Path(__file__).resolve().parents[2]/'work/studio/artwork')
         self.rows={};self.leases={};self.jobs={};self.failures={};self.saves={};self.save_jobs={};self.save_pins={}
+        self.staging={};self.staging_lock=threading.Lock();self.staging_peak_bytes=0
         self.pool=ThreadPoolExecutor(max_workers=1,thread_name_prefix='Owner PNG persistence')
         self.save_pool=ThreadPoolExecutor(max_workers=1,thread_name_prefix='Revision-pinned session save')
         self.barrier=None # controlled fixture hook; never set by production
@@ -208,8 +209,8 @@ class Resources:
         import threading
         from artwork_store import get_store,check_cancel
         cancel=threading.Event();self.write_cancels[identity]=cancel
-        store_ref=[]
-        def write():
+        store_ref=[];job_identity=uuid.uuid4().hex
+        def write_payload():
             started=time.perf_counter()
             while self.barrier is not None and not self.barrier.wait(.02):check_cancel(cancel)
             barrier=os.environ.get('ZERAWAVE_RASTER_TEST_BARRIER')
@@ -220,10 +221,20 @@ class Resources:
             if failure and Path(failure).exists():raise OSError('Injected isolated PNG write failure')
             from artwork import encode_image
             store=get_store(Path(row['path']).parent);store_ref.append(store)
-            materialized=time.perf_counter();pixels=image(row['runtime'],native=False,lease=reader);data=encode_image(pixels)
+            materialized=time.perf_counter();pixels=image(row['runtime'],native=False,lease=reader)
+            pixels_ready=time.perf_counter()
+            with self.staging_lock:self.staging[job_identity]=dict(id='png-materialize:'+job_identity,resource_id=identity,phase='encoding',owned_image_bytes=pixels.sizeInBytes(),owned_encoded_bytes=0,encoder_workspace_bytes=None)
+            data=encode_image(pixels)
+            with self.staging_lock:
+                self.staging[job_identity].update(phase='writing',owned_encoded_bytes=len(data))
+                self.staging_peak_bytes=max(self.staging_peak_bytes,sum(r['owned_image_bytes']+r['owned_encoded_bytes'] for r in self.staging.values()))
             encoded=time.perf_counter();check_cancel(cancel)
             created=store.write(row['path'],data,kind='working',cancel=cancel)
-            return dict(path=row['path'],bytes=len(data),sha256=hashlib.sha256(data).hexdigest(),finished=time.perf_counter(),created=created,queue_ms=(materialized-started)*1000,encode_ms=(encoded-materialized)*1000,write_ms=(time.perf_counter()-encoded)*1000)
+            return dict(path=row['path'],bytes=len(data),sha256=hashlib.sha256(data).hexdigest(),finished=time.perf_counter(),created=created,queue_ms=(materialized-started)*1000,materialize_ms=(pixels_ready-materialized)*1000,png_encode_ms=(encoded-pixels_ready)*1000,encode_ms=(encoded-materialized)*1000,write_ms=(time.perf_counter()-encoded)*1000)
+        def write():
+            try:return write_payload()
+            finally:
+                with self.staging_lock:self.staging.pop(job_identity,None)
         self.jobs[identity]=self.pool.submit(write);self.jobs[identity].store_ref=store_ref
         self.rows[identity].update(durability='pending',error='')
         return True
@@ -411,11 +422,48 @@ class Resources:
     def history_bytes(self,ids,sizes):
         from raster_tiles import unique_bytes
         return sum(self.usage(ids).values())+sum(sizes.get(k,0) for k in ids if k not in self.rows)
+    def projection_token(self):
+        """Bounded metadata changes only; no tile validation, pixel reads or I/O."""
+        with self.staging_lock:staging_token=tuple((k,r['phase'],r['owned_image_bytes'],r['owned_encoded_bytes']) for k,r in self.staging.items())
+        return (tuple((k,r['durability'],r.get('retired'),r.get('error')) for k,r in self.rows.items()),
+            tuple((k,j.done()) for k,j in self.jobs.items()),tuple(sorted(self.retry_queue)),
+            tuple((k,v['status'],v.get('error')) for k,v in self.saves.items()),
+            tuple((k,tuple(sorted(v))) for k,v in self.save_pins.items()),
+            tuple(self.cleanup_failures.items()),tuple(self.lease_cleanup_failures.items()),len(self.mapping_pool.rows),str(self.folder),staging_token)
+    def ownership(self,document,history,publication):
+        """Projection of existing ownership. Aliases are references, not bytes."""
+        aliases={};resources=[]
+        for key,row in self.rows.items():
+            allocation=self.allocations.get(key,{})
+            for name,size in allocation.items():
+                item=aliases.setdefault(name,dict(id=name,bytes=size,resources=[],references=0))
+                item['references']+=1
+                if len(item['resources'])<8:item['resources'].append(key)
+            resources.append(dict(id=key,logical_version=key,generation=row.get('runtime',{}).get('generation'),logical_bytes=row['runtime']['bytes'],source_snapshot=bool(row.get('source_snapshot')),
+                allocations=len(allocation),document=key in document,history=key in history,
+                saves=[sid for sid,pins in self.save_pins.items() if key in pins],
+                publications=[revision for revision,pins in publication.items() if key in pins],
+                job=key in self.jobs and not self.jobs[key].done(),retiring=bool(row.get('retired')),durability=row['durability']))
+        # Cap only the displayed detail; totals cover the entire component.
+        visible=list(aliases.values())[:512]
+        return dict(persistence_staging=self.persistence_staging(),resources=resources,allocations=visible,allocation_count=len(aliases),allocation_detail_limit=512,
+            detail_truncated=len(aliases)>512,unique_allocation_bytes=sum(a['bytes'] for a in aliases.values()),
+            alias_references=sum(a['references'] for a in aliases.values()),allocation_reference_detail_limit=8,
+            alias_detail_truncated=any(a['references']>len(a['resources']) for a in aliases.values()),
+            mapping_handles=len(self.mapping_pool.rows),mapping_note='Shared mappings reference allocations; not additional physical RAM.',
+            reader_note='Owner leases and jobs shown. Renderer pins await acknowledgement; external reader counts unavailable.',
+            scope_note='Owner raster allocations only; Qt producers, media allocations, renderer GPU allocations and physical RAM are separate.',
+            cleanup_failures=dict(list(self.cleanup_failures.items())[-16:]),lease_cleanup_failures=dict(self.lease_cleanup_failures))
+    def persistence_staging(self):
+        with self.staging_lock:
+            rows=deepcopy(list(self.staging.values()))
+            return dict(allocations=rows,owned_bytes=sum(r['owned_image_bytes']+r['owned_encoded_bytes'] for r in rows),peak_observed_bytes=self.staging_peak_bytes,encoder_workspace_bytes=None,
+                accounting='Distinct worker-owned images/encoded blobs. Encoder scratch, allocator/RSS and save-worker temporaries are unavailable, not zero; mappings alias separate owner tiles.')
     def state(self):
         from native_raster import backend
         from raster_tiles import unique_bytes,mapping_bytes
         selection=backend();native=selection.core.stats() if selection.core else {}
-        return dict(mapping_bytes=sum(((size+mmap.PAGESIZE-1)//mmap.PAGESIZE)*mmap.PAGESIZE for size in self.usage().values()),mapping_limit=MAX_MAPPING_BYTES,resource_count=len(self.rows),resource_limit=MAX_RESOURCES,backend=selection.status(),native=native,logical_bytes=sum(r['runtime']['bytes'] for r in self.rows.values()),bytes=sum(self.usage().values()),limit=MAX_BYTES,job_limit=MAX_JOBS,queued_bytes=sum(self.usage(k for k,j in self.jobs.items() if not j.done()).values()),queue_byte_limit=MAX_JOB_BYTES,pending=sum(not j.done() for j in self.jobs.values()),retry_waiting=len(self.retry_queue),retained_checkpoints=len(self.save_pins),failures=deepcopy(self.failures),owner_mapping_handles=len(self.mapping_pool.rows),working_store=str(self.folder),stores={path:store.state() for path,store in self.stores.items()},store_errors=dict(self.store_errors),lease_cleanup_failures=dict(self.lease_cleanup_failures),cleanup_failure_count=len(self.cleanup_failures),cleanup_failures=dict(list(self.cleanup_failures.items())[-16:]),resources={k:r['durability'] for k,r in self.rows.items()},saves=[{k:v for k,v in out.items() if k not in ('values','saved_values','drafts')} for out in self.saves.values()])
+        return dict(persistence_staging=self.persistence_staging(),mapping_bytes=sum(((size+mmap.PAGESIZE-1)//mmap.PAGESIZE)*mmap.PAGESIZE for size in self.usage().values()),mapping_limit=MAX_MAPPING_BYTES,resource_count=len(self.rows),resource_limit=MAX_RESOURCES,backend=selection.status(),native=native,logical_bytes=sum(r['runtime']['bytes'] for r in self.rows.values()),bytes=sum(self.usage().values()),limit=MAX_BYTES,job_limit=MAX_JOBS,queued_bytes=sum(self.usage(k for k,j in self.jobs.items() if not j.done()).values()),queue_byte_limit=MAX_JOB_BYTES,pending=sum(not j.done() for j in self.jobs.values()),retry_waiting=len(self.retry_queue),retained_checkpoints=len(self.save_pins),failures=deepcopy(self.failures),owner_mapping_handles=len(self.mapping_pool.rows),working_store=str(self.folder),stores={path:store.state() for path,store in self.stores.items()},store_errors=dict(self.store_errors),lease_cleanup_failures=dict(self.lease_cleanup_failures),cleanup_failure_count=len(self.cleanup_failures),cleanup_failures=dict(list(self.cleanup_failures.items())[-16:]),resources={k:r['durability'] for k,r in self.rows.items()},saves=[{k:v for k,v in out.items() if k not in ('values','saved_values','drafts')} for out in self.saves.values()])
     def close(self,discard=False,protected_paths=()):
         deadline=time.perf_counter()+5
         while not self.prepare_close(discard):

@@ -104,8 +104,15 @@ def load_model(path,cancel=None):
                 normals=accessor(attrs['NORMAL']).astype('f4') if 'NORMAL' in attrs else np.zeros_like(positions)
                 if 'NORMAL' in attrs:normals=normals@np.linalg.inv(m[:3,:3])
                 else:
-                    for triangle in indices.reshape(-1,3):
-                        a,b,c=positions[triangle];normal=np.cross(b-a,c-a);normals[triangle]+=normal
+                    # Native NumPy batches preserve triangle accumulation order.
+                    # Keep scratch and cancellation latency bounded rather than
+                    # visiting each face through Python or changing the mesh.
+                    triangles=indices.reshape(-1,3)
+                    for begin in range(0,len(triangles),4096):
+                        if cancel is not None and cancel.is_set():raise InterruptedError('Model load cancelled.')
+                        batch=triangles[begin:begin+4096];points=positions[batch]
+                        faces=np.cross(points[:,1]-points[:,0],points[:,2]-points[:,0])
+                        np.add.at(normals,batch.reshape(-1),np.repeat(faces,3,axis=0))
                 normals/=np.maximum(np.linalg.norm(normals,axis=1,keepdims=True),1e-9);uv=accessor(attrs['TEXCOORD_0']).astype('f4') if 'TEXCOORD_0' in attrs else np.zeros((len(positions),2),'f4')
                 if normals.shape!=positions.shape or uv.shape!=(len(positions),2):raise ValueError('Model normal/UV accessor dimensions do not match geometry.')
                 material=document.get('materials',[])[primitive['material']] if 'material' in primitive else {};pbr=material.get('pbrMetallicRoughness',{})

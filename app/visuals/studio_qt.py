@@ -102,8 +102,9 @@ class Numeric(QWidget):
         if self.valid():self.spin.setValue(value)
     def edit(self,value):
         if not self.valid():return
-        self.shell.safe(lambda:self.shell.client.request('tune',key=self.key,value=value,binding=[list(self.binding[0]),self.binding[1]],preview_run=self.destination[0],destination_revision=self.destination[1]));self.sync()
+        self.pending=self.shell.safe(lambda:self.shell.client.command('tune',key=self.key,value=value,binding=[list(self.binding[0]),self.binding[1]],preview_run=self.destination[0],destination_revision=self.destination[1]))
     def sync(self):
+        if getattr(self,'pending',None) is not None and not self.pending.done():return
         value=self.view.vars[self.key].get()
         for widget in (self.spin,self.dial,self.slider):widget.blockSignals(True)
         self.spin.setValue(value);tick=round((value-self.low)/self.step)
@@ -178,7 +179,7 @@ class Shell(QMainWindow):
             self.boot_title.setText(str(exc)+'\nSee work/studio/qt-startup.log');self.boot_retry.show();traceback.print_exception(exc);return
         self.boot_timer.stop();self.finish_owner()
     def finish_owner(self):
-        self.owner=OwnerView(self.client);self.disconnect_reported=False;self.owner_error_seen=None
+        self.client.gui_thread=__import__('threading').get_ident();self.command_callbacks={};self.owner=OwnerView(self.client);self.disconnect_reported=False;self.owner_error_seen=None
         global STUDIO_TREES,SOURCES
         STUDIO_TREES=self.client.snapshot['catalog'];SOURCES=self.client.snapshot['sources']
         self.view=self.owner.star_tuning_window
@@ -350,7 +351,7 @@ class Shell(QMainWindow):
         file=bar.addMenu('&File');file.addAction('Open session…',lambda:self.safe(self.open_session))
         file.addAction('Save session…',lambda:self.safe(self.save_session));file.addAction('Import media…',self.import_media);file.addSeparator();file.addAction('Exit',self.close)
         edit=bar.addMenu('&Edit');edit.addAction('Reset selected color target',lambda:self.safe(self.owner.color_editor.reset_target))
-        edit.addAction('Restore saved tuning draft at selected destination',lambda:self.safe(lambda:self.client.request('restore_draft',binding=self.view.binding())))
+        edit.addAction('Restore saved tuning draft at selected destination',lambda:self.safe(lambda:self.client.command('restore_draft',binding=self.view.binding())))
         view=bar.addMenu('&View')
         for dock in self.panels.values():view.addAction(dock.toggleViewAction())
         view.addSeparator();view.addAction('Reset Layout',self.reset_layout);view.addAction('Recover floating panels',self.recover)
@@ -430,6 +431,19 @@ class Shell(QMainWindow):
     def safe(self,callback):
         try:return callback()
         except Exception as exc:self.error(exc,exc.__traceback__)
+    def defer(self,action,on_done=None,replacement=False,**data):
+        future=self.client.command(action,**data)
+        if on_done:self.command_callbacks[future]=(on_done,replacement,self.client.snapshot.get('media_control',{}).get('session'))
+        return future
+    def finish_commands(self):
+        for future,session in self.client.ready_completions():
+            callback=self.command_callbacks.pop(future,None)
+            current=self.client.snapshot.get('media_control',{}).get('session')
+            try:
+                result=future.result()  # ready only; never waits
+                if callback and (callback[1] or callback[2]==current) and not self.closing:callback[0](result)
+            except Exception as exc:
+                if session==current:self.error(exc,exc.__traceback__)
     def error(self,exc,tb=None):
         text=''.join(traceback.format_exception(type(exc),exc,tb));self.errors.append(text)
         path=ROOT/'work/studio/qt-errors.log'
@@ -462,7 +476,7 @@ class Shell(QMainWindow):
             self.pending_operation=(action,data)
             return
         if action=='load_leaf':data['preview_run']=self.client.snapshot.get('preview_run')
-        self.operation=self.operations.submit(self.client.request,action,**data)
+        self.operation=self.client.submit(action,**data)
         if action in ('start','load_leaf') and not self.client.snapshot.get('running'):
             self.starting=True;self.progress_title.setText('Connecting to preview owner…');self.progress_bar.show();self.cancel_button.show();self.retry_button.hide()
     def cancel_preview(self):
@@ -472,7 +486,7 @@ class Shell(QMainWindow):
     def choose_track(self):self.import_audio()
     def audio_action(self,op,**values):
         if not self.client:return
-        self.safe(lambda:self.client.request('audio_transport',op=op,values=values))
+        self.safe(lambda:self.client.command('audio_transport',op=op,values=values))
         if op in ('source','device','open') and 'waveform' in self.panels:
             self.panels['waveform'].toggleView(True);self.panels['waveform'].setAsCurrentTab()
     def import_audio(self):
@@ -587,8 +601,7 @@ class Shell(QMainWindow):
         if not self.image_editor.resolve_pending():return
         path,_=QFileDialog.getOpenFileName(self,'Open artistic session',str(ROOT/'work/studio'),'Session (*.json)')
         if path:
-            self.client.request('load',path=path)
-            self.refresh_colors()
+            self.defer('load',on_done=lambda value:self.refresh_colors(),replacement=True,path=path)
     def import_media(self):
         self.panels['media'].toggleView(True);self.panels['media'].setAsCurrentTab();self.media_library.import_files()
     def save_session(self):
@@ -599,7 +612,7 @@ class Shell(QMainWindow):
             import uuid
             key=uuid.uuid4().hex
             requested=json.dumps(self.owner.values(),sort_keys=True)
-            self.client.request('save',path=path,save_id=key)
+            self.defer('save',path=path,save_id=key)
             self.requested_save=(key,requested)
             self.statusBar().showMessage('Saving pinned document revision; newer edits remain separate.')
     def start(self):
@@ -675,6 +688,10 @@ class Shell(QMainWindow):
     def range_edit(self,name,value):self.safe(lambda:self.view.range_vars[name].set(value))
     def poll(self):
         if self.closing:return
+        self.finish_commands()
+        if self.client.sections.owner and not self.client.sections.valid:
+            self.statusBar().showMessage('Owner state resynchronizing; last coherent artwork retained. Editing resumes after full state arrives.')
+            return
         if self.operation and self.operation.done():
             future=self.operation;self.operation=None
             try:future.result();self.refresh_colors()
@@ -689,7 +706,7 @@ class Shell(QMainWindow):
         if self.client.disconnected:
             if getattr(self,'close_request',None):return
             if not self.disconnect_reported:
-                self.disconnect_reported=True;self.client.job.close();self.error(RuntimeError('Control owner disconnected. Last received settings remain available through File > Save session. Reopen Studio to recover the connection.'))
+                self.disconnect_reported=True;self.error(RuntimeError('Control connection unavailable; submitted outcomes are unknown. This instance cannot save an authoritative revision. Keep it open: a live owner and accepted work are retained; diagnostics: '+str(self.client.log_path)))
                 self.save_authored.setEnabled(False)
                 for widget in self.numerics:widget.setEnabled(False)
             return
@@ -717,7 +734,7 @@ class Shell(QMainWindow):
                     self.container.winId()  # Materialize Qt's native parent while still hidden.
             if running and self.native and not self.cancel_attach and getattr(self,'attach_requested_run',None)!=run:
                 if self.align_native():
-                    self.attach_requested_run=run;self.attach_future=self.operations.submit(self.client.request,'attach',preview_run=run)
+                    self.attach_requested_run=run;self.attach_future=self.client.submit('attach',preview_run=run)
             if running and self.native and self.owner.preview_state.get('ready') and not self.cancel_attach:
                 self.placeholder.hide()
                 self.container.show();self.starting=False;self.active_run=run
@@ -946,7 +963,7 @@ class Shell(QMainWindow):
         if not request:return
         if request['phase']=='save':
             key=request['save_id']
-            self.operations.submit(lambda:self.client.request('cancel_save',save_id=key))
+            self.client.command('cancel_save',save_id=key)
             request.update(phase='cancelling',wait_started=time.perf_counter());self.close_progress.setLabelText('Cancelling requested save; waiting for its reader to release…')
             return
         if request['phase']=='image_save':
@@ -960,6 +977,9 @@ class Shell(QMainWindow):
         if not request:return
         phase=request['phase'];raster=self.client.snapshot.get('media_control',{}).get('raster',{})
         if phase=='reconcile':
+            if self.client.sections.owner and not self.client.sections.valid:
+                if time.perf_counter()-request['started']>15:self.finish_close_request('Owner state is still resynchronizing; editor remains open with accepted work retained.')
+                return
             if time.perf_counter()-request['started']>15:
                 self.finish_close_request('Close could not resolve submitted edits within 15 seconds. Editor remains open; uncertain snapshots retained. Cancel/recovery has not discarded them.');return
             if self.image_editor.edit_jobs or self.image_editor.art_jobs or self.client.edit_count or self.operation or getattr(self,'attach_future',None):return
@@ -1007,7 +1027,7 @@ class Shell(QMainWindow):
             self.close_progress.setCancelButton(None)
             self.close_progress.setLabelText('Closing: waiting for writes and readers to finish…')
             mode='discard' if request['discard'] else 'clean'
-            request.update(phase='owner',future=self.operations.submit(lambda:self.client.request('close',mode=mode)))
+            request.update(phase='owner',future=self.client.submit('close',mode=mode))
         elif phase=='owner':
             future=request['future']
             if future.done():
