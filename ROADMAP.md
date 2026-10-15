@@ -1,6 +1,78 @@
 # ZeraWave development plan
 
+## October 15 editor foundation checkpoint and current overhaul
+
+Robert authorized a scoped commit, normal GitHub push and Pages reconciliation.
+This checkpoint publishes the existing A-F editor foundation and shared guidance,
+not the newly assigned product-quality overhaul. The retained independent F and
+connected A-F verdicts are 9.0/10 for their recorded scopes; publication is not
+acceptance of the new workspace, responsiveness or performance requirements.
+The reviewed source/native identity is
+`6dcc71cd907c24cde171e8a9dc7cd8550c9c9877ea0f1db889efc905cbfabccc`.
+The [publication receipt](work/publication-editor-foundation-20261015-1792059595189235700/review-index.json) records the resulting commit and remote verification.
+
+Robert has separately assigned the existing Builder a substantial editor overhaul:
+independent Qt/ADS workspace panels, unified Library/timeline editing, everyday
+owner-model/UI/API tools, inspector/keyframes/transitions/mixer, autosave/schema
+recovery, and measured playback/export improvements. These are approved work,
+not completed capabilities. Preserve the existing renderer, one document owner,
+accepted edits, original media, saved projects and unrelated work.
+
+This current assignment supersedes older handoff-only, pre-implementation and
+no-further-Computer-Use wording below within its explicit scope. Necessary Computer
+Use is preapproved for owned disposable tests in an available desktop/device window;
+close owned test windows promptly, stop on Escape/user activity/unsafe pressure,
+and do not resume an interrupted desktop without authorization. It does not permit
+new Upgrade+ production, narration, full-episode exports, repeated long playback,
+installations, extra workers or unrelated expansion. Existing Builder/Reviewer
+stage gates continue; prior scores do not satisfy the new gates. Robert's final
+hands-on product acceptance remains separate. Publication dispatches no work.
+
+Retain the earlier preview tails up to 1.33 s, unverified correlated audible-clock/
+scanout and broad device/format/capacity/multi-hour coverage, and historical B3
+stall/fallback/physical-interaction limits. Session and still saving and project
+Export Video are implemented; the distinct legacy moving-video Save writer remains
+OPEN. Capacity/storage work, separate image follow-ups and chroma key remain separate.
+
+The current overhaul follows these dependency stages in this sole plan:
+
+| Stage | Assigned work, not a completion claim |
+| --- | --- |
+| 0 | Recoverable baseline, gap inventory and short-fixture measurement protocol |
+| 1 | Independent workspace, transport/ruler and Source/Project Preview distinction |
+| 2 | Library placement; selection, trim, clipboard, tracks, links and ripple workflows |
+| 3 | Inspector/direct transforms, keyframes, transitions, mixer and text tools |
+| 4 | Autosave/schema compatibility, save/recovery and export controls/ranges |
+| 5 | Measured playback, scrubbing, 500-clip scaling and export corrections |
+| 6 | Integrated user journeys and independent product-quality review |
+
+Use the approved deterministic 30-second 1920x1080/30 FPS fixture with compressed
+sources, three overlapping video tracks, separate audio roles, text, automation,
+transitions and sync markers; add rational-rate boundaries and the separate
+500-clips/12-tracks interaction fixture. Normally use three short matched repeats
+and one bounded approximately five-minute stability exercise, not production renders.
+On the declared Full-quality workload: visible editing feedback p95 <=100 ms;
+warm scrubbing p95 <=150 ms; settled warm seek <=250 ms; sustained 1080p30 preview
+with <1% dropped frames; A/V offset within one project frame without drift; no
+routine main-thread stalls >250 ms. Record cold/warm conditions, input/acceptance/
+visible presentation separately, failed/unrun gates and resource retirement.
+Prior coarse status or callback/swap return does not establish these results.
+
+Each stage requires the existing Reviewer's explicit source-bound >=9/10 pass.
+Final workflow usability, visual clarity, editing correctness, performance,
+persistence/recovery and integration each require >=9/10. Failed or unverified
+required performance gates, data loss, wrong export, desynchronized links or unusable
+core actions block final acceptance regardless of score. Do not lower quality or
+weaken criteria to claim a pass. The full owner-approved October 15 Builder brief
+remains the execution specification; this summary creates no competing plan.
+
+
 ## October 13 selective-migration publication checkpoint
+
+Published commit: `3ca315d0314cb8ca088be560f56c75bca34acd19`. Robert's acceptance
+was at 00:56 UTC October 14; Overseer's receipt verifies normal push, GitHub main
+and Pages. Shared-guide publication ownership is released; this pass updates only
+next-stage documentation without staging, commit/push or implementation dispatch.
 
 Robert authorized publication of the consolidated existing-functionality candidate
 and its earlier control-boundary/Layers dependencies. The reviewed source/native
@@ -16,10 +88,13 @@ not task-time reports or their failures. Ordinary physical OLE drag acceptance,
 listening/audible device clock/scanout/multi-hour coverage, the exact historical
 fallback timeout and cold/complex CPU/high-rate media tails remain limited or
 unverified. Passing repeats do not repair the historical intermittent failure.
-Session/current-frame still saving works; moving-video Save remains OPEN.
+Session/current-frame still saving works. The migration-time legacy video-layer
+Save proposal is distinct from the implemented project Export Video in the
+uncommitted editor candidate.
 Separate capacity/storage commitments and future image/editor/export requirements
-remain outside this migration. Next-stage wording/review-route reconciliation is
-separate; this publication dispatches no Builder/Reviewer or implementation.
+remain outside this migration. The editor candidate is implemented and independently
+reviewed; the current capability-first handoff and retained limits below supersede earlier next-stage
+wording. Publication/documentation dispatch no Builder/Reviewer or implementation.
 
 
 ## October 11 accepted B3 development checkpoint
@@ -48,7 +123,7 @@ Capacity Passes 2–4, higher counts and storage-location/relocation
 remain separate commitments. No next-stage dispatch, install or release build.
 
 
-Updated: 2026-10-11 (completed external audit and final owner sequence reconciled; documentation only).
+Updated: 2026-10-14 (capability-first handoff; implemented/reviewed editor, owner acceptance separate).
 This is the sole prioritized plan. The user's latest assignment sets scope;
 code establishes implementation and user review establishes artistic acceptance.
 Historical plans remain in [history](docs/history/README.md). The accepted visual
@@ -106,59 +181,111 @@ Fresh checkouts can use the B1 fallback or build the optional native backend.
 The [preserved whole-product audit](<C:/Users/Sweet/AppData/Local/Temp/zerawave-audit-20261012-15a980c/full-report.md>) is complete, including its
 freeze/render-in-place addendum and final sequence annotation. It is supporting
 evidence outside the repository, not a second plan. The report labels its audit
-October 12; this reconciliation uses the client date October 11 and does not
-redate its historical findings. Delivered Library copy: `libfile_76159998d03081919b228c110eb33bb5`.
+October 12; retain its historical date/findings through the October 14
+next-stage reconciliation. Delivered Library copy: `libfile_76159998d03081919b228c110eb33bb5`.
 Audit SHA256: `5571260b0a11cc17d0262cf051c48d6483412ec7c6336c2d337166ab1e1024b9`.
 
-1. **Architecture/migration audit — complete.** It covers worlds, Visualizer,
-   audio, Studio and older systems, with Python/C++/GPU dispositions.
-2. **Existing-functionality migration, focused cleanup and measured performance
-   validation only.** Select bounded candidates through the manual approval route;
-   this is not authority for every proposed migration or a deletion campaign.
-3. **Separate small image follow-up:** merge-selected and sampler-local
-   sampled-background color removal. These are planned additions, not existing
-   controls or part of migration. Prepare their own scope and acceptance checks.
-4. **Separate editor requirements/workflow research:** official Premiere, Final
-   Cut and Resolve documentation, then independent gap review for a usable
-   foundation that fits current Studio. This research has not been performed here.
-5. **Approve the resulting multitrack brief before editor expansion implementation.**
+1. **Audit and agreed selective migration - complete, accepted and published.**
+   `3ca315d0314cb8ca088be560f56c75bca34acd19` contains all 12 implementations
+   or measured retention decisions and earlier control-boundary/Layers dependencies.
+2. **Existing video-editor capability stage - implemented/reviewed, uncommitted.**
+   The existing Reviewer records F9.0 and connected A–F9.0 PASS for Robert handoff.
+   Current direction is capability-first and bounded-cost; final Robert acceptance
+   and publication remain separate, with no further heavy validation dispatched.
+3. **Separate additions remain accounted for.** Merge-selected and sampler-local
+   sampled-background removal are not completed by migration or silently included
+   here. Chroma key follows the working editor. Do not guess the unidentified extra.
 
-B3's accepted candidate does not establish blanket closure. Video Save writing
-remains OPEN; timing is PARTIAL, the intermittent fallback timeout is unresolved,
-physical-interaction gaps and unrun qualification remain. A passing repeat does
-not repair that intermittent failure. None creates a blanket B3-closure gate
-before existing-functionality migration. Session and still/current-frame saving
-work and remain distinct from moving-video saving.
+Robert's October 14 direction selects the existing editor stage now. The earlier
+small-image-first/research-before-brief sequence is historical. Official editor
+references and gap checks can inform implementation without repeating the completed
+audit or inventing approval gates for already assigned work. Unrun research is not
+claimed completed. Capacity/storage and other expansion remain separate.
 
-### Next scoped candidate — existing Studio control/resource boundary
+<a id="existing-video-editor-stage---upgrade-end-to-end-workflow"></a>
 
-Remove remaining synchronous ACK waits from Qt input callbacks; retain ordered
-completed edits and unknown-outcome reconciliation without duplicate history or
-pixels. Use revisioned state projections and expose existing allocations,
-aliases, pins, staging and retiring resources accurately. This is scoped next
-work awaiting its coherent approved Builder brief, not implemented by this pass
-or expanded to all audit stages, a C++ document model or new editor contracts.
+### Existing video-editor stage - capability-first handoff
 
-Keep Qt/Python authoring, document policy and orchestration. Selectively migrate
-measured CPU kernels or deadline-sensitive servicing to substantial, batched C++
-boundaries; do not add speculative wrappers or merge native DLLs for tidiness.
-Keep GPU rendering/composition and GL creation/upload/release with their context
-owners, CPU/Qt correctness references and explicit fallbacks. Preserve docking,
-tabs, tools/colors/locks/selection, artistic behavior, original pixels and source
-clocks, accepted edits, save/reopen and normal close. No wholesale C++ rewrite,
-engine/API replacement, raised capacity limits or automatic quality reduction.
+The agreed capabilities are implemented in the existing Studio's uncommitted
+candidate; legacy layer sessions/silent media and the project editor remain
+distinct modes. UI/API/CLI share project authority, validation, revisions,
+idempotent commands, history and persistence. The existing final Reviewer gives
+F9.0 and whole connected A–F9.0 PASS for source-bound Robert handoff, not final user
+acceptance or universal device/performance qualification.
 
-Bind the then-current dirty source, binaries/ABI, input/settings and task-only
-rollback before coding. Use hypothesis-led bounded checks: pixel/semantic parity;
-input/ACK/projection latency tails and resource accounting; delayed/lost ACKs,
-retries, failures, replacement and normal-close cleanup; secure accepted unsaved
-work and restore only task changes. Retain the owner/client route and process-fixed
-fallback. Include real pointer/keyboard and visible canvas/output where relevant;
-scripted/paint/swap evidence is not physical response or listening acceptance.
-Define affected workload criteria before comparisons, retain failed/unrun cases,
-and stop on parity loss or unsupported gains. Approximately 30 FPS is a reference,
-not proof of responsiveness or universal acceptance. No benchmark campaign or
-new performance claim is authorized by this reconciliation.
+Robert clarified: the outcome is an editor **capable of** the episode workflow,
+not a further Upgrade+ video-production deliverable. Capability handoff covers
+bin/import/missing/relink/portable references; multitrack trim/split/move/link/seek;
+separate source/narration/music/sting controls; editable captions/styles/titles/
+graphics; faithful Save/reopen and frozen-revision H264/AAC Export Video with
+progress/cancel/failure/prior-output protection. No essential missing assigned
+core function was identified by final review; retain real limits below.
+Stop further full-episode renders, long playback repeats or resource-heavy F
+validation. Existing completed evidence can demonstrate the capabilities; no more
+Computer Use or resumption after Escape. Preserve approved sources/masters and
+current Python/Pillow/FFmpeg production; references authorize no new dependencies.
+
+| Internal increment | Required connected result |
+| --- | --- |
+| Project, bin and API | Versioned stable project/source/track/clip/text IDs; scoped media bin, source links, relative/external paths, missing-media placeholders and deliberate relinking. Documented local Python/API or CLI and UI share one model, validation, revisions, idempotent commands, Undo/Redo and persistence. |
+| Multitrack editing and preview | Trim/split/move/remove, precise targeting/placement, zoom/scroll, playhead and Undo/Redo. Explicit project/source/frame/sample time, CFR/VFR mapping, overlaps/gaps and bounded active decoders. Preview/export share evaluator; preserve legacy live clocks. |
+| Mixer | Separate source-game audio, narration, music and required sting; linked/unlinked alignment, gain/mute, fades and editable ducking/envelopes via UI/API. One device-output owner, sample/channel correctness, safe seek/pause/stop and truthful audible-clock limits. |
+| Captions, titles and graphics | Editable text/timing/style and required images/cards/timed overlays. Preserve provenance, aspect/alpha/stacking and existing spatial tools; flat artwork does not imply hidden editable layers. No transcription. |
+| Persistence and export | Revision-pinned project Save/Save As/dependencies, old-session compatibility and exact reopen. Real video/audio export from the same frozen-revision evaluator; initially production MP4/H.264/AAC after installed-codec verification. Bounded jobs, protected prior output, cancel/failure/retry and durable completion. |
+| Capability integration and qualification (F) | Shared-command assembly, Qt level/trim/move/caption changes, exact Undo/Redo and portable save/reopen/export capability are implemented and reviewed. Completed full-episode work is retained historical evidence, not a requirement for another render or playback repeat. Keep physical/listening/automated evidence and unqualified limits distinct. |
+
+Historical validation fixture (already completed, not a new production deliverable).
+Retain production references: `E:\UpgradePlusGaming\scripts\episode04\render-review-candidate-v7.py`
+and `mix-review-audio-v7.py`; the measured edit manifest, SRT, footage/claim-shot
+ledgers, narration sections/index and card manifest. The inspected Episode04 edit
+manifest describes 392.7 seconds, 11,781 frames at 1280x720/30 FPS, 22 timeline rows,
+50 shots and 102 caption cues. Bind current inputs/hashes and copy/remap into a
+protected test workspace. Preserve masters, sources, thumbnails, release packages
+and upload/schedule records. A baked MP4 is not an editable episode. Missing complete
+speech is an input limitation; silence padding cannot recover words or authorize
+voice regeneration.
+
+### Editor review progression and final completion
+
+Use the exact existing Builder/Reviewer IDs and reciprocal message route in
+[AGENTS section 13](AGENTS.md#existing-editor-stage---october-14-review-and-message-route).
+Bob the Reviewer independently checks bound source/diff, actual checks and evidence
+for each increment; sends actionable findings to Builder; and reviews fixes until
+at least 9/10/pass. Reviewer sends the explicit source-bound pass to Builder, which
+resumes Builder automatically on the next agreed increment without Robert's repeated
+hands-on approval. A message receipt is not a pass. Missing transport/evidence is a
+concrete reported blocker, never silent progression or a replacement Reviewer.
+Escalate actual scope/permission/dependency/decision conflicts and review disputes.
+
+The earlier increment gate has been met by the existing final written verdict:
+[F9.0 and connected A–F9.0 PASS](work/reviewer-increment-F-final-20261014-01/REVIEW.md),
+source/native `6dcc71cd907c24cde171e8a9dc7cd8550c9c9877ea0f1db889efc905cbfabccc`,
+[sealed packet](work/video-editor-20261013-1791942063889153000/increment-F/candidate-1792030261524848600/RECEIPT.json).
+The already completed full export/software decode/comparisons predate the latest
+capability-first correction. Preserve them and the actual technical scores;
+do not label F unscored or invent Robert's final acceptance. The loop is complete
+for handoff, not authority for more implementation, review repetitions or publication.
+
+Provide a bounded capability/usage/API handoff and the existing exact project,
+artifacts, source/binary/input identities, task-only diff, rollback and limitations.
+No extra Upgrade+ deliverable or complete render/playback repeat is required.
+Reuse bound evidence for UI/API conflicts, history/idempotency, source replacement,
+timing/audio/text, failure/cancel/pressure and retirement. Preserve unrun validation
+as unrun. Coarse preview tails reach 1.33 seconds; audible-position/scanout correlation,
+independent per-word transcription, all-format/capacity/HDR/multi-hour/coexistence
+qualification remain limited. Owner's earlier "was fine" is scoped run feedback,
+not final exported-file/stage acceptance. Escalate a concrete capability gap rather
+than opening a new benchmark campaign. Retained idle GUI/context and historical
+narration endpoints stay disclosed; do not delete artifacts or terminate processes.
+
+Chroma key, unnamed extras, freeze/bake, cameras/transcription, unrelated thumbnail/
+AI-plugin tools and higher capacity/storage relocation are excluded. Commit/push
+remains separately authorized with Overseer. B3 timeout/partial timing, cold/complex/
+high-rate tails and unrun physical/listening/scanout/multi-hour limits remain recorded.
+The migration-time legacy video-layer Save proposal remains distinct; project
+Export Video is implemented in this reviewed, uncommitted candidate. Chroma key
+is the next named feature after the working editor only when separately selected;
+this correction does not dispatch it or merge the separate image/storage work.
 
 <a id="next-bounded-work-and-separate-monitor-scope"></a>
 
@@ -302,10 +429,10 @@ FPS/speedup. Historical B1 timing is a reference, not fresh B2 performance evide
 
 Scoped finishing acceptance stands; report newly discovered B1/B2 regressions
 rather than declaring older review cases solved by native storage. B3 media work
-below records the accepted candidate's preservation requirements; the current
-next candidate is the control/resource boundary above. New timeline/export, brush
-physics and broad Studio redesign remain separate expansion. This reconciliation
-dispatches no Builder or critic.
+below records preservation requirements; the control/resource boundary and
+selective migration are now published. The existing editor stage above explicitly
+assigns timeline/mixer/project export; brush physics and unrelated Studio redesign
+remain separate. This documentation pass dispatches no Builder or Reviewer.
 
 ### B3 — bounded media foundation
 
@@ -440,24 +567,24 @@ and written guidance. This prerequisite itself implements no B3 behavior.
 
 The completed audit reconciles the prior recommendations below. These concise
 dispositions retain its full evidence reference; they are not automatic stage
-assignments. The control/resource candidate above is the first bounded scope.
-Later migration candidates require current attribution and their own approved
-brief; no migration feature is implied by appearing in this table.
+assignments. The control/resource boundary and all 12 migration dispositions are now accepted/published.
+The current implementation/retention matrix is in the selective-migration report;
+the existing editor stage above is next, without automatic unrelated dispatch.
 
 | Recommendation group | Current disposition |
 | --- | --- |
 | CPU audio-uniform resolution/water invariants; bounded capture/telemetry; prepared uniform handles/cadence; contributing surface allocation; hosted preview; Main director traits/recency; B1/B2/B3 and storage Pass 1 | Retain implemented foundations and their scoped evidence. Do not repeat superseded diagnoses or certify extended listening from code. Synchronous readback, broad snapshots and full PNG persistence still have conditional costs. |
-| B4 control facade, revisioned projections and resource ledger | Retain narrowly as the next existing-functionality candidate; document/history policy stays Python, allocations and aliases must not be double-counted as RSS/VRAM. Existing component caps are not one complete-workload reservation. |
-| Transformed editor composition, regional constraints/materialization, frame conversion | Conditional later hot paths: substantial batched native kernels or exact context-owned GPU work only after measurement and CPU/Qt parity. Preserve Smudge sequence, masks, alpha, Groups and transforms. |
-| Existing media servicing/conversion/copy and retirement | Retain PyAV/FFmpeg and bounded lanes/caches first; diagnose the intermittent fallback switch and measured transfers before native ownership consolidation. Hardware decode/proxies remain explicit measured options, not silently enabled remedies. |
-| B5 existing single-source audio servicing/clock and block preparation | Retain native deadline-servicing direction conditionally; preserve rates/pitch, sample order, mute/raw analysis and device ownership. Defer mixer/plugin graph, routing, compensation/time stretch; JUCE is an option, not a dependency decision. NumPy FFT/DSP and Cymatics bulk math already run natively. |
-| Worlds/Visualizer: Roots/Sky, Marsh, Main Arc33, Aftershock and required Cavern rows | Retain GPU shading/resident meshes, Python artistic policy/clocks/palettes and bounded event state. Investigate current costs and exact frame-invariant preparation or row servicing; preserve all passes in total cost, Main versus Experimental identity, audio/history/color/motion and necessary prefetch. Other worlds, Fractals and static models retain their current representations. |
+| B4 control facade, revisioned projections and resource ledger | Implemented/published with boundary/Layers dependencies and migration corrections; Python document/history policy remains. Allocation/alias/pin reports are not aggregate capacity guarantees. |
+| Transformed editor composition, regional constraints/materialization, frame conversion | Exact native raster kernels and cache/dependency improvements implemented with reference/fallback parity; complex CPU hierarchy tails remain. |
+| Existing media servicing/conversion/copy and retirement | Immutable alpha/rotation conversion implemented; measured faster opaque path and native codecs/lanes retained. Historical timeout/high-rate lag remain; no silent proxies/hardware decode. |
+| B5 existing single-source audio servicing/clock and block preparation | Measured SoundFile/NumPy/WASAPI retention with diagnostics; another C++ wrapper had no justified servicing benefit. Assigned editor mixer is above; plugin graph/time stretch remain separate. |
+| Worlds/Visualizer: Roots/Sky, Marsh, Main Arc33, Aftershock and required Cavern rows | Completed: measured Roots/Sky, Marsh and Main Arc33 GPU retention; Aftershock GPU ordering and exact Cavern C++ geometry/helper servicing. Preserve policy, all passes, clocks, quality and scene identities; cold/jump costs remain. |
 | Renderer/engine/API replacement, wholesale C++/DSP/model rewrite, blanket authored-canvas removal, speculative wrappers | Rejected for this migration; removing proven zero contributions or measured kernel work is different. Qt/native codecs/GL calls already execute natively; language changes alone do not diagnose waits. OpenGL 3.3 is not an established compute-shader contract. |
 | Automatic render-quality adaptation, approximate loop reductions, shader-family/lazy/background compilation or shipped driver binaries | Deferred/default remedies rejected where prior experiments failed or were mixed. Full and explicit 75%/50% choices remain; exact preparation/bounds first. Reopen only with a concrete measured requirement and artistic review. |
 | Startup/performance notes, GPU waits and asynchronous readback | Retain historical evidence; at most a hypothesis-led bounded later check. Warm/hidden startup, utilization, draw/paint/swap return and isolated copy timings do not establish present bottlenecks, scanout or total gains. |
 | Capacity Passes 2–4, higher Library/layer counts and storage-location/relocation controls | Separate retained commitments. Improve truthful accounting at current limits in migration; do not raise admission limits or add relocation UI here. |
-| Separate small image follow-up | Merge-selected and sampler-local sampled-background color removal after migration; not implemented or dispatched. Grouping/still export are not merge-selected or freeze. Preserve stack/backdrop semantics when its own brief is prepared. |
-| B6/B7 future editor, timeline/cues, node/rack authoring, audio expansion, cameras, keying/brightness, editable text/subtitles, possible whisper.cpp and moving-video export | Requirements for the separate official-workflow research and independent gap review, then approved multitrack brief. No project/source/audio-time, demand evaluation or export contract is claimed implemented or a migration prerequisite. Keep live source clocks independent now. |
+| Separate small image follow-up | Merge-selected and sampler-local sampled-background removal remain separately accounted for, not completed by migration or silently included in editor work. |
+| B6/B7 future editor, timeline/cues, node/rack authoring, audio expansion, cameras, keying/brightness, editable text/subtitles, possible whisper.cpp and moving-video export | Existing editor stage now includes project/timeline, mixer, editable captions/titles/graphics, shared UI/API and project export. Chroma key follows it; node/rack, cameras/transcription, freeze and other extras remain separate. Editor capabilities above are implemented/reviewed in the uncommitted candidate; the deferred extras are not. |
 | Freeze/render-in-place addendum | Future requirement, separate from merge-selected: preserve editable originals/revert, revision/source/time-bound immutable cache, backdrop/order dependencies (noncontiguous layers cannot generally become one equivalent replacement), history/tails and no doubled audio. Retire inactive resources only after readers/jobs exit; retain originals on cancel/failure and handle missing caches/portability. No established performance benefit or migration prerequisite. |
 | B8 release/updater/licensing/extensions, output bridges, onboarding/accessibility, executable mods/AI authoring and commercial claims | Deferred product/research work; preserve ABI/fallback/build provenance and frozen portable. No install or engine replacement. |
 | Remaining ZeraphinaX blank-procedural/general-mapping/seed-lock/image-relief/particle, oscillator/band/Sand ideas and richer Dream Wave analysis | Retain existing implemented pieces; defer remaining creation/simulation, centroid/chroma/harmonic-percussive/semantic and output features. Retired research particle/raymarching/one-shader bans are not current policy. |
@@ -467,8 +594,8 @@ source time and audible device time; choose live-only, timestamped recording or
 unavailable-source policy for live inputs. Worldforms need explicit analytic,
 replay/checkpointable or live-only state capabilities: Echo/Fractal/Galaxy history
 is not made seek-equivalent by setting a timestamp. Versioned project/export
-ownership and aggregate admission belong in the later research/gap brief, not
-new multitrack contracts inserted into migration. Keep editable text/cues and
+ownership and aggregate admission belong to the agreed editor stage above and
+its increment review gates; they were not implemented by the completed migration. Keep editable text/cues and
 cancellable transcription provenance distinct from baked pixels/deadline work.
 
 No wholesale rewrite, engine/graphics-API switch, installation or worker/critic
@@ -616,6 +743,12 @@ ISS Dreams, local MilkDrop/projectM motion/feedback. References only; import no
 code/assets without rights review.
 
 ## Working checkpoint
+
+- Current accepted migration: `3ca315d0314cb8ca088be560f56c75bca34acd19`;
+  [receipt](work/publication-selective-migration-20261013/review-index.json) records
+  verified push and Pages. All 12 areas are accounted for with retained limits.
+  The editor candidate is implemented/reviewed and uncommitted; F9.0/whole-stage9.0
+  are technical handoff verdicts, not final user acceptance or publication.
 
 - Earlier accepted/pushed finishing checkpoint: `f3d414be7ee380a38865c3579c057597dbb5fb06`.
   Local branch/HEAD/`origin/main` verified October 10; the [publication receipt](work/publication-raster-recovery-20261010/review-index.json)

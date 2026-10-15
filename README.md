@@ -1,6 +1,21 @@
 # ZeraWave
 
+## October 15 current checkpoint
+
+The existing editor foundation is being published under Robert's explicit Git and
+Pages authorization. See [current status](ZERAWAVE_HANDOFF.md#october-15-editor-foundation-checkpoint-and-current-overhaul)
+and [the sole plan](ROADMAP.md#october-15-editor-foundation-checkpoint-and-current-overhaul).
+The new product-quality overhaul is assigned, not implemented or accepted. Earlier
+pre-implementation and handoff-only wording below is historical where superseded
+by those current sections; artistic standards and preserved evidence remain intact.
+
+
 ## October 13 selective-migration publication checkpoint
+
+Published commit: `3ca315d0314cb8ca088be560f56c75bca34acd19`. Robert's acceptance
+was at 00:56 UTC October 14; Overseer's receipt verifies normal push, GitHub main
+and Pages. Shared-guide publication ownership is released; this pass updates only
+next-stage documentation without staging, commit/push or implementation dispatch.
 
 Robert authorized publication of the consolidated existing-functionality candidate
 and its earlier control-boundary/Layers dependencies. The reviewed source/native
@@ -18,8 +33,9 @@ fallback timeout and cold/complex CPU/high-rate media tails remain limited or
 unverified. Passing repeats do not repair the historical intermittent failure.
 Session/current-frame still saving works; moving-video Save remains OPEN.
 Separate capacity/storage commitments and future image/editor/export requirements
-remain outside this migration. Next-stage wording/review-route reconciliation is
-separate; this publication dispatches no Builder/Reviewer or implementation.
+remain outside this migration. The next existing editor stage and its exact review
+route are recorded in ROADMAP and AGENTS; publication/documentation dispatch no
+Builder/Reviewer or implementation.
 
 
 ## October 11 accepted B3 development checkpoint
@@ -83,11 +99,14 @@ Approved direction retains Qt, Python authoring/control and the existing GPU
 renderer. **[B3 media foundation](ROADMAP.md#b3--bounded-media-foundation) has an accepted
 implemented development candidate**, with Video Save open and timing partial: fair bounded decode service, generations,
 direction-aware prefetch and timestamp-correct editor/output ownership.
-The whole-product architecture/migration audit is complete. Follow
-[ROADMAP's final sequence](ROADMAP.md#completed-audit-and-final-owner-sequence):
-existing-functionality migration/cleanup/measured validation, separate small image
-follow-up, official editor-workflow research/independent gap review, then an approved
-multitrack brief before expansion. The scoped next candidate is the Studio
-control/resource boundary; residual B3 issues are not a blanket migration gate.
+The audit and agreed migration are complete/published at `3ca315d`, with all 12
+implementations or measured retention decisions. Next is the
+[existing video-editor stage](ROADMAP.md#existing-video-editor-stage---upgrade-end-to-end-workflow):
+Prompter's prepared brief, sole manual Builder and Bob the Reviewer's independent
+>=9/10 correction/pass increments, then whole-stage end-to-end owner handoff at
+supported >=9/10. Planned project-bin/timeline/mixer/captions/shared UI/API/export
+features are not implemented by migration. Keep current Upgrade+ Python/FFmpeg
+production until parity. Chroma key follows the working editor; separate image
+additions and the unidentified extra are not silently included.
 Capacity Passes 2–4, higher counts and storage
 location/relocation remain separate. No dispatch follows documentation readiness.

@@ -75,14 +75,18 @@ class DecoderWindow:
     timestamp lead-in below the demand; forward prefetch continues the iterator.
     Prefetch never converts every plane or preloads the clip.
     """
-    def __init__(self,path,budget):
+    def __init__(self,path,budget,*,source_timestamps=False):
         av=backend();self.container=av.open(str(path),mode='r',timeout=(2.,2.))
         try:self.stream=self.container.streams.video[0]
         except Exception:self.container.close();raise ValueError('No video stream remains available.')
         self.stream.codec_context.thread_count=2
         self.stream.codec_context.thread_type='AUTO'
         self.cache=OrderedDict();self.bytes=0;self.budget=budget;self.pool=None
-        self.iterator=None;self.last=-1.;self.decode_ms=0.;self.seek_count=0;self.ends={}
+        # Legacy clocks retain their nonnegative seek policy. The project
+        # evaluator requests actual signed source PTS, including preroll.
+        self.seek_floor=min(0.,float((self.stream.start_time or 0)*self.stream.time_base)) if source_timestamps else 0.
+        self.empty_pts=float('-inf') if source_timestamps else -1.
+        self.iterator=None;self.last=self.empty_pts;self.decode_ms=0.;self.seek_count=0;self.ends={}
         self.convert_ms=0.;self.decoded_ready=0.;self.converted_ready=0.;self.temporary_planes=0;self.conversion_bytes=0
         self.converted=None;self.converted_bytes=0;self.frame_step=None;self.last_plane_bytes=0;self.eof=False;self.metrics={};self.refill_frames=0;self.refill_seconds=0.;self.refill_goal=None;self.obsolete_refills=0
         self._metrics()
@@ -168,9 +172,19 @@ class DecoderWindow:
             forward=False;self.obsolete_refills+=1
         if self.refill_goal is None:self.refill_goal=target
         if not forward:
-            seek=max(0.,target-lead)
-            self.container.seek(max(0,int(seek/float(self.stream.time_base))),stream=self.stream,backward=True,any_frame=False)
-            self.iterator=iter(self.container.decode(self.stream));self.seek_count+=1;self.eof=False;self.last=-1.;self.refill_frames=0;self.refill_seconds=0.;self.refill_goal=target
+            seek=max(self.seek_floor,target-lead)
+            if self.seek_floor<0.:
+                # Some demuxers refuse negative seek offsets. Decode signed
+                # preroll from the beginning instead, within the same bounded
+                # GOP work/cache protection. Reopen only for a backwards miss.
+                if self.iterator is not None:
+                    path=self.container.name;self.container.close()
+                    self.container=backend().open(path,mode='r',timeout=(2.,2.))
+                    self.stream=self.container.streams.video[0]
+                    self.stream.codec_context.thread_count=2;self.stream.codec_context.thread_type='AUTO'
+            else:
+                self.container.seek(max(int(self.seek_floor/float(self.stream.time_base)),int(seek/float(self.stream.time_base))),stream=self.stream,backward=True,any_frame=False)
+            self.iterator=iter(self.container.decode(self.stream));self.seek_count+=1;self.eof=False;self.last=self.empty_pts;self.refill_frames=0;self.refill_seconds=0.;self.refill_goal=target
         previous=self.last if forward else None
         try:
             while True:
@@ -206,7 +220,14 @@ class DecoderWindow:
         if cancel.is_set():return None
         key=self.ready(target,nearest)
         if key is None:
-            if not self._refill(target,cancel):return None
+            # Project display/export requests are distinct demands. A distant
+            # forward miss must seek to its keyframe instead of walking hundreds
+            # of obsolete planes from the previous demand. Legacy policy and
+            # existing cumulative512-frame/two-second work limits stay intact.
+            if getattr(self,'demand_resync',False):
+                completed=self._refill(target,cancel,interest=lambda:(target,1))
+            else:completed=self._refill(target,cancel)
+            if not completed:return None
             key=self.ready(target,nearest)
         if cancel.is_set():return None
         if key is None:

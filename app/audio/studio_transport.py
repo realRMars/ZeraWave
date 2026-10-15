@@ -8,6 +8,7 @@ from collections import deque
 from contextlib import ExitStack
 import importlib.util
 import json
+import os
 from pathlib import Path
 import queue
 import socket
@@ -121,7 +122,9 @@ def receive(sock, count):
     return bytes(data)
 
 
-class AudioOwner:
+from project_output import ProjectOutputMixin
+
+class AudioOwner(ProjectOutputMixin):
     def __init__(self, capture_factory=None, output_factory=None, enumerator=None):
         from capture import SourceEnumerator
         self.capture_factory = capture_factory;self.output_factory = output_factory
@@ -138,6 +141,7 @@ class AudioOwner:
             output=False, pending=False, service=None,decoder='SoundFile' if importlib.util.find_spec('soundfile') else 'PCM WAV only')
         self.capture = self.decoder = self.output = self.output_stack = None;self.blocked = False
         self.output_release_error = None
+        self.setup_project()
         self.closed = threading.Event();self.token = uuid.uuid4().hex
         self.listener = socket.socket();self.listener.bind(('127.0.0.1', 0));self.listener.listen(1);self.listener.settimeout(.2)
         self.address = self.listener.getsockname();self.client = None
@@ -241,14 +245,18 @@ class AudioOwner:
         if self.output is not None:return
         stack = ExitStack()
         try:
-            if self.output_factory:manager = self.output_factory()
+            diagnostic=os.environ.get('ZERAWAVE_PROJECT_AUDIO_OUTPUT')=='discard-test' and self.project_saved is not None and self.output_factory is None
+            if diagnostic:
+                from project_output import TestSink
+                manager=TestSink()
+            elif self.output_factory:manager = self.output_factory()
             else:
                 import soundcard
                 speaker = soundcard.default_speaker()
                 if speaker is None:raise ValueError('No audio output device is available.')
                 manager = speaker.player(samplerate=RATE, channels=2, blocksize=BLOCK)
             output = stack.enter_context(manager)
-            if not self.output_factory:
+            if not self.output_factory and not diagnostic:
                 from wasapi_output import FrameOutput
                 output = FrameOutput(output)
             self.output = output;self.output_stack = stack;self.change(output=True)
@@ -259,6 +267,9 @@ class AudioOwner:
             raise
 
     def act(self, op, values):
+        desired=self.project_desired;requested=desired is not None and desired['evaluator'] is not None and desired['transport'].get('active') and desired['transport'].get('playing')
+        if (self.project_saved is not None or requested) and op in ('source','device','open','play','pause','stop','repeat','seek','speed'):
+            raise ValueError('Timeline owns project audio. Stop timeline before changing the retained legacy source.')
         if op=='analyzer':
             with self.lock:
                 self.analyzer_enabled=values['value'];self.analyzer_packet=None;self.analyzer_at=-1.;self.analyzer_error=''
@@ -354,7 +365,7 @@ class AudioOwner:
             self.state['pcm_frames'] += len(pcm);self.state['sequence'] += 1;self.state['pcm_wall'] = time.perf_counter()
             self.state['rms'] = float(np.sqrt(np.mean(pcm * pcm)))
             self.state['peak'] = float(np.max(np.abs(pcm)));self.state['source_clipped']=int(np.count_nonzero(np.abs(pcm)>1.))
-            if self.state['mode'] == MODES[0]:self.state['playhead'] += len(pcm) / RATE
+            if self.state['mode'] == MODES[0] and self.project_saved is None:self.state['playhead'] += len(pcm) / RATE
             self.peaks.extend([[float(g.min()), float(g.max())] for g in np.array_split(pcm, min(32, len(pcm)))])
             meta = self.metadata();meta.update(frames=len(pcm), sequence=self.state['sequence'])
             header = json.dumps(meta, separators=(',', ':')).encode();data = pcm.tobytes()
@@ -363,7 +374,9 @@ class AudioOwner:
             self.wake.notify_all()
 
     def metadata(self):
-        return {k:self.state[k] for k in ('generation', 'mode', 'device', 'path', 'playhead', 'pcm_frames', 'playing', 'status', 'raw_waveform', 'drive_revision', 'volume', 'mute', 'speed', 'file_revision')}
+        meta = {k:self.state[k] for k in ('generation', 'mode', 'device', 'path', 'playhead', 'pcm_frames', 'playing', 'status', 'raw_waveform', 'drive_revision', 'volume', 'mute', 'speed', 'file_revision')}
+        if self.project_saved is not None:meta.update(mode='Video Project',device=None,path='project:'+str((self.project_binding or [None]*5)[4]),project_binding=list(self.project_binding) if self.project_binding else None,project_sample=self.project_cursor)
+        return meta
 
     def run(self):
         from capture import backend_thread
@@ -381,7 +394,12 @@ class AudioOwner:
                                 # retain ownership and therefore block replacement.
                                 self.change(error=str(exc)[:240])
                         self.change(pending=not self.commands.empty())
-                        if self.capture and not self.blocked:
+                        try:self.apply_project()
+                        except Exception as exc:self.project_failure(exc)
+                        if self.project_saved is not None:
+                            try:self.service_project()
+                            except Exception as exc:self.project_failure(exc)
+                        elif self.capture and not self.blocked:
                             for stamp, pcm in self.capture.drain():self.publish(pcm)
                             health = self.capture.health()
                             if health['last_packet_at'] is None and time.perf_counter() - health['started_at'] > 5.:
@@ -415,7 +433,9 @@ class AudioOwner:
                         except Exception as release:
                             self.blocked=True;self.change(error=('Audio release unconfirmed; replacement blocked: ' + str(release))[:240])
                     delay = .01 if self.capture else .02
-                    if self.decoder and self.state['playing'] and not self.blocked:
+                    if self.project_saved is not None and self.project_spec and self.project_spec['playing'] and not self.blocked:
+                        delay=max(0.,min(.005,self.next_project-time.perf_counter()))
+                    elif self.decoder and self.state['playing'] and not self.blocked:
                         delay = max(0., min(.02, self.next_file - time.perf_counter()))
                     self.closed.wait(delay)
         except Exception as exc:self.change(status='Unavailable', error=str(exc)[:240])
@@ -445,6 +465,7 @@ class AudioOwner:
                 with self.lock:self.client = None
 
     def close(self):
+        self.project_lane.close()
         self.closed.set();self.enumerator.close();self.listener.close()
         with self.wake:
             self.wake.notify_all()
@@ -452,6 +473,8 @@ class AudioOwner:
                 try:self.client.shutdown(socket.SHUT_RDWR)
                 except OSError:pass
         self.worker.join(3.);self.server.join(1.)
+        self.project_lane.thread.join(3.)
+        if not self.project_lane.exited():raise RuntimeError('Project audio preparation cleanup pending; replacement owner must not start.')
         if self.worker.is_alive():raise RuntimeError('Audio cleanup pending; replacement owner must not start.')
         if self.capture is not None or self.output_stack is not None:raise RuntimeError('Audio resource release was not confirmed.')
 

@@ -41,7 +41,7 @@ class OwnedJob:
 
 class ControlClient:
     def __init__(self,host,log_path=None,cancel_event=None):
-        self.condition=threading.Condition();self.responses={};self.snapshot={};self.serial=0;self.analyzer_telemetry=None
+        self.condition=threading.Condition();self.responses={};self.snapshot={};self.serial=0;self.analyzer_telemetry=None;self.project_clock=None
         self.boundary=CommandBoundary(self.request,lambda:not self.closed and not self.disconnected)
         self.sections=StateSections();self.momentary=MomentaryMailbox();self.write_lock=threading.Lock();self.admission_lock=threading.RLock();self.gui_thread=None;self.completions=deque();self.full_needed=threading.Event();self.last_operation=None
         self.closed=False;self.disconnected=False;self.protocol_errors=deque(maxlen=8);self.protocol_error_count=0;self.latencies=deque(maxlen=256);self.pending=0
@@ -107,6 +107,9 @@ class ControlClient:
                     library=snap.get('media_library',{})
                     library['resources']=[unwire_resource(r) for r in library.get('resources',[])]
                     self.snapshot=snap
+            if 'project_clock' in message:
+                data=message['project_clock'];prior=self.project_clock
+                if prior is None or data.get('epoch')!=prior.get('epoch') or (data.get('revision',-1),data.get('generation',-1),data.get('frame',-1))>=(prior.get('revision',-1),prior.get('generation',-1),prior.get('frame',-1)):self.project_clock=data
             if 'audio_analyzer' in message:
                 data=message['audio_analyzer'];current=self.analyzer_telemetry
                 packet=data.get('band_analyzer') or {};old_packet=(current or {}).get('band_analyzer') or {}
@@ -157,7 +160,7 @@ class ControlClient:
                 if 'error' in response:
                     if response.get('outcome_uncertain'):raise RuntimeError('Owner accepted operation; publication outcome is uncertain: '+response['error'])
                     raise ValueError(response['error'])
-                return self.snapshot
+                return response.get('project_result',self.snapshot) if action=='project' else self.snapshot
             finally:self.pending-=1;self.latencies.append((action,(time.perf_counter()-began)*1000))
     @property
     def edit_count(self):
@@ -170,6 +173,10 @@ class ControlClient:
         # Capture binding at admission, never when a delayed worker starts.
         if self.sections.owner and not self.sections.valid:raise ValueError('Owner state is resynchronizing; action not submitted. Accepted work retained. Wait and repeat it.')
         snap=self.snapshot;media=snap.get('media_control',{})
+        if action=='close':
+            project=snap.get('project',{})
+            data.setdefault('project_binding',dict(expected_epoch=project.get('epoch'),expected_revision=project.get('revision'),expected_project=project.get('project_id'),expected_command=project.get('command_revision')))
+            data.setdefault('project_mode','clean')
         if action in ('tune','range','override','reset_audio','restore_draft','authored','color_commit','color_reset','image_layers','composition','composition_preview'):
             data.setdefault('destination_revision',snap.get('destination_revision',0));data.setdefault('preview_run',snap.get('preview_run'))
         if action in ('image_layers','composition','composition_preview','composition_cancel','composition_history','save','raster_retry','save_retry'):
@@ -212,10 +219,16 @@ class ControlClient:
                 line=json.dumps({'id':None,'action':action,'data':data},separators=(',',':'))
                 with self.write_lock:self.process.stdin.write(line+'\n');self.process.stdin.flush()
             except (OSError,ValueError):return
-    def close(self,force=False,mode=None):
+    def close(self,force=False,mode=None,project_mode=None):
         if self.closed:return
         if not force and self.process.poll() is None and not self.disconnected:
-            self.request('close',**({'mode':mode} if mode else {}))
+            # Convenience close has no earlier GUI discard decision to rebase.
+            # Read fresh state, then bind this exact close on the owner. Artwork
+            # discard never authorizes video discard; its mode is separate.
+            self.request('state_full')
+            project=self.snapshot.get('project',{})
+            binding=dict(expected_epoch=project.get('epoch'),expected_revision=project.get('revision'),expected_project=project.get('project_id'),expected_command=project.get('command_revision'))
+            self.request('close',project_binding=binding,project_mode=project_mode or 'clean',**({'mode':mode} if mode else {}))
         if force:self.job.close()
         try:self.process.wait(timeout=20 if not force else 5)
         except subprocess.TimeoutExpired:

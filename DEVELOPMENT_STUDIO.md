@@ -1,5 +1,15 @@
 # ZeraWave Development Studio
 
+## October 15 current checkpoint
+
+The existing editor foundation is being published under Robert's explicit Git and
+Pages authorization. See [current status](ZERAWAVE_HANDOFF.md#october-15-editor-foundation-checkpoint-and-current-overhaul)
+and [the sole plan](ROADMAP.md#october-15-editor-foundation-checkpoint-and-current-overhaul).
+The new product-quality overhaul is assigned, not implemented or accepted. Earlier
+pre-implementation and handoff-only wording below is historical where superseded
+by those current sections; artistic standards and preserved evidence remain intact.
+
+
 ## October 11 accepted B3 development checkpoint
 
 Robert accepted the verified B3 correction candidate and authorized publication.
@@ -15,12 +25,29 @@ Studio is the current development and review tool. It is not a consumer product
 or a shipped paid ZeraWave Studio 1. Expanded authoring/native stages are approved
 direction in ROADMAP, not current product features.
 
+## October 14 checkpoint and planned editor review
+
+The migration and earlier boundary/Layers dependencies are accepted/published at
+`3ca315d`; see [receipt](work/publication-selective-migration-20261013/review-index.json)
+and [results](docs/agent-notes/selective-migration-20261013.md). Cold/complex/high-rate
+and historical timeout limits, ordinary physical drag and unrun listening/audible-
+clock/scanout/multi-hour coverage remain.
+
+The [existing editor stage](ROADMAP.md#existing-video-editor-stage---upgrade-end-to-end-workflow)
+is next. Project bin/relinking, timeline/mixer, editable captions/titles/graphics,
+shared UI/API commands and project export remain to implement. Current silent
+video, single-source audio, layer sessions and still saving retain their meanings.
+Use Prompter's prepared prompt and Bob the Reviewer's automatic >=9/10 increments;
+Robert's final hands-on case covers the entire editable Upgrade+ episode through
+changes, Save/reopen/export at supported >=9/10. Preserve approved outputs and
+current Python/FFmpeg production until parity; chroma key follows the working editor.
+
 ## Launch and review
 
 For the current checkout, double-click **`run_zerawave_studio.vbs`**. It uses the
 existing Qt Studio, ADS docking layout, renderer and isolated control owner.
-The finishing development checkpoint is accepted/pushed at
-`f3d414be7ee380a38865c3579c057597dbb5fb06`; existing full-size rendering and
+The current accepted/published checkpoint is `3ca315d`; earlier finishing
+`f3d414be7ee380a38865c3579c057597dbb5fb06` remains historical. Full-size rendering and
 unrun broad/product/capacity limits still apply. Older Tk and diagnostic entry points remain available.
 
 ### Media composition — current candidate
@@ -1082,7 +1109,8 @@ from video output; File session Save remains separate. No product video writer
 was added. [Actual results](docs/agent-notes/b3-media-20261010.md) bind the starting
 B3 source, finishing-only diff/rollback, final checks, remaining timing misses and
 Robert's concise five-step review. Close normally after securing accepted work.
-The next whole-product migration assessment remains a manual post-B3 assignment.
+That historical post-B3 assessment and agreed migration are now complete;
+ROADMAP records the existing editor stage as next.
 
 
 ### B3 remaining-work review — 2026-10-11

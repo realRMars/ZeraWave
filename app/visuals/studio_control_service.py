@@ -108,7 +108,7 @@ class ControlOwner(Studio):
         scope=validate_scope(values['playback_scope'],LIVE_FORMS) if values.get('playback_scope') else playback_scope(values['selection_scope'],values['selection'],LIVE_FORMS)
         if len(scope['forms'])>1 and not compatible_scope(scope):
             raise ValueError('Category playback is unavailable for these separate legacy routes. Load an individual Experimental leaf.')
-        if not compatible_scope(scope) and self.audio_owner.snapshot()['playing']:
+        if not compatible_scope(scope) and (self.audio_owner.snapshot()['playing'] or self.audio_owner.project_snapshot().get('active') or getattr(self,'projects',None) is not None and self.projects.transport_state()['active'] and self.projects.transport_state()['playing']):
             raise ValueError('Stop audio before opening a separate legacy Experimental preview. Its audio route cannot share this transport.')
         self.committed_scope=scope
         self.host['ZERAWAVE_DESTINATION_REVISION']=str(self.destination_revision)
@@ -171,6 +171,27 @@ def main():
         log.write(text)
     root.report_callback_exception=failure
     owner=ControlOwner(root,host);view=owner.star_tuning_window;drafts={}
+    from project_service import ProjectService
+    from project_api import Server as ProjectServer
+    owner.projects=ProjectService();project_api=ProjectServer(commands,log_path.parent)
+    from project_evaluator import Evaluator
+    project_audio_version=None;project_audio_evaluator=None
+    def admit_project_transport(request):
+        if request.get('action')=='play' and owner.process is not None and owner.process.poll() is None and owner.committed_scope and not compatible_scope(owner.committed_scope):
+            raise ValueError('Stop the separate legacy Experimental preview before project audio playback. Main shares the existing Studio audio owner.')
+    owner.projects.transport_admit=admit_project_transport
+    def service_project_audio():
+        nonlocal project_audio_version,project_audio_evaluator
+        data=owner.projects.transport_state();version=(data['epoch'],data['revision'])
+        if version!=project_audio_version:
+            project_audio_version=version;project_audio_evaluator=Evaluator(owner.projects.document,*version) if owner.projects.document else None
+        audio=owner.audio_owner.project_snapshot()
+        terminal=audio.get('active') and tuple((audio.get('binding') or [])[:3])==(data['epoch'],data['revision'],data['generation']) and audio.get('status') in ('Ended','Unavailable','Release unconfirmed') and not data['playing']
+        if not terminal:owner.audio_owner.offer_project(project_audio_evaluator,dict(data,sample=owner.projects.transport.audio_seed))
+        if data['active'] and project_audio_evaluator and (data['playing'] or audio.get('active')):
+            if audio.get('active') and tuple((audio.get('binding') or [])[:3])==(data['epoch'],data['revision'],data['generation']) and not audio.get('transition_pending'):
+                owner.projects.transport.audio_position(audio)
+            elif owner.projects.transport.audio_clock is None or owner.projects.transport.audio_clock['binding']!=(data['epoch'],data['revision'],data['generation']):owner.projects.transport.audio_position()
     sampler=ResourceSampler();sampler.enabled.set()
     sampler.configure({'Qt GUI':int(host['ZERAWAVE_WORKSPACE_PID']),'control owner':os.getpid()})
     def draft_key():return json.dumps([list(view.owner_key()),view.target.target_id])
@@ -194,7 +215,7 @@ def main():
     resource_sent=None;configuration_epoch=0;document_epoch=0;runtime_epoch=0;force_full=False
     publisher=SectionPublisher(uuid.uuid4().hex)
     from starfield_tuning import choices_for_form,target_windows,EDIT_FORMS
-    def snapshot(full=False):
+    def snapshot(full=False,project_candidate=None):
         nonlocal force_full
         began=time.perf_counter()
         # Only bounded ownership metadata is inspected for change detection.
@@ -208,7 +229,7 @@ def main():
         raster_token=owner.rasters.projection_token()
         outcome_token=tuple((r['id'],r['status'],r.get('output'),r.get('durability')) for r in owner.outcomes.rows.values())
         pins_token=tuple((r,tuple(sorted(p))) for r,p in owner.publication_pins.items())
-        doc_token=(document_epoch,owner.media_session,owner.media_revision,registry.revision,registry.loading,registry.error,tuple(registry.pending),len(registry.import_results),raster_token,outcome_token,pins_token,owner.close_state['phase'],owner.close_state.get('error'))
+        doc_token=(document_epoch,owner.media_session,owner.media_revision,registry.revision,registry.loading,registry.error,tuple(registry.pending),len(registry.import_results),raster_token,outcome_token,pins_token,owner.close_state['phase'],owner.close_state.get('error'),owner.projects.version)
         config_token=(configuration_epoch,owner.destination_revision,owner.preview_run,owner.color_scene(),view.revision,running)
         tokens=dict(catalog=1,configuration=config_token,document=doc_token,runtime=(runtime_epoch,int(time.perf_counter()*5)))
         def build(section):
@@ -244,7 +265,7 @@ def main():
                 for item in owner.composition_history.undo+owner.composition_history.redo:
                     history.update(a['id'] for scene in (item['before'],item['after']) for a in scene['assets'])
                 ownership=owner.rasters.ownership(document,history,owner.publication_pins)
-                return dict(values=dict(media=owner.media_scene,artwork_outputs=getattr(owner,'artwork_outputs',[])),media_library=library,
+                return dict(project=dict(owner.projects.state(),endpoint=str(project_api.path)),values=dict(media=owner.media_scene,artwork_outputs=getattr(owner,'artwork_outputs',[])),media_library=library,
                     media_control=dict(session=owner.media_session,revision=owner.media_revision,history=owner.composition_history.snapshot(),transactions=owner.outcomes.state(),raster=owner.rasters.state(),ownership=ownership),
                     tuning_drafts=list(drafts.values()),tuning_dirty=any(d['dirty'] for d in drafts.values()),close_state=dict(owner.close_state),session_path=str(owner.session_path) if owner.session_path else None)
             resolution=owner.preview_state.get('resolution') or {}
@@ -270,9 +291,16 @@ def main():
                 renderer_launcher_pid=owner.process.pid if running else None,preview=owner.preview_state,window=window,resources=resource,
                 resolution=dict(policy=owner.resolution_policy,pending=owner.resolution_pending is not None,limit=resolution.get('limit',16384),error=resolution.get('error') if running else None),
                 startup=(owner.color_link.get_status().get('startup') or {}) if owner.color_link else {},latest_audio=latest,running_values=getattr(owner,'running_values',None),audio_hub=owner.audio_owner.snapshot(),
-                media_frames=dict(owner.media_frames.snapshot(),**owner.web_frames),media_resources=owner.media_frames.resources(),active_preview=owner.active_preview.get(),status=owner.status.get(),errors=list(errors),
+                project_transport=owner.projects.transport_state(),media_frames=dict(owner.media_frames.snapshot(),**owner.web_frames),media_resources=owner.media_frames.resources(),active_preview=owner.active_preview.get(),status=owner.status.get(),errors=list(errors),
                 telemetry=dict(sampled_at=time.perf_counter(),audio_generation=owner.audio_owner.generation if hasattr(owner.audio_owner,'generation') else None,preview_run=owner.preview_run,independent_clocks=True))
         identity=dict(document_session=owner.media_session,document_revision=owner.media_revision,destination_revision=owner.destination_revision,preview_run=owner.preview_run)
+        if project_candidate is not None:
+            # Admission measures a hypothetical projection without publishing,
+            # advancing its sequence, or consuming a client's full-state request.
+            parts=deepcopy(publisher.cache)
+            parts['document']=build('document')
+            parts['document']['project']['document']=project_candidate
+            return dict(version=2,owner=publisher.owner,identity=identity,sections=parts,versions=publisher.versions)
         packet=publisher.packet(tokens,build,identity,full=full or force_full);force_full=False
         packet['projection']['packet_build_ms']=(time.perf_counter()-began)*1000
         return packet
@@ -313,6 +341,7 @@ def main():
     def perform_action(name,data):
         nonlocal closing,force_full
         editor=owner.color_editor
+        if name=='project':return owner.projects.request(data['request'])
         if name=='state_full':force_full=True;return
         if name in ('raster_retry','save_retry','save') and data.get('media_session',owner.media_session)!=owner.media_session:raise ValueError('Recovery/save belongs to an obsolete session.')
         if name=='save' and data.get('save_after'):
@@ -649,6 +678,9 @@ def main():
             # Dialog selection stays in Qt; storage still runs through Studio.
             path=str(Path(data['path']).resolve())
             if name=='load':
+                loaded_header=json.loads(Path(path).read_text(encoding='utf-8-sig'))
+                if loaded_header.get('format') in ('zerawave-video-project','zerawave-video-project-file'):
+                    raise ValueError('Video projects require File → Open video project; Open session cannot discard timeline fields.')
                 if any(a['id'] in owner.rasters.rows for a in owner.media_scene['assets']):
                     key=uuid.uuid4().hex
                     recovery=owner.rasters.folder.parent/'recovery'/(owner.media_session+'-'+str(owner.media_revision)+'.json')
@@ -687,8 +719,14 @@ def main():
             pending=any(not job.done() for job in owner.rasters.jobs.values())
             failed=bool(owner.rasters.failures)
             discard=data.get('mode')=='discard'
+            project_mode=data.get('project_mode','clean')
+            if project_mode not in ('clean','discard'):raise ValueError('Project close mode must be clean or explicit discard.')
+            project_binding=data.get('project_binding')
+            if project_binding is None and (owner.projects.document is not None or owner.projects.jobs):raise ValueError('Video project close needs the captured project identity/epoch/revision/command binding.')
+            project_discard=project_mode=='discard'
+            if not owner.projects.can_shutdown(project_discard,binding=project_binding):raise ValueError('Video project jobs still own work; wait before closing.')
             if not discard and (failed or owner.rasters.save_pins or pending and not data.get('mode')):raise ValueError('Accepted raster work is not secured. Retry/Save As, Cancel, or explicitly Discard before closing.')
-            owner.close_state=dict(phase='draining',discard=discard,started=time.perf_counter(),error='')
+            owner.close_state=dict(phase='draining',discard=discard,project_discard=project_discard,project_binding=project_binding,started=time.perf_counter(),error='')
         elif name=='close_cancel':
             if owner.close_state['phase']=='draining':owner.close_state=dict(phase='open',error='')
         else:raise ValueError('Unsupported control command: '+str(name))
@@ -698,7 +736,8 @@ def main():
         if ordered and not owner.outcomes.begin(name,data):return
         admitted={}
         try:
-            if owner.close_state['phase']=='draining' and name not in ('close_cancel','close','cancel_save','state_full','operation_status'):raise ValueError('Closing; cancel close before editing.')
+            project_query=name=='project' and data.get('request',{}).get('op') in ('state','operation_status','cancel')
+            if owner.close_state['phase'] in ('draining','releasing') and not project_query and name not in ('close_cancel','close','cancel_save','state_full','operation_status'):raise ValueError('Closing; cancel close before editing.')
             if data.get('raster_assets') or data.get('raster_sources'):
                 if owner.color_link and sum(bool(p.get('ordered')) for p in owner.color_link.pending_controls.values())>=60:raise ValueError('Renderer publication queue full; raster not accepted. Retry after output catches up.')
                 if name!='composition':raise ValueError('Raster resources require a composition transaction.')
@@ -729,7 +768,7 @@ def main():
                     if not original or source.get('path')!=original['path'] or source.get('metadata')!=original.get('metadata'):raise ValueError('Source snapshot no longer matches validated original.')
                     if source['id'] not in owner.rasters.rows:sources.append(dict(source,source_snapshot=True))
                 admitted=owner.rasters.admit(data.get('raster_assets',[])+sources)
-            perform_action(name,data)
+            result=perform_action(name,data)
             runtime_epoch+=1
             if name not in ('hold','release','media_transport','operation_status','state_full','attach'):
                 if not name.startswith(('composition','media_','raster_')) and name not in ('image_layers','save','save_retry','cancel_save','close','close_cancel','web_frame','artwork_output'):configuration_epoch+=1
@@ -741,6 +780,7 @@ def main():
                 try:owner.rasters.persist(key)
                 except Exception as exc:
                     owner.rasters.rows[key].update(durability='failed',error=str(exc)[:240]);owner.rasters.failures[key]=str(exc)[:240]
+            return result
         except Exception as exc:
             if admitted:owner.rasters.reject(admitted)
             if ordered:owner.outcomes.finish(data,status='rejected',error=str(exc),revision=owner.media_revision)
@@ -752,6 +792,8 @@ def main():
     def tick():
         nonlocal sequence,closing
         if eof.is_set():closing=True
+        owner.projects.poll()
+        service_project_audio()
         owner.rasters.poll()
         for out in owner.rasters.saves.values():
             if out['status']=='durable' and not out.get('announced'):
@@ -801,7 +843,8 @@ def main():
                 except ValueError as exc:owner.media_registry.error=str(exc)
         if owner.process is not None and owner.process.poll() is None:
             serial=owner.preview_state.get('serial',-1);intent=owner.pause_intent
-            owner.media_frames.freeze(intent[1] if intent and serial<intent[0] else owner.preview_state.get('paused',False))
+            owner.media_frames.freeze(owner.projects.transport_state()['active'] or (intent[1] if intent and serial<intent[0] else owner.preview_state.get('paused',False)))
+        if not (owner.process is not None and owner.process.poll() is None):owner.media_frames.freeze(owner.projects.transport_state()['active'])
         try:owner.media_frames.sync(owner.media_scene,{**owner.media_registry.assets,**owner.rasters.rows})
         except ValueError as exc:owner.media_registry.error=str(exc) # Retain last frames; keep control/audio ticks alive.
         frames=owner.media_frames.snapshot();frame_key=[(key,(value.get('frame') or {}).get('name'),(value.get('frame') or {}).get('generation'),value.get('state'),value.get('error')) for key,value in frames.items()]
@@ -819,18 +862,29 @@ def main():
             try:message=commands.get_nowait()
             except queue.Empty:break
             try:
-                action(message['action'],message.get('data',{}));sequence+=1
+                result=action(message['action'],message.get('data',{}));sequence+=1
                 drop=os.environ.get('ZERAWAVE_RASTER_TEST_DROP_ACK')
                 if drop and Path(drop).exists() and 'operation_id' in message.get('data',{}):
                     Path(drop).unlink() # isolated fixture: exactly one lost ACK
-                else:emit({'id':message['id'],'snapshot':snapshot()})
+                elif '_api_reply' in message:
+                    future=message['_api_reply']
+                    if not future.done():future.set_result(result)
+                else:
+                    receipt={}
+                    if message['action']=='project' and isinstance(result,dict):
+                        from project_service import summary
+                        receipt={'ok':result.get('ok'), 'outcome':summary(result['outcome']) if result.get('outcome') else None,'error':result.get('error')}
+                    emit({'id':message['id'],'snapshot':snapshot(),'project_result':receipt})
             except Exception as exc:
                 op=message.get('data',{}).get('operation_id');outcome=owner.outcomes.rows.get(op,{})
                 # Expected admission backpressure is already an explicit rejected
                 # ledger outcome and Qt edit status. Preserve its trace, but do
                 # not promote it to an unrelated runtime-error pane/focus change.
                 failure(type(exc),exc,exc.__traceback__,notify=outcome.get('status')!='rejected' and not isinstance(exc,ObsoleteMediaCommand))
-                emit({'id':message.get('id'),'error':str(exc),'outcome_uncertain':outcome.get('status')=='applied'})
+                if '_api_reply' in message:
+                    future=message['_api_reply']
+                    if not future.done():future.set_result(dict(ok=False,error=dict(code='owner_command',message=str(exc))))
+                else:emit({'id':message.get('id'),'error':str(exc),'outcome_uncertain':outcome.get('status')=='applied'})
         if owner.close_state['phase']=='draining':
             state=owner.close_state
             if owner.rasters.prepare_close(state['discard']):
@@ -844,12 +898,13 @@ def main():
             # EOF is an exceptional route, with cooperative cancellation. Normal
             # close arrives only after every PNG/save future has actually ended.
             if not owner.rasters.prepare_close(True):root.after(10,tick);return
+            if not owner.projects.can_shutdown(owner.close_state.get('project_discard',False)):root.after(10,tick);return
             owner.media_frames.begin_close()
             if not owner.media_frames.is_closed():
                 owner.close_state['error']='Waiting for decoder work to exit; readers and accepted artwork remain protected.'
                 root.after(10,tick);return
             protected=[a['path'] for a in owner.media_registry.assets.values() if not a.get('internal')]
-            for cleanup in (owner.stop,lambda:owner.rasters.close(discard=True,protected_paths=protected),owner.media_frames.close,owner.media_registry.close,owner.audio_owner.close,sampler.close,view.close,owner.color_editor.close):
+            for cleanup in (project_api.close,owner.projects.shutdown,owner.stop,lambda:owner.rasters.close(discard=True,protected_paths=protected),owner.media_frames.close,owner.media_registry.close,owner.audio_owner.close,sampler.close,view.close,owner.color_editor.close):
                 try:cleanup()
                 except Exception as exc:failure(type(exc),exc,exc.__traceback__)
             root.destroy()
@@ -860,6 +915,15 @@ def main():
         try:emit({'snapshot':snapshot()})
         except Exception as exc:failure(type(exc),exc,exc.__traceback__)
         root.after(200,publish)
+    project_clock_sent=None
+    def publish_project_clock():
+        nonlocal project_clock_sent
+        if closing:return
+        try:
+            service_project_audio();data=owner.projects.transport_state();stamp=(data['epoch'],data['revision'],data['generation'],data['frame'],data.get('audio_status'))
+            if stamp!=project_clock_sent:emit({'project_clock':data});project_clock_sent=stamp
+        except Exception as exc:failure(type(exc),exc,exc.__traceback__)
+        root.after(16,publish_project_clock)
     analyzer_sent=None
     def publish_analyzer():
         nonlocal analyzer_sent
@@ -872,6 +936,11 @@ def main():
         except Exception as exc:failure(type(exc),exc,exc.__traceback__)
         # Lightweight projection only. Other docks/resources keep their cadence.
         root.after(33,publish_analyzer)
-    emit({'snapshot':snapshot()});tick();publish();publish_analyzer();root.mainloop();log.close()
+    def admit_project(document):
+        wire=snapshot(project_candidate=document)
+        if len(json.dumps(wire,separators=(',',':')))+2048>2*1024*1024:
+            raise ValueError('Combined Studio projection is full; project edit not accepted. Existing layers/project retained.')
+    owner.projects.admit=admit_project
+    emit({'snapshot':snapshot()});tick();publish();publish_analyzer();publish_project_clock();root.mainloop();log.close()
 
 if __name__=='__main__':main()

@@ -1,5 +1,32 @@
 # ZeraWave Visual Identity
 
+## October 15 current checkpoint
+
+The existing editor foundation is being published under Robert's explicit Git and
+Pages authorization. See [current status](ZERAWAVE_HANDOFF.md#october-15-editor-foundation-checkpoint-and-current-overhaul)
+and [the sole plan](ROADMAP.md#october-15-editor-foundation-checkpoint-and-current-overhaul).
+The new product-quality overhaul is assigned, not implemented or accepted. Earlier
+pre-implementation and handoff-only wording below is historical where superseded
+by those current sections; artistic standards and preserved evidence remain intact.
+
+
+## October 14 published migration and existing editor direction
+
+Robert accepted the selective migration; published `3ca315d` and its
+[receipt](work/publication-selective-migration-20261013/review-index.json) bind
+GitHub/Pages verification. Measured retention and cold/complex/high-rate tails,
+physical/listening/scanout/multi-hour limits remain. Qt/Python artistic policy and
+existing GPU rendering are preserved.
+
+ROADMAP's existing Studio editor stage is next, with the Upgrade+ editable-episode
+workflow as its end-to-end case. Preserve authored pigments, composition, musical
+response and scene identity while implementing project/timeline/mixer/text/API/export.
+Preview/export must reflect saved edits. Bob the Builder and Bob the Reviewer use
+the existing reciprocal route: supported >=9/10 increments advance automatically;
+Robert receives the whole working stage at supported >=9/10. Partial scores or
+unrun listening/motion do not establish completion. Chroma key is afterward.
+This direction claims no new editor capability implemented and dispatches nobody.
+
 ## October 11 accepted B3 development checkpoint
 
 Robert accepted the verified B3 correction candidate and authorized publication.

@@ -101,7 +101,8 @@ class Waveform(QWidget):
         self.seek_timer=QTimer(self);self.seek_timer.setSingleShot(True);self.seek_timer.setInterval(150);self.seek_timer.timeout.connect(self.send_seek)
         self.setToolTip('Click or drag the full-song waveform to seek. File time follows the audio owner; it is not measured speaker latency. Current time is at left, total duration at right. Live capture has no seeking.')
     def refresh(self,hub):
-        self.file=hub.get('mode')=='Audio File' and bool(hub.get('path')) and hub.get('duration') is not None
+        project=hub.get('project_audio',{}).get('active',False)
+        self.file=hub.get('mode')=='Audio File' and bool(hub.get('path')) and hub.get('duration') is not None and not project
         key=(hub.get('file_revision',0),hub.get('path')) if self.file else None
         if key!=self.key:
             self.cancel.set();self.cancel=threading.Event();self.key=key;self.peaks=[];self.error=None
@@ -124,8 +125,8 @@ class Waveform(QWidget):
             self.name.setText(Path(hub['path']).name);self.name.setToolTip(hub['path']);self.total.setText(clock_text(self.duration))
         else:
             self.peaks=hub.get('waveform',[]) if not hub.get('stale',True) else []
-            self.caption='Captured PCM • recent snapshots' if self.peaks else 'No fresh captured PCM'
-            self.name.setText('Live input');self.total.setText('—')
+            self.caption=('Project mix PCM • recent blocks' if project else 'Captured PCM • recent snapshots') if self.peaks else ('Project mix preparing' if project else 'No fresh captured PCM')
+            self.name.setText(hub.get('project_audio',{}).get('name','Video Project') if project else 'Live input');self.total.setText(clock_text(hub.get('duration',0.) or 0.) if project else '—')
         self.current.setText(clock_text(self.position));self.setCursor(Qt.PointingHandCursor if self.file else Qt.ArrowCursor);self.update()
     def paintEvent(self,event):
         p=QPainter(self);p.fillRect(self.rect(),QColor('#0b141a'));p.setPen(QColor('#8ea8b6'))

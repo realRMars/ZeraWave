@@ -154,6 +154,7 @@ class Shell(QMainWindow):
         self.control_host={'ZERAWAVE_WORKSPACE_HOST':str(int(self.surface.winId())),
             'ZERAWAVE_WORKSPACE_PID':str(os.getpid()),'ZERAWAVE_WORKSPACE_QT_FOREIGN':'1','ZERAWAVE_OWNER_TELEMETRY':'1'}
         self.control_log_path=control_log_path
+        self.error_path=Path(control_log_path).parent/'qt-errors.log' if control_log_path else ROOT/'work/studio/qt-errors.log'
         if async_bootstrap:
             body,layout=self.body();self.boot_title=QLabel('Connecting to Studio control owner…');self.boot_title.setAlignment(Qt.AlignCenter);layout.addStretch();layout.addWidget(self.boot_title)
             busy=QProgressBar();busy.setRange(0,0);layout.addWidget(busy);layout.addStretch()
@@ -326,6 +327,9 @@ class Shell(QMainWindow):
         self.dock('image_layers','Layers',self.image_editor,ads.CenterDockWidgetArea,right);self.panels['image_layers'].toggleView(False)
         self.composition_editor=CompositionEditor(self.image_editor)
         self.dock('composition','Composition Editor',self.composition_editor,ads.CenterDockWidgetArea,center);self.panels['composition'].toggleView(False)
+        from studio_project import ProjectWorkspace
+        self.project_workspace=ProjectWorkspace(self)
+        self.dock('project','Video Project',self.project_workspace,ads.CenterDockWidgetArea,center);self.panels['project'].toggleView(False)
         self.media_library.refresh();self.image_editor.refresh()
         self.statusBar().showMessage('Qt proof • F1 help')
         self.refresh_colors();self.tuning_identity=None;self.refresh_tuning()
@@ -348,7 +352,12 @@ class Shell(QMainWindow):
         if not hasattr(self,'menu_bar'):self.create_header()
         else:self.menu_bar.clear()
         bar=self.menu_bar;bar.setEnabled(self.client is not None)
-        file=bar.addMenu('&File');file.addAction('Open session…',lambda:self.safe(self.open_session))
+        file=bar.addMenu('&File')
+        if self.client is not None and hasattr(self,'project_workspace'):
+            for label,callback in [('New video project…',self.project_workspace.new),('Open video project…',self.project_workspace.open),('Save video project',self.project_workspace.save),('Save video project As…',lambda:self.project_workspace.save(True)),('Export Video…',self.project_workspace.export_video)]:
+                file.addAction(label,lambda checked=False,fn=callback:self.safe(fn))
+            file.addSeparator()
+        file.addAction('Open session…',lambda:self.safe(self.open_session))
         file.addAction('Save session…',lambda:self.safe(self.save_session));file.addAction('Import media…',self.import_media);file.addSeparator();file.addAction('Exit',self.close)
         edit=bar.addMenu('&Edit');edit.addAction('Reset selected color target',lambda:self.safe(self.owner.color_editor.reset_target))
         edit.addAction('Restore saved tuning draft at selected destination',lambda:self.safe(lambda:self.client.command('restore_draft',binding=self.view.binding())))
@@ -446,7 +455,7 @@ class Shell(QMainWindow):
                 if session==current:self.error(exc,exc.__traceback__)
     def error(self,exc,tb=None):
         text=''.join(traceback.format_exception(type(exc),exc,tb));self.errors.append(text)
-        path=ROOT/'work/studio/qt-errors.log'
+        path=self.error_path
         try:
             path.parent.mkdir(parents=True,exist_ok=True);path.write_text('\n'.join(self.errors),encoding='utf8')
         except OSError:text+='\nDiagnostics file unavailable; details retained in this panel.'
@@ -513,10 +522,10 @@ class Shell(QMainWindow):
         modes=QHBoxLayout();controls.addLayout(modes)
         self.hub_repeat=TwoWaySwitch('Repeat',('Once','Loop'),lambda v:self.audio_action('repeat',value=v));modes.addWidget(self.hub_repeat)
         self.hub_mute=TwoWaySwitch('Output',('Sound','Muted'),lambda v:self.audio_action('mute',value=v));modes.addWidget(self.hub_mute)
-        self.hub_mute.setToolTip('Mute file output only. Analysis and visual input continue.')
+        self.hub_mute.setToolTip('Mute file or project output only. Analysis and visual input continue.')
         volume_row=QHBoxLayout();volume_row.addWidget(QLabel('Output volume'));controls.addLayout(volume_row)
         self.hub_volume=QSlider(Qt.Horizontal);self.hub_volume.setRange(0,100);self.hub_volume.setValue(100)
-        self.hub_volume.setAccessibleName('File output volume');self.hub_volume.setToolTip('0–100% file output only. 100% is unity gain. Analysis and visual input are unaffected.')
+        self.hub_volume.setAccessibleName('Output volume');self.hub_volume.setToolTip('0–100% file or project output only. 100% is unity gain. Analysis and visual input are unaffected.')
         self.hub_volume_label=QLabel('100%');volume_row.addWidget(self.hub_volume,1);volume_row.addWidget(self.hub_volume_label)
         self.volume_timer=QTimer(self);self.volume_timer.setSingleShot(True);self.volume_timer.setInterval(100)
         self.volume_expected=None;self.volume_timer.timeout.connect(self.send_volume)
@@ -551,17 +560,18 @@ class Shell(QMainWindow):
     def sync_audio_hub(self):
         hub=self.client.snapshot.get('audio_hub',{})
         if not hub:return
-        mode=hub['mode'];file=mode=='Audio File'
+        mode=hub['mode'];file=mode=='Audio File';project=hub.get('project_audio',{}).get('active',False)
+        self.hub_source.setEnabled(not project);self.source.setEnabled(not project);self.hub_device.setEnabled(not project);self.hub_refresh.setEnabled(not project);self.file_controls.setEnabled(True);self.waveform.setEnabled(True);self.hub_rate.setEnabled(not project);self.hub_repeat.setEnabled(not project)
         for combo in (self.hub_source,self.source):
             combo.blockSignals(True);combo.setCurrentText(mode);combo.blockSignals(False)
-        self.file_controls.setVisible(file);self.hub_device.setVisible(not file);self.hub_refresh.setVisible(not file)
+        self.file_controls.setVisible(file or project);self.hub_device.setVisible(not file);self.hub_refresh.setVisible(not file)
         for op in ('mute','repeat'):
             getattr(self,'hub_'+op).sync(hub[op])
         speed=hub.get('speed',1.)
         if abs(speed) in (2,4,6,12):
             self.hub_rate.blockSignals(True);self.hub_rate.setCurrentIndex((2,4,6,12).index(abs(speed)));self.hub_rate.blockSignals(False)
         for kind,button in self.audio_buttons.items():
-            if kind!='open':button.setEnabled(file and bool(hub.get('path')) and hub.get('status')!='Release unconfirmed')
+            button.setEnabled(not project and (kind=='open' or file and bool(hub.get('path')) and hub.get('status')!='Release unconfirmed'))
             active=file and ((kind=='play' and hub['playing'] and speed==1.) or (kind=='forward' and hub['playing'] and speed>1.) or (kind=='reverse' and hub['playing'] and speed<0.) or (kind=='pause' and hub['status']=='Paused') or (kind=='stop' and hub['status']=='Stopped'))
             if button.property('active')!=active:
                 button.setProperty('active',active);button.style().unpolish(button);button.style().polish(button)
@@ -581,7 +591,8 @@ class Shell(QMainWindow):
                 if device==hub['device']:self.hub_device.setCurrentIndex(self.hub_device.count()-1)
             self.hub_device.blockSignals(False)
         for value,action in self.audio_source_actions.items():action.setChecked(value==mode)
-        self.audio_devices_menu.setEnabled(not file)
+        self.audio_devices_menu.setEnabled(not file and not project)
+        for action in self.audio_source_actions.values():action.setEnabled(not project)
         status=hub['status']
         if file:status+=' • '+('Reverse ' if speed<0 else '')+f'{abs(speed):g}×'
         if hub.get('pending'):status+=' • applying'
@@ -591,10 +602,10 @@ class Shell(QMainWindow):
         if not hub['stale'] and hub.get('rms') is not None:
             import math
             status+=f"\nPCM RMS {20*math.log10(max(hub['rms'],1e-12)):.1f} dBFS • Peak {20*math.log10(max(hub.get('peak') or 0.,1e-12)):.1f} dBFS"
-            if file and hub.get('output_rms') is not None:status+=f" • Output {20*math.log10(max(hub['output_rms'],1e-12)):.1f} dBFS"
+            if (file or project) and hub.get('output_rms') is not None:status+=f" • Output {20*math.log10(max(hub['output_rms'],1e-12)):.1f} dBFS"
             if hub.get('output_clipped'):status+=' • output clipping'
             if hub.get('source_clipped'):status+=' • source over full scale'
-        self.hub_status.setText(status);self.track.setText(hub['path'] or 'No audio file selected')
+        self.hub_status.setText(status);self.track.setText((hub.get('project_audio',{}).get('name','Video Project')+' • timeline owns output; Stop returns to legacy source') if project else hub['path'] or 'No audio file selected')
         self.hub_status.setToolTip('Audio playhead counts submitted decoded/captured PCM, not measured speaker latency. Output volume/mute affect playback only; PCM/analyzer levels are pre-output digital RMS/peak. dBFS0 is full scale; silence reads -240dBFS. Raw mode bypasses visual audio tuning without changing saved values. Seek resets queued PCM events; visual clocks stay independent. Audible scan changes pitch.')
         self.waveform.refresh(hub)
     def open_session(self):
@@ -716,7 +727,7 @@ class Shell(QMainWindow):
             self.owner_error_seen=owner_errors[-1]
             self.error(RuntimeError(owner_errors[-1].strip().splitlines()[-1]+'; owner diagnostics: '+str(self.client.log_path)))
         def update():
-            self.media_library.refresh();self.image_editor.refresh()
+            self.project_workspace.refresh();self.media_library.refresh();self.image_editor.refresh()
             running=self.owner.process is not None and self.owner.process.poll() is None
             link=self.owner.color_link;latest=link.get_audio() if link and link.audio_run else None
             self.view.refresh(latest,running);self.refresh_tuning()
@@ -754,7 +765,7 @@ class Shell(QMainWindow):
                     self.progress_title.setText(labels.get(phase.get('phase'),'Starting preview')+f" • {phase.get('seconds',0.):.1f} s reported"+(' • first load may take longer' if phase.get('phase') in ('context','compiling','resources') else ''))
             values=self.owner.running_values if running else self.owner.values()
             shown=self.form_names.get(self.owner.preview_state.get('current_form'),self.client.snapshot['active_title'])
-            self.title.setText(shown+' • '+self.client.snapshot.get('audio_hub',{}).get('mode',values['source']))
+            self.title.setText(shown+' • '+('Video Project' if self.client.snapshot.get('audio_hub',{}).get('project_audio',{}).get('active') else self.client.snapshot.get('audio_hub',{}).get('mode',values['source'])))
             self.sync_audio_hub()
             packet,stamp=latest if latest else ({},0)
             current=time.perf_counter()-stamp<1.5
@@ -912,6 +923,15 @@ class Shell(QMainWindow):
         if kind==QEvent.KeyRelease and event.key()==Qt.Key_Shift:
             self.safe(self.owner.release_preview_holds);return False
         focus=QApplication.focusWidget()
+        if QApplication.activeModalWidget() is not None:return False
+        project_focus=focus is not None and hasattr(self,'project_workspace') and self.project_workspace.isAncestorOf(focus)
+        if project_focus:
+            if kind==QEvent.KeyPress and not event.isAutoRepeat() and event.modifiers()&Qt.ControlModifier and event.key() in (Qt.Key_Z,Qt.Key_Y) and not isinstance(focus,(QLineEdit,QDoubleSpinBox,QSpinBox,QPlainTextEdit)) and QApplication.activeModalWidget() is None:
+                redo=event.key()==Qt.Key_Y or bool(event.modifiers()&Qt.ShiftModifier)
+                self.safe(lambda:self.project_workspace.submit('redo' if redo else 'undo'));return True
+            # Project controls/text own their normal keys; legacy BONK/Hold must
+            # not intercept Space, Shift or button activation in this workspace.
+            return False
         library_focus=focus is not None and self.media_library.isAncestorOf(focus)
         if library_focus and kind==QEvent.KeyPress and event.modifiers()&Qt.ControlModifier and event.key() in (Qt.Key_Z,Qt.Key_Y) and not isinstance(focus,(QLineEdit,QDoubleSpinBox,QSpinBox,QPlainTextEdit)):
             self.image_editor.history(event.key()==Qt.Key_Y or bool(event.modifiers()&Qt.ShiftModifier));self.media_library.refresh();return True
@@ -961,6 +981,9 @@ class Shell(QMainWindow):
     def cancel_close(self):
         request=getattr(self,'close_request',None)
         if not request:return
+        if request['phase']=='project_save':
+            self.client.submit('project',request=dict(op='cancel',operation_id=request['project_save_id']))
+            self.finish_close_request('Close cancelled. Project-save cancellation requested; the real outcome remains visible and accepted edits stay open.');return
         if request['phase']=='save':
             key=request['save_id']
             self.client.command('cancel_save',save_id=key)
@@ -991,6 +1014,23 @@ class Shell(QMainWindow):
             if self.image_editor.artwork_save.request or self.image_editor.artwork_save.association_jobs:return
             if self.image_editor.artwork_save.saves.jobs:
                 request.update(phase='image_save',wait_started=time.perf_counter(),image_job_ids={v['id'] for v in self.image_editor.artwork_save.saves.jobs});self.close_progress.setLabelText('Waiting for artwork image saves to finish… Cancel keeps the editor open.');return
+            project=self.client.snapshot.get('project',{})
+            if self.project_workspace.pending or any(o['status'] in ('preparing','saving','exporting') for o in project.get('operations',[])):return
+            if 'project_checked' not in request:
+                request['phase']='project_choosing'
+                answer=QMessageBox.Discard
+                if project.get('dirty'):
+                    answer=QMessageBox.question(self,'Unsaved video project','Save the accepted video project and its media before closing, explicitly discard it, or cancel to keep Studio open?',QMessageBox.Save|QMessageBox.Discard|QMessageBox.Cancel)
+                if answer==QMessageBox.Cancel:self.finish_close_request('Close cancelled. Accepted video project retained.');return
+                if answer==QMessageBox.Save:
+                    try:key=self.project_workspace.save()
+                    except Exception as exc:self.finish_close_request('Project save failed; editor remains open: '+str(exc));return
+                    if not key:self.finish_close_request('Project save cancelled. Editor remains open.');return
+                    request.update(phase='project_save',project_save_id=key,wait_started=time.perf_counter());self.close_progress.setLabelText('Saving the requested video project revision and media…');return
+                request['project_discard']=bool(project.get('dirty'))
+                request['project_checked']=(project.get('epoch'),project.get('revision'))
+                request['project_binding']=self.project_workspace.binding(project)
+                request['phase']='reconcile'
             dirty=json.dumps(self.owner.values(),sort_keys=True)!=self.saved_art or self.client.snapshot.get('tuning_dirty') or raster.get('pending') or raster.get('failures') or raster.get('retained_checkpoints')
             request['phase']='choosing' # nested Qt dialog loops must not re-enter close
             answer=QMessageBox.Discard
@@ -1006,6 +1046,15 @@ class Shell(QMainWindow):
                 request.update(phase='save',save_id=current[0],wait_started=time.perf_counter());self.close_progress.setLabelText('Saving requested revision and dependencies… Cancel keeps the editor open.');return
             request['discard']=bool(dirty)
             request['phase']='begin'
+        elif phase=='project_save':
+            self.project_workspace.refresh()
+            project=self.client.snapshot.get('project',{})
+            outcome=next((o for o in project.get('operations',[]) if o['id']==request['project_save_id']),None)
+            if time.perf_counter()-request['wait_started']>15:self.finish_close_request('Video project save is still draining; Studio remains open with the requested revision pinned.');return
+            if not outcome or outcome['status'] in ('preparing','saving'):return
+            if outcome['status']!='durable':self.finish_close_request('Project save '+outcome['status']+'; accepted project retained: '+outcome.get('error',{}).get('message',''));return
+            if project.get('dirty') or outcome['revision']!=project['revision']:self.finish_close_request('Requested video project revision saved; newer edits remain open and unsaved.');return
+            request.update(phase='reconcile',project_checked=(project['epoch'],project['revision']),project_binding=self.project_workspace.binding(project),project_discard=False)
         elif phase=='image_save':
             self.image_editor.artwork_save.poll()
             if time.perf_counter()-request['wait_started']>15:self.finish_close_request('Image save still draining; editor remains open with its snapshot pinned.');return
@@ -1024,10 +1073,13 @@ class Shell(QMainWindow):
             if outcome['revision']!=control['revision'] or outcome['session']!=control['session']:self.finish_close_request('Requested revision saved; newer work remains open and unsaved.');return
             request.update(phase='begin',discard=False)
         elif phase=='begin':
+            project=self.client.snapshot.get('project',{})
+            if request.get('project_binding')!=self.project_workspace.binding(project):
+                self.finish_close_request('Video project changed while closing; newer accepted work remains open. Review it before closing again.');return
             self.close_progress.setCancelButton(None)
             self.close_progress.setLabelText('Closing: waiting for writes and readers to finish…')
             mode='discard' if request['discard'] else 'clean'
-            request.update(phase='owner',future=self.client.submit('close',mode=mode))
+            request.update(phase='owner',future=self.client.submit('close',mode=mode,project_mode='discard' if request.get('project_discard',False) else 'clean',project_binding=request['project_binding']))
         elif phase=='owner':
             future=request['future']
             if future.done():
@@ -1039,14 +1091,14 @@ class Shell(QMainWindow):
             # A disappeared window is insufficient: owner process exit is observed
             # before releasing GUI resources and completing the window close.
             self.timer.stop();self.analyzer_timer.stop();self.cancel_attach=True;self.pending_operation=None
-            self.waveform.close_pool();self.image_editor.close_resources();self.media_library.close_resources()
+            self.waveform.close_pool();self.image_editor.close_resources();self.media_library.close_resources();self.project_workspace.close_resources()
             request.update(phase='workers',future=self.operations.submit(self.client.close))
             self.close_progress.setLabelText('Owner exited. Releasing Studio readers and workers…')
         elif phase=='workers':
             if not request['future'].done():return
             request['future'].result()
             pools=(self.waveform.pool,self.image_editor.pool,self.media_library.pool,self.image_editor.artwork_save.saves.pool)
-            if any(thread.is_alive() for pool in pools for thread in pool._threads):return
+            if any(thread.is_alive() for pool in pools for thread in pool._threads) or not self.project_workspace.exited():return
             self.operations.shutdown(wait=False,cancel_futures=True)
             request['phase']='final'
         elif phase=='final':

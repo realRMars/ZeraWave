@@ -942,3 +942,129 @@ media caches, GPU targets and process/device memory are separate. No aggregate
 physical-memory guarantee or higher admission limits follow from these counters.
 See [actual results](agent-notes/selective-migration-20261013.md). Normal shutdown,
 failure retention and the prior control-boundary contract continue to apply.
+
+
+## Video-project foundation - 2026-10-13
+
+The implementation-owned [video-project contract](VIDEO_PROJECT.md) records
+the versioned scoped document, shared Qt/local-API authority, named revisioned
+history, command-order replay guard and protected `.zwv` persistence. The existing
+control thread alone installs project state; two workers prepare immutable
+imports/open/save inputs. Global Library, artistic layer sessions and independent
+live clocks remain separate compatible document/runtime domains in that owner.
+
+Preparation/preview is not acceptance; acceptance is not durability. Preserve
+expected project/epoch/document revision/command revision, operation identities,
+atomic batches, exact history/media-availability restoration, bounded compact
+projection and real owner reconciliation. Never turn a retired/unknown result
+into automatic rebase/duplicate assembly. Protect current, imported/relinked and
+explicit approved source/output paths and aliases. Portable Save copies verified
+dependencies and atomically secures the requested revision; failed/cancelled saves
+retain accepted work/prior good files. Newer edits remain separate. Normal close
+waits, secures or stays open and rejects edits through actual reader release.
+
+The initial foundation does not implement timeline playback, the multitrack
+audio output, graphics evaluation or product MP4 export. Installed-codec probing
+is not that product implementation. Those connected agreed increments retain
+the same document/policy, renderer/context ownership and single device owner;
+their limits and evidence must be recorded when implemented. Synthetic offscreen
+Qt, actual owner/socket/CLI, injected failures and physical review are distinct.
+See [actual results](agent-notes/video-editor-20261013.md).
+
+
+The increment-A review corrections bind close atomically to the captured project
+identity/epoch/revisions on the authoritative thread and separate artwork/video
+discard decisions. Do not rebase a previous GUI discard decision or use artwork
+discard to bypass project protection. Malformed batches must terminalize before
+preparation classification; nonterminal receipts require actual owned jobs.
+Unexpected faults remain logged; installed work is never relabeled rejected.
+The original A review/failed fixtures remain historical evidence, not a pass.
+
+
+### Video-project timeline boundary — increment B, 2026-10-14
+
+The [video-project contract](VIDEO_PROJECT.md#timeline-and-preview-increment-b)
+now records timeline gestures/shortcuts, rational source/frame/sample evaluation,
+owner-only ephemeral transport, explicit legacy clock suspension/restoration,
+immutable prepared-frame reader release and bounded codec/cache/texture ownership.
+The existing renderer/compositor is adapted for preview; no alternate document,
+render engine or output device is introduced. Default brightness=1 preserves
+legacy rendering. Actual preview failure is separate from accepted authoring state.
+Text/mixer/export recipes are still later connected increments; B's preview is
+silent and its clock is not measured audible position. Keep raw failed trials,
+source-bound native/CPU comparisons, physical input evidence and unrun limits.
+
+
+### Video-project audio boundary — increment C, 2026-10-14
+
+The implementation-owned [audio contract](VIDEO_PROJECT.md#connected-project-audio-increment-c)
+connects shared rational sample-span evaluation/native preparation to the existing
+single AudioOwner. Document/history/artistic policy stays in its existing owner;
+codec calls remain on one bounded prep worker, device calls on AudioOwner. Four
+ready blocks/16source clocks/shared32MiB cache-scratch and real worker retirement
+remain separate from document capacity, output occupancy and total process RAM.
+Captured audio is never replayed; legacy sources park/restore explicitly. Source
+verification/release failure cannot silently replace the accepted project or a
+still-owned device. Requested/applied/output/durable stages remain distinct.
+
+The project clock estimates submitted samples minus observed output padding;
+audible device position remains unavailable. Preserve raw authored mix for analysis
+while playback-only volume/mute/clipping affect output. Source timestamp precision,
+native/linear fallback filtering, controlled tests and actual device/listening
+evidence must remain separately bound. C implementation/verification does not
+complete text/export/full-episode owner acceptance or authorize publication.
+
+
+### Video-project text boundary — increment D, 2026-10-14
+
+[Text/graphics contract](VIDEO_PROJECT.md#editable-captions-titles-and-timed-graphics-increment-d):
+immutable text/style/timing recipes remain in the single document authority.
+SRT preparation is bounded and owner-committed atomically with exact history.
+Qt/native glyph materialization runs on the composition context/CPU owner, through
+existing ImageLayers/Qt projection. Preview/export must share that evaluator and
+materialization; overflow/resource/font failures may not truncate accepted text,
+lower authored resolution or clear history. Component caches/scratch and opaque
+font/device/process ownership stay distinct. Unsafe QRawFont family introspection
+was removed after a controlled native crash; primary-family reporting remains.
+Paused/no-output transport requests must reconcile truthful pending/applied state
+without taking a legacy device lease. All final identities/failed trials and
+unrun physical/listening limits belong in the task's source-bound actual results.
+
+
+### Video-project export boundary — increment E, 2026-10-14
+
+ProjectService pins one immutable revision per bounded export and reconciles the
+real context-owning process exit. UI/API/CLI share operation/binding validation.
+Later edits/Undo/Redo/Save remain separate; replacement and Close wait for jobs.
+Project Save and Export have distinct durability outcomes and path protection.
+ProjectSurface/TextSurface/Evaluator/Media/Mixer stay shared with preview; no
+device output/alternate compositor. Full decoder validation and source/alias
+checks precede atomic movie replacement. Cleanup precedes completion and cannot
+obscure primary failure. Partial diagnostic files are task-owned retention data.
+Component budgets and explicit GL/codec failure remain truthful; no resolution
+reduction, silent samples/text dropping, global Library expansion or source writes.
+
+
+### Project distant-demand decode — F correction, 2026-10-14
+
+Project Media sets DecoderWindow's project-only demand_resync intent. get()
+uses the existing interest-aware distant-demand keyframe resync; the primitive
+get signature/legacy default and cumulative512-frame/two-second/cache protections
+remain. Frame lookup/SDR/native RGBA/alpha/rotation/PTS/cancellation and actual
+worker-owner retirement remain shared. A fixed forward demand must not exhaust
+the GOP bound by walking stale decoded positions. Actual60FPS source/reference
+evidence binds this correction; genuinely long/slow GOP and cold tails remain
+explicit limits. Input recipes and accepted history/save ownership remain unchanged.
+
+
+### Full project evidence and playback limits — F, 2026-10-14 PDT
+
+The native edit/save/close/open sequence and reopened frozen-revision full export
+must retain exact editable IDs/recipes. Changed-region review samples may remux
+encoded packets from that full export, with exact decode comparison and provenance;
+they must not silently substitute another evaluator or project revision.
+Treat clock/preview status differences as coarse observed publication lag, not
+isolated GPU work or audible sync. Preserve raw samples, matched source boundaries,
+sampled versus retained native maxima, errors and owner listening attribution.
+Current full-episode evidence retains transition tails to1.333seconds; it does not
+establish universal smoothness, scanout, audible-position or multi-hour guarantees.

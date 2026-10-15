@@ -6,7 +6,7 @@ class EditorSurface:
     Qt owns its widget/context lifetime; this renderer adapter owns every GL
     resource, projection pass and cleanup. It starts no world/audio/window loop.
     """
-    def __init__(self,context):
+    def __init__(self,context,layer_type=None):
         import numpy as np
         from editor_projection import EditorProjection
         from PySide6.QtOpenGL import QOpenGLFunctions_3_3_Core
@@ -17,9 +17,9 @@ class EditorSurface:
             if not self.host_gl.initializeOpenGLFunctions():raise RuntimeError('Qt host GL functions unavailable')
         # ModernGL allocates textures on its default scratch unit as well as
         # drawing on units 0/1. Qt caches these bindings across native painting.
-        self.host_texture_units=tuple(sorted({0,1,context.default_texture_unit}))
+        self.host_texture_units=tuple(sorted({0,1,2,context.default_texture_unit}))
         self.context=context;self.vertices=context.buffer(np.array([[-1,-1],[1,-1],[-1,1],[1,1]],dtype='f4').tobytes())
-        try:self.layers=EditorProjection(context,self.vertices)
+        try:self.layers=(layer_type or EditorProjection)(context,self.vertices)
         except BaseException:self.vertices.release();raise
         self.closed=False;self.host_framebuffer=None;self.host_framebuffer_key=None
     def target_for(self,identity,size):

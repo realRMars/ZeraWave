@@ -1,6 +1,46 @@
 # ZeraWave engineering and creative working agreement
 
+## October 15 editor foundation checkpoint and current overhaul
+
+Robert authorized a scoped commit, normal GitHub push and Pages reconciliation.
+This checkpoint publishes the existing A-F editor foundation and shared guidance,
+not the newly assigned product-quality overhaul. The retained independent F and
+connected A-F verdicts are 9.0/10 for their recorded scopes; publication is not
+acceptance of the new workspace, responsiveness or performance requirements.
+The reviewed source/native identity is
+`6dcc71cd907c24cde171e8a9dc7cd8550c9c9877ea0f1db889efc905cbfabccc`.
+The [publication receipt](work/publication-editor-foundation-20261015-1792059595189235700/review-index.json) records the resulting commit and remote verification.
+
+Robert has separately assigned the existing Builder a substantial editor overhaul:
+independent Qt/ADS workspace panels, unified Library/timeline editing, everyday
+owner-model/UI/API tools, inspector/keyframes/transitions/mixer, autosave/schema
+recovery, and measured playback/export improvements. These are approved work,
+not completed capabilities. Preserve the existing renderer, one document owner,
+accepted edits, original media, saved projects and unrelated work.
+
+This current assignment supersedes older handoff-only, pre-implementation and
+no-further-Computer-Use wording below within its explicit scope. Necessary Computer
+Use is preapproved for owned disposable tests in an available desktop/device window;
+close owned test windows promptly, stop on Escape/user activity/unsafe pressure,
+and do not resume an interrupted desktop without authorization. It does not permit
+new Upgrade+ production, narration, full-episode exports, repeated long playback,
+installations, extra workers or unrelated expansion. Existing Builder/Reviewer
+stage gates continue; prior scores do not satisfy the new gates. Robert's final
+hands-on product acceptance remains separate. Publication dispatches no work.
+
+Retain the earlier preview tails up to 1.33 s, unverified correlated audible-clock/
+scanout and broad device/format/capacity/multi-hour coverage, and historical B3
+stall/fallback/physical-interaction limits. Session and still saving and project
+Export Video are implemented; the distinct legacy moving-video Save writer remains
+OPEN. Capacity/storage work, separate image follow-ups and chroma key remain separate.
+
+
 ## October 13 selective-migration publication checkpoint
+
+Published commit: `3ca315d0314cb8ca088be560f56c75bca34acd19`. Robert's acceptance
+was at 00:56 UTC October 14; Overseer's receipt verifies normal push, GitHub main
+and Pages. Shared-guide publication ownership is released; this pass updates only
+next-stage documentation without staging, commit/push or implementation dispatch.
 
 Robert authorized publication of the consolidated existing-functionality candidate
 and its earlier control-boundary/Layers dependencies. The reviewed source/native
@@ -16,10 +56,13 @@ not task-time reports or their failures. Ordinary physical OLE drag acceptance,
 listening/audible device clock/scanout/multi-hour coverage, the exact historical
 fallback timeout and cold/complex CPU/high-rate media tails remain limited or
 unverified. Passing repeats do not repair the historical intermittent failure.
-Session/current-frame still saving works; moving-video Save remains OPEN.
+Session/current-frame still saving works. The migration-time legacy video-layer
+Save proposal is distinct from the implemented project Export Video in the
+uncommitted editor candidate.
 Separate capacity/storage commitments and future image/editor/export requirements
-remain outside this migration. Next-stage wording/review-route reconciliation is
-separate; this publication dispatches no Builder/Reviewer or implementation.
+remain outside this migration. The editor candidate is implemented and independently
+reviewed; the current capability-first handoff and retained limits below supersede earlier next-stage
+wording. Publication/documentation dispatch no Builder/Reviewer or implementation.
 
 
 ## October 11 accepted B3 development checkpoint
@@ -33,7 +76,7 @@ checkpoint neither approves its proposal nor closes B3 or dispatches later work.
 Dated reports retain their task-time status and measurements.
 
 
-Version: 1.9 - 2026-10-11 (completed audit; bounded migration and final owner sequence)
+Version: 2.1 - 2026-10-14 (capability-first editor handoff; completed review retained)
 Project: ZeraWave
 Root: `C:\ZeraWave`
 
@@ -258,6 +301,9 @@ derive tiers/LOD from measurement. No assumed FPS/device minimum.
 
 ### Approved assignment and review route
 
+The existing editor stage uses the explicit exception below. The numbered route
+continues for other assignments unless Robert directs otherwise.
+
 1. Robert brainstorms until he signals readiness to prepare an assignment.
    Discussion is not implementation authorization.
 2. Bob organizes the requirements, intended result, preservation boundaries and
@@ -282,6 +328,66 @@ was read or a prompt was drafted. Existing explicit user authorization governs
 the assigned scope; this route does not require repeated approval for internal
 implementation steps or reopen an already approved brief. Follow the current
 handoff/review boundary and section 16 document ownership.
+
+### Existing editor stage - October 14 review and message route
+
+Robert selected the existing Studio video-editor stage, not a separate editor.
+Prompter prepares its complete brief; the sole manual Builder implements it.
+The assigned **Bob the Reviewer**, formerly **Review Builder work to 9/10**, is
+thread `01a137ed-cd40-7ca1-809b-8e2b953fbeee` on host `local`. The current
+**Bob the Builder** is `01a11f0d-6bca-7d62-9a49-ca1580f950ee` on `local`;
+do not target older similarly named Builder chats. Their recorded two-way
+communication check succeeded; that check did not start implementation.
+
+After Robert's manual stage handoff, Builder sends each increment's exact
+source/diff identity, evidence paths, actual checks, failures and limitations to
+Reviewer using `send_message_to_thread` with the Reviewer ID and host above.
+Reviewer sends actionable findings or an explicit source-bound pass/score back
+to the Builder ID with the same tool. Findings resume Builder to fix and resubmit.
+An explicit pass of at least 9/10 resumes Builder to proceed automatically to the
+next agreed increment, without Robert's hands-on approval at every step. This
+owner-approved reciprocal review route covers the assigned stage; it does not
+authorize new workers or unrelated cross-project messages. No scheduler or other
+implementation is required to make the existing thread-message route explicit.
+
+A queued message or communication receipt is not a review pass. If tools are
+missing, delivery fails, the destination is unavailable, or evidence cannot be
+read, retain the packet and report the concrete transport/evidence blocker to
+the coordinating owner task; never silently proceed, invent a pass or substitute
+a new Reviewer. Keep runtime and shared-document ownership separate.
+
+Repeat independent review/corrections until each increment passes at least 9/10,
+then continue through the whole agreed scope. Final handoff to Robert requires
+the complete editor workflow functioning end to end and an evidence-supported
+whole-stage score of at least 9/10. A partial score cannot close the stage; scores
+are not user acceptance. Never fabricate listening, continuous motion or unrun
+checks. Escalate real permission, scope, dependency, decision and unresolved
+review blockers. Commit/push remains separately authorized with Overseer.
+This documentation pass dispatches no implementation or review.
+
+### Current editor handoff - capability first, bounded cost
+
+Robert's latest clarification asks for a usable editor capable of the episode
+workflow, not another Upgrade+ video-production deliverable. Existing final review
+already records F9.0 and connected A–F9.0 PASS for source-bound Robert handoff;
+[written verdict](work/reviewer-increment-F-final-20261014-01/REVIEW.md) is retained.
+Do not erase that verdict as unscored or treat it as final user acceptance.
+The implementation/review loop has reached its handoff boundary; no next increment
+or feature is automatically dispatched after F. Robert's acceptance and publication
+remain separate. Chroma key is the next named feature only when separately selected.
+
+Stop further full-episode renders, long playback repetitions and resource-heavy F
+validation. Reuse completed source-bound evidence; do not reopen qualification or
+apply the earlier full-episode deliverable requirement as a new gate. Report real
+capability gaps and deferred validation honestly; any necessary follow-up must be
+bounded and directed at a concrete question, not a repeat production run. No more
+Computer Use or desktop resumption after Escape under the current direction.
+Preserve all work/evidence, approved masters and existing production references;
+this documentation correction authorizes no deletion, process termination or code
+change. Retained idle GUI/context is not proof that all resources have exited.
+Older pre-implementation phase wording in retained entry/Studio/identity guides is
+superseded for current status by ROADMAP and ZERAWAVE_HANDOFF; those auxiliary
+guides are outside this narrow correction.
 
 ### Project skills: explicitly load the applicable file
 
@@ -309,9 +415,10 @@ changes physical module boundaries.
 
 Renderer/engine replacement, wholesale rewrite or an unassigned stage needs its
 own proposal. Ordinary scene extensions in sections 3 and 8 remain allowed.
-Existing Python paths do not impose a language ban. C++/toolchain work belongs
-to scoped B2 and the approved bounded B3 media assignment, not the original B1
-transaction stage. In B3, justify narrow batched native media work by measured
+Existing Python paths do not impose a language ban. Published selective migration
+extends the B2/B3 native adapters and adds exact Cavern batching; it does not
+retroactively add C++ to original B1. Later native/toolchain changes belong to
+their actual assigned scope, measured boundary and dependency approvals. In B3, justify narrow batched native media work by measured
 workload/ownership; PyAV/FFmpeg already decodes natively. Keep Python policy,
 Qt UI and the existing renderer; preserve B1 behavior across native adapters.
 
@@ -468,24 +575,28 @@ starting dirty candidate and this separate documentation delta; preserve origina
 unrelated work, evidence, resources and saved/unsaved artwork. Use existing standalone
 checks; retain failed/unrun cases and distinguish decoder/paint/swap timing from
 visible motion/physical scanout. Robert handles general hands-on acceptance;
-Computer Use is for implementation/debugging when needed.
+The historical B3 Computer Use guidance does not authorize current desktop use;
+the capability-first no-further-Computer-Use direction above controls.
 The B3 candidate is accepted/published; future candidates follow their own manual
 review boundary, with no implied commit/push, Pages or engine replacement.
 
-The whole-product architecture/migration audit is complete. Follow
-[ROADMAP's final owner sequence](ROADMAP.md#completed-audit-and-final-owner-sequence):
-existing-functionality migration/cleanup/measured validation only, then the separate
-small image follow-up, then official editor-workflow research/independent gap review,
-then approval of the multitrack brief before expansion implementation. B3's Video
-Save/timing/interaction limits remain; they are not a blanket closure prerequisite
-for migration. Historical B4–B8 proposals are dispositions/references, not automatic
-assignments. Capacity Passes 2–4, higher counts and storage relocation stay separate.
+The whole-product audit and agreed existing-functionality selective migration
+are complete, accepted and published at `3ca315d0314cb8ca088be560f56c75bca34acd19`.
+All 12 audit areas have implementations or measured retention decisions. Preserve
+CPU/Qt references, process-fixed native fallbacks, original pixels/clocks, accepted
+work, saves, docking and ownership; do not repeat the audit or require a blanket
+C++ rewrite. Rebind source, binaries and inputs before assigned changes.
 
-The first bounded candidate is existing Studio control/resource servicing: remove
-synchronous ACK waits from Qt input callbacks without dropping/reordering completed
-edits or losing unknown-outcome reconciliation; use revisioned projections and
-accurate allocation/alias/pin/retirement reporting. Rebind source, binaries and inputs;
-retain original clocks, accepted work, save/reopen/normal close and docking/tabs.
-Require hypothesis-led bounded parity, latency/resource, failure/cleanup and safe
-rollback checks; approximately 30 FPS is not a responsiveness/acceptance guarantee.
-No benchmark campaign, implementation or Builder dispatch follows this doc pass.
+The uncommitted editor candidate now implements the agreed project/bin, timeline,
+multitrack audio, editable text/graphics, shared UI/API/history/persistence and
+project export capabilities. The existing F and whole-stage 9.0 technical passes
+stand; section 13's current capability-first handoff supersedes the earlier demand
+for an Upgrade+ production deliverable. Preserve existing production and artifacts;
+no additional full-episode render/playback or new feature follows automatically.
+
+Historical B3 timeout, partial timing, ordinary physical drag and unrun listening/
+audible-clock/scanout/multi-hour limits remain; cold/complex/high-rate tails are not
+closed by assertion. Current session/still Save differs from planned project export.
+Chroma key follows the working editor. The unidentified extra is not scope.
+Separate image additions, capacity Passes 2-4, higher counts and storage relocation
+remain separately accounted for. Publication/documentation dispatch no new workers.

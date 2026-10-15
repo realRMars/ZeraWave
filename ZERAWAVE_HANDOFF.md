@@ -1,6 +1,93 @@
 # ZeraWave handoff
 
+## October 15 editor foundation checkpoint and current overhaul
+
+Robert authorized a scoped commit, normal GitHub push and Pages reconciliation.
+This checkpoint publishes the existing A-F editor foundation and shared guidance,
+not the newly assigned product-quality overhaul. The retained independent F and
+connected A-F verdicts are 9.0/10 for their recorded scopes; publication is not
+acceptance of the new workspace, responsiveness or performance requirements.
+The reviewed source/native identity is
+`6dcc71cd907c24cde171e8a9dc7cd8550c9c9877ea0f1db889efc905cbfabccc`.
+The [publication receipt](work/publication-editor-foundation-20261015-1792059595189235700/review-index.json) records the resulting commit and remote verification.
+
+Robert has separately assigned the existing Builder a substantial editor overhaul:
+independent Qt/ADS workspace panels, unified Library/timeline editing, everyday
+owner-model/UI/API tools, inspector/keyframes/transitions/mixer, autosave/schema
+recovery, and measured playback/export improvements. These are approved work,
+not completed capabilities. Preserve the existing renderer, one document owner,
+accepted edits, original media, saved projects and unrelated work.
+
+This current assignment supersedes older handoff-only, pre-implementation and
+no-further-Computer-Use wording below within its explicit scope. Necessary Computer
+Use is preapproved for owned disposable tests in an available desktop/device window;
+close owned test windows promptly, stop on Escape/user activity/unsafe pressure,
+and do not resume an interrupted desktop without authorization. It does not permit
+new Upgrade+ production, narration, full-episode exports, repeated long playback,
+installations, extra workers or unrelated expansion. Existing Builder/Reviewer
+stage gates continue; prior scores do not satisfy the new gates. Robert's final
+hands-on product acceptance remains separate. Publication dispatches no work.
+
+Retain the earlier preview tails up to 1.33 s, unverified correlated audible-clock/
+scanout and broad device/format/capacity/multi-hour coverage, and historical B3
+stall/fallback/physical-interaction limits. Session and still saving and project
+Export Video are implemented; the distinct legacy moving-video Save writer remains
+OPEN. Capacity/storage work, separate image follow-ups and chroma key remain separate.
+
+
+## Current capability-first editor handoff - October 14 client date
+
+Latest coordinating-owner live-call clarification: Robert wanted an editor capable
+of the Upgrade+ workflow, not another Upgrade+ video-production deliverable.
+Stop further full-episode renders, long playback repetitions, resource-heavy F
+validation and all further Computer Use/desktop resumption after Escape. Preserve
+all work/evidence; no source edit, deletion or process termination is authorized.
+
+The final independent [written review](work/reviewer-increment-F-final-20261014-01/REVIEW.md)
+already records **F9.0 PASS and connected A–F9.0 PASS for Robert handoff**. These
+completed technical verdicts and the full export/file-only comparisons predate the
+scope correction; do not overwrite them as unscored. Final Robert acceptance and
+Git publication remain separate. The implementation/review loop reached handoff;
+no automatic further increment, feature or expensive validation follows.
+
+Bound [candidate receipt](work/video-editor-20261013-1791942063889153000/increment-F/candidate-1792030261524848600/RECEIPT.json):
+source/native `6dcc71cd907c24cde171e8a9dc7cd8550c9c9877ea0f1db889efc905cbfabccc`;
+manifest SHA256 `368f83cae6489135239f23fcb312797c3d26d46066a8a975e0ef6de75cd26f8a`.
+Current local HEAD remains `3ca315d0314cb8ca088be560f56c75bca34acd19`; editor and
+guidance changes remain unstaged/uncommitted. This pass reuses source-bound evidence;
+no new playback/render/codec/device/physical test or live GitHub verification ran.
+
+Implemented capabilities: versioned .zwv/project bin/import/missing/relink/portable
+references; one UI/API/CLI model with revisions/idempotent batches/history; multitrack
+move/trim/split/link/seek; separate narration/music/source/sting gain/mute/fade/envelopes
+and one playback owner; editable SRT/captions/styles/titles/timed graphics; protected
+Save/Save As/reopen; frozen-revision H264/AAC Export Video with progress/cancel/
+failure/prior-output protection. Final review identifies no essential missing
+assigned core function; no claim that every format/device/performance case passes.
+
+Retain coarse preview transition tails up to 1.33 s, unmeasured audible-position/
+scanout correlation, no independent per-word transcript, supplied narration limits
+and incomplete all-format/capacity/HDR/multi-hour/device-coexistence qualification.
+Owner's earlier "was fine" remains scoped run feedback. Last recorded saved idle
+GUI15612/owner7852/preview context was deliberately retained; hidden/export/reference
+workers/readers were retired in recorded evidence. Stopped audio observations have
+an age and no fresh independent lease query; do not infer all processes/resources
+have exited. No process was closed or terminated by this documentation pass.
+
+Handoff is capability/usage/API plus existing artifacts and limits, not another
+production job. Chroma key is the next named feature only when separately selected;
+merge-selected, sampler-local sampled-background removal and capacity/storage remain
+separate. ROADMAP remains the sole plan; this correction dispatches no worker.
+
+The older pre-implementation editor passages below are dated records, superseded
+for current capability/status/validation requirements by this handoff and ROADMAP.
+
 ## October 13 selective-migration publication checkpoint
+
+Published commit: `3ca315d0314cb8ca088be560f56c75bca34acd19`. Robert's acceptance
+was at 00:56 UTC October 14; Overseer's receipt verifies normal push, GitHub main
+and Pages. Shared-guide publication ownership is released; this pass updates only
+next-stage documentation without staging, commit/push or implementation dispatch.
 
 Robert authorized publication of the consolidated existing-functionality candidate
 and its earlier control-boundary/Layers dependencies. The reviewed source/native
@@ -16,10 +103,13 @@ not task-time reports or their failures. Ordinary physical OLE drag acceptance,
 listening/audible device clock/scanout/multi-hour coverage, the exact historical
 fallback timeout and cold/complex CPU/high-rate media tails remain limited or
 unverified. Passing repeats do not repair the historical intermittent failure.
-Session/current-frame still saving works; moving-video Save remains OPEN.
+Session/current-frame still saving works. The migration-time legacy video-layer
+Save proposal is distinct from the implemented project Export Video in the
+uncommitted editor candidate.
 Separate capacity/storage commitments and future image/editor/export requirements
-remain outside this migration. Next-stage wording/review-route reconciliation is
-separate; this publication dispatches no Builder/Reviewer or implementation.
+remain outside this migration. The editor candidate is implemented and independently
+reviewed; the current capability-first handoff and retained limits below supersede earlier next-stage
+wording. Publication/documentation dispatch no Builder/Reviewer or implementation.
 
 Implemented: exact native raster materialization/mix; immutable alpha/rotation
 media conversion; Cavern batched geometry/required-row handling; Aftershock GPU
@@ -40,7 +130,51 @@ DLLs/evidence, original media, unrelated notes/research and frozen portable rema
 local. This is a development checkpoint, not a release or universal latency pass.
 
 
-## Current audit reconciliation and next ownership handoff
+## October 14 next-stage documentation and ownership handoff
+
+Historical pre-implementation handoff: current capability/status and bounded-cost
+requirements are superseded by the capability-first handoff above.
+
+Robert accepted the migration at 00:56 UTC on October 14; Overseer published
+`3ca315d0314cb8ca088be560f56c75bca34acd19`, verified GitHub main and both Pages,
+then explicitly released shared-guide ownership in the publication receipt.
+This coordinated pass owns only the scoped Markdown reconciliation; Overseer
+retains Git publication. HEAD/cached origin/main match that receipt; this pass
+performs no fresh server check, code changes, staging, commit, push or Pages edit.
+
+The audit and all 12 migration areas are complete as implementations or measured
+retention decisions. Their exact scope/evidence and limits remain in the accepted
+report; dated acceptance-pending reports keep their task-time wording. Next is
+ROADMAP's existing Studio video-editor stage using Prompter's prepared complete
+prompt, not another application or a repeated audit.
+
+The current sole Bob the Builder is `01a11f0d-6bca-7d62-9a49-ca1580f950ee`;
+Bob the Reviewer is `01a137ed-cd40-7ca1-809b-8e2b953fbeee` (formerly
+Review Builder work to 9/10), both host `local`. Their existing two-way message
+check passed. Follow [AGENTS' exact route](AGENTS.md#existing-editor-stage---october-14-review-and-message-route):
+Builder sends bound increment evidence; Reviewer returns fixes/pass to Builder;
+fixes trigger resubmission, explicit >=9/10 pass triggers automatic continuation.
+Robert reviews only the complete end-to-end stage at an evidence-supported >=9/10.
+Partial scores and unrun listening/motion cannot certify completion. Missing tools,
+failed delivery/unreadable evidence and genuine scope/permission/decision blockers
+must be reported, never interpreted as pass. No worker is dispatched by this pass.
+
+Acceptance uses a protected Upgrade+ episode: scoped project bin/source links/
+relinking; multitrack trim/split/move/Undo/preview; separate source audio/narration/
+music gain/fades/ducking; editable captions/titles/graphics; faithful Save/reopen
+and real export. UI and documented local API/commands share one model, validation,
+history and persistence. Keep approved production files and existing Python/FFmpeg
+until parity. These capabilities remain to implement, not already functioning.
+Chroma key follows the working editor; the unidentified extra is not guessed.
+Separate image/capacity/storage and other expansion commitments remain recorded.
+Migration cold/complex/high-rate tails, historical intermittent timeout and physical/
+listening/audible-clock/scanout/multi-hour gaps remain; no new runtime evidence here.
+
+## Historical pre-migration audit reconciliation and ownership handoff
+
+The following inspection and sequence describe the earlier pass at `15a980c`.
+They are historical; the published checkpoint and October 14 handoff above govern.
+
 
 Local inspection found `main`, HEAD and local `origin/main` at accepted/published
 `15a980c34b47f22ce27c4290084635b5643edf56`, an empty index, three unrelated dirty
