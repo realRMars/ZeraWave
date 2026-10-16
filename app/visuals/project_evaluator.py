@@ -8,24 +8,32 @@ from video_project import validate,integer,frame_time,sample_at,duration,rationa
 
 class Evaluator:
  def __init__(self,document,epoch,revision):
-  self.document=validate(document);self.epoch=epoch;self.revision=revision;self.end=duration(document)
+  self.document=validate(document,allow_missing_routes=True);self.epoch=epoch;self.revision=revision;self.end=duration(document)
   self.assets={a['id']:a for a in self.document['media']};self.tracks={t['id']:t for t in self.document['tracks']}
  def at(self,frame):
   integer(frame,0,max(0,self.end));d=self.document;visual=[];audio=[]
   for c in d['clips']:
    if not c['start']<=frame<c['start']+c['duration']:continue
-   asset=self.assets[c['asset']];track=self.tracks[c['track']];source=rational(c['source_in'])+frame_time(d,frame-c['start'])*rational(c['rate'])
+   asset=self.assets[c['asset']];track=self.tracks[c['track']]
+   if track['kind']!='audio' and not track.get('visible',True):continue
+   source=rational(c['source_in'])+frame_time(d,frame-c['start'])*rational(c['rate'])
    item=dict(clip=deepcopy(c),asset=deepcopy(asset),track=deepcopy(track),source_time=[source.numerator,source.denominator])
+   if track['kind']!='audio':
+    from project_visual import evaluated_layout
+    item['clip']['layout']=evaluated_layout(c,frame)
    (audio if track['kind']=='audio' else visual).append(item)
   visual.sort(key=lambda r:(r['track']['order'],r['clip']['start'],r['clip']['id']))
   audio.sort(key=lambda r:(r['track']['order'],r['clip']['id']))
   text=[]
   for category in ('captions','graphics'):
    for row in d[category]:
-    if row['start']<=frame<row['start']+row['duration']:text.append(dict(category=category,recipe=deepcopy(row),track=deepcopy(self.tracks[row['track']])))
+    if row['start']<=frame<row['start']+row['duration'] and self.tracks[row['track']].get('visible',True):
+     from project_visual import evaluated_text
+     text.append(dict(category=category,recipe=evaluated_text(row,frame),track=deepcopy(self.tracks[row['track']])))
   text.sort(key=lambda r:(r['track']['order'],r['recipe']['order'],r['recipe']['id']))
   time=frame_time(d,frame)
-  return dict(project=d['id'],epoch=self.epoch,revision=self.revision,frame=frame,end=self.end,time=[time.numerator,time.denominator],sample=sample_at(d,frame),visual=visual,audio=audio,text=text,settings=deepcopy(d['settings']))
+  from project_visual import transitions
+  return dict(transitions=transitions(d,frame),project=d['id'],epoch=self.epoch,revision=self.revision,frame=frame,end=self.end,time=[time.numerator,time.denominator],sample=sample_at(d,frame),visual=visual,audio=audio,text=text,settings=deepcopy(d['settings']))
 
  def audio_span(self,start,count):
   integer(start,0,sample_at(self.document,self.end));integer(count,1,2048);d=self.document;total=sample_at(d,self.end);count=min(count,total-start)
@@ -37,9 +45,10 @@ class Evaluator:
    left=max(start,sample_at(d,clip['start']));right=min(start+count,sample_at(d,clip['start']+clip['duration']))
    if right<=left:continue
    source=rational(clip['source_in'])+(Fraction(left,d['settings']['sample_rate'])-frame_time(d,clip['start']))*rational(clip['rate'])
-   audio.append(dict(clip=deepcopy(clip),track=deepcopy(track),asset=deepcopy(self.assets[clip['asset']]),offset=left-start,count=right-left,source_time=[source.numerator,source.denominator]))
+   audio.append(dict(transition_fades=[dict(start=t['start'],duration=t['duration'],side=i) for t in d.get('transitions',[]) for i,key in enumerate(t['audio']) if key==clip['id']],clip=deepcopy(clip),track=deepcopy(track),asset=deepcopy(self.assets[clip['asset']]),offset=left-start,count=right-left,source_time=[source.numerator,source.denominator]))
   audio.sort(key=lambda r:(r['track']['order'],r['clip']['id']))
-  return dict(project=d['id'],epoch=self.epoch,revision=self.revision,start=start,count=count,audio=audio,fps=deepcopy(d['settings']['fps']),end_frame=self.end)
+  from project_audio_graph import plan as audio_graph_plan
+  return dict(graph=audio_graph_plan(d),project=d['id'],epoch=self.epoch,revision=self.revision,start=start,count=count,audio=audio,fps=deepcopy(d['settings']['fps']),end_frame=self.end)
 
 def exact_clip_source(document,clip,frame):
  return rational(clip['source_in'])+frame_time(document,frame-clip['start'])*rational(clip['rate'])

@@ -243,7 +243,7 @@ class AudioOwner(ProjectOutputMixin):
 
     def start_output(self):
         if self.output is not None:return
-        stack = ExitStack()
+        stack = ExitStack();speaker=None
         try:
             diagnostic=os.environ.get('ZERAWAVE_PROJECT_AUDIO_OUTPUT')=='discard-test' and self.project_saved is not None and self.output_factory is None
             if diagnostic:
@@ -259,7 +259,7 @@ class AudioOwner(ProjectOutputMixin):
             if not self.output_factory and not diagnostic:
                 from wasapi_output import FrameOutput
                 output = FrameOutput(output)
-            self.output = output;self.output_stack = stack;self.change(output=True)
+            self.output = output;self.output_stack = stack;self.change(output=True,output_device_name=speaker.name if speaker is not None else 'Discard-test output (no device)' if diagnostic else 'Custom output')
         except Exception:
             try:stack.close()
             except Exception as exc:

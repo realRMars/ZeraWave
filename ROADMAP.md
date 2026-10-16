@@ -1,71 +1,180 @@
 # ZeraWave development plan
 
+## October 16 development checkpoint publication
+
+Robert authorized this scoped commit, normal GitHub push and Pages update. The
+checkpoint contains the implemented Editor Visual Build, its earlier overhaul
+dependencies and shared guidance. [Publication receipt](work/publication-editor-visual-build-20261016-1792134379821453600/review-index.json) records the resulting
+commit and remote verification; source/native identity remains
+`8915f8bcd87c1211fcbea800c13cbe929dad473dd36642113d156ed417f86fc1`.
+
+**Phase F and the whole editor stage remain HOLD.** Publication is a recovery
+checkpoint, not a >=9/10 pass, progression or final product acceptance. Playback
+callback samples still fail; OLE/OS-DPI, scrub/property-paint/cold/resource/listening
+and correlated A/V requirements stay open under the recorded local-only direction.
+Earlier uncommitted/no-publication wording records task-time status; this explicit
+publication authorization supersedes it only for this checkpoint. No new work is
+dispatched, and implementation evidence and historical verdicts stay unchanged.
+
+
 ## October 15 editor foundation checkpoint and current overhaul
 
-Robert authorized a scoped commit, normal GitHub push and Pages reconciliation.
-This checkpoint publishes the existing A-F editor foundation and shared guidance,
-not the newly assigned product-quality overhaul. The retained independent F and
-connected A-F verdicts are 9.0/10 for their recorded scopes; publication is not
-acceptance of the new workspace, responsiveness or performance requirements.
-The reviewed source/native identity is
-`6dcc71cd907c24cde171e8a9dc7cd8550c9c9877ea0f1db889efc905cbfabccc`.
-The [publication receipt](work/publication-editor-foundation-20261015-1792059595189235700/review-index.json) records the resulting commit and remote verification.
+### Approved Editor Visual Build Plan - current execution
 
-Robert has separately assigned the existing Builder a substantial editor overhaul:
-independent Qt/ADS workspace panels, unified Library/timeline editing, everyday
-owner-model/UI/API tools, inspector/keyframes/transitions/mixer, autosave/schema
-recovery, and measured playback/export improvements. These are approved work,
-not completed capabilities. Preserve the existing renderer, one document owner,
-accepted edits, original media, saved projects and unrelated work.
+Robert approved BOTH Editing and Audio Mixing layouts and the complete October 15
+build plan, then assigned the existing sole Builder. Visual discovery/approval is
+complete; native comparison captures verify implementation rather than reopen that
+approval. ROADMAP remains the sole implementation plan. The [approved master](work/editor-visual-build-20261015-1792088667789300800/reference/ZERAWAVE-EDITOR-BUILD-PLAN.md),
+[supporting spec](work/editor-visual-build-20261015-1792088667789300800/reference/workspace-correction-spec.md), [acceptance appendix](work/editor-visual-build-20261015-1792088667789300800/reference/acceptance-and-staging.md)
+and [original layouts](work/editor-visual-build-20261015-1792088667789300800/reference/design-proposal/README.md) are retained execution references.
+Archive: `ZeraWave-Editor-Visual-Build-Plan-2026-10-15 (1).zip`, SHA256
+`d2826ac545fea28cd7cd5debdb32e0763950c57d1b957e7cf2f824629fc89044`.
+The owner's assigned brief and approved master resolve older appendix conflicts;
+fictional mockup artwork, meters, frame rates and values are not product defaults
+or measured evidence. No approved source/reference is rewritten by reconciliation.
 
-This current assignment supersedes older handoff-only, pre-implementation and
-no-further-Computer-Use wording below within its explicit scope. Necessary Computer
-Use is preapproved for owned disposable tests in an available desktop/device window;
-close owned test windows promptly, stop on Escape/user activity/unsafe pressure,
-and do not resume an interrupted desktop without authorization. It does not permit
-new Upgrade+ production, narration, full-episode exports, repeated long playback,
-installations, extra workers or unrelated expansion. Existing Builder/Reviewer
-stage gates continue; prior scores do not satisfy the new gates. Robert's final
-hands-on product acceptance remains separate. Publication dispatches no work.
+**Current implemented candidate - overall HOLD:** published foundation remains
+`4775137229e03203439932146679dee357d91960`; the newer dirty continuation is
+source/native `8915f8bcd87c1211fcbea800c13cbe929dad473dd36642113d156ed417f86fc1`.
+The [consolidated results](work/editor-visual-build-20261015-1792088667789300800/final-candidate-1792131017952188300/FINAL_REPORT.md) and [sealed manifest](work/editor-visual-build-20261015-1792088667789300800/final-candidate-1792131017952188300/MANIFEST.json)
+bind 363 source/asset entries, 3 unchanged DLLs and 54 task paths. The current
+finite decoder-correction [review](work/reviewer-editor-visual-phase-f-20261015-01/decoder-followup/REVIEW.md) is complete: no new confirmed
+correctness defect; Phase F and the whole stage remain HOLD. No >=9/10 score,
+progression, Robert acceptance or publication approval was issued by that review.
 
-Retain the earlier preview tails up to 1.33 s, unverified correlated audible-clock/
-scanout and broad device/format/capacity/multi-hour coverage, and historical B3
-stall/fallback/physical-interaction limits. Session and still saving and project
-Export Video are implemented; the distinct legacy moving-video Save writer remains
-OPEN. Capacity/storage work, separate image follow-ups and chroma key remain separate.
+The candidate implements Editing/Audio Mixing ADS workspaces, one contextual
+transport, Source range/audition through the existing audio owner, inline bound
+Inspector/direct handles, two supported effects, Linear/Hold visual keys, native
+titles/dedicated captions/SRT and premultiplied dissolve. Schema 3 guarded migration/
+backups, named buses/Master/routing/pan/mute/solo/sample meters, pinned Save/export,
+bounded automatic metadata snapshots/new-copy recovery and uncertain-command
+reconciliation are implemented within their documented limits. See the
+[feature contract](docs/VIDEO_PROJECT.md); implementation is not gate acceptance.
+Recovery references external media, does not mark the live project saved and is
+not a new owner-process-death/artwork-durability guarantee.
 
-The current overhaul follows these dependency stages in this sole plan:
+**Current evidence:** quiet foreground settled-seek sampling with discard-test
+audio meets the 250ms callback proxy: 1,200 matching requests across two fixtures/two policies/three runs,
+all below 250ms. Candidate p95 ranges are F1 164.529-184.634ms and F2 161.260-175.250ms.
+Both policies pass this condition; four codec threads are not a uniform UI speedup.
+Current five-loop playback callback samples still **FAIL**: F1 649/1800 frames not
+observed (36.056%); F2 508/1800 (28.222%). These are callback proxies, not physical
+scanout/dropped-frame or listening/A/V certificates. Full/native quality is retained;
+no reduced-quality result closes the gate. Rejected hardware/copy/GPU/lookahead
+experiments are retained, not adopted improvements or proof of a hardware ceiling.
 
-| Stage | Assigned work, not a completion claim |
-| --- | --- |
-| 0 | Recoverable baseline, gap inventory and short-fixture measurement protocol |
-| 1 | Independent workspace, transport/ruler and Source/Project Preview distinction |
-| 2 | Library placement; selection, trim, clipboard, tracks, links and ripple workflows |
-| 3 | Inspector/direct transforms, keyframes, transitions, mixer and text tools |
-| 4 | Autosave/schema compatibility, save/recovery and export controls/ranges |
-| 5 | Measured playback, scrubbing, 500-clip scaling and export corrections |
-| 6 | Integrated user journeys and independent product-quality review |
+**Historical reviews and open gates:** retain original Stages 0/1 9/10, foundation
+A-F9.0 and all later component verdicts with their source identities. The
+[Stage 2 correction](work/reviewer-editor-overhaul-stage2-correction-20261015-01/REVIEW.md)
+remains historical 8.5/10 HOLD: Insert scope/stale-confirmation findings are resolved,
+ordinary single-release Library/header journeys remain UNVERIFIED. A second-click
+automation completion neither passes natural release nor proves an app defect.
+Earlier Stage 3 notes were preparation at that time; they do not describe the
+current implementation. Requested scrub, full UI/property-paint and cold timing,
+retained 15-second startup failure, whole-app memory plateau, OLE/OS file drop,
+actual OS-DPI switch, listening/physical unplug and correlated audible/display A/V
+remain failed or UNVERIFIED as recorded. Local-only A/V direction does not waive
+the correlation gate. Overall HOLD and final required gates remain open.
 
-Use the approved deterministic 30-second 1920x1080/30 FPS fixture with compressed
-sources, three overlapping video tracks, separate audio roles, text, automation,
-transitions and sync markers; add rational-rate boundaries and the separate
-500-clips/12-tracks interaction fixture. Normally use three short matched repeats
-and one bounded approximately five-minute stability exercise, not production renders.
-On the declared Full-quality workload: visible editing feedback p95 <=100 ms;
-warm scrubbing p95 <=150 ms; settled warm seek <=250 ms; sustained 1080p30 preview
-with <1% dropped frames; A/V offset within one project frame without drift; no
-routine main-thread stalls >250 ms. Record cold/warm conditions, input/acceptance/
-visible presentation separately, failed/unrun gates and resource retirement.
-Prior coarse status or callback/swap return does not establish these results.
+The approved phases below subdivide the current overhaul; they do not rename old
+stages, scores or the earlier A-F foundation review. Independent layout, inspector,
+audio and persistence work may proceed where stable dependencies are established.
+This is the owner's limited exception to the old blanket Stage-3 pause, not closure
+of Stage 2 or approval of its blocked dependent journeys. Dependent increments need
+the existing Reviewer's explicit source-bound >=9/10 pass. No new workers/dispatch.
 
-Each stage requires the existing Reviewer's explicit source-bound >=9/10 pass.
-Final workflow usability, visual clarity, editing correctness, performance,
-persistence/recovery and integration each require >=9/10. Failed or unverified
-required performance gates, data loss, wrong export, desynchronized links or unusable
-core actions block final acceptance regardless of score. Do not lower quality or
-weaken criteria to claim a pass. The full owner-approved October 15 Builder brief
-remains the execution specification; this summary creates no competing plan.
+| Approved phase | Scope and dependency/review gate | Relation to earlier overhaul stages |
+| --- | --- | --- |
+| A - Inventory | Recoverable dirty baseline, approved contract/reuse map, schema/commands and bound fixtures/evidence ledger; visual approval already satisfied | Extends Stage 0 |
+| B - Workspace | Editing and Audio Mixing presets, independent docks, single target-aware transport/toolbar, empty states; actual native resize/float/reset/restart/fullscreen checks | Extends Stage 1 |
+| C - Editing | Import/source 2-6s range/insertion/modes/selection/move/trim/split/links/ripple/history/reopen; close or explicitly retain both natural-release checks | Stage 2 closure, still HOLD |
+| D - Inspection | Inline inspector, direct handles, supported effect stack, distinct titles/captions, visual keyframes and correct premultiplied dissolve; UI/API/history/pixel/persistence parity | Inspector portion of Stage 3 |
+| E - Audio | Schema/commands then real track/bus/Master graph, strips, metering and source audition; sample/audible/routing/solo/save/export checks | Audio portion of Stage 3; may accompany independent D after stable contracts |
+| F - Integration | Autosave/recovery/schema/relink/export ranges, complete F1, matched performance/resources and whole journeys; required open gates block unqualified completion | Stages 4-6 |
 
+**Workspace and transport contract.** Editing: Media/Source left, aspect-fit Program
+center, inline Inspector right, full-width Timeline below; Mixer initially hidden
+and recoverable through View plus a compact affordance. Audio Mixing retains a
+useful full-width Timeline and Program above, with real upper track/bus/Master
+strips. All panels independently float/dock/hide/restore; preserve Source's separate
+detachability. Reset/preset changes affect layout only, not clips, selection,
+playhead, history, routing or authored settings. Require approximately 1947x1146
+and **1280x720** at actual laptop scaling (four/three usable lanes respectively);
+1280x800 is an additional mockup comparison, not a substitute. No OS-scaling override.
+
+One persistent monitor transport below the picture targets Source or Program
+explicitly. Beginning PAUSES and seeks frame 0; End PAUSES at the final valid frame;
+stepping pauses one rational frame. Play/Pause pauses in place. No redundant
+persistent Stop, Timeline transport or second Source playback row. Preserve/test
+the distinct internal stop/reset/release for close, context changes and Visualizer
+handover. Source seek/audition never moves the sequence or competes for audio
+ownership. Keep visible In/Out, loop, time/duration and compact Fit/fullscreen/
+overflow; retain Normal/Insert/Overwrite in the one-row Timeline editing toolbar.
+Preserve 30000/1001 and 24000/1001, exclusive Out and exact source/sequence conversion.
+
+**Audio/model contract.** Clip processing/gain/envelope -> track processing/gain/pan
+-> mute/solo eligibility -> exactly one named bus, Master or None; bus -> Master or
+None -> final Master gain/mute -> shared playback/export. Named buses use stable
+IDs independent of labels; Dialogue and Music are fixture requirements. No sends,
+bus-to-bus, feedback or duplicate direct-plus-bus path. Bus Solo is required and
+must admit its routed tracks; track Solo remains audible through its destination;
+multiple solos sum once and explicit track/bus/Master mute wins. Master provides
+final meters/gain/mute/device access, **no extra Master pan**. Track/bus pan law,
+meter timing/peak/reset and occupied-bus deletion/reroute/disconnect must be explicit,
+undoable and persistent through the same validated owner/UI/API/CLI/schema/history.
+No ahead-of-play samples described as heard-device metering. Source audition,
+dedicated captions and bounded atomic autosave/recovery require implementation/test
+or an explicit owner-approved scope adjustment; conditional appendices do not waive them.
+
+### Current bounded fixtures and acceptance
+
+- **F1:** 12s, 1920x1080, 30/1 FPS, 48kHz stereo; marked synchronized sources,
+  second overlay video, still graphic, title/caption, transform/opacity/effect keys,
+  basic effect and dissolve; about 12 clips on V1-V4/A1-A4; distinguishable sources
+  through Dialogue/Music buses plus direct Master. Bind codec/GOP/bytes/hashes,
+  recipes/quality/cache and deterministic checkpoints; under 100 MB where feasible.
+- **F2:** same media in 120s 1080p30, **200 instances on 16 tracks** (8 video/8 audio),
+  two buses, at most four active video layers, bounded keys/effects; fixed busy 12s
+  playback region. **Do not export F2.** Historical 30s/500-clip workloads and their
+  93.02s export/~200ms owner costs retain provenance; they are not matched F1/F2 passes.
+- Warm: 100 deterministic events per interaction class across three runs; report
+  per-run counts/p50/p95/max by class, scrub and settled seek separately. Cold:
+  20 fresh-start first-selection/seek/play samples, nearest-rank p95/max, supported
+  application-cache clearing and honest OS-cache status, including cold import.
+- Targets on declared Full quality: correct visible UI feedback p95 <=100ms,
+  correct scrub p95 <=150ms, settled seek p95 <=250ms; <1% dropped scheduled frames
+  over five 12s 30FPS loops (**1800 frames**), with late/repeat/drop/jitter/boundaries;
+  no audible underruns; correlated A/V within one sequence frame after measured
+  output latency; no routine main-thread stall >250ms (cold initialization separate).
+  Record input/acceptance/matching visible result, not callback/swap return alone.
+  Robert selected local sync measurement only; any unsupported audible/display
+  correlation remains UNVERIFIED and blocks an unqualified final pass, not all
+  independent implementation. No silent quality reduction or invented certification.
+- Ten equivalent open/edit/play/close cycles: compare settled CPU/GPU memory,
+  handles/caches/readers/workers and underruns against machine-bound budgets.
+  Keep canceled/failed/slow requests and actual worker exit explicit.
+- Matched export: reuse one valid matching baseline or one bounded baseline plus
+  one candidate **12s F1 export**, identical settings/backend/cache/machine, complete
+  cost including drain/verification/cleanup. Feature-complete pre-optimization
+  reference when earlier fixtures lack new features. Exact 30/1 F1 is 360 frames;
+  decode visual/audio/range/text/effect/transition/mix checkpoints with stated lossy
+  tolerances. Retest necessary short ranges only; no episode/full-length production.
+
+Each dependent review gate uses the existing Builder/Reviewer route. Final workflow
+usability, visual clarity, editing correctness, performance, persistence/recovery
+and integration each need >=9/10; missing required controls, data loss, wrong export,
+desynchronized links, unusable actions or failed/unverified required gates block
+unqualified final acceptance regardless of score. Historical A-F9.0 and visual
+approval do not satisfy these gates. Retain historical failures and preview tails
+up to 1.33s, B3 stall/fallback/physical and broad device/scanout/multi-hour limits.
+The legacy video-layer Save writer remains OPEN and distinct from project export;
+image additions, capacity/storage, chroma key and other expansion remain separate.
+Use necessary owned Computer Use only in an available desktop/device window; close
+owned windows promptly, stop on Escape/user activity/unsafe pressure, and obtain
+new authorization before resuming interrupted desktop work. No installations,
+commit/push, extra workers, production narration/episode or engine replacement.
+Robert's final hands-on acceptance remains separate. This documentation pass makes
+no application change, runtime/performance claim or implementation dispatch.
 
 ## October 13 selective-migration publication checkpoint
 
@@ -188,10 +297,10 @@ Audit SHA256: `5571260b0a11cc17d0262cf051c48d6483412ec7c6336c2d337166ab1e1024b9`
 1. **Audit and agreed selective migration - complete, accepted and published.**
    `3ca315d0314cb8ca088be560f56c75bca34acd19` contains all 12 implementations
    or measured retention decisions and earlier control-boundary/Layers dependencies.
-2. **Existing video-editor capability stage - implemented/reviewed, uncommitted.**
-   The existing Reviewer records F9.0 and connected A–F9.0 PASS for Robert handoff.
-   Current direction is capability-first and bounded-cost; final Robert acceptance
-   and publication remain separate, with no further heavy validation dispatched.
+2. **Published editor foundation; approved visual-build overhaul is current.**
+   Foundation4775137 retains historical F/A-F9.0. Dirty Stages0/1 have recorded9;
+   Stage2 remains8.5HOLD. Execute current phases A-F above, including the limited
+   independent-work exception; final required acceptance/performance gates stay open.
 3. **Separate additions remain accounted for.** Merge-selected and sampler-local
    sampled-background removal are not completed by migration or silently included
    here. Chroma key follows the working editor. Do not guess the unidentified extra.
@@ -205,6 +314,10 @@ claimed completed. Capacity/storage and other expansion remain separate.
 <a id="existing-video-editor-stage---upgrade-end-to-end-workflow"></a>
 
 ### Existing video-editor stage - capability-first handoff
+
+Historical foundation scope and task-time handoff below; current approved visual
+build phases, fixture sizes and limited HOLD exception are defined at the top.
+Prior no-further-work/Computer-Use wording does not revoke the new assignment.
 
 The agreed capabilities are implemented in the existing Studio's uncommitted
 candidate; legacy layer sessions/silent media and the project editor remain
@@ -747,8 +860,9 @@ code/assets without rights review.
 - Current accepted migration: `3ca315d0314cb8ca088be560f56c75bca34acd19`;
   [receipt](work/publication-selective-migration-20261013/review-index.json) records
   verified push and Pages. All 12 areas are accounted for with retained limits.
-  The editor candidate is implemented/reviewed and uncommitted; F9.0/whole-stage9.0
-  are technical handoff verdicts, not final user acceptance or publication.
+  Editor foundation4775137 is published; F/A-F9.0 remains scoped technical evidence.
+  The later dirty overhaul remains uncommitted, with Stage2 8.5HOLD and current
+  visual-build phases/gates above; no final user acceptance is inferred.
 
 - Earlier accepted/pushed finishing checkpoint: `f3d414be7ee380a38865c3579c057597dbb5fb06`.
   Local branch/HEAD/`origin/main` verified October 10; the [publication receipt](work/publication-raster-recovery-20261010/review-index.json)

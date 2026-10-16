@@ -1068,3 +1068,116 @@ isolated GPU work or audible sync. Preserve raw samples, matched source boundari
 sampled versus retained native maxima, errors and owner listening attribution.
 Current full-episode evidence retains transition tails to1.333seconds; it does not
 establish universal smoothness, scanout, audible-position or multi-hour guarantees.
+
+
+### Video Editing workspace boundary — overhaul stage 1, 2026-10-15
+
+Independent ADS panels retain ProjectWorkspace/ProjectService as the one document,
+command/history and transport authority. Source Preview has a bounded read-only
+derived evaluator, local frame/range and no project/device transport ownership.
+Hide/replacement/close retire readers only after real worker exit. Moving the same
+ProjectPreview/controller between native hosts rebuilds only its context-owned GL
+view/resources. Old-view destruction cannot invalidate a newer view's request.
+Windows fullscreen uses Qt's documented WS_BORDER composition workaround; return
+restores the captured dock state, never artwork. Separate bounded atomic layout
+writes cannot overwrite document saves or create artwork history. Untouched rounded
+gain displays must preserve the full authoritative value.
+
+Range/loop are ephemeral owner transport state: exact rational [In, Out), audio
+preparation ends at canonical exclusive sample Out, then drains before restarting.
+This is not gapless-loop or audible-sync certification. Legacy `presented` binding
+and `render_complete_ms` denote render callback completion; neither paintGL nor
+frameSwapped certifies physical display. Native interaction, measured visible
+latency, audio-device correlation and owner acceptance remain separate evidence.
+
+
+### Everyday timeline/Library boundary — overhaul stage2, 2026-10-15
+
+`project_edits` mutates only the private transaction copy owned by the existing
+ProjectService. It does not publish, persist or own a parallel history. New
+track/item/reference commands share batch validation, revision/command guards,
+idempotency and exact Undo. Locks and link/sync closure reject the whole operation;
+Normal cannot silently cut other clips. Range cuts retain source/fade origins;
+groups carry selection/movement identity without render isolation. Copy/paste
+remap IDs; Duplicate retains the selected items' current tracks.
+
+Schema1 reads unchanged; genuine edits author schema2 flags/groups. Safe upgrade
+backs up exact schema1 bytes in the same directory before atomic replacement,
+validates outer/document revisions/content and fails protected on unknown content,
+changed destinations or retained-backup capacity. Save jobs keep pinned revisions;
+editing under16 bounded jobs, failed writes and explicit retry must retain accepted
+work. Terminal operation lookup/replay cannot become duplicate submissions.
+
+Qt input uses revision-indexed geometry and bounded gesture feedback, not per-move
+document copying. Pointer press on stale displayed geometry refreshes and refuses
+that gesture. Header widgets retain focused unaccepted text across revisions.
+The real Library is taken from ADS before reparenting; a selector change must
+actually show that existing surface. OLE Copy drops cannot trigger Qt row cleanup.
+Source inspection captures channel/mode/range and uses one job, rejects a stale
+binding, and retires on actual exit. Missing project references are never silently
+replaced by a Library drop. Decorative readers/cache have distinct payload/queue
+bounds and retire when hidden, empty or replaced. Separate view settings never
+change project/artwork. Human modal Save decision time cannot expire the later
+close reconciliation budget. Native, offscreen, physical latency and audio/display
+evidence remain separate; required later numeric gates are not inferred here.
+
+Destructive confirmation may enter a nested event loop: capture its binding and
+affected identities/options before opening it, then submit that exact decision.
+Never recapture/rebase a newer revision after Yes. Explicit Insert scope includes
+every destination before any shift/cut; malformed scope rejects atomically.
+Playhead-dependent authoring pins current shared transport, not stale paint state.
+
+
+### Editor visual build resource boundary — 2026-10-15 candidate
+
+The [video project contract](VIDEO_PROJECT.md#responsiveness-and-resource-ownership)
+records the bounded codec owners, snapshot leases, immutable history/public
+snapshot separation, ordered same-ID recovery, truthful pending Mixer display,
+exact range export and new-copy metadata recovery. Keep authoring/document policy
+in the existing Python owner and graphics resources in the current context-owned
+compositor. Repeated layout validation may reuse exact JSON type identities only
+within one validation call; item/time/reference/capacity checks remain strict.
+The publisher may read owner references only on the owner thread and must copy
+before retention/publication. Public/API state remains detached.
+
+Recovery count/byte capacity, PNG/storage jobs, native planes/RGBA, GPU textures,
+current CPU copies and retained history/save ownership are separate quantities.
+Failed native tasks drain sibling work before retirement and preserve the original
+failure. Do not clear accepted history, raise caps, lower resolution or discard
+intended samples to manufacture an improvement. Use matched source/fixture raw
+samples and exact pixel/audio comparisons; Qt swap callbacks and estimated output
+padding alone do not establish scanout, listening or one-frame A/V alignment.
+
+Video preview keeps one in-flight native preparation and releases its source
+reader before requesting its replacement. Context-owned uploaded resources can
+retain the preceding valid same-generation picture; stale document/transport
+generations cannot publish. Output-clock interpolation is capped at submitted
+PCM; unavailable padding must not be reported as a measured timing observation.
+
+
+Inspector capture must preserve displayed-row epoch/revision provenance, not
+pair cached arrays with a freshly read owner revision. Only the ordering token
+may advance when the displayed document still matches. Quiet-flush cleanup
+retires precisely the contributing numeric intents and must not erase another
+field's uncommitted typing. Visibility batching restores its prior layout/paint
+state on exit; nested refresh must not see partly installed controls. The
+standalone `studio_project_inspector_test.py NEW_EVIDENCE_DIRECTORY F1.zwv`
+exercises the real-owner first-input race, two unfocused wheel transactions,
+exact Undo, new-destination Save and normal worker shutdown. It is synthetic Qt
+evidence, separate from physical OLE release and measured presentation.
+
+
+For visibility batching, restore the body's explicit `WA_ForceUpdatesDisabled` ownership state, not the inherited effective `updatesEnabled()` value. The Inspector regression additionally switches video/audio/caption/title contexts under ancestor update suppression and requires real field Paint events; intentional local suppression remains owned locally.
+
+The October 15 decoder follow-up makes `codec_threads` an integer bounded to1–4
+before opening a container. Project `DecodeLane` explicitly chooses4; legacy
+callers default to2. Any signed-preroll container reopen must retain that exact
+choice. `codec_threads_per_decoder` and `codec_thread_limit` describe configured
+policy (maximum16 across four project owners), not observed OS-thread counts.
+Keep codec internal working memory distinct from plane/RGBA cache accounting.
+Four-clock stress and exact two-versus-four output comparisons are evidence in
+the visual-build task note; no capacity cap, quality reduction or automatic
+hardware decoder was introduced. Existing cancellation, drain-before-retire,
+single-reader lease, stale-generation and serial-within-reservation behavior
+remains required. Resource plateau, physical display/audio and full UI timing
+claims require their own matched evidence.

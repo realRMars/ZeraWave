@@ -50,7 +50,9 @@ try:
  _,result=req('save',path=str(path));assert result['outcome']['status']=='failed' and hashlib.sha256(path.read_bytes()).hexdigest()==digest
  checks.append('Save cannot overwrite referenced source; source bytes intact')
  # Complete real history remains owned at quiescence; do not require a zero.
- req('batch',changes=[dict(op='project.rename',name='Quiescent accepted edit')]);assert service.history_bytes>0 and not service.jobs;assert service.can_shutdown(True);service.shutdown()
+ req('batch',changes=[dict(op='project.rename',name='Quiescent accepted edit')]);assert service.history_bytes>0 and not service.jobs;close_deadline=time.monotonic()+10
+ while not service.can_shutdown(True):assert time.monotonic()<close_deadline;time.sleep(.003)
+ assert service.recovery.future is None;service.shutdown()
  (out/'RESULT.json').write_text(json.dumps(dict(result='PASS',checks=checks,samples=samples,history_bytes=service.history_bytes,source={name:hashlib.sha256((ROOT/'app/visuals'/name).read_bytes()).hexdigest() for name in ['video_project.py','project_service.py']}),indent=2));print('PASS',len(checks),flush=True)
 except BaseException:
  import traceback

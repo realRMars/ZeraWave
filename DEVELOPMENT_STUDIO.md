@@ -2,10 +2,20 @@
 
 ## October 15 current checkpoint
 
-The existing editor foundation is being published under Robert's explicit Git and
-Pages authorization. See [current status](ZERAWAVE_HANDOFF.md#october-15-editor-foundation-checkpoint-and-current-overhaul)
+The published editor foundation and current approved visual-build assignment are
+tracked in [current status](ZERAWAVE_HANDOFF.md#october-15-editor-foundation-checkpoint-and-current-overhaul)
 and [the sole plan](ROADMAP.md#october-15-editor-foundation-checkpoint-and-current-overhaul).
-The new product-quality overhaul is assigned, not implemented or accepted. Earlier
+The uncommitted candidate now has Editing/Audio Mixing presets, independent
+Media/Source, Program, Timeline, inline Inspector and real track/bus/Master strips.
+View > Workspace selects a preset; View > Panels restores individual panels;
+Reset affects layout only. Double-click Project Media for Source; its clock/range
+is independent, and the single monitor transport explicitly selects Source or
+Program. Beginning/End/step pause at exact valid frames. File > Save video project
+preserves accepted project work independently of layer-session Save.
+Use [the implementation contract](docs/VIDEO_PROJECT.md) for routing, schema,
+controls and limits. Advanced visual tools and recovery/performance completion
+remain work within the same assignment. Implementation, phase review and Robert's
+acceptance remain separate. Earlier
 pre-implementation and handoff-only wording below is historical where superseded
 by those current sections; artistic standards and preserved evidence remain intact.
 
@@ -1146,3 +1156,35 @@ keep their ownership. Fixed-timestamp seeks and ordinary prefetch keep the
 reduced source pixels or discarded accepted artwork is involved. Natural
 full-range 6×/12× trials and remaining stalls are bound in the
 [current results](work/b3-remaining-20261011-1791735342975863300/FINISH_REVIEW.md).
+
+
+### Editor visual-build candidate — 2026-10-15
+
+Use the existing Editing / Audio Mixing presets and independently dockable
+Media/Source, Program, Inspector, Timeline and Mixer panels. Select an item for
+inline intrinsic controls, bounded effects/keyframes and direct move/resize/
+rotation handles. Text has its own caption/title controls and native reflow;
+Escape cancels an unaccepted handle gesture. Source and Program remain explicit
+transport targets and share one existing AudioOwner.
+
+Mixer routes each audio track exclusively to Master, one named bus or None.
+Requested controls display an explicit unaccepted status until reconciled;
+meters describe actual accepted poststage samples. Use File > Save video project
+for the requested revision, Export Video for full/In-Out/custom ranges, and
+Recover video project as new copy for accepted recovery metadata. Recovery never
+replaces the open session. Rich styles remain in the project; Export SRT writes
+caption text/timing to a new file. See [the implementation contract](docs/VIDEO_PROJECT.md#visual-authoring-keys-and-dissolve--october-15-candidate).
+
+This uncommitted candidate is for source-bound review. Native interaction,
+performance, physical presentation/listening and Robert's acceptance are separate
+gates; their actual results and limits belong in the task evidence pack.
+
+
+Inspector values remain bound to the document revision displayed in the panel.
+If the owner advances before the panel refreshes, a stale first edit is rejected
+and its unapplied input is shown for deliberate re-entry. Separate wheel gestures
+after a quiet flush remain usable without first focusing the number field. A
+preview or requested property value is not an accepted or durably saved edit.
+
+
+Inspector context changes and dock/layout rehosting preserve inherited repaint behavior. The body must resume painting when its ancestor resumes; a heading or geometry assertion alone does not establish usable visible properties.

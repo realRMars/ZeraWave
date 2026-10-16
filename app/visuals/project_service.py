@@ -8,7 +8,7 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import hashlib,json,os,threading,time,uuid,traceback
-from video_project import create,validate,apply,ProjectError,fail,identity,MAX_DOCUMENT_BYTES,LIMITS,duration,text,fields
+from video_project import create,validate,apply,ProjectError,fail,identity,MAX_DOCUMENT_BYTES,LIMITS,duration,text,fields,integer,VERSION
 
 def summary(row):
  result=deepcopy({k:v for k,v in row.items() if k!='result'})
@@ -47,7 +47,7 @@ def read_project(path,cancel):
  data=json.loads(path.read_text('utf-8-sig'))
  if not isinstance(data,dict) or data.get('format')!='zerawave-video-project-file' or data.get('version')!=1:fail('unsupported_project','Unsupported video-project file; previous project retained. Layer sessions use Open session.')
  fields(data,('format','version','revision','document'))
- doc=validate(data['document'])
+ doc=validate(data['document'],allow_missing_routes=True)
  revision=data['revision']
  if type(revision) is not int or revision<0:fail('invalid_revision','Invalid saved revision.')
  states=availability(doc,path.parent,cancel)
@@ -74,6 +74,39 @@ def prepare_changes(changes,base,cancel):
   c.setdefault('provenance',{}).setdefault('import_path',str(path))
   c.update(sha256=actual,metadata=inspected['metadata'],location=dict(kind='external',path=str(path)))
  return changes
+def schema_backup(destination,expected,cancel,target_version=VERSION):
+ # Save never upgrades an old file without a source-bound, independently durable
+ # copy in the SAME directory, so its relative media paths remain usable.
+ exists=destination.exists()
+ if exists!=(expected is not None) or exists and digest(destination,cancel)!=expected:fail('destination_changed','Save destination changed during preparation. Existing file retained; inspect it or choose Save As.')
+ if not exists:return None
+ raw=destination.read_bytes()
+ if len(raw)>MAX_DOCUMENT_BYTES:fail('unsupported_project','Existing destination is not a supported bounded project; choose a new destination.')
+ try:prior=json.loads(raw.decode('utf-8-sig'))
+ except (ValueError,UnicodeError):fail('unsupported_project','Existing destination is not a readable project. It was preserved; choose Save As.')
+ if not isinstance(prior,dict) or prior.get('format')!='zerawave-video-project-file' or type(prior.get('version')) is not int or prior.get('version')!=1 or not isinstance(prior.get('document'),dict):fail('unsupported_project','Existing destination has an unsupported format; choose Save As.')
+ if hashlib.sha256(raw).hexdigest()!=expected:fail('destination_changed','Destination changed while reading its backup. It was retained.')
+ fields(prior,('format','version','revision','document'));integer(prior['revision'],0);version=prior['document'].get('version')
+ if type(version) is not int or version not in (1,2,VERSION):fail('unsupported_project','Existing destination uses an unsupported schema; choose Save As.')
+ validate(prior['document'],allow_missing_routes=True)
+ if version==target_version:return None
+ target=destination.with_name(destination.stem+'.before-v'+str(target_version)+'-'+expected[:16]+'.zwv')
+ if target.exists():
+  if digest(target,cancel)!=expected:fail('backup_conflict','Legacy-schema backup has changed. Both files were retained; choose Save As.')
+  return str(target)
+ if sum(p.name.startswith(destination.stem+'.before-v') and p.suffix=='.zwv' for p in destination.parent.iterdir())>=8:fail('backup_capacity','Eight legacy-schema backups are retained. Choose a new Save As destination; no backups were removed.')
+ temporary=target.with_name('.'+target.name+'.'+uuid.uuid4().hex+'.tmp')
+ try:
+  with temporary.open('xb') as f:f.write(raw);f.flush();os.fsync(f.fileno())
+  if cancel.is_set():fail('cancelled','Save cancelled before schema upgrade; old project retained.')
+  try:os.link(temporary,target)
+  except FileExistsError:
+   if digest(target,cancel)!=expected:fail('backup_conflict','A different schema backup appeared; choose Save As.')
+ finally:
+  try:temporary.unlink(missing_ok=True)
+  except OSError:pass
+ return str(target)
+
 def write_project(document,revision,base,path,portable,cancel,allow_missing=False):
  barrier=os.environ.get('ZERAWAVE_PROJECT_TEST_SAVE_BARRIER')
  while barrier and Path(barrier).exists():
@@ -88,6 +121,7 @@ def write_project(document,revision,base,path,portable,cancel,allow_missing=Fals
   for source in aliases:
    if source.exists() and os.path.samefile(source,destination):fail('protected_source','Save destination aliases a protected source/output.')
  if destination.suffix.lower()!='.zwv':fail('invalid_destination','Video-project Save requires a .zwv destination. Still images and Export Video are separate actions.')
+ prior_destination=digest(destination,cancel) if destination.exists() else None
  destination.parent.mkdir(parents=True,exist_ok=True);saved=deepcopy(document);staging=destination.parent/('.'+destination.name+'.work-'+uuid.uuid4().hex);warnings=[];dependencies={};committed=False
  try:
   for a in saved['media']:
@@ -115,17 +149,21 @@ def write_project(document,revision,base,path,portable,cancel,allow_missing=Fals
     a['location']=dict(kind='relative',path=target.relative_to(destination.parent).as_posix())
    else:a['location']=dict(kind='external',path=str(src))
    dependencies[a['id']]='secured' if portable else 'verified_external_reference'
-  payload=dict(format='zerawave-video-project-file',version=1,revision=revision,document=validate(saved));raw=json.dumps(payload,ensure_ascii=False,allow_nan=False,separators=(',',':')).encode('utf8')
+  from project_audio_graph import missing_routes
+  warnings.extend('Unresolved audio route retained for '+row['name']+'; playback/export requires deliberate repair.' for row in missing_routes(saved))
+  payload=dict(format='zerawave-video-project-file',version=1,revision=revision,document=validate(saved,allow_missing_routes=True));raw=json.dumps(payload,ensure_ascii=False,allow_nan=False,separators=(',',':')).encode('utf8')
   # Model and file size limits are measured in their exact serialized forms.
   if len(raw)>MAX_DOCUMENT_BYTES:fail('capacity','Saved project exceeds 512 KiB; previous file retained.')
   with staging.open('xb') as f:f.write(raw);f.flush();os.fsync(f.fileno())
   if cancel.is_set():fail('cancelled','Save cancelled; previous project retained.')
   failure=os.environ.get('ZERAWAVE_PROJECT_TEST_WRITE_FAILURE')
   if failure=='1' or failure and Path(failure).exists():raise OSError('Controlled project write failure before atomic replacement')
+  backup=schema_backup(destination,prior_destination,cancel,saved['version'])
+  if document['version']>=2 and (destination.exists()!=(prior_destination is not None) or prior_destination is not None and digest(destination,cancel)!=prior_destination):fail('destination_changed','Destination changed before replacement. Existing file and accepted project retained.')
   os.replace(staging,destination)
   committed=True
   # No late cancellation check after commit: the durable result wins that race.
-  return dict(path=str(destination),revision=revision,sha256=hashlib.sha256(raw).hexdigest(),dependencies=dependencies,warnings=warnings)
+  return dict(path=str(destination),revision=revision,sha256=hashlib.sha256(raw).hexdigest(),dependencies=dependencies,warnings=warnings,schema_backup=backup)
  finally:
   # Partial dependency copies are retained for diagnosis; only our unpublished
   # metadata temp is removed, and never a source or prior good destination.
@@ -140,12 +178,19 @@ class ProjectService:
   self.thread=threading.get_ident();self.document=None;self.revision=0;self.epoch=uuid.uuid4().hex;self.path=None;self.saved_revision=None;self.undo=[];self.redo=[];self.history_bytes=0;self.history_limit=64*1024*1024;self.outcomes=OrderedDict();self.jobs={};self.pool=ThreadPoolExecutor(max_workers=2,thread_name_prefix='Video project preparation');self.version=0;self.closed=False;self.media_state={};self.admit=lambda doc:None;self.save_serial=0;self.path_serial=0;self.source_base=None;self.command_revision=0
   from project_transport import Transport
   self.transport=Transport();self.transport_admit=lambda request:None
+  from project_source import SourceContext
+  self.source=SourceContext();self.audio_target='program'
+  from project_recovery import Recovery
+  self.recovery=Recovery(self.pool)
  def check_thread(self):
   if threading.get_ident()!=self.thread:raise RuntimeError('Video document may only be mutated by its Studio owner thread.')
  def transport_state(self):
-  self.check_thread();self.transport.sync(self.document,self.epoch,self.revision);return self.transport.state()
- def state(self,full=True):
-  self.check_thread();self.transport.sync(self.document,self.epoch,self.revision);return deepcopy(dict(project_id=self.document['id'] if self.document else None,command_revision=self.command_revision,document=self.document if full else None,revision=self.revision,epoch=self.epoch,path=self.path,saved_revision=self.saved_revision,dirty=self.document is not None and self.revision!=self.saved_revision,undo_label=self.undo[-1]['label'] if self.undo else '',redo_label=self.redo[-1]['label'] if self.redo else '',history_bytes=self.history_bytes,history_limit=self.history_limit,media=self.media_state,operations=[summary(r) for r in list(self.outcomes.values())[-64:]],limits=LIMITS,version=self.version,closed=self.closed,transport=self.transport.state()))
+  self.check_thread();self.transport.sync(self.document,self.epoch,self.revision);return dict(self.transport.state(),source=self.source.state(False)['transport'],audio_target=self.audio_target)
+ def state(self,full=True,*,_omit_document=False,_owner_projection=False):
+  self.check_thread();self.transport.sync(self.document,self.epoch,self.revision);self.recovery.observe(self.document,self.epoch,self.revision,self.saved_revision,self.path);value=dict(project_id=self.document['id'] if self.document else None,command_revision=self.command_revision,document=self.document if full and not _omit_document else None,revision=self.revision,epoch=self.epoch,path=self.path,saved_revision=self.saved_revision,dirty=self.document is not None and self.revision!=self.saved_revision,undo_label=self.undo[-1]['label'] if self.undo else '',redo_label=self.redo[-1]['label'] if self.redo else '',history_bytes=self.history_bytes,history_limit=self.history_limit,media=self.media_state,operations=[summary(r) for r in list(self.outcomes.values())[-64:]],limits=LIMITS,version=self.version,closed=self.closed,recovery=self.recovery.state(),transport=self.transport.state(),source=self.source.state(full),audio_target=self.audio_target)
+  # Only the same-thread section publisher may read owner references here; it
+  # copies before retaining/publication. Public/API callers always detach.
+  return value if _owner_projection else deepcopy(value)
  def _guard(self,data,command=True):
   if self.closed:fail('closed','Project service is closed.')
   if type(data.get('expected_revision')) is not int:fail('invalid_revision','Expected revision must be an integer.')
@@ -164,13 +209,13 @@ class ProjectService:
  def _reserved(self,document):
   from project_export import protect
   for job in self.jobs.values():
-   if job['kind']=='export':
-    try:protect(document,job['path'])
+   if job['kind'] in ('export','caption_export','recovery_copy'):
+    try:protect(document,job['path'],suffix='.srt' if job['kind']=='caption_export' else '.zwv' if job['kind']=='recovery_copy' else '.mp4')
     except ProjectError as exc:
      if exc.code=='protected_source':fail('reserved_destination','This source/protected path aliases a pending export destination. Wait for its real outcome, then import/protect deliberately; existing document retained.')
      raise
  def _preflight_reserved(self,changes):
-  if not any(j['kind']=='export' for j in self.jobs.values()):return
+  if not any(j['kind'] in ('export','caption_export','recovery_copy') for j in self.jobs.values()):return
   # Reject reference conflicts before asynchronous preparation starts; repeat
   # the same guard at the owning commit boundary for aliases/races.
   references={'media':[],'protected_paths':[]}
@@ -183,6 +228,7 @@ class ProjectService:
  def _commit(self,new,label,created,media_state=None):
   self._reserved(new);self.admit(new)
   states=deepcopy(self.media_state if media_state is None else media_state)
+  states={k:v for k,v in states.items() if k in {a['id'] for a in new['media']}}
   if new==self.document:
    if states!=self.media_state:self.media_state=states;self.version+=1
    return created
@@ -190,16 +236,37 @@ class ProjectService:
   retained=self.history_bytes-sum(r['bytes'] for r in self.redo)
   if retained+cost>self.history_limit:fail('history_capacity','Project history is full; operation rejected before acceptance. Existing edits/history remain.')
   # Retain exact existing histories rather than discarding them for a zero count.
-  self.undo.append(dict(before=deepcopy(self.document),after=deepcopy(new),before_media=deepcopy(self.media_state),after_media=states,label=label,bytes=cost));self.redo=[];self.history_bytes=retained+cost;self.document=new;self.media_state=deepcopy(states);self.revision+=1;self.version+=1;return created
+  # Accepted documents are owner-private immutable values: apply always copies,
+  # public snapshots detach, and save/export workers receive private snapshots.
+  # Adjacent history entries can retain the same exact document. No operation
+  # is coalesced or removed, and the conservative history charge stays.
+  self.undo.append(dict(before=self.document,after=new,before_media=deepcopy(self.media_state),after_media=states,label=label,bytes=cost));self.redo=[];self.history_bytes=retained+cost;self.document=new;self.media_state=deepcopy(states);self.revision+=1;self.version+=1;return created
  def _apply(self,request,prepared=None):
   op=request['op']
   if op=='transport':
-   self.transport_admit(request);self.transport.sync(self.document,self.epoch,self.revision);self.transport.command(request['action'],request.get('frame'));return []
+   target=request.get('target','program')
+   if target not in ('program','source'):fail('invalid_target','Transport target is Program or Source.')
+   if target=='program' and request.get('action')=='play' and self.document is not None:
+    from project_audio_graph import validate as validate_audio_graph
+    validate_audio_graph(self.document)
+   if target=='source' and request.get('source_epoch') is not None and request['source_epoch']!=self.source.epoch:fail('stale_source','Source changed; the previous Source gesture was not applied.')
+   self.transport_admit(request);self.transport.sync(self.document,self.epoch,self.revision)
+   clock=self.source.transport if target=='source' else self.transport
+   if target=='source' and self.source.document is None:fail('no_source','Open a source before Source transport.')
+   # Validate without switching the audible context on an invalid command.
+   clock.command(request['action'],request.get('frame'))
+   if request['action']=='play' or target=='program' and self.audio_target=='source' and request['action'] in ('seek','seek_paused','beginning','last','step'):
+    other=self.transport if target=='source' else self.source.transport
+    if other.binding and other.binding[2]:other.command('release')
+    self.audio_target=target
+   return []
+  if op=='source_open':self.source.install(prepared);return []
+  if op=='source_release':self.source.release();return []
   if op=='new':
    if self.document is not None and self.revision!=self.saved_revision and not request.get('discard'):fail('unsaved_project','Save or explicitly discard the current project before creating another.')
    base=request.get('base_directory')
    if base is not None and not Path(base).is_dir():fail('invalid_path','Explicit media base must be an existing directory.')
-   doc=create(request.get('name','Untitled video'),request.get('settings'),request.get('project_id'));self.admit(doc);self.document=doc;self.revision=0;self.saved_revision=None;self.path=None;self.epoch=uuid.uuid4().hex;self.undo=[];self.redo=[];self.history_bytes=0;self.media_state={};self.source_base=str(Path(base).resolve()) if base else None;self.version+=1;return [doc['id']]
+   doc=create(request.get('name','Untitled video'),request.get('settings'),request.get('project_id'));self.admit(doc);self.source.clear();self.audio_target='program';self.document=doc;self.revision=0;self.saved_revision=None;self.path=None;self.epoch=uuid.uuid4().hex;self.undo=[];self.redo=[];self.history_bytes=0;self.media_state={};self.source_base=str(Path(base).resolve()) if base else None;self.version+=1;return [doc['id']]
   if self.document is None:fail('no_project','Create or open a video project first.')
   if op=='import_captions':
    doc=self.document;created=[]
@@ -219,13 +286,14 @@ class ProjectService:
    row=source[-1];doc=deepcopy(row['before' if op=='undo' else 'after']);self._reserved(doc);self.admit(doc);source.pop();target.append(row);self.document=doc;self.media_state=deepcopy(row['before_media' if op=='undo' else 'after_media']);self.revision+=1;self.version+=1;return []
   if op=='close':
    if self.revision!=self.saved_revision and not request.get('discard'):fail('unsaved_project','Save accepted project work or explicitly discard before closing it.')
-   self.document=None;self.epoch=uuid.uuid4().hex;self.revision=0;self.path=None;self.saved_revision=None;self.media_state={};self.undo=[];self.redo=[];self.history_bytes=0;self.version+=1;return []
+   self.source.clear();self.audio_target='program';self.document=None;self.epoch=uuid.uuid4().hex;self.revision=0;self.path=None;self.saved_revision=None;self.media_state={};self.undo=[];self.redo=[];self.history_bytes=0;self.version+=1;return []
   fail('unsupported_command','Unsupported project command: '+str(op))
  def request(self,data):
   self.check_thread()
   if not isinstance(data,dict):return dict(ok=False,error=dict(code='invalid_request',message='Project request must be a structured object.'),outcome=None)
   op=data.get('op')
   if op=='state':return dict(ok=True,state=self.state())
+  if op=='recovery_refresh':self.recovery.refresh();return dict(ok=True,state=self.state(False))
   if op=='operation_status':
    outcome=deepcopy(self.outcomes.get(data['operation_id']))
    return dict(ok=outcome is not None,outcome=outcome,state=self.state(False),**({} if outcome is not None else dict(error=dict(code='outcome_unknown',message='Operation is unknown or its detailed result retired. This query applied nothing; inspect current project/output state. Do not automatically rebase or submit a new operation ID.'))))
@@ -236,7 +304,7 @@ class ProjectService:
   try:
    key=identity(data['operation_id']);row,replay=self._record(key,data)
    if replay:return dict(ok=row['status'] not in ('rejected','failed'),outcome=deepcopy(row),state=self.state(False))
-   self._guard(data)
+   self._guard(data);self.recovery.resume()
    prior_identity=(self.epoch,self.revision)
    text(data.get('label','Edit video project'),256)
    if op=='batch':
@@ -248,11 +316,16 @@ class ProjectService:
       if field in change and not isinstance(change[field],dict):fail('invalid_request',field+' must be a structured object.')
    for flag in ('discard','portable','allow_missing'):
     if flag in data and type(data[flag]) is not bool:fail('invalid_value',flag+' must be true or false.')
-   if op in ('new','open','close','undo','redo','batch','import_captions') and any(j['kind'] not in ('save','export') for j in self.jobs.values()):fail('busy','Source/open preparation is pending; completed edit was not accepted. Wait and repeat it.')
+   if op in ('new','open','close','undo','redo','batch','import_captions') and any(j['kind'] not in ('save','export','caption_export','recovery_copy','source') for j in self.jobs.values()):fail('busy','Source/open preparation is pending; completed edit was not accepted. Wait and repeat it.')
    if op in ('new','open','close') and self.jobs:fail('busy','Pinned save/export work is pending; wait for its real outcome before replacement/close.')
    cancel=threading.Event();job=None
    if op=='batch':self._preflight_reserved(data['changes'])
-   if op=='open':
+   if op=='source_open':
+    if any(j['kind']=='source' for j in self.jobs.values()):fail('busy','Source inspection is pending; wait or cancel its exact operation.')
+    if len(self.jobs)>=16:fail('busy','Sixteen owner preparations are pending. Source was not opened.')
+    from project_source import prepare_source
+    job=dict(kind='source',future=self.pool.submit(prepare_source,data.get('asset'),key,cancel))
+   elif op=='open':
     if self.document is not None and self.revision!=self.saved_revision and not data.get('discard'):fail('unsaved_project','Save or explicitly discard before opening another project.')
     job=dict(kind='open',future=self.pool.submit(read_project,data['path'],cancel))
    elif op=='batch' and any(c.get('op') in ('media.add','media.relink') for c in data['changes']):job=dict(kind='batch',future=self.pool.submit(prepare_changes,data['changes'],self.source_base,cancel))
@@ -262,15 +335,41 @@ class ProjectService:
     if not track or track['kind']!='graphics':fail('invalid_track','Caption import needs a selected graphics track.')
     from project_text import parse_srt
     job=dict(kind='caption_import',future=self.pool.submit(parse_srt,data['path'],track['id'],deepcopy(self.document['settings']['fps']),key,cancel))
+   elif op=='recover_copy':
+    if len(self.jobs)>=16:fail('busy','Sixteen project preparations are pending; recovery copy was not admitted.')
+    from project_recovery import recover_copy
+    from project_export import protect
+    target=protect(self.document or {'media':[],'protected_paths':[]},data['path'],[self.path],suffix='.zwv')
+    if any(os.path.normcase(j.get('path',''))==os.path.normcase(str(target)) for j in self.jobs.values()):fail('busy','This destination is already pinned by another job.')
+    row['status']='saving';job=dict(kind='recovery_copy',path=str(target),future=self.pool.submit(recover_copy,self.recovery.root,data['snapshot'],data['snapshot_sha256'],str(target),cancel))
+   elif op=='export_captions':
+    if self.document is None:fail('no_project','Create/open a project before exporting captions.')
+    if len(self.jobs)>=16:fail('busy','Sixteen preparations/save/export jobs pending; SRT not admitted.')
+    from project_caption_export import write_srt
+    from project_export import protect
+    target=protect(self.document,data['path'],[self.path],suffix='.srt')
+    history_paths=set()
+    for history in self.undo+self.redo:
+     for retained in (history['before'],history['after']):
+      if retained:
+       history_paths.update(retained['protected_paths'])
+       for asset in retained['media']:
+        history_paths.add(asset['location']['path']);history_paths.update(p for p in (asset.get('provenance',{}).get('import_path'),asset.get('provenance',{}).get('original_path')) if p)
+    protect({'media':[],'protected_paths':list(history_paths)},target,[self.path],suffix='.srt')
+    if any(os.path.normcase(j.get('path',''))==os.path.normcase(str(target)) for j in self.jobs.values()):fail('busy','This destination is already pinned by another job.')
+    row['status']='exporting';job=dict(kind='caption_export',path=str(target),future=self.pool.submit(write_srt,deepcopy(self.document),self.revision,str(target),cancel,[self.path]))
    elif op=='export':
+    if self.document is not None:
+     from project_audio_graph import validate as validate_audio_graph
+     validate_audio_graph(self.document)
     if self.document is None:fail('no_project','Create/open a project before Export Video.')
-    if any(j['kind']=='export' for j in self.jobs.values()):fail('busy','One export context/job is already owned; wait or cancel that exact operation.')
+    if any(j['kind'] in ('export','caption_export','recovery_copy') for j in self.jobs.values()):fail('busy','One export context/job is already owned; wait or cancel that exact operation.')
     if len(self.jobs)>=16:fail('busy','Sixteen preparations/save/export jobs pending; export not admitted.')
     if any(r.get('status')!='Ready' for r in self.media_state.values()):fail('missing_media','Relink unavailable project sources before export.')
-    from project_export import export_project,protect
-    if any(j['kind'] not in ('save','export') for j in self.jobs.values()):fail('busy','An unaccepted source/open edit is preparing; reconcile it before pinning export.')
+    from project_export import export_project,protect,export_range
+    if any(j['kind'] not in ('save','export','caption_export','recovery_copy') for j in self.jobs.values()):fail('busy','An unaccepted source/open edit is preparing; reconcile it before pinning export.')
     from video_project import integer
-    crf=integer(data.get('crf',self.document['export']['crf']),0,51);target=protect(self.document,data['path'],[self.path])
+    frame_range=export_range(self.document,data.get('range'));crf=integer(data.get('crf',self.document['export']['crf']),0,51);target=protect(self.document,data['path'],[self.path])
     history_paths=set()
     for history in self.undo+self.redo:
      for retained in (history['before'],history['after']):
@@ -281,7 +380,7 @@ class ProjectService:
     protect({'media':[],'protected_paths':list(history_paths)},target,[self.path])
     if any(os.path.normcase(j.get('path',''))==os.path.normcase(str(target)) for j in self.jobs.values()):fail('busy','This destination is already pinned by another job.')
     folder=Path(os.environ.get('ZERAWAVE_ARTWORK_STORE',str(Path(__file__).resolve().parents[2]/'work/project-exports'))).parent/('project-export-'+key)
-    row['status']='exporting';row['diagnostics']=str(folder);job=dict(kind='export',path=str(target),folder=str(folder),future=self.pool.submit(export_project,deepcopy(self.document),self.epoch,self.revision,str(target),crf,str(folder),cancel,[self.path] if self.path else []))
+    row['status']='exporting';row['diagnostics']=str(folder);job=dict(kind='export',path=str(target),folder=str(folder),future=self.pool.submit(export_project,deepcopy(self.document),self.epoch,self.revision,str(target),crf,str(folder),cancel,[self.path] if self.path else [],frame_range))
    elif op=='save':
     if self.document is None:fail('no_project','Create/open a project before saving.')
     target=str(Path(data.get('path') or self.path or '').resolve())
@@ -306,7 +405,8 @@ class ProjectService:
     self.version+=1
    return dict(ok=False,error=error,outcome=deepcopy(locals().get('row')),state=self.state(False))
  def poll(self):
-  self.check_thread()
+  self.check_thread();self.recovery.observe(self.document,self.epoch,self.revision,self.saved_revision,self.path);self.recovery.poll()
+  if self.recovery.version!=getattr(self,'recovery_version',-1):self.recovery_version=self.recovery.version;self.version+=1
   for key,job in list(self.jobs.items()):
    if not job['future'].done():
     if job['kind']=='export':
@@ -318,7 +418,8 @@ class ProjectService:
    row=self.outcomes[key]
    try:
     prepared=job['future'].result()
-    if job['kind']=='export':row.update(status='exported',result=prepared,revision=job['revision'])
+    if job['kind'] in ('export','caption_export'):row.update(status='exported',result=prepared,revision=job['revision'])
+    elif job['kind']=='recovery_copy':row.update(status='durable',result=prepared,revision=prepared['revision'])
     elif job['kind']=='save':
      row.update(status='durable',result=prepared,revision=job['revision'])
      if job['epoch']==self.epoch and job['serial']>=self.path_serial:self.path=prepared['path'];self.saved_revision=job['revision'];self.path_serial=job['serial'];self.source_base=str(Path(prepared['path']).parent)
@@ -326,7 +427,10 @@ class ProjectService:
      self._guard(job['request'],command=False)
      if job['cancel'].is_set():fail('cancelled','Preparation cancelled before acceptance.')
      if job['kind']=='open':
+      self.source.clear();self.audio_target='program'
       doc,revision,states,path=prepared;self.admit(doc);self.document=doc;self.revision=revision;self.saved_revision=revision;self.media_state=states;self.path=path;self.source_base=str(Path(path).parent);self.epoch=uuid.uuid4().hex;self.undo=[];self.redo=[];self.history_bytes=0;created=[doc['id']]
+     elif job['kind']=='source':
+      created=self._apply(job['request'],prepared)
      else:
       created=self._apply(job['request'],prepared)
      row.update(status='accepted',created=created,revision=self.revision)
@@ -341,8 +445,9 @@ class ProjectService:
    for job in self.jobs.values():job['cancel'].set()
   if self.jobs:return False
   if self.document is not None and self.revision!=self.saved_revision and not discard:fail('unsaved_project','Video project remains unsaved; Save it or explicitly Discard.')
-  return True
+  self.recovery.observe(self.document,self.epoch,self.revision,self.saved_revision,self.path)
+  return self.recovery.finish()
  def shutdown(self):
   self.check_thread()
   if self.jobs:fail('busy','Project jobs still own immutable work; cannot release them yet.')
-  self.pool.shutdown(wait=True);self.closed=True
+  self.source.clear();self.recovery.closed=True;self.pool.shutdown(wait=True);self.recovery.poll();self.closed=True

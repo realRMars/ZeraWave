@@ -18,6 +18,7 @@ void main(){uv=(in_position+1.)*.5;vec2 pixel=bounds.xy+uv*bounds.zw;
 gl_Position=vec4(pixel/canvas*2.-1.,0.,1.);}'''
 FRAGMENT='''#version 330
 uniform sampler2D image,backdrop,mask_image;uniform float opacity,blend_strength,brightness;uniform vec2 canvas_fit;uniform int mode,use_mask;
+uniform int effect_count,effect_kinds[8];uniform float effect_amounts[8];
 uniform mat3 inverse_transform,mask_inverse;uniform vec4 crop,group_crop;uniform vec2 flips;uniform int group_layer;
 in vec2 uv;out vec4 color;
 vec4 own_sample(vec2 src){
@@ -39,7 +40,10 @@ void main(){vec2 p=vec2(uv.x-.5,.5-uv.y);vec2 local=(inverse_transform*vec3(p,1.
  if(any(lessThan(q,group_crop.xy))||any(greaterThan(q,group_crop.zw)))s=vec4(0.);
  if(use_mask==1)s*=texture(mask_image,vec2(q.x,1.-q.y)).r;}
  if(any(greaterThan(abs(p),canvas_fit*.5)))s=vec4(0.);
- if(brightness!=1.)s.rgb=min(s.rgb*brightness,vec3(s.a));vec4 b=texture(backdrop,uv);if(mode==5){color=min(s+b,vec4(1.));return;}if(mode==0){color=s+b*(1.-s.a);return;}
+ if(brightness!=1.)s.rgb=min(s.rgb*brightness,vec3(s.a));
+ for(int i=0;i<8;i++){if(i>=effect_count)break;vec3 rgb=s.a>0.?s.rgb/s.a:vec3(0.);
+ rgb=effect_kinds[i]==1?rgb*effect_amounts[i]:(rgb-.5)*effect_amounts[i]+.5;s.rgb=clamp(rgb,0.,1.)*s.a;}
+ vec4 b=texture(backdrop,uv);if(mode==5){color=min(s+b,vec4(1.));return;}if(mode==0){color=s+b*(1.-s.a);return;}
  vec3 cs=s.a>0.?s.rgb/s.a:vec3(0.);vec3 cb=b.a>0.?b.rgb/b.a:vec3(0.);vec3 m=cs;
  if(mode==1)m=cs*cb;if(mode==2)m=cs+cb-cs*cb;if(mode==3)m=min(vec3(1.),cs+cb);if(mode==4)m=abs(cb-cs);
  color=vec4((1.-s.a)*b.rgb+(1.-b.a)*s.rgb+s.a*b.a*mix(cs,clamp(m,0.,1.),blend_strength),s.a+b.a*(1.-s.a));}'''
@@ -352,7 +356,10 @@ class ImageLayers:
                     self.program['group_layer'].value=int(row['type']=='Group');self.program['group_crop'].value=tuple(row['crop']);self.program['mask_inverse'].write(geometry[1])
                     use_mask=bool(row['masks']) and (not group or row['type']=='Group');self.program['use_mask'].value=int(use_mask)
                     if use_mask:self.mask_texture(row,texture.size).use(2)
-                    self.program['brightness'].value=getattr(self,'brightness',{}).get(row['id'],1.);self.program['opacity'].value=row['opacity'];self.program['blend_strength'].value=row['blend_strength'];self.program['mode'].value=5 if not row.get('_own') and partition_aligned(self.config,row) else BLENDS.index(row['blend']);texture.use(0);pair[index][0].use(1)
+                    effects=[e for e in row.get('_project_effects',[]) if e['enabled']];self.program['effect_count'].value=len(effects)
+                    if effects:
+                        self.program['effect_kinds'].write(np.array([1 if e['kind']=='Brightness' else 2 for e in effects]+[0]*(8-len(effects)),dtype='i4').tobytes());self.program['effect_amounts'].write(np.array([e['amount'] for e in effects]+[1.]*(8-len(effects)),dtype='f4').tobytes())
+                    self.program['brightness'].value=getattr(self,'brightness',{}).get(row['id'],1.);self.program['opacity'].value=row['opacity'];self.program['blend_strength'].value=row['blend_strength'];self.program['mode'].value=5 if not row.get('_own') and (partition_aligned(self.config,row) or row.get('_project_mix_sum') is True) else BLENDS.index(row['blend']);texture.use(0);pair[index][0].use(1)
                     with self.ctx.scope(framebuffer=pair[1-index][1],enable_only=0):
                         raw.viewport=(0,0,*size);self.vao.render(moderngl.TRIANGLE_STRIP)
                     index=1-index

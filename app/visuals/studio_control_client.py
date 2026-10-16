@@ -148,6 +148,10 @@ class ControlClient:
                 finally:self.condition.acquire()
                 timeout=20 if action=='close' else 8 if action=='stop' else 2
                 def reconciled():
+                    # Project consumers need the inner accepted/rejected receipt.
+                    # A generic outer applied row is not that result. On a lost
+                    # ACK the ordered boundary reconciles the SAME captured IDs.
+                    if action=='project':return None
                     op=data.get('operation_id')
                     return next((r for r in self.snapshot.get('media_control',{}).get('transactions',[]) if r['id']==op and r['status'] in ('applied','rejected')),None) if op else None
                 if not self.condition.wait_for(lambda:serial in self.responses or self.disconnected or reconciled(),timeout):raise RuntimeError('Control ACK timed out; operation outcome is uncertain. Check diagnostics before retrying.')

@@ -80,7 +80,11 @@ class TextSurface:
   for item in plan['text']:
    row=item['recipe'];text,progress=evaluated(row,plan);style=row['style'];width=max(1,round(style['bounds'][2]*w));height=max(1,round(style['bounds'][3]*h))
    if max(width,height)>8192 or width*height>8388608:raise MemoryError('Text bounds exceed native 8192-axis/8-megapixel materialization; accepted recipe retained.')
-   key=hashlib.sha256(json.dumps([text,progress,style,width,height],sort_keys=True,ensure_ascii=False).encode()).hexdigest();values.append(dict(item=item,text=text,progress=progress,style=style,size=(width,height),key=key,bytes=width*height*4))
+   # Placement, rotation and opacity are evaluated by the compositor. Their
+   # animation cannot change this native glyph/background plane. Width/height
+   # still key reflow, and every actual raster style input remains in the key.
+   raster_style={key:value for key,value in style.items() if key not in ('bounds','rotation','opacity','keys')}
+   key=hashlib.sha256(json.dumps([text,progress,raster_style,width,height],sort_keys=True,ensure_ascii=False).encode()).hexdigest();values.append(dict(item=item,text=text,progress=progress,style=style,size=(width,height),key=key,bytes=width*height*4))
   return values
  def pixels(self,descriptor):
   d=descriptor;w,h=d['size'];style=d['style'];padding=style['padding'];px=style.get('padding_x',padding);py=style.get('padding_y',padding);radius=style.get('radius',9);image=QImage(w,h,QImage.Format_RGBA8888_Premultiplied);image.fill(Qt.transparent);p=QPainter(image);details={}
@@ -123,7 +127,7 @@ class TextSurface:
    if frame is None:
     self.peak=max(self.peak,self.bytes+d['bytes']*2);frame=self.pixels(d);self.cache[key]=frame;self.bytes+=len(frame['data'])
    else:self.cache.move_to_end(key)
-   row=d['item']['recipe'];style=row['style'];clip=dict(id=row['id'],name=(d['text'] or 'Timed progress')[:128],start=row['start'],duration=row['duration'],layout=dict(layout_defaults(),bounds=deepcopy(style['bounds']),opacity=style.get('opacity',1.)));asset=dict(kind='Image',id=row['id'],sha256=key,location=dict(path=str(Path(__file__).resolve().parent/'__runtime_text__'/row['id'])),metadata={});item=dict(clip=clip,asset=asset,track=d['item']['track'],source_time=[0,1],draw_order=row['order']+1);visual.append(item);images[row['id']]=frame;details.append(dict(id=row['id'],**frame['text_details']))
+   row=d['item']['recipe'];style=row['style'];clip=dict(id=row['id'],name=(d['text'] or 'Timed progress')[:128],start=row['start'],duration=row['duration'],layout=dict(layout_defaults(),bounds=deepcopy(style['bounds']),opacity=style.get('opacity',1.),rotation=style.get('rotation',0.)));asset=dict(kind='Image',id=row['id'],sha256=key,location=dict(path=str(Path(__file__).resolve().parent/'__runtime_text__'/row['id'])),metadata={});item=dict(clip=clip,asset=asset,track=d['item']['track'],source_time=[0,1],draw_order=row['order']+1);visual.append(item);images[row['id']]=frame;details.append(dict(id=row['id'],**frame['text_details']))
   visual.sort(key=lambda r:(r['track']['order'],r.get('draw_order',0),r['clip']['start'],r['clip']['id']));updated=dict(plan,visual=visual);self.stats=dict(text_cache_bytes=self.bytes,text_active_bytes=sum(costs.values()),text_prepare_scratch_upper_bound=scratch,text_peak_owned_bytes=self.peak,text_cache_limit=self.limit,text_cached_items=len(self.cache),text_details=details,application_font_sources=dict(_registered_font_files));return dict(result,plan=updated,images=images)
  def close(self):self.cache.clear();self.bytes=0;self.closed=True;self.stats=dict(self.stats,text_cache_bytes=0,text_active_bytes=0,text_prepare_scratch_upper_bound=0,text_cached_items=0,closed=True)
 

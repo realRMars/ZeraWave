@@ -3,7 +3,72 @@
 Implementation-owned contract and agent reference. The connected editor stage is
 governed by [ROADMAP](../ROADMAP.md); this file records implemented behavior.
 
-## Current increment
+## October 15 approved visual-build candidate
+
+The current uncommitted candidate implements independent ADS Media/Source,
+Program, inline Inspector, Timeline and Mixer panels. Editing places Timeline
+across the bottom and initially hides Mixer; Audio Mixing keeps Program above a
+full-width Timeline with real track/bus strips and a pinned Master. View > Panels,
+Workspace presets and Reset affect layout, not document/history/playhead. Source
+can float separately. Compact layout uses140px headers/48px lanes; reference uses
+180px/64px. One32px Timeline toolbar and one38px monitor transport replace the
+old duplicate rows. Current phase review and acceptance remain separate.
+
+The shared transport explicitly targets Program or Source. Beginning pauses at0;
+End pauses at the last valid frame (exclusive Out minus1); stepping pauses one
+exact rational frame. Internal Stop still resets/releases; Release leaves the
+frame and relinquishes output. Source has a separate owner clock/range and no
+artwork history; Source audition and sequence playback share the existing single
+AudioOwner. Source inspection/paused seeking alone does not steal legacy audio.
+Reset and Program fullscreen explicitly select Program. Timecode is nominal-rate
+non-drop (`HH:MM:SS:FF`); saved frame positions and duration remain rational/exact.
+Typed monitor timecode pins project/epoch/revision/FPS; stale completion retains
+the text and rejects, with deliberate Enter retry against current context.
+Source range fields and seek gestures pin their displayed Source epoch and owner
+binding. A stale range remains bounded for explicit Apply to current Source, never
+automatic retargeting. Video Source length uses verified exact container ticks;
+five-frame fractional CFR sources retain all five frames. VFR navigation remains
+the complete nominal time grid over exact duration, not a decoded-frame-index map;
+there is no blind ceil of rounded duration to invent a tail frame.
+
+Schema3 adds named stable-ID buses (maximum16), exclusive audio-track outputs
+Master/bus/None, bus output Master/None, and Master gain/mute. The canonical graph
+is clip gain/envelope/pan → track gain/envelope/pan and mute/Solo eligibility → one
+destination → bus gain/balance/mute → Master gain/mute. Explicit mutes win. Any
+track or bus Solo restricts admission to solo tracks and tracks feeding solo buses;
+multiple solos never double-feed. Empty tracks are controllable, visual-only tracks
+produce no invented audio. Occupied bus deletion requires explicit reroute to
+Master, disconnect to None, or cancel. Missing destinations load as recoverable
+metadata and block mixing/export until deliberately repaired; never silent Master.
+
+Mixer has vertical dB faders, numeric pan/balance, M/S, route selectors and measured
+stereo peak/RMS, held peaks and latched clipping. Master has no pan. Center retains
+legacy mono duplication at unity/channel; linear balance attenuates the opposite
+channel toward each extreme. Double-click gain/pan resets exact unity/center.
+Meters use the submitted block containing submitted-minus-padding sample estimate;
+unavailable timing shows a dash. This is neither scanout nor measured heard time.
+Playback/hardware volume is separate from authored Master and its meters.
+
+Schema1/2 reads remain supported; a genuine edit upgrades to3. Before replacing a
+supported different schema, the writer secures an exact same-directory backup
+(bounded8 backup slots, never automatically deleted). Exact Undo to an old schema
+can be saved by this compatible runtime with the same protection. Corrupt or
+unknown-future destinations remain protected. Save As deliberately normalizes
+portable media paths; accepted item IDs/recipes/routes and verified hashes persist.
+Inline completed gestures flush before close decisions. Unsubmitted stale drafts
+cancel explicitly; submitted uncertain operations retain their IDs and are never
+automatically duplicated. The implemented bounded visual effects/keys/dissolve, automatic recovery and
+range export are specified below. Implementation, measured evidence, independent
+review and Robert's acceptance remain separate; this contract grants no release.
+
+New atomic batch edits: `bus.add(name,id?,output?,gain?,balance?,mute?,solo?)`,
+`bus.edit(id,values)`, `bus.remove(id,reroute?)`, `track.output(id,output)` and
+`master.audio(values)`; gain is linear0–4, pan/balance−1–1, M/S are JSON booleans.
+`track.audio` and `clip.audio` also accept `pan`. Bus-to-bus routing, sends and
+Master pan reject. All use the existing expected epoch/project/revision/command,
+operation IDs, validation, one atomic history record and protected save path.
+
+## Published foundation (historical increment evidence)
 
 Increment A supplies the versioned project, scoped bin, shared Qt/API authority,
 named Undo/Redo and protected persistence. Its independent review passed 9.0/10.
@@ -109,7 +174,8 @@ binding and an operation ID. Optional policy flags are real JSON booleans.
 | `open` | `path`, optional `discard`; asynchronous verified preparation before atomic owner installation |
 | `batch` | `label` ≤256 characters, `changes` (1–128); one atomic named history operation |
 | `undo` / `redo` | Exact document/media-availability restoration, new accepted document revision |
-| `transport` | `action` = seek/play/pause/stop, integer `frame` for seek; ephemeral clock ownership, no document revision/history operation |
+  | `transport` | `target` = program/source; seek/play/pause/stop/beginning/last/step/seek_paused/release/range_in/range_out/range_clear/loop/range; `frame` is an integer except atomic range `[In,Out]`; optional `source_epoch` rejects replaced Source intent; ephemeral, no artwork history |
+  | `source_open` / `source_release` | Verified existing `asset` recipe for open; bounded owner preparation and separate Source epoch/clock, one output owner |
 | `save` | `path` for Save As, or current path; `portable=true` default; `allow_missing=false` default |
 | `close` | Optional `discard`; pending preparations/saves prevent project replacement |
 
@@ -454,7 +520,7 @@ Cold font registration/shaping and opaque font allocations are separate costs.
 
 ## Moving-video export and persistence (increment E)
 
-Save project/Save As remains version1 `.zwv` plus managed hashed source/raster
+  Published increment E used version1 `.zwv` plus managed hashed source/raster
 dependencies. It preserves the requested revision and all editable fields; Open
 reconstructs recipes and source identities. Existing layer-session Save stays
 separate. A successful Export does not mark an unsaved project saved.
@@ -590,3 +656,296 @@ work bounds stay unchanged. Actual compressed music forward/back/repeat seeks
 match fresh canonical-reader bytes; this is reader-instance parity, not an
 independent resampler/listening claim. The physical F workflow was restarted on the verified current mixer source;
 older interrupted-run evidence remains bound to its original loaded module.
+
+
+## October 15 product-quality overhaul: workspace stage (candidate)
+
+The uncommitted workspace stage separates the existing project authority into
+independent ADS Project Preview, Timeline, Properties/Effects, Mixer and Source
+Preview panels. View selects the named Video Editing layout, restores individual
+panels or returns to Studio; Reset Layout affects layout only. Optional project
+data/cue views remain available. Project Media and the existing wider Library
+share the visible Media Library panel. Later everyday-editing/inspector/performance
+stages remain assigned; these panels do not claim those additions are finished.
+
+F11 floats/full-screens Project Preview; Escape restores its prior dock state.
+The same project, playhead, transport and audio owner survive the window change.
+The same ProjectPreview/controller moves between hosts; its GL host view retires
+and rebuilds context-owned resources on a top-level change. Context sharing,
+non-native sibling policy and compatible default core format are configured before
+QApplication where Studio owns startup. CPU preview remains supported. The Windows
+full-screen host keeps the one-pixel WS_BORDER recommended in Qt's
+[fullscreen OpenGL guidance](https://doc.qt.io/qt-6/windows-issues.html#fullscreen-opengl-based-windows)
+so DWM continues composing the window and sibling UI. Matched native checks showed
+the compositor, simple diagnostic color, frame/time labels, Escape return, genuine
+floating movement and View → Reset Layout redocking working. Three exploratory
+drag/redock attempts in the last run repositioned or split floating areas; they
+are retained and are not certified as successful drag redocks. Earlier ADS drag
+evidence retains its own source binding. Physical multi-monitor/DPI changes remain
+unverified on the single available display.
+
+The internal legacy `presented` binding means a rendered frame is available to Qt.
+Seek samples now report `render_complete_ms`, explicitly excluding Qt composition,
+capture and physical display. A paint callback, frameSwapped signal or the static
+native interaction captures do not certify the later sustained-playback, visible
+latency or correlated audible/display gates.
+
+The preview exposes Play/Pause, Stop (project beginning), exact frame steps,
+Start/End, current/total rational time, Set In/Out and Loop In/Out. Timeline I/O
+sets inclusive In/exclusive Out; Home/End navigates. Range is ephemeral transport
+state, not an artwork/history operation or an export-range promise. Loop audio
+preparation ends at the exact exclusive sample Out and drains before restart;
+gapless looping and correlated audible/display synchronization are unverified.
+
+Source Preview has a distinct SOURCE heading, source metadata and local frame/
+In/Out controls. These never seek project transport or edit clips. Identical-source
+frame/range survives hide/return; hidden readers retire. Source inspection/hashing
+and media preparation run on bounded workers. Audio sources currently show metadata
+and range selection; project audio is not taken over for source audition.
+
+Video layout preferences are independent from artwork saves. One worker and one
+latest pending snapshot write atomically to a separate `*-video.json`; failure
+retains the previous file, reports it and does not block source/owner cleanup.
+The current process retains the latest layout even while disk persistence is pending.
+Tests: `project_transport_range_test.py <new-output>` and
+`studio_video_workspace_test.py <new-output> <disposable-short.zwv>` supplement the
+existing clock, audio, timeline and preview-boundary regressions. Synthetic tests
+do not replace native interaction, listening or the overhaul's performance gates.
+
+
+## October 15 overhaul: everyday timeline and Library stage (candidate)
+
+The existing owner now accepts `track.edit`, `track.move`, `track.remove`,
+`media.remove` and `items.move/trim/split/delete/group/ungroup/link/unlink/place/paste`
+inside the same atomic, revision-bound `batch`. IDs, history, API validation and
+operation reconciliation remain shared with manual editing. No widget owns a second
+editable document. Track flags and group metadata use document schema2; schema1
+reads with its original defaults and is upgraded only by a genuine accepted edit.
+The outer `.zwv` file format remains version1. Before replacing a schema1 file,
+Save secures its exact bytes as a hash-named `.before-v2-*.zwv` sibling, preserving
+relative managed dependencies. Up to eight such backups are retained; reaching the
+bound requires a new Save As destination and deletes nothing. Corrupt/unknown
+existing destinations and changed destination identities reject intact.
+
+Timeline has persistent track headers, Select/Razor, thresholded move/trim,
+Ctrl individual selection, anchored Shift ranges and marquee. Visible edge handles
+trim linked source recipes nondestructively. Escape/focus loss cancels unfinished
+gestures. Pending dashed feedback is not acceptance. A newer owner revision before
+press requires another click on refreshed geometry. One completed gesture submits
+one named owner history operation. Normal rejects new/increased clip collisions;
+existing deliberate overlap remains valid. Insert shifts the synchronized project
+scope, including captions/graphics; Overwrite cuts only targeted tracks' interval
+and preserves both outside source-aligned pieces. Ripple Delete confirms its
+all-track range and rejects locked or external-linked conflicts as a whole.
+
+Scoped V/C/S/N, I/O, frame/Home/End, Ctrl+A/X/C/V/D, Delete/Shift+Delete and existing
+Undo/Redo coexist with text-field editing. Clipboard is deliberately same-project;
+cross-project paste explains using Library first. Duplicate retains current tracks
+and allocates independent item/link/group IDs. Paste maps linked companions by the
+chosen compatible-track offset. Inline track rename retains unaccepted typed text
+through other revisions; stale acceptance rejects visibly and explicit Enter may
+retry a known rejection. Grip/context actions reorder stable track IDs; lock,
+video visibility and audio mute/solo route to the owner. Nonempty track removal
+confirms contents and linked partners; delete-all still permits a fresh track.
+
+The single visible Library switches between searchable Project Media and the
+existing wider collections/search surface. ADS releases its old widget ownership
+before transferring that same Library into the scope stack. Project reference
+removal never deletes originals and rejects references still used by clips.
+Direct Qt drops prepare source identity off the input callback, capture Source
+In/Out, Normal/Insert/Overwrite and A/V/Video-only/Audio-only choices, and default
+to linked compatible picture/audio tracks for actual AV sources. One inspection
+job is pending at a time; Escape cancels, stale preparation rejects and neither
+path automatically resubmits. Matching managed sources reuse their hash-bound
+original import identity; unavailable references require explicit Relink.
+
+Decorative thumbnails/waveforms use existing media/canonical mixer readers, one
+worker,32 pending requests,128 entries and8MiB owned image/peak payload. This payload
+bound excludes Python/codec overhead. Short exact source spans generate128 peak
+bins; very coarse long clips ask for waveform zoom. Native preview/export quality
+is unchanged. Hidden/empty/replaced timelines retire readers after actual exit.
+View zoom/track height/snapping/link and channel choices persist with the separate
+Video layout, not in artwork. Full visual automation/inspector, autosave, expanded
+export controls and measured full-quality performance remain subsequent assigned
+stages; this section does not claim those gates.
+
+Standalone additions: `project_edits_test.py <new-output>`,
+`project_edit_pressure_test.py <new-output> <500-clip.zwv>`,
+`studio_timeline_editing_test.py <new-output> <inspected-AV-asset.json>`,
+`studio_timeline_scale_test.py <new-output> <500-clip.zwv>` and
+`project_schema_backup_test.py <new-output> <source-image>`. Existing workspace,
+transport and prepared-close checks remain applicable. Qt/offscreen timing does
+not establish physical visible latency or correlated audible/display sync.
+Native Windows source/header drags reached real Qt Drop/owner paths; the current
+Computer Use injector needed a destination click to complete OLE drops. Natural
+single-release OLE behavior remains an owner retest, separate from native clip
+move/trim gestures, which completed directly. All disposable windows closed normally.
+The earlier Stage1 drag-redock attempts remain historical; the later Stage1
+redock supplement proves a normal caption drag back into the Properties tab area.
+
+Rollback must first preserve accepted schema2 work with managed dependencies and
+the compatible candidate/runtime. The pre-overhaul schema1 reader cannot open new
+schema2 features. Do not replace a live session or promise downgrade by dropping
+new fields. Restore task source only against matching captured hashes; preserve
+later edits, original assets and all evidence.
+
+Stage2 review corrections pin Ripple/track-removal confirmation to the exact
+pre-dialog revision, selection and link choice. Intervening API changes reject
+the stale Yes; the user must review and confirm the new consequences explicitly.
+Insert scope must include every destination track before any range mutation.
+Paste/Split use the latest shared playhead even before canvas repaint.
+
+
+## Visual authoring, keys and dissolve — October 15 candidate
+
+The single contextual Inspector contains expandable Transform, Compositing,
+Audio, Timing, Text, Text style, Effects, Keyframes and Transition groups. Mixed
+values are explicit. Numeric gestures retain their initiating category, stable
+IDs, project/epoch/revision and evaluated frame. Stale drafts are retained or
+cancelled explicitly; they never silently move to another selection. Escape,
+focus/context changes and resize cancel direct-handle drafts. Transient pixels
+are labelled unaccepted; one completed gesture submits one ordinary owner batch.
+Titles/captions resize by native text reflow, matching their accepted recipe.
+
+A clip supports at most8 real ordered Brightness/Contrast effects, amount0–4,
+with stable clip-scoped effect IDs, bypass, reorder and remove. Transform,
+opacity, intrinsic brightness and effect amount use exact integer local-frame
+keys; text supports transform/opacity keys. Linear and outgoing Hold are the
+supported interpolation modes. Bounds are16 channels,256 points/channel and2048
+points/item. A retained visual origin window preserves trim/split/copy timing;
+keys outside the retained origin duration reject. Removing an effect removes
+only its own channels. No undisclosed effect catalog is implied.
+
+`effect.add/edit/move/remove`, `keyframe.set/remove` and
+`transition.add/remove` use the same atomic owner/history commands as ordinary
+editing. A dissolve requires adjacent Normal-blend clips on one video track,
+valid source handles and either zero or two aligned linked-audio companions.
+One transition may own a participant; at most64 are authored. The renderer/CPU
+reference form an isolated weighted premultiplied sum, including coverage alpha,
+then composite that group once. Aligned audio companions receive matching linear
+transition fades multiplied by their authored fades/envelopes. Remove restores
+the original cut. Moving every participant translates the transition; changing
+one protected handle requires removing it first.
+
+Dedicated captions and titles retain distinct recipes. Export SRT writes only
+caption text/timing to a NEW destination; original/imported/protected/aliased
+paths cannot be overwritten. Standard SRT has millisecond timing and no rich
+font/style/title/cue-number roundtrip. This runtime's floor/ceil convention
+reimports supported frame rates exactly; blank paragraphs and outer whitespace
+that cannot roundtrip reject explicitly. Rich styling remains in `.zwv`.
+Missing primary fonts and unenumerated per-glyph substitution are disclosed.
+
+## Accepted metadata recovery and exact range export
+
+Project Save/Save As remains the durable requested-revision operation, with
+verified external references or managed copies. Newer accepted work remains
+dirty when an older requested revision completes. Public snapshots detach from
+owner-private immutable document/history values; adjacent history entries may
+share those immutable values without coalescing operations or reducing the
+conservative64MiB history charge.
+
+Automatic recovery uses the existing preparation pool, one active publication
+and one latest accepted metadata reference. It attempts a snapshot every30s,
+after2s quiet, with at most5s extra quiet deferral during continuous editing.
+It rotates only four exact owner-bound `.zwvr` slots. Shared bounds are32 files
+and16MiB; capacity/write/external-change failure retains prior good snapshots
+and reports that current accepted work still needs Save/Save As. It never prunes
+another session. These snapshots contain external media references, not copied
+artwork/media, and do not mark the live project saved.
+
+File > Recover video project as new copy selects a verified snapshot and writes
+a NEW standard `.zwv` with its accepted revision. It never replaces a live
+session, original project or existing destination. Open the new copy deliberately
+after securing current work; source identity/availability is rechecked on open.
+Normal close drains owned metadata publication. Cancellation/deferred close
+preserves the original decision binding and accepted work.
+
+Export Video offers Full sequence, Program In/Out and custom integer sequence
+frames `[In, exclusive Out)`. It pins range, document revision, CRF and destination
+before the worker starts. Output timestamps rebase to0; source evaluation/audio
+remain at the requested absolute sequence positions. Cancellation/write failure
+preserves accepted project and prior good output, reports unique diagnostics and
+unpublished partials, and permits deliberate recovery in the same owner.
+No F2/episode export is required by this correction's evidence protocol.
+
+## Responsiveness and resource ownership
+
+One ordered command boundary remains authoritative. A lightweight transport
+receipt on the existing project clock carries the real clock/command revision;
+periodic atomic sections still reconcile full state. Lost acknowledgements
+reconcile the SAME outer/inner operation IDs. A generic outer applied row is
+not treated as the inner project's result. One dispatched and one latest
+unsubmitted scrub target are bounded; Escape cancels only the unsubmitted
+matching gesture. Submitted work still reconciles exactly once.
+
+Pending Mixer controls show the requested value with an explicit unaccepted
+label; poststage meters continue to describe the accepted graph. Rejection
+restores accepted values. Input admission returns before full document-view
+rebuilding; a bounded16ms editor pulse reconciles views while unrelated Studio
+polling retains its cadence. Cached icon/layout validation and unchanged row
+reuse do not alter authored values or skip model/reference checks.
+
+Native frame preparation uses up to four fixed codec-owner workers, one per
+existing independent video clock. PyAV/FFmpeg calls for each decoder stay on its
+owner. The96MiB shared plane cache and128MiB RGBA admission remain unchanged.
+Concurrency reserves worst-case simultaneous conversion scratch first; supported
+combinations that cannot fit use the original serial path. Every submitted native
+task drains before disposal/publication, including failure and supersession.
+An outstanding snapshot reader prevents replacement/close. Context-owned GPU
+textures and CPU copied current planes are accounted separately from decoder
+planes and metadata/history. Native output resolution and intended samples stay
+unchanged. Counts, bytes, mappings, history and durable storage remain distinct.
+
+Qt Paint/frameSwapped callbacks and submitted-minus-padding audio estimates are
+technical boundaries, not physical scanout/heard sound or a correlated one-frame
+A/V certificate. See the source-bound actual-results pack for measurements,
+failed thresholds, unrun checks and Robert's owner review.
+
+Program and Source transport In/Out and loop ranges are temporary session state;
+they are not stored in the `.zwv` document. An export captures its requested
+exclusive frame range with the pinned accepted revision.
+
+Playback starts the next latest-clock preparation as soon as rendering releases
+the current source lease. Inactive transform handles do not repaint over playing
+video. The output clock interpolates timestamped submitted-minus-padding
+observations while Playing, capped at actual submitted samples. Missing timing,
+buffering and pause hold state; this is not measured heard-device position or
+proof of one-frame display/audio synchronization.
+
+
+### Inspector display provenance and quiet numeric gestures
+
+Property intent pins the epoch/revision of the rows actually displayed, even if
+the owner has advanced before the next GUI refresh. A fresh ordered-command
+number does not rebase cached property arrays onto a newer document. Stale
+first input rejects without changing newer work and shows bounded unapplied
+input for deliberate re-entry. A quiet numeric flush retires only participating
+spin intents, so a later unfocused wheel gesture starts from the current
+displayed state. Other uncommitted fields retain their original binding. Section
+visibility changes defer layout/painting once; nested refresh cannot operate on
+partly installed controls. This changes no document schema or artwork pixels.
+
+
+Inspector visibility batching preserves the body's explicit Qt paint-disable ownership flag rather than inherited ancestor suppression. A temporary ADS/layout repaint pause must resume visible, painted controls after context changes.
+
+### Bounded software codec policy — October 15 follow-up
+
+Project preview/export media uses four fixed codec-owner lanes and up to four
+internal software codec threads per active decoder. Legacy MediaFrames retains
+its two-thread default. Signed-preroll reopen preserves the selected bounded
+policy; neither source dimensions nor timestamp selection is changed.
+
+The three paired F1/F2 native-frame runs in
+`work/editor-visual-build-20261015-1792088667789300800/phase-f/decoder-parallel-options-1792127844363881500`
+measured the existing caller at identical pixels/PTS/SAR, with lower preparation
+p95 for four threads. This is decoder preparation evidence, not a UI or playback
+pass. The 96 MiB shared decoded-plane and 128 MiB RGBA reservations stay unchanged.
+Configured codec threads and decoder-owner workers are separate counters; codec
+internal buffers, allocator retention and GPU memory are not those image budgets.
+
+CUDA/D3D11 default NV12 conversion differed from the software RGBA reference.
+Explicit planar normalization recovered exact sampled pixels, but the matched
+four-owner CUDA caller was slower for both sequential and random F1/F2 demands.
+It is retained as a diagnostic experiment, not installed as the product route.
+The actual-results note binds raw samples, fresh-process memory costs, failed
+probes, current source and remaining UI/presentation gates.

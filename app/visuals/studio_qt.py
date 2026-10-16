@@ -14,7 +14,19 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 import threading
 
-from PySide6.QtCore import Qt, QTimer, QByteArray, QEvent
+from PySide6.QtCore import Qt, QTimer, QByteArray, QEvent, QCoreApplication
+# Qt shares contexts across Studio's dock windows; resources stay view-owned.
+if QCoreApplication.instance() is None:
+    QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+    # Only the external renderer host needs a native child window. Its siblings
+    # must remain Qt-composited GL widgets when docks move between top levels.
+    QCoreApplication.setAttribute(Qt.AA_DontCreateNativeWidgetSiblings)
+    # Match Qt's internal/share/backing-store contexts to the editor's core GL
+    # format before any native window or QApplication constructs them.
+    from PySide6.QtGui import QSurfaceFormat
+    editor_format=QSurfaceFormat();editor_format.setVersion(3,3)
+    editor_format.setProfile(QSurfaceFormat.CoreProfile);editor_format.setSamples(0)
+    editor_format.setAlphaBufferSize(8);QSurfaceFormat.setDefaultFormat(editor_format)
 from PySide6.QtGui import QColor, QPainter, QLinearGradient, QAction, QActionGroup, QIcon, QWindow
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
     QHBoxLayout, QLabel, QPushButton, QComboBox, QTreeWidget, QTreeWidgetItem,
@@ -52,7 +64,8 @@ ads--CDockAreaWidget { background:#10171c; border:1px solid #2b383f; }
 ads--CDockAreaTitleBar { background:#121b22; border-bottom:1px solid #2b383f; }
 ads--CDockWidgetTab { background:#121b22; padding:6px; color:#a8bbc5; font:600 10pt "Segoe UI"; }
 ads--CDockWidgetTab[activeTab="true"] { background:#2d2924; color:#edbd94; border-bottom:2px solid #c68c5d; }
-ads--CDockSplitter::handle { background:#080e12; }
+ads--CDockSplitter::handle { background:#263a45; }
+ads--CDockSplitter::handle:hover { background:#7594a0; }
 '''
 
 
@@ -196,12 +209,14 @@ class Shell(QMainWindow):
         ads.CDockManager.setConfigFlag(ads.CDockManager.DragPreviewIsDynamic,True)
         ads.CDockManager.setConfigFlag(ads.CDockManager.DragPreviewShowsContentPixmap,True)
         ads.CDockManager.setConfigFlag(ads.CDockManager.ActiveTabHasCloseButton,False)
+        ads.CDockManager.setConfigFlag(ads.CDockManager.AlwaysShowTabs,True)
         self.manager=ads.CDockManager(self);self.manager.setStyleSheet(STYLE)
         for overlay in (self.manager.containerOverlay(),self.manager.dockAreaOverlay()):
             overlay.setStyleSheet('background-color:rgba(50,195,218,70); border:2px solid #49d9ed;')
         self.setCentralWidget(self.manager)
         self.build();self.menus();self.balance();self.default=QByteArray(self.manager.saveState())
         self.restore();QTimer.singleShot(200,self.settle_default)
+        if self.preferences.get('workspace_mode')=='video':QTimer.singleShot(0,self.video_panels.activate)
         self.timer=QTimer(self);self.timer.timeout.connect(self.poll);self.timer.start(200)
         self.analyzer_timer=QTimer(self);self.analyzer_timer.timeout.connect(self.poll_analyzer);self.analyzer_timer.start(33)
         self.saved_art=json.dumps(self.owner.values(),sort_keys=True)
@@ -330,6 +345,8 @@ class Shell(QMainWindow):
         from studio_project import ProjectWorkspace
         self.project_workspace=ProjectWorkspace(self)
         self.dock('project','Video Project',self.project_workspace,ads.CenterDockWidgetArea,center);self.panels['project'].toggleView(False)
+        from studio_video_workspace import VideoPanels
+        self.video_panels=VideoPanels(self.project_workspace);self.project_workspace.video_panels=self.video_panels
         self.media_library.refresh();self.image_editor.refresh()
         self.statusBar().showMessage('Qt proof • F1 help')
         self.refresh_colors();self.tuning_identity=None;self.refresh_tuning()
@@ -356,13 +373,35 @@ class Shell(QMainWindow):
         if self.client is not None and hasattr(self,'project_workspace'):
             for label,callback in [('New video project…',self.project_workspace.new),('Open video project…',self.project_workspace.open),('Save video project',self.project_workspace.save),('Save video project As…',lambda:self.project_workspace.save(True)),('Export Video…',self.project_workspace.export_video)]:
                 file.addAction(label,lambda checked=False,fn=callback:self.safe(fn))
+            file.addAction('Recover video project as new copy…',lambda:self.safe(self.project_workspace.recover_project))
+            file.addAction('Video project settings…',lambda:self.safe(self.project_workspace.project_settings));file.addAction('Close video project',lambda:self.safe(self.project_workspace.close_project))
             file.addSeparator()
         file.addAction('Open session…',lambda:self.safe(self.open_session))
         file.addAction('Save session…',lambda:self.safe(self.save_session));file.addAction('Import media…',self.import_media);file.addSeparator();file.addAction('Exit',self.close)
         edit=bar.addMenu('&Edit');edit.addAction('Reset selected color target',lambda:self.safe(self.owner.color_editor.reset_target))
         edit.addAction('Restore saved tuning draft at selected destination',lambda:self.safe(lambda:self.client.command('restore_draft',binding=self.view.binding())))
+        if hasattr(self,'video_panels'):
+            w=self.project_workspace;c=w.timeline.canvas;edit.addSeparator();edit.addAction(w.timeline.undo);edit.addAction(w.timeline.redo)
+            project_actions=[]
+            for label,fn,selection in [('Cut',lambda:c.copy(True),True),('Copy',c.copy,True),('Paste',c.paste,False),('Duplicate',lambda:c.paste(True),True),('Delete',c.delete_selection,True),('Ripple Delete…',lambda:c.delete_selection(True),True),('Split at Playhead',c.split,True)]:
+                action=edit.addAction(label,lambda checked=False,fn=fn:self.safe(fn));project_actions.append((action,selection))
+            def update_edit():
+                for action,selected in project_actions:action.setEnabled(bool(self.video_panels.active and w.state().get('document') and not w.pending and (not selected or c.selection)))
+            edit.aboutToShow.connect(update_edit)
+            clip=bar.addMenu('&Clip')
+            for label,op in [('Link A/V','items.link'),('Unlink','items.unlink'),('Group','items.group'),('Ungroup','items.ungroup')]:clip.addAction(label,lambda checked=False,op=op:self.safe(lambda:c.action(op)))
+            clip.aboutToShow.connect(lambda:[a.setEnabled(bool(self.video_panels.active and c.selection and not w.pending)) for a in clip.actions()])
+            track=bar.addMenu('&Track')
+            for kind,label in [('video','Add Video Track'),('audio','Add Audio Track'),('graphics','Add Titles / Captions Track')]:track.addAction(label,lambda checked=False,kind=kind:w.timeline.quick_track(kind))
+            height=track.addMenu('Track Height')
+            for pixels in (48,64,96,128):height.addAction(str(pixels)+' px',lambda checked=False,pixels=pixels:w.timeline.height_control.setValue(pixels))
+            track.aboutToShow.connect(lambda:[a.setEnabled(bool(self.video_panels.active and w.state().get('document') and not w.pending)) for a in track.actions()])
         view=bar.addMenu('&View')
-        for dock in self.panels.values():view.addAction(dock.toggleViewAction())
+        if hasattr(self,'video_panels'):
+            workspace=view.addMenu('Workspace');workspace.addAction('Editing',self.video_panels.editing);workspace.addAction('Audio Mixing',self.video_panels.audio_mixing);workspace.addAction('Studio',self.video_panels.studio);workspace.addSeparator();workspace.addAction('Reset Layout',self.reset_layout)
+            view.addAction('Audio Mixer',lambda:self.project_workspace.timeline.toggle_mixer());view.addAction('Program full screen (F11)',self.video_panels.fullscreen);view.addAction('Fit Sequence',lambda:self.project_workspace.timeline.fit(False));view.addAction('Fit Selection',lambda:self.project_workspace.timeline.fit(True))
+        panels=view.addMenu('Panels')
+        for dock in self.panels.values():panels.addAction(dock.toggleViewAction())
         view.addSeparator();view.addAction('Reset Layout',self.reset_layout);view.addAction('Recover floating panels',self.recover)
         view.addAction('Demonstrate nine adjacent panels',self.nine_panels)
         self.settings_menu=QMenu('&Settings',bar);bar.addMenu(self.settings_menu)
@@ -838,10 +877,15 @@ class Shell(QMainWindow):
         data={'version':1,'docks':bytes(self.manager.saveState()).hex(),'geometry':bytes(self.saveGeometry()).hex(),'controls':dict(self.preferences,band_analyzer=self.analyzer.configuration())}
         # Base64 is used so QByteArray round trips without text encoding changes.
         data['docks']=base64.b64encode(bytes(self.manager.saveState())).decode();data['geometry']=base64.b64encode(bytes(self.saveGeometry())).decode()
+        if hasattr(self,'video_panels') and self.video_panels.active:
+            self.video_panels.save()
+            if self.video_panels.studio_state:data['docks']=base64.b64encode(bytes(self.video_panels.studio_state)).decode()
         self.layout_path.write_text(json.dumps(data,indent=2),encoding='utf8')
     def settle_default(self):
         if not self.layout_path.exists():self.balance()
     def balance(self):
+        if hasattr(self,'video_panels') and self.video_panels.active:
+            self.video_panels.balance();return
         if self.width()<1450 and self.panels['colors'].dockAreaWidget()!=self.panels['tuning'].dockAreaWidget():
             self.manager.addDockWidget(ads.CenterDockWidgetArea,self.panels['colors'],self.panels['tuning'].dockAreaWidget())
             self.panels['tuning'].setAsCurrentTab()
@@ -853,6 +897,8 @@ class Shell(QMainWindow):
             elif splitter.orientation()==Qt.Vertical and len(names)==3 and 'colors' in names[0]:splitter.setSizes([235,max(340,self.height()-535),230])
             elif splitter.orientation()==Qt.Vertical and len(names)==2 and 'tuning' in names[0] and 'monitor' in names[1]:splitter.setSizes([max(420,self.height()-300),230])
     def reset_layout(self):
+        if hasattr(self,'video_panels') and self.video_panels.active:
+            self.video_panels.default_layout();self.recover();return
         self.owner.release_preview_holds();self.manager.restoreState(self.default);self.balance();self.recover()
     def nine_panels(self):
         self.reset_layout()
@@ -924,7 +970,7 @@ class Shell(QMainWindow):
             self.safe(self.owner.release_preview_holds);return False
         focus=QApplication.focusWidget()
         if QApplication.activeModalWidget() is not None:return False
-        project_focus=focus is not None and hasattr(self,'project_workspace') and self.project_workspace.isAncestorOf(focus)
+        project_focus=focus is not None and hasattr(self,'project_workspace') and (self.project_workspace.isAncestorOf(focus) or any(body is focus or body.isAncestorOf(focus) for body in (self.project_workspace.preview,self.project_workspace.timeline,self.video_panels.source,self.video_panels.mixer,self.video_panels.selection.parentWidget(),self.video_panels.data,self.project_workspace.pages['media'][0])))
         if project_focus:
             if kind==QEvent.KeyPress and not event.isAutoRepeat() and event.modifiers()&Qt.ControlModifier and event.key() in (Qt.Key_Z,Qt.Key_Y) and not isinstance(focus,(QLineEdit,QDoubleSpinBox,QSpinBox,QPlainTextEdit)) and QApplication.activeModalWidget() is None:
                 redo=event.key()==Qt.Key_Y or bool(event.modifiers()&Qt.ShiftModifier)
@@ -1016,6 +1062,14 @@ class Shell(QMainWindow):
                 request.update(phase='image_save',wait_started=time.perf_counter(),image_job_ids={v['id'] for v in self.image_editor.artwork_save.saves.jobs});self.close_progress.setLabelText('Waiting for artwork image saves to finish… Cancel keeps the editor open.');return
             project=self.client.snapshot.get('project',{})
             if self.project_workspace.pending or any(o['status'] in ('preparing','saving','exporting') for o in project.get('operations',[])):return
+            panels=getattr(self.project_workspace,'video_panels',None)
+            if panels:
+                # Completed numeric gestures are still unsubmitted drafts until
+                # flushed. Reconcile them before capturing the close revision.
+                try:panels.inspector.flush();panels.mixer.flush()
+                except Exception as exc:self.finish_close_request('Close deferred: '+str(exc));return
+                if self.project_workspace.pending:return
+                project=self.client.snapshot.get('project',{})
             if 'project_checked' not in request:
                 request['phase']='project_choosing'
                 answer=QMessageBox.Discard
@@ -1054,7 +1108,7 @@ class Shell(QMainWindow):
             if not outcome or outcome['status'] in ('preparing','saving'):return
             if outcome['status']!='durable':self.finish_close_request('Project save '+outcome['status']+'; accepted project retained: '+outcome.get('error',{}).get('message',''));return
             if project.get('dirty') or outcome['revision']!=project['revision']:self.finish_close_request('Requested video project revision saved; newer edits remain open and unsaved.');return
-            request.update(phase='reconcile',project_checked=(project['epoch'],project['revision']),project_binding=self.project_workspace.binding(project),project_discard=False)
+            request.update(phase='reconcile',started=time.perf_counter(),project_checked=(project['epoch'],project['revision']),project_binding=self.project_workspace.binding(project),project_discard=False)
         elif phase=='image_save':
             self.image_editor.artwork_save.poll()
             if time.perf_counter()-request['wait_started']>15:self.finish_close_request('Image save still draining; editor remains open with its snapshot pinned.');return

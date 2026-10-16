@@ -5,12 +5,13 @@ intervening API/manual edits reject it explicitly rather than overwriting them.
 """
 from pathlib import Path
 import time,uuid
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt,QTimer
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,
  QTreeWidget,QTreeWidgetItem,QTabWidget,QFileDialog,QDialog,QFormLayout,
  QDialogButtonBox,QLineEdit,QPlainTextEdit,QComboBox,QSpinBox,QDoubleSpinBox,
  QCheckBox,QMessageBox,QApplication,QTableWidget,QTableWidgetItem)
 from video_project import duration
+from studio_timeline_media import ProjectMediaTree
 
 TERMINAL=('accepted','durable','exported','rejected','failed')
 class ProjectWorkspace(QWidget):
@@ -30,29 +31,64 @@ class ProjectWorkspace(QWidget):
   self.transport_future=None;self.transport_desired=None
   self.tabs=QTabWidget();layout.addWidget(self.tabs,1);self.trees={};self.pages={}
   for key,title,columns in [('media','Project bin',['Source','Type','Availability','Location']),('tracks','Tracks',['Track','Type','Order','Gain','Mute']),('clips','Clips',['Clip','Track','Start frame','Frames','Source seconds','Gain']),('captions','Captions',['Text','Start frame','Frames']),('graphics','Titles / graphics',['Text / kind','Start frame','Frames'])]:
-   page=QWidget();body=QVBoxLayout(page);tree=QTreeWidget();tree.setHeaderLabels(columns);tree.setSelectionMode(QTreeWidget.SingleSelection);body.addWidget(tree,1);buttons=QHBoxLayout();body.addLayout(buttons);self.trees[key]=tree;self.pages[key]=(page,buttons);self.tabs.addTab(page,title)
-  for title,fn in [('Import…',self.import_media),('Relink selected…',self.relink),('Place selected…',self.place)]:self.button(self.pages['media'][1],title,fn)
+   page=QWidget();body=QVBoxLayout(page)
+   if key=='media':
+    self.media_search=QLineEdit();self.media_search.setPlaceholderText('Search Project Media names, type or paths…');self.media_search.setAccessibleName('Search Project Media');self.media_search.textChanged.connect(lambda:self.filter_media());body.addWidget(self.media_search)
+   tree=ProjectMediaTree() if key=='media' else QTreeWidget();tree.setHeaderLabels(columns);tree.setSelectionMode(QTreeWidget.ExtendedSelection if key=='media' else QTreeWidget.SingleSelection);body.addWidget(tree,1);buttons=QHBoxLayout();body.addLayout(buttons);self.trees[key]=tree;self.pages[key]=(page,buttons);self.tabs.addTab(page,title)
+  for title,fn in [('Import…',self.import_media),('Relink…',self.relink)]:self.button(self.pages['media'][1],title,fn)
+  media_actions=QHBoxLayout();self.pages['media'][0].layout().addLayout(media_actions)
+  for title,fn in [('Place selected…',self.place),('Remove reference',self.remove_media)]:self.button(media_actions,title,fn)
   for title,fn in [('Add track…',self.add_track),('Volume…',lambda:self.audio_edit('tracks'))]:self.button(self.pages['tracks'][1],title,fn)
   for title,fn in [('Move…',self.move),('Trim…',self.trim),('Split…',self.split),('Layout…',self.spatial_edit),('Volume…',lambda:self.audio_edit('clips')),('Unlink',self.unlink),('Remove',self.remove)]:self.button(self.pages['clips'][1],title,fn)
   for title,fn in [('Add caption…',lambda:self.caption(False)),('Edit caption…',lambda:self.caption(True)),('Remove',self.remove_caption)]:self.button(self.pages['captions'][1],title,fn)
   self.button(self.pages['captions'][1],'Import SRT…',self.import_captions)
+  self.button(self.pages['captions'][1],'Export SRT…',self.export_captions)
   self.button(self.pages['captions'][1],'Style / placement…',lambda:self.text_style('captions'))
   for title,fn in [('Add title / graphic…',lambda:self.caption(False,'graphics')),('Edit…',lambda:self.caption(True,'graphics')),('Style / placement…',lambda:self.text_style('graphics')),('Remove',lambda:self.remove_text('graphics'))]:self.button(self.pages['graphics'][1],title,fn)
+  self.trees['media'].itemDoubleClicked.connect(lambda *_:self.shell.safe(self.video_panels.show_source))
   self.trees['graphics'].itemDoubleClicked.connect(lambda *_:self.caption(True,'graphics'))
   self.trees['captions'].itemDoubleClicked.connect(lambda *_:self.caption(True));self.trees['clips'].itemDoubleClicked.connect(lambda *_:self.trim())
   row=QHBoxLayout();layout.addLayout(row);self.undo=self.button(row,'Undo',lambda:self.submit('undo'));self.redo=self.button(row,'Redo',lambda:self.submit('redo'))
   self.cancel_button=QPushButton('Cancel pending preparation');row.addWidget(self.cancel_button);self.cancel_button.clicked.connect(lambda:self.shell.safe(self.cancel))
   endpoint=QPushButton('Copy agent endpoint');row.addWidget(endpoint);endpoint.clicked.connect(lambda:QApplication.clipboard().setText(self.state().get('endpoint','')))
-  self.notice=QLabel('Create or open a video project. Layer sessions remain in Composition.');self.notice.setWordWrap(True);layout.addWidget(self.notice);self.refresh()
+  self.notice=QLabel('Create or open a video project. Layer sessions remain in Composition.');self.notice.setWordWrap(True);layout.addWidget(self.notice);self.refresh();self.pulse_token=None;self.clock_token=None;self.meter_refresh_at=0.;self.fast_timer=QTimer(self);self.fast_timer.setInterval(16);self.fast_timer.timeout.connect(self.fast_pulse);self.fast_timer.start()
  def button(self,row,title,fn):
   b=QPushButton(title);b.setAccessibleName(title);b.clicked.connect(lambda checked=False:self.shell.safe(fn));row.addWidget(b);self.controls.append(b);return b
+ def fast_pulse(self):
+  # The existing Shell poll services the whole Studio every200ms. Editing has
+  # its own bounded presentation cadence; it never waits on owner ACK or runs
+  # another command dispatcher. Full document/row work runs only on state change.
+  if self.preview.closed or self.client.disconnected:return
+  sections=getattr(self.client,'sections',None)
+  if sections is not None and sections.owner and not sections.valid:return
+  try:
+   self.poll_pending();self.poll_transport();state=self.state();token=(state.get('epoch'),state.get('revision'),state.get('version'))
+   if token!=self.pulse_token:self.pulse_token=token;self.refresh()
+   panels=getattr(self,'video_panels',None)
+   if panels is None or not panels.active:return
+   clock=self.transport_state();source=self.source_transport_state();stamp=(clock.get('epoch'),clock.get('revision'),clock.get('generation'),clock.get('frame'),clock.get('playing'),source.get('epoch'),source.get('generation'),source.get('frame'),source.get('playing'),panels.preview_transport.target)
+   if stamp!=self.clock_token:
+    self.clock_token=stamp;panels.preview_transport.refresh();panels.inspector.refresh()
+    if self.timeline.canvas.frame!=clock.get('frame',0):self.timeline.canvas.frame=clock.get('frame',0);self.timeline.canvas.update()
+   now=time.perf_counter()
+   if panels.mixer.isVisible() and now>=self.meter_refresh_at:self.meter_refresh_at=now+.033;panels.mixer.refresh()
+  except Exception as exc:self.notice.setText('Editor state update failed: '+str(exc)+'. Accepted project retained; inspect diagnostics before repeating an uncertain action.')
  def state(self):return self.client.snapshot.get('project',{})
  def transport_state(self):
   s=self.state();clock=getattr(self.client,'project_clock',None)
   return clock if clock and (clock.get('epoch'),clock.get('revision'))==(s.get('epoch'),s.get('revision')) else s.get('transport',{})
- def transport(self,action,frame=None):
-  self.transport_desired=dict(action=action,**({'frame':frame} if frame is not None else {}));self.poll_transport()
+ def source_transport_state(self):
+  source=self.state().get('source',{});fallback=source.get('transport',{});clock=self.transport_state().get('source',{})
+  return clock if (clock.get('epoch'),clock.get('revision'))==(source.get('epoch'),source.get('revision')) and clock.get('generation',-1)>=fallback.get('generation',0) else fallback
+ def transport(self,action,frame=None,target='program',source_epoch=None,binding=None,gesture_token=None):
+  self.transport_desired=dict(action=action,target=target,intent_binding=dict(binding or self.binding()),gesture_token=gesture_token,**({'source_epoch':source_epoch or self.source_transport_state().get('epoch')} if target=='source' else {}),**({'frame':frame} if frame is not None else {}));self.poll_transport()
+ def cancel_transport_intent(self,token):
+  if self.transport_desired and self.transport_desired.get('gesture_token')==token:self.transport_desired=None
  def poll_transport(self):
+  if self.transport_desired:
+   pinned=self.transport_desired['intent_binding'];current=self.binding()
+   if any(pinned.get(key)!=current.get(key) for key in ('expected_epoch','expected_revision','expected_project')):
+    self.transport_desired=None;self.notice.setText('Project changed during transport gesture. Unsubmitted movement cancelled; the dispatched operation still reconciles once.')
   if self.transport_future:
    if not self.transport_future.done():return
    try:
@@ -61,12 +97,16 @@ class ProjectWorkspace(QWidget):
    except Exception as exc:self.transport_desired=None;self.notice.setText(str(exc)+' Reconcile this operation; do not duplicate an uncertain command.')
    self.transport_future=None
   if self.transport_desired and not self.pending:
-   values=self.transport_desired;self.transport_desired=None
-   self.transport_future=self.client.submit('project',request=dict(op='transport',operation_id=uuid.uuid4().hex,**self.binding(),**values))
- def close_resources(self):self.timeline.canvas.cancel_gesture();self.preview.close_resources()
- def exited(self):return self.preview.exited()
+   values=self.transport_desired;self.transport_desired=None;values.pop('gesture_token',None);binding=values.pop('intent_binding');binding['expected_command']=self.binding()['expected_command']
+   self.transport_future=self.client.submit('project',request=dict(op='transport',operation_id=uuid.uuid4().hex,**binding,**values))
+ def close_resources(self):
+  self.fast_timer.stop();self.timeline.canvas.cancel_gesture();self.timeline.close_resources();self.preview.close_resources()
+  if hasattr(self,'video_panels'):self.video_panels.close_resources()
+ def exited(self):return self.timeline.exited() and self.preview.exited() and (not hasattr(self,'video_panels') or self.video_panels.exited())
  def binding(self,state=None):
-  s=self.state() if state is None else state;return dict(expected_epoch=s.get('epoch'),expected_revision=s.get('revision'),expected_project=s.get('project_id'),expected_command=s.get('command_revision'))
+  s=self.state() if state is None else state;command=s.get('command_revision');clock=getattr(self.client,'project_clock',None)
+  if clock and (clock.get('epoch'),clock.get('revision'),clock.get('project'))==(s.get('epoch'),s.get('revision'),s.get('project_id')) and type(clock.get('command_revision')) is int:command=max(command or 0,clock['command_revision'])
+  return dict(expected_epoch=s.get('epoch'),expected_revision=s.get('revision'),expected_project=s.get('project_id'),expected_command=command)
  def document(self):
   d=self.state().get('document')
   if d is None:raise ValueError('Create or open a video project first.')
@@ -80,7 +120,12 @@ class ProjectWorkspace(QWidget):
   began=time.perf_counter();key=uuid.uuid4().hex;request=dict(op=op,operation_id=key,**(binding or self.binding()),**args)
   future=self.client.submit('project',request=request);self.pending=dict(id=key,request=request,future=future,started=began,uncertain=False)
   self.callback_samples.append(dict(op=op,ms=(time.perf_counter()-began)*1000));self.callback_samples=self.callback_samples[-256:]
-  self.notice.setText('Submitted '+op+'. Acceptance and saving are reported separately.');self.refresh();return key
+  self.notice.setText('Submitted '+op+'. Acceptance and saving are reported separately.');self.shell.statusBar().showMessage(self.notice.text())
+  # Input admission must return before rebuilding document views. The bounded
+  # editor pulse reconciles those views on its next tick; pending guards apply
+  # immediately. Show requested Mixer values now with their unaccepted label.
+  if hasattr(self,'video_panels'):self.video_panels.mixer.refresh()
+  return key
  def batch(self,label,changes,binding=None):return self.submit('batch',binding=binding,label=label,changes=changes)
  def cancel(self):
   if self.pending:self.client.submit('project',request=dict(op='cancel',operation_id=self.pending['id']))
@@ -88,14 +133,14 @@ class ProjectWorkspace(QWidget):
   p=self.pending
   if not p:return
   outcome=p.get('resolved') or next((o for o in self.state().get('operations',[]) if o['id']==p['id']),None)
-  if outcome and outcome['op']=='export' and outcome['status']=='exporting':
+  if outcome and outcome['op'] in ('export','export_captions') and outcome['status']=='exporting':
    self.export_id=p['id'];self.pending=None;self.notice.setText('Exporting frozen revision '+str(outcome['requested_revision'])+'. Later edits remain separate.');return
   if outcome and outcome['status'] in TERMINAL:
    self.pending=None;self.last_outcome=outcome
    if outcome['status'] in ('failed','rejected'):self.unapplied_request=p['request']
    if outcome['status'] in ('failed','rejected'):self.notice.setText(outcome.get('error',{}).get('message','Operation failed')+' Existing accepted work retained.')
-   elif outcome['status']=='exported':self.notice.setText('Video revision '+str(outcome['revision'])+' exported durably. '+str(outcome['result']['path']))
-   elif outcome['status']=='durable':self.notice.setText('Project revision '+str(outcome['revision'])+' saved durably. '+str(outcome['result']['path']))
+   elif outcome['status']=='exported':self.notice.setText(('Caption SRT' if outcome['op']=='export_captions' else 'Video')+' revision '+str(outcome['revision'])+' exported durably. '+str(outcome['result']['path']))
+   elif outcome['status']=='durable':self.notice.setText(('Recovery copy revision '+str(outcome['revision'])+' created at '+str(outcome['result']['path'])+'. Open the new copy after securing your current session; external sources are checked on open.') if outcome['op']=='recover_copy' else 'Project revision '+str(outcome['revision'])+' saved durably. '+str(outcome['result']['path']))
    else:self.notice.setText('Accepted project revision '+str(outcome['revision'])+'. Save project to preserve it.')
    self.shell.statusBar().showMessage(self.notice.text());return
   if p['future'].done() and not p.get('ack_checked'):
@@ -118,7 +163,11 @@ class ProjectWorkspace(QWidget):
     except ValueError:p['status_at']=time.perf_counter()
   if time.perf_counter()-p['started']>15 and not outcome:self.notice.setText('Still reconciling '+p['id']+'. Keep Studio open; accepted work has not been discarded.')
  def refresh(self):
-  self.poll_pending();self.poll_transport();self.timeline.refresh();s=self.state();d=s.get('document');busy=bool(self.pending or any(o['status']=='preparing' for o in s.get('operations',[])))
+  self.poll_pending();self.poll_transport()
+  if hasattr(self,'video_panels'):self.video_panels.refresh()
+  self.timeline.refresh();s=self.state();d=s.get('document');recovery_error=s.get('recovery',{}).get('error','')
+  if recovery_error and recovery_error!=getattr(self,'last_recovery_error',''):self.notice.setText('Automatic recovery metadata could not be written: '+recovery_error+' Current accepted edits still need Save/Save As.')
+  self.last_recovery_error=recovery_error;busy=bool(self.pending or any(o['status']=='preparing' for o in s.get('operations',[])))
   exporting=next((o for o in s.get('operations',[]) if o['id']==self.export_id),None)
   active_export=any(o['status']=='exporting' for o in s.get('operations',[]))
   if exporting:
@@ -134,15 +183,37 @@ class ProjectWorkspace(QWidget):
   if self.version==rows_version:return
   self.version=rows_version;tracks={r['id']:r for r in d['tracks']} if d else {}
   for key,tree in self.trees.items():
-   current=tree.currentItem();selection=current.data(0,Qt.UserRole) if current else None;tree.clear()
+   rendered=[]
    for r in d[key] if d else []:
     if key=='media':fields=[r['name'],r['kind'],s.get('media',{}).get(r['id'],{}).get('status','Not checked'),r['location']['path']]
     elif key=='tracks':fields=[r['name'],r['kind'],str(r['order']),str(r['audio']['gain']),str(r['audio']['mute'])]
     elif key=='clips':fields=[r['name'],tracks[r['track']]['name'],str(r['start']),str(r['duration']),str(r['source_in']),str(r['audio']['gain'])]
     else:fields=[r['text'],str(r['start']),str(r['duration'])]
-    item=QTreeWidgetItem(tree,fields);item.setData(0,Qt.UserRole,r['id']);item.setToolTip(0,r['id'])
-    if r['id']==selection:tree.setCurrentItem(item)
-   if tree.topLevelItemCount() and not tree.currentItem():tree.setCurrentItem(tree.topLevelItem(0))
+    tooltip=(r['id']+'\n'+str(r['metadata'].get('width','—'))+'×'+str(r['metadata'].get('height','—'))+' • '+str(r['metadata'].get('duration','—'))+' seconds • '+str(r['metadata'].get('audio_channels',0))+' audio channels') if key=='media' else r['id']
+    rendered.append((r['id'],tuple(fields),tooltip))
+   signature=(s.get('epoch'),tuple(rendered));signatures=getattr(self,'tree_signatures',{});self.tree_signatures=signatures
+   if signatures.get(key)==signature:continue
+   signatures[key]=signature;current=tree.currentItem();selection=current.data(0,Qt.UserRole) if current else None;selected_ids={item.data(0,Qt.UserRole) for item in tree.selectedItems()};blocked=tree.blockSignals(True)
+   try:
+    tree.clear()
+    for identity,fields,tooltip in rendered:
+     item=QTreeWidgetItem(tree,list(fields));item.setData(0,Qt.UserRole,identity);item.setToolTip(0,tooltip)
+     if key=='media':item.setSelected(identity in selected_ids)
+     if identity==selection:tree.setCurrentItem(item)
+    if tree.topLevelItemCount() and not tree.currentItem():tree.setCurrentItem(tree.topLevelItem(0))
+   finally:tree.blockSignals(blocked)
+  self.filter_media()
+  if hasattr(self,'video_panels'):self.video_panels.refresh()
+ def filter_media(self):
+  tree=self.trees.get('media')
+  if tree is None:return
+  query=self.media_search.text().casefold().strip()
+  for i in range(tree.topLevelItemCount()):
+   item=tree.topLevelItem(i);item.setHidden(bool(query and query not in ' '.join(item.text(j) for j in range(4)).casefold()) or hasattr(self,'media_type') and self.media_type.currentText() not in ('All types',item.text(1)))
+ def remove_media(self):
+  ids=[item.data(0,Qt.UserRole) for item in self.trees['media'].selectedItems() if not item.isHidden()]
+  if not ids:raise ValueError('Select unused Project Media references first. Original files remain intact.')
+  self.batch('Remove project references; keep files',[dict(op='media.remove',ids=ids)])
  def dialog(self,title,fields):
   prior=getattr(self,'dialog_owner',None)
   if prior:prior.deleteLater()
@@ -175,7 +246,9 @@ class ProjectWorkspace(QWidget):
   binding=self.binding()
   if not path:path,_=QFileDialog.getOpenFileName(self,'Open video project',str(Path.home()),'ZeraWave video project (*.zwv)')
   if path:self.submit('open',binding=binding,path=path,discard=discard);self.show_workspace()
- def show_workspace(self):self.shell.panels['project'].toggleView(True);self.shell.panels['project'].setAsCurrentTab()
+ def show_workspace(self):
+  if hasattr(self,'video_panels'):self.video_panels.activate()
+  else:self.shell.panels['project'].toggleView(True);self.shell.panels['project'].setAsCurrentTab()
  def save(self,save_as=False,path=None):
   self.document();binding=self.binding();s=self.state()
   missing=any(r['status']=='Missing' for r in s.get('media',{}).values());allow_missing=False
@@ -193,14 +266,19 @@ class ProjectWorkspace(QWidget):
    self.batch('Video project settings',[dict(op='project.settings',values=changes)],binding)
  def cancel_export(self):
   if self.export_id:self.client.submit('project',request=dict(op='cancel',operation_id=self.export_id))
- def export_video(self,path=None,crf=None):
+ def export_video(self,path=None,crf=None,range_frames=None):
   d=self.document();binding=self.binding();settings=d['settings'];quality=QSpinBox();quality.setRange(0,51);quality.setValue(d['export']['crf'])
   if crf is None:
    details=QLabel(str(settings['width'])+'×'+str(settings['height'])+' at '+str(settings['fps'][0])+'/'+str(settings['fps'][1])+' FPS;48kHz stereo. Native project settings; lower CRF gives higher quality.')
-   if not self.dialog('Export Video — frozen project revision',[('Output',details),('H264 CRF',quality)]):return
-   crf=quality.value()
+   end=duration(d);clock=self.transport_state();marked=[clock.get('range_in',0),clock.get('range_out',end)];scope=QComboBox();scope.addItems(['Full sequence','Program In/Out','Custom sequence frames']);begin=QSpinBox();out=QSpinBox();begin.setRange(0,end);out.setRange(0,end);begin.setValue(0);out.setValue(end)
+   def choose_scope(index):
+    begin.setEnabled(index==2);out.setEnabled(index==2)
+    if index<2:begin.setValue(0 if index==0 else marked[0]);out.setValue(end if index==0 else marked[1])
+   scope.currentIndexChanged.connect(choose_scope);choose_scope(0)
+   if not self.dialog('Export Video — frozen project revision',[('Output',details),('H264 CRF',quality),('Range',scope),('Sequence In frame',begin),('Sequence Out exclusive',out)]):return
+   crf=quality.value();range_frames=[begin.value(),out.value()]
   if not path:path,_=QFileDialog.getSaveFileName(self,'Export Video MP4',str(Path.home()/'video.mp4'),'MP4 H264/AAC (*.mp4)')
-  if path:return self.submit('export',binding=binding,path=path,crf=crf)
+  if path:return self.submit('export',binding=binding,path=path,crf=crf,**({'range':range_frames} if range_frames is not None else {}))
  def close_project(self):
   ok,discard=self.replace_allowed()
   if ok:self.submit('close',discard=discard)
@@ -218,8 +296,9 @@ class ProjectWorkspace(QWidget):
   self.document();binding=self.binding();name=QLineEdit('Track');kind=QComboBox();kind.addItems(['video','audio','graphics'])
   if self.dialog('Add track',[('Name',name),('Kind',kind)]):self.batch('Add '+name.text(),[dict(op='track.add',name=name.text(),kind=kind.currentText())],binding)
  def place(self):
-  r=self.selected('media');binding=self.binding();track=self.choose_tracks();start=self.spin(0);length=self.spin(30,1)
-  if self.dialog('Place '+r['name'],[('Track',track),('Start frame',start),('Duration frames',length)]):self.batch('Place '+r['name'],[dict(op='clip.add',name=r['name'],asset=r['id'],track=track.currentData(),start=start.value(),duration=length.value())],binding)
+  tree=self.trees['media'];items=tree.selectedItems()
+  if not items:raise ValueError('Select a source in Project Media first.')
+  self.timeline.place_mime(tree.mimeData(items),self.timeline.canvas.current_track,self.transport_state().get('frame',0))
  def move(self):
   r=self.selected('clips');binding=self.binding();start=self.spin(r['start'])
   if self.dialog('Move linked clip',[('New start frame',start)]):self.batch('Move '+r['name'],[dict(op='clip.move',id=r['id'],start=start.value())],binding)
@@ -293,6 +372,23 @@ class ProjectWorkspace(QWidget):
   names=('Left fraction','Top fraction','Width fraction','Height fraction');bounds=[boxes[name].value() if boxes[name].value()!=initial[name] else style['bounds'][i] for i,name in enumerate(names)]
   if bounds!=style['bounds']:values['bounds']=bounds
   if values:self.batch('Style '+category,[dict(op='caption.edit' if category=='captions' else 'graphic.edit',id=r['id'],values={'style':values})],binding)
+ def recover_project(self,path=None,snapshot=None):
+  binding=self.binding();recovery=self.state().get('recovery',{});entries=recovery.get('entries',[])
+  if snapshot is None:
+   if not entries:
+    self.client.submit('project',request=dict(op='recovery_refresh'));self.notice.setText('No verified recovery snapshots are listed yet. Refresh requested; reopen Recovery after it completes. '+recovery.get('error',''));return
+   choices=QComboBox()
+   for row in entries:choices.addItem(row['name']+' • revision '+str(row['revision'])+' • '+time.strftime('%Y-%m-%d %H:%M',time.localtime(row['at'])),row)
+   detail=QLabel('Create a new project file from an accepted metadata snapshot. Source media stays referenced externally and is verified on open. The current project needs its own Save. Last recovery error: '+(recovery.get('error') or 'none'));detail.setWordWrap(True)
+   if not self.dialog('Recover video project as a NEW copy',[('Snapshot',choices),('Recovery limits',detail)]):return
+   snapshot=choices.currentData()
+  if path is None:path,_=QFileDialog.getSaveFileName(self,'Create NEW recovered video project',str(Path.home()/'recovered-video.zwv'),'ZeraWave video project (*.zwv)')
+  if path:return self.submit('recover_copy',binding=binding,path=path,snapshot=snapshot['path'],snapshot_sha256=snapshot['sha256'])
+ def export_captions(self,path=None):
+  binding=self.binding()
+  if path is None:
+   path,_=QFileDialog.getSaveFileName(self,'Export plain-text captions to a NEW SRT; styling stays in the project',str(Path.home()/'captions.srt'),'UTF-8 SubRip (*.srt)')
+  if path:return self.submit('export_captions',binding=binding,path=path,label='Export plain-text captions')
  def import_captions(self):
   self.document();binding=self.binding();track=self.choose_tracks('graphics')
   if not self.dialog('Import SRT captions',[('Graphics track',track)]):return

@@ -26,7 +26,10 @@ def wait(fn,seconds=25):
 def idle():wait(lambda:w.pending is None and shell.client.edit_count==0)
 def doc():return deepcopy(w.document())
 def button(text,key=None):
- if key:w.tabs.setCurrentWidget(w.pages[key][0]);pump(.02)
+ if key:
+  if key=='media':shell.video_panels.scope.setCurrentIndex(0);shell.panels['media'].toggleView(True)
+  else:shell.panels['project_data'].toggleView(True);shell.panels['project_data'].setAsCurrentTab();w.tabs.setCurrentWidget(w.pages[key][0])
+  pump(.02)
  buttons=w.controls if key is None else w.pages[key][0].findChildren(__import__('PySide6.QtWidgets',fromlist=['QPushButton']).QPushButton)
  return next(b for b in buttons if b.text()==text)
 def click(b):
@@ -56,7 +59,7 @@ try:
  edit(button('Add track…','tracks'),{'Name':'Narration','Kind':'audio'});edit(button('Add track…','tracks'),{'Name':'Captions','Kind':'graphics'})
  with patch.object(QFileDialog,'getOpenFileName',return_value=(str(source),'')):edit(button('Import…','media'),{'Type':'Audio'})
  assert len(doc()['media'])==1 and w.trees['media'].topLevelItemCount()==1
- edit(button('Place selected…','media'),{'Track':'Narration','Start frame':0,'Duration frames':90});clip_id=doc()['clips'][0]['id'];original=doc()
+ click(button('Place selected…','media'));wait(lambda:w.timeline.placement is None and not w.pending and len(doc()['clips'])==1);assert doc()['clips'][0]['duration']==120;clip_id=doc()['clips'][0]['id'];original=doc()
  edit(button('Trim…','clips'),{'Start frame':10,'End frame (exclusive)':60});trimmed=doc();r=trimmed['clips'][0];assert r['id']==clip_id and r['duration']==50 and r['source_in']==[1,3] and r['audio_window']['offset']==10
  edit(button('Volume…','clips'),{'Linear gain (1 = unity)':.4});assert doc()['clips'][0]['audio']['gain']==.4 and doc()['clips'][0]['audio_window']['offset']==10
  edit(button('Move…','clips'),{'New start frame':100});moved=doc();assert moved['clips'][0]['start']==100

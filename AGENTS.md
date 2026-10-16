@@ -1,39 +1,63 @@
 # ZeraWave engineering and creative working agreement
 
+## October 16 development checkpoint publication
+
+Robert authorized commit/push/Pages for the current editor development checkpoint.
+The implementation remains overall HOLD, with no new progression or acceptance.
+See [publication status](ZERAWAVE_HANDOFF.md#october-16-development-checkpoint-publication)
+and [receipt](work/publication-editor-visual-build-20261016-1792134379821453600/review-index.json). Older task-time uncommitted wording is historical for this
+publication; all failed/unverified gates and unrelated work remain preserved.
+
+
 ## October 15 editor foundation checkpoint and current overhaul
 
-Robert authorized a scoped commit, normal GitHub push and Pages reconciliation.
-This checkpoint publishes the existing A-F editor foundation and shared guidance,
-not the newly assigned product-quality overhaul. The retained independent F and
-connected A-F verdicts are 9.0/10 for their recorded scopes; publication is not
-acceptance of the new workspace, responsiveness or performance requirements.
-The reviewed source/native identity is
-`6dcc71cd907c24cde171e8a9dc7cd8550c9c9877ea0f1db889efc905cbfabccc`.
-The [publication receipt](work/publication-editor-foundation-20261015-1792059595189235700/review-index.json) records the resulting commit and remote verification.
+Published foundation: `4775137229e03203439932146679dee357d91960`; the dirty editor
+overhaul above it is uncommitted. Robert approved both native Editing/Audio Mixing
+layouts and assigned the October 15 Editor Visual Build Plan. Follow [ROADMAP's
+current execution contract](ROADMAP.md#approved-editor-visual-build-plan---current-execution)
+and its archive identity/phase A-F subdivisions; do not reopen approved layouts,
+renumber historical stages or treat mockup artwork/meters/values as product evidence.
 
-Robert has separately assigned the existing Builder a substantial editor overhaul:
-independent Qt/ADS workspace panels, unified Library/timeline editing, everyday
-owner-model/UI/API tools, inspector/keyframes/transitions/mixer, autosave/schema
-recovery, and measured playback/export improvements. These are approved work,
-not completed capabilities. Preserve the existing renderer, one document owner,
-accepted edits, original media, saved projects and unrelated work.
+The [current implemented continuation](work/editor-visual-build-20261015-1792088667789300800/final-candidate-1792131017952188300/FINAL_REPORT.md) is uncommitted and overall
+HOLD, source/native `8915f8bcd87c1211fcbea800c13cbe929dad473dd36642113d156ed417f86fc1`.
+Workspace/Source audition, inline visual authoring/captions, schema3 bus/Master
+controls, protected save/export and bounded metadata recovery are implemented
+within feature-contract limits; they must not be described as wholly unbuilt or
+accepted. Quiet discard-test settled-seek callback samples are supported; playback
+callback samples still fail. The finite correction [review](work/reviewer-editor-visual-phase-f-20261015-01/decoder-followup/REVIEW.md) is complete
+with no new confirmed correctness defect; Phase F/whole-stage HOLD and no progression
+approval remain. Keep all physical
+interaction, cold/resource, UI-property paint, listening and A/V gaps explicit.
+Prior scores remain historical; this status update grants no progression or Git.
 
-This current assignment supersedes older handoff-only, pre-implementation and
-no-further-Computer-Use wording below within its explicit scope. Necessary Computer
-Use is preapproved for owned disposable tests in an available desktop/device window;
-close owned test windows promptly, stop on Escape/user activity/unsafe pressure,
-and do not resume an interrupted desktop without authorization. It does not permit
-new Upgrade+ production, narration, full-episode exports, repeated long playback,
-installations, extra workers or unrelated expansion. Existing Builder/Reviewer
-stage gates continue; prior scores do not satisfy the new gates. Robert's final
-hands-on product acceptance remains separate. Publication dispatches no work.
+[Stage 2](work/reviewer-editor-overhaul-stage2-correction-20261015-01/REVIEW.md) remains 8.5/10 HOLD: ordinary single-release Library
+placement and header reorder are UNVERIFIED; corrected Insert/stale-confirmation
+checks are not natural-input evidence. The latest owner brief explicitly permits
+independent layout, inspector, audio and persistence work on stable dependencies.
+Only that scope supersedes the old blanket Stage-3 pause; dependent review gates
+still require the existing Reviewer's explicit >=9/10 and final required open gates
+block unqualified acceptance. Keep the existing Builder/Reviewer identities/route.
 
-Retain the earlier preview tails up to 1.33 s, unverified correlated audible-clock/
-scanout and broad device/format/capacity/multi-hour coverage, and historical B3
-stall/fallback/physical-interaction limits. Session and still saving and project
-Export Video are implemented; the distinct legacy moving-video Save writer remains
-OPEN. Capacity/storage work, separate image follow-ups and chroma key remain separate.
+The approved master resolves appendix conflicts: Beginning pauses/seeks 0, End
+pauses on the last valid frame; remove duplicate persistent Stop/transport rows but
+retain internal stop/reset/release and distinct Visualizer controls. Require 1280x720
+(1280x800 additional); ADS floating already exists. Stable-ID named buses and tested
+bus Solo are required: track -> bus/Master/None; bus -> Master/None, no sends/loops/
+doubled feeds. Master has meters/gain/mute/device access, no extra pan. Source
+audition, dedicated captions and autosave/recovery cannot be silently deferred.
+Current fixtures are F1 12s 1080p30/48k and F2 120s/200 instances/16 tracks/max 4 active video;
+no F2 export. Older 30s/500-clip tests/scores remain historical, not current gates.
 
+Preserve Qt/Python authoring, one validated document/UI/API/history authority,
+GPU context ownership, source clocks, accepted edits, saves, originals and explicit
+fallbacks. Necessary owned Computer Use is preapproved in an available window;
+close owned windows promptly and stop on Escape/user activity/unsafe pressure.
+Do not resume interrupted desktop use without authorization. Local-only A/V
+measurement cannot certify unavailable audible/display correlation; report that
+required gate UNVERIFIED. No new workers, installs, Git publication, production
+episode/narration, engine replacement or unrelated capacity/features. Shared-guide
+ownership stays with Overseer; feature/maintenance contracts stay with Builder.
+Historical handoffs below retain their task-time wording under this current override.
 
 ## October 13 selective-migration publication checkpoint
 
@@ -367,6 +391,10 @@ This documentation pass dispatches no implementation or review.
 
 ### Current editor handoff - capability first, bounded cost
 
+Historical October 14 handoff below, superseded for current execution by the
+approved October 15 visual-build contract at the top and ROADMAP. Its stop/no-CU
+wording applies to the former production brief, not the newly assigned scope.
+
 Robert's latest clarification asks for a usable editor capable of the episode
 workflow, not another Upgrade+ video-production deliverable. Existing final review
 already records F9.0 and connected A–F9.0 PASS for source-bound Robert handoff;
@@ -575,8 +603,8 @@ starting dirty candidate and this separate documentation delta; preserve origina
 unrelated work, evidence, resources and saved/unsaved artwork. Use existing standalone
 checks; retain failed/unrun cases and distinguish decoder/paint/swap timing from
 visible motion/physical scanout. Robert handles general hands-on acceptance;
-The historical B3 Computer Use guidance does not authorize current desktop use;
-the capability-first no-further-Computer-Use direction above controls.
+Historical B3 guidance grants no new desktop scope; current necessary owned
+Computer Use follows the approved visual-build boundaries at the top.
 The B3 candidate is accepted/published; future candidates follow their own manual
 review boundary, with no implied commit/push, Pages or engine replacement.
 
@@ -587,16 +615,18 @@ CPU/Qt references, process-fixed native fallbacks, original pixels/clocks, accep
 work, saves, docking and ownership; do not repeat the audit or require a blanket
 C++ rewrite. Rebind source, binaries and inputs before assigned changes.
 
-The uncommitted editor candidate now implements the agreed project/bin, timeline,
+The published editor foundation 4775137 implements project/bin, basic timeline,
 multitrack audio, editable text/graphics, shared UI/API/history/persistence and
-project export capabilities. The existing F and whole-stage 9.0 technical passes
-stand; section 13's current capability-first handoff supersedes the earlier demand
-for an Upgrade+ production deliverable. Preserve existing production and artifacts;
-no additional full-episode render/playback or new feature follows automatically.
+project export. Its F/A-F 9.0 verdicts retain their recorded scope. The current
+approved visual-build phases extend that foundation as assigned above, with the
+limited independent-work exception and historical Stage 2 HOLD retained. Preserve
+production artifacts; no new episode/full-length render or unrelated feature is
+implied by the approved editor assignment.
 
 Historical B3 timeout, partial timing, ordinary physical drag and unrun listening/
 audible-clock/scanout/multi-hour limits remain; cold/complex/high-rate tails are not
-closed by assertion. Current session/still Save differs from planned project export.
+closed by assertion. Current session/still Save differs from implemented project export and the
+separate OPEN legacy video-layer Save writer.
 Chroma key follows the working editor. The unidentified extra is not scope.
 Separate image additions, capacity Passes 2-4, higher counts and storage relocation
 remain separately accounted for. Publication/documentation dispatch no new workers.

@@ -75,11 +75,13 @@ class DecoderWindow:
     timestamp lead-in below the demand; forward prefetch continues the iterator.
     Prefetch never converts every plane or preloads the clip.
     """
-    def __init__(self,path,budget,*,source_timestamps=False):
+    def __init__(self,path,budget,*,source_timestamps=False,codec_threads=2):
+        if type(codec_threads) is not int or not 1<=codec_threads<=4:raise ValueError('Codec thread count must be an integer from1 through4.')
+        self.codec_threads=codec_threads
         av=backend();self.container=av.open(str(path),mode='r',timeout=(2.,2.))
         try:self.stream=self.container.streams.video[0]
         except Exception:self.container.close();raise ValueError('No video stream remains available.')
-        self.stream.codec_context.thread_count=2
+        self.stream.codec_context.thread_count=self.codec_threads
         self.stream.codec_context.thread_type='AUTO'
         self.cache=OrderedDict();self.bytes=0;self.budget=budget;self.pool=None
         # Legacy clocks retain their nonnegative seek policy. The project
@@ -91,7 +93,7 @@ class DecoderWindow:
         self.converted=None;self.converted_bytes=0;self.frame_step=None;self.last_plane_bytes=0;self.eof=False;self.metrics={};self.refill_frames=0;self.refill_seconds=0.;self.refill_goal=None;self.obsolete_refills=0
         self._metrics()
     def _metrics(self):
-        self.metrics=dict(decoded_planes=self.bytes,converted_rgba=self.converted_bytes,
+        self.metrics=dict(codec_threads_configured=self.codec_threads,decoded_planes=self.bytes,converted_rgba=self.converted_bytes,
             decode_temporary_planes=self.temporary_planes,conversion_temporaries=self.conversion_bytes,
             cache_frames=len(self.cache),seeks=self.seek_count,decode_ms=self.decode_ms,convert_ms=self.convert_ms,refill_frames=self.refill_frames,refill_decode_ms=self.refill_seconds*1000,obsolete_refills=self.obsolete_refills)
     def _evict(self,target,direction,needed=0):
@@ -181,7 +183,7 @@ class DecoderWindow:
                     path=self.container.name;self.container.close()
                     self.container=backend().open(path,mode='r',timeout=(2.,2.))
                     self.stream=self.container.streams.video[0]
-                    self.stream.codec_context.thread_count=2;self.stream.codec_context.thread_type='AUTO'
+                    self.stream.codec_context.thread_count=self.codec_threads;self.stream.codec_context.thread_type='AUTO'
             else:
                 self.container.seek(max(int(self.seek_floor/float(self.stream.time_base)),int(seek/float(self.stream.time_base))),stream=self.stream,backward=True,any_frame=False)
             self.iterator=iter(self.container.decode(self.stream));self.seek_count+=1;self.eof=False;self.last=self.empty_pts;self.refill_frames=0;self.refill_seconds=0.;self.refill_goal=target

@@ -9,7 +9,7 @@ import json,math,re,uuid
 from pathlib import PureWindowsPath
 
 FORMAT='zerawave-video-project'
-VERSION=1
+VERSION=3
 MAX_DOCUMENT_BYTES=524288
 LIMITS=dict(media=1024,tracks=64,clips=2048,captions=4096,graphics=512,batch=128,active_video=4,active_visual=32,active_audio=16)
 OP_FIELDS={
@@ -17,13 +17,19 @@ OP_FIELDS={
  'media.add':(('name','kind','location','sha256'),('id','metadata','provenance','placeholder','accept_changed')),
  'media.relink':(('id','kind','location','sha256','metadata'),('provenance','accept_changed','placeholder')),
  'track.add':(('kind',),('id','name','order','audio')),'track.audio':(('id','values'),()),
- 'clip.add':(('asset','track','start','duration'),('id','name','source_in','rate','audio','layout','link_id','pad_end','provenance')),
+ 'clip.add':(('asset','track','start','duration'),('id','name','source_in','rate','audio','layout','link_id','pad_end','provenance','visual_window')),
  'clip.move':(('id','start'),('track','linked')),'clip.trim':(('id',),('start','end','linked')),
  'clip.remove':(('id',),('linked',)),'clip.unlink':(('id',),('linked',)),'clip.split':(('id','at'),('linked',)),
  'clip.audio':(('id','values'),()),'clip.layout':(('id','values'),()),
  'caption.add':(('track','start','duration','text'),('id','style','order','dynamic','provenance','range_start','range_end')),
  'graphic.add':(('track','start','duration','text'),('id','style','order','dynamic','provenance','range_start','range_end')),
  'caption.edit':(('id','values'),()),'graphic.edit':(('id','values'),()),'caption.remove':(('id',),()),'graphic.remove':(('id',),()),'export.settings':(('values',),())}
+from project_edits import OP_FIELDS as TIMELINE_FIELDS
+OP_FIELDS.update(TIMELINE_FIELDS)
+from project_audio_graph import OP_FIELDS as AUDIO_GRAPH_FIELDS
+OP_FIELDS.update(AUDIO_GRAPH_FIELDS)
+from project_visual import OP_FIELDS as VISUAL_FIELDS
+OP_FIELDS.update(VISUAL_FIELDS)
 class ProjectError(ValueError):
  def __init__(self,code,message):super().__init__(message);self.code=code
 def fail(code,message):raise ProjectError(code,message)
@@ -53,7 +59,7 @@ def sample_at(document,frame):
  value=frame_time(document,frame)*document['settings']['sample_rate'];return (value.numerator*2+value.denominator)//(value.denominator*2)
 def duration(document):return max([0]+[c['start']+c['duration'] for category in ('clips','captions','graphics') for c in document[category]])
 def create(name='Untitled video',settings=None,project_id=None):
- d=dict(format=FORMAT,version=VERSION,id=project_id or new_id(),name=name,settings=dict(width=1280,height=720,fps=[30,1],sample_rate=48000,background='#000000'),media=[],tracks=[],clips=[],captions=[],graphics=[],provenance={},protected_paths=[],export=dict(container='mp4',video_codec='h264',audio_codec='aac',crf=18))
+ d=dict(format=FORMAT,version=VERSION,id=project_id or new_id(),name=name,settings=dict(width=1280,height=720,fps=[30,1],sample_rate=48000,background='#000000'),media=[],tracks=[],clips=[],captions=[],graphics=[],provenance={},protected_paths=[],export=dict(container='mp4',video_codec='h264',audio_codec='aac',crf=18),buses=[],master=dict(gain=1.,mute=False))
  d['settings'].update(settings or {});return validate(d)
 def envelope(value):
  if not isinstance(value,list) or len(value)>2048:fail('invalid_envelope','At most 2048 envelope points are supported.')
@@ -63,8 +69,9 @@ def envelope(value):
   integer(point[0]);number(point[1],0,4)
   if point[0]<=prior:fail('invalid_envelope','Envelope frame positions must increase strictly.')
   prior=point[0]
-def audio(value):
- fields(value,('gain','fade_in','fade_out','envelope','mute'))
+def audio(value,extended=False):
+ fields(value,('gain','fade_in','fade_out','envelope','mute'),('pan',) if extended else ())
+ if 'pan' in value:number(value['pan'],-1,1)
  if not isinstance(value,dict):fail('invalid_audio','Missing audio controls.')
  number(value['gain']);integer(value['fade_in']);integer(value['fade_out']);envelope(value['envelope'])
  if type(value['mute']) is not bool:fail('invalid_audio','Mute must be true or false.')
@@ -72,8 +79,12 @@ def audio_defaults():return dict(gain=1.,mute=False,fade_in=0,fade_out=0,envelop
 def style_defaults():return dict(font='Segoe UI',size=27,color='#fff7e7',background='#e017120e',bold=True,align='center',bounds=[.027,.82,.946,.16],padding=10)
 def layout_defaults():return dict(bounds=[0.,0.,1.,1.],opacity=1.,rotation=0.,brightness=1.,fit='Stretch',masks=[],blend='Normal')
 def timed(row):integer(row['start'],0,120*24*3600);integer(row['duration'],1,120*24*3600)
-def style(value):
- fields(value,('font','size','color','background','bold','align','bounds','padding'),('radius','stroke_width','stroke_color','opacity','max_lines','valign','padding_x','padding_y','line_spacing'))
+def style(value,extended=False):
+ fields(value,('font','size','color','background','bold','align','bounds','padding'),('radius','stroke_width','stroke_color','opacity','max_lines','valign','padding_x','padding_y','line_spacing')+(('rotation','keys') if extended else ()))
+ if extended:
+  from project_visual import validate_style
+  validate_style(value)
+ if 'rotation' in value:number(value['rotation'],-36000,36000)
  text(value['font'],128);number(value['size'],6,256);text(value['color'],32);text(value['background'],32)
  if not re.fullmatch('#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})',value['color']) or not re.fullmatch('#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})',value['background']):fail('invalid_style','Use Qt hexadecimal RGB (#RRGGBB) or ARGB (#AARRGGBB) colors.')
  if value['align'] not in ('left','center','right') or type(value['bold']) is not bool:fail('invalid_style','Unsupported text alignment/weight.')
@@ -87,8 +98,11 @@ def bounds(value):
  if not isinstance(value,list) or len(value)!=4:fail('invalid_layout','Bounds must contain x, y, width and height.')
  for v in value[:2]:number(v,-4,4)
  for v in value[2:]:number(v,.00001,8)
-def layout(value):
- fields(value,('bounds','opacity','rotation','brightness','fit','masks','blend'))
+def layout(value,extended=False):
+ fields(value,('bounds','opacity','rotation','brightness','fit','masks','blend'),('crop','effects','keys') if extended else ())
+ if extended:
+  from project_visual import validate_layout
+  validate_layout(value)
  bounds(value['bounds']);number(value['opacity'],0,1);number(value['rotation'],-36000,36000);number(value['brightness'],0,4)
  if value['fit'] not in ('Stretch','Fit','Fill') or value['blend'] not in ('Normal','Multiply','Screen','Add','Difference'):fail('invalid_layout','Unsupported fit or blend mode.')
  if not isinstance(value['masks'],list) or len(value['masks'])>8:fail('invalid_layout','At most 8 masks are supported by the existing composition renderer.')
@@ -98,6 +112,7 @@ def layout(value):
   for point in mask['points']:
    if not isinstance(point,list) or len(point)!=2:fail('invalid_layout','Invalid mask point.')
    for v in point:number(v,0,1)
+ if not value['masks']:return # No renderer mask instruction exists to reconcile.
  # Validate masks against the actual existing composition contract at admission.
  from composition import defaults,new_layer,validate_scene
  scene=defaults();row=new_layer('Group');row['masks']=[dict(m,mode='Cut' if m['mode']=='Remove' else 'Keep') for m in value['masks']];scene['layers']=[row]
@@ -109,10 +124,14 @@ def _peak(rows):
  active=peak=0
  for at,delta in sorted(events):active+=delta;peak=max(peak,active)
  return peak
-def validate(value):
- d=deepcopy(value)
- if not isinstance(d,dict) or d.get('format')!=FORMAT or d.get('version')!=VERSION:fail('unsupported_project','Not a supported ZeraWave video project. Legacy layer sessions use Open session.')
+def validate(value,allow_missing_routes=False,_copy=True):
+ # Public/default validation detaches caller data. apply already owns a fresh
+ # private copy, which can be validated in place without losing that boundary.
+ d=deepcopy(value) if _copy else value
+ if not isinstance(d,dict) or d.get('format')!=FORMAT or type(d.get('version')) is not int or d.get('version') not in (1,2,VERSION):fail('unsupported_project','Not a supported ZeraWave video project. Legacy layer sessions use Open session.')
  required={'format','version','id','name','settings','media','tracks','clips','captions','graphics','provenance','protected_paths','export'}
+ if d['version']>=3:required|={'buses','master'}
+ if d['version']>=3 and 'transitions' in d:required.add('transitions')
  if set(d)!=required:fail('unsupported_fields','Unknown or missing video-project fields; nothing was discarded.')
  identity(d['id']);text(d['name'],256);s=d['settings'];fields(s,('width','height','fps','sample_rate','background'));integer(s['width'],16,8192);integer(s['height'],16,8192)
  if s['width']*s['height']>8388608 or not Fraction(1)<=rational(s['fps'])<=120 or s['sample_rate']!=48000:fail('invalid_settings','Use up to 8 megapixels, 1–120 FPS and 48 kHz audio.')
@@ -126,6 +145,7 @@ def validate(value):
    key=identity(row['id'])
    if key in seen:fail('duplicate_id','Project object IDs must be unique.')
    seen.add(key)
+   if row.get('group_id') is not None:identity(row['group_id'])
  for asset in d['media']:
   fields(asset,('id','name','kind','location','sha256','metadata','provenance'));fields(asset['location'],('kind','path'))
   if not isinstance(asset['provenance'],dict):fail('invalid_document','Media provenance must be structured metadata.')
@@ -138,15 +158,25 @@ def validate(value):
   if not re.fullmatch('[0-9a-f]{64}',asset['sha256']) or not isinstance(asset['metadata'],dict):fail('invalid_media','Source identity/metadata is missing.')
   assets[asset['id']]=asset
  for track in d['tracks']:
-  fields(track,('id','name','kind','order','audio'))
-  text(track['name'],256);audio(track['audio']);integer(track['order'],0,63)
+  fields(track,('id','name','kind','order','audio'),(('locked','visible','solo','output') if d['version']>=3 else ('locked','visible','solo')) if d['version']>=2 else ())
+  for flag in ('locked','visible','solo'):
+   if flag in track and type(track[flag]) is not bool:fail('invalid_track','Track state flags must be true or false.')
+  text(track['name'],256);audio(track['audio'],d['version']>=3);integer(track['order'],0,63)
   if track['kind'] not in ('video','audio','graphics'):fail('invalid_track','Unsupported track type.')
   tracks[track['id']]=track
  if len({r['order'] for r in d['tracks']})!=len(tracks):fail('invalid_track','Track order must be unique.')
+ layout_values=set()
  for row in d['clips']:
-  fields(row,('id','name','asset','track','start','duration','source_in','rate','audio','layout','link_id','audio_window','pad_end','provenance'));fields(row['audio_window'],('offset','duration'))
+  fields(row,('id','name','asset','track','start','duration','source_in','rate','audio','layout','link_id','audio_window','pad_end','provenance'),('group_id','visual_window') if d['version']>=3 else ('group_id',) if d['version']>=2 else ());fields(row['audio_window'],('offset','duration'))
   if not isinstance(row['provenance'],dict):fail('invalid_document','Clip provenance must be structured metadata.')
-  timed(row);text(row['name'],256);audio(row['audio']);layout(row['layout']);source=rational(row['source_in']);rate=rational(row['rate'])
+  timed(row);text(row['name'],256);audio(row['audio'],d['version']>=3)
+  # JSON type identity distinguishes bool/int and rejects nonfinite/unsupported
+  # values. Validate each exact repeated layout once within this private call;
+  # every item/reference/time/lock/capacity check still runs independently.
+  try:layout_key=json.dumps(row['layout'],sort_keys=True,allow_nan=False,separators=(',',':'))
+  except (ValueError,TypeError):fail('invalid_document','Layout contains unsupported or nonfinite metadata.')
+  if layout_key not in layout_values:layout(row['layout'],d['version']>=3);layout_values.add(layout_key)
+  source=rational(row['source_in']);rate=rational(row['rate'])
   if source<0 or not Fraction(1,16)<=rate<=16:fail('invalid_time','Nonnegative source time and rate 1/16–16 are required.')
   if row.get('link_id') is not None:identity(row['link_id'])
   if row['asset'] not in assets or row['track'] not in tracks:fail('missing_reference','Clip source or track does not exist.')
@@ -160,18 +190,22 @@ def validate(value):
    if kind!='Image' and row['pad_end']=='none' and source+frame_time(d,row['duration'])*rate>Fraction(str(available))+Fraction(1,48000):fail('source_range','Clip extends beyond the recorded source duration; audio silence padding must be explicit.')
  for category in ('captions','graphics'):
   for row in d[category]:
-   fields(row,('id','track','start','duration','text','style','order','dynamic','provenance'),('range_start','range_end'))
+   fields(row,('id','track','start','duration','text','style','order','dynamic','provenance'),('range_start','range_end')+(('group_id',) if d['version']>=2 else ())+(('visual_window',) if d['version']>=3 else ()))
    if not isinstance(row['provenance'],dict):fail('invalid_document','Text provenance must be structured metadata.')
-   timed(row);text(row['text']);style(row['style']);integer(row['order'],0,65535)
+   timed(row);text(row['text']);style(row['style'],d['version']>=3);integer(row['order'],0,65535)
    if row['track'] not in tracks or tracks[row['track']]['kind']!='graphics':fail('invalid_track','Text requires a graphics track.')
    if row.get('dynamic') not in (None,'counter','progress'):fail('invalid_graphic','Unsupported timed graphic.')
    if row.get('dynamic')=='counter' and any(token not in ('elapsed','duration','frame') for token in re.findall(r'\{([^{}]+)\}',row['text'])):fail('invalid_graphic','Counter supports {elapsed}, {duration} and {frame} only.')
    if row.get('dynamic') in ('counter','progress'):
-    begin=integer(row.get('range_start',row['start']));integer(row.get('range_end',row['start']+row['duration']),begin+1)
+    begin=integer(row.get('range_start',row['start']),-120*24*3600 if d['version']>=2 else 0);integer(row.get('range_end',row['start']+row['duration']),begin+1)
  if not isinstance(d['protected_paths'],list) or len(d['protected_paths'])>4096 or not isinstance(d['provenance'],dict):fail('invalid_document','Protected paths and provenance must be explicit structured data.')
  for row in d['protected_paths']:
   text(row,4096)
   if not PureWindowsPath(row).is_absolute():fail('invalid_path','Protected source/output paths must be explicit absolute paths.')
+ from project_visual import validate_document as validate_visual_document
+ validate_visual_document(d)
+ from project_audio_graph import validate as validate_audio_graph
+ validate_audio_graph(d,allow_missing_routes)
  fields(d['export'],('container','video_codec','audio_codec','crf'))
  if d['export'].get('container')!='mp4' or d['export'].get('video_codec')!='h264' or d['export'].get('audio_codec')!='aac':fail('unsupported_export','Initial project export is MP4/H.264/AAC.')
  integer(d['export']['crf'],0,51)
@@ -183,6 +217,13 @@ def validate(value):
  except (ValueError,TypeError):fail('invalid_document','Project contains unsupported or nonfinite metadata.')
  if size>MAX_DOCUMENT_BYTES:fail('capacity','Project metadata exceeds 512 KiB; existing document retained.')
  return d
+def clip_recipe(identity,**args):
+ key=identity
+ row=dict(id=key,name=args.get('name','Clip'),asset=args['asset'],track=args['track'],start=args['start'],duration=args['duration'],source_in=args.get('source_in',[0,1]),rate=args.get('rate',[1,1]),audio=dict(audio_defaults(),**args.get('audio',{})),layout=dict(layout_defaults(),**args.get('layout',{})),link_id=args.get('link_id'),audio_window=dict(offset=0,duration=args['duration']),pad_end=args.get('pad_end','none'),provenance=deepcopy(args.get('provenance',{})))
+
+ if 'visual_window' in args or row['layout'].get('keys'):row['visual_window']=deepcopy(args.get('visual_window',dict(offset=0,duration=row['duration'])))
+ return row
+
 def _find(d,category,key):
  row=next((r for r in d[category] if r['id']==key),None)
  if row is None:fail('missing_object','The requested '+category+' object is unavailable.')
@@ -191,12 +232,28 @@ def _linked(d,row,enabled):return [r for r in d['clips'] if enabled and row.get(
 def apply(document,changes,operation_id):
  if not isinstance(changes,list) or not 1<=len(changes)<=LIMITS['batch']:fail('invalid_batch','A batch requires 1–128 explicit changes.')
  d=deepcopy(document);created=[]
+ from project_audio_graph import missing_routes
+ recoverable_routes={(r['id'],r['destination']) for r in missing_routes(d)}
  for i,change in enumerate(changes):
   if not isinstance(change,dict) or not isinstance(change.get('op'),str) or change['op'] not in OP_FIELDS:fail('unsupported_command','Unsupported project edit.')
   required,optional=OP_FIELDS[change['op']];fields(change,('op',)+required,optional)
   for flag in ('linked','accept_changed','placeholder'):
    if flag in change and type(change[flag]) is not bool:fail('invalid_value',flag+' must be true or false.')
-  op=change['op'];args={k:v for k,v in change.items() if k!='op'};key=args.get('id') or uuid.uuid5(uuid.UUID(operation_id),str(i)).hex
+  op=change['op'];args=deepcopy({k:v for k,v in change.items() if k!='op'});key=args.get('id') or uuid.uuid5(uuid.UUID(operation_id),str(i)).hex
+  from project_edits import apply_edit,unlocked
+  prior_visual={'clips':[dict(id=r['id'],start=r['start'],duration=r['duration']) for r in d['clips']]} if d.get('transitions') else None
+  if op in VISUAL_FIELDS:
+   from project_visual import apply_edit as visual_edit
+   created.extend(visual_edit(d,change,operation_id,i));continue
+  if op in AUDIO_GRAPH_FIELDS:
+   from project_audio_graph import apply_edit as audio_graph_edit
+   created.extend(audio_graph_edit(d,change,operation_id,i));continue
+  if op in TIMELINE_FIELDS:
+   created.extend(apply_edit(d,change,operation_id,i))
+   if prior_visual:
+    from project_visual import reconcile
+    reconcile(prior_visual,d)
+   continue
   if op=='project.rename':d['name']=args['name']
   elif op=='project.provenance':
    if not isinstance(args['values'],dict):fail('invalid_document','Project provenance must be structured metadata.')
@@ -209,6 +266,7 @@ def apply(document,changes,operation_id):
   elif op=='media.add':
    row=dict(id=key,name=args['name'],kind=args['kind'],location=deepcopy(args['location']),sha256=args['sha256'],metadata=deepcopy(args.get('metadata',{})),provenance=deepcopy(args.get('provenance',{})));d['media'].append(row);created.append(key)
   elif op=='media.relink':
+   unlocked(d,[(c,r) for c in ('clips',) for r in d[c] if r['asset']==args['id']])
    row=_find(d,'media',args['id'])
    if args['sha256']!=row['sha256'] and not args.get('accept_changed',False):fail('changed_media','Replacement differs from recorded source; explicitly accept the change.')
    prior=row['provenance'].get('import_path')
@@ -216,19 +274,25 @@ def apply(document,changes,operation_id):
    row.update(location=deepcopy(args['location']),sha256=args['sha256'],metadata=deepcopy(args['metadata']))
    row['provenance'].update(deepcopy(args.get('provenance',{})))
   elif op=='track.add':
+   if 'order' not in args and d['tracks'] and max(t['order'] for t in d['tracks'])>=63:
+    for n,t in enumerate(sorted(d['tracks'],key=lambda t:t['order'])):t['order']=n
+   if 'order' not in args:args['order']=max((t['order'] for t in d['tracks']),default=-1)+1
    d['tracks'].append(dict(id=key,name=args.get('name','Track'),kind=args['kind'],order=args.get('order',len(d['tracks'])),audio=dict(audio_defaults(),**args.get('audio',{}))));created.append(key)
   elif op=='track.audio':_find(d,'tracks',args['id'])['audio'].update(args['values'])
   elif op=='clip.add':
-   row=dict(id=key,name=args.get('name','Clip'),asset=args['asset'],track=args['track'],start=args['start'],duration=args['duration'],source_in=args.get('source_in',[0,1]),rate=args.get('rate',[1,1]),audio=dict(audio_defaults(),**args.get('audio',{})),layout=dict(layout_defaults(),**args.get('layout',{})),link_id=args.get('link_id'),audio_window=dict(offset=0,duration=args['duration']),pad_end=args.get('pad_end','none'),provenance=deepcopy(args.get('provenance',{})));d['clips'].append(row);created.append(key)
+   unlocked(d,tracks=[args['track']])
+   row=clip_recipe(key,**{k:v for k,v in args.items() if k!='id'});d['clips'].append(row);created.append(key)
   elif op in ('clip.move','clip.trim','clip.remove','clip.unlink','clip.split'):
-   row=_find(d,'clips',args['id']);members=_linked(d,row,args.get('linked',True))
+   row=_find(d,'clips',args['id']);members=_linked(d,row,args.get('linked',True));unlocked(d,[('clips',m) for m in members],([args['track']] if 'track' in args else []))
    if op=='clip.move':
     delta=args['start']-row['start']
     for member in members:member['start']+=delta
     if 'track' in args:row['track']=args['track']
    elif op=='clip.trim':
     start=args.get('start',row['start']);end=args.get('end',row['start']+row['duration']);left=start-row['start'];right=end-(row['start']+row['duration'])
-    for member in members:member.update(start=member['start']+left,duration=member['duration']+right-left,source_in=pair(rational(member['source_in'])+frame_time(d,left)*rational(member['rate'])));member['audio_window']['offset']+=left
+    for member in members:
+     member.update(start=member['start']+left,duration=member['duration']+right-left,source_in=pair(rational(member['source_in'])+frame_time(d,left)*rational(member['rate'])));member['audio_window']['offset']+=left
+     if 'visual_window' in member:member['visual_window']['offset']+=left
    elif op=='clip.remove':d['clips']=[c for c in d['clips'] if c not in members]
    elif op=='clip.unlink':
     for member in members:member['link_id']=None
@@ -237,22 +301,31 @@ def apply(document,changes,operation_id):
     for member in members:
      offset=at-member['start']
      if not 0<offset<member['duration']:fail('invalid_split','Split must be inside every linked clip.')
-     right=deepcopy(member);right.update(id=uuid.uuid5(uuid.UUID(operation_id),member['id']+'-right').hex,start=at,duration=member['duration']-offset,source_in=pair(rational(member['source_in'])+frame_time(d,offset)*rational(member['rate'])),link_id=group);right['audio_window']['offset']+=offset;member['duration']=offset;d['clips'].append(right);created.append(right['id'])
+     right=deepcopy(member);right.update(id=uuid.uuid5(uuid.UUID(operation_id),member['id']+'-right').hex,start=at,duration=member['duration']-offset,source_in=pair(rational(member['source_in'])+frame_time(d,offset)*rational(member['rate'])),link_id=group);right['audio_window']['offset']+=offset
+     if 'visual_window' in right:right['visual_window']['offset']+=offset
+     member['duration']=offset;d['clips'].append(right);created.append(right['id'])
   elif op in ('clip.audio','clip.layout'):
-   row=_find(d,'clips',args['id']);row['audio' if op.endswith('audio') else 'layout'].update(args['values'])
+   row=_find(d,'clips',args['id']);unlocked(d,[('clips',row)]);row['audio' if op.endswith('audio') else 'layout'].update(args['values'])
    if op=='clip.audio' and set(args['values'])&{'fade_in','fade_out','envelope'}:row['audio_window']=dict(offset=0,duration=row['duration'])
   elif op in ('caption.add','graphic.add'):
-   category='captions' if op=='caption.add' else 'graphics';row=dict(id=key,track=args['track'],start=args['start'],duration=args['duration'],text=args['text'],style=dict(style_defaults(),**args.get('style',{})),order=args.get('order',len(d[category])),dynamic=args.get('dynamic'),provenance=deepcopy(args.get('provenance',{})))
+   unlocked(d,tracks=[args['track']]);category='captions' if op=='caption.add' else 'graphics';row=dict(id=key,track=args['track'],start=args['start'],duration=args['duration'],text=args['text'],style=dict(style_defaults(),**args.get('style',{})),order=args.get('order',len(d[category])),dynamic=args.get('dynamic'),provenance=deepcopy(args.get('provenance',{})))
    if row['dynamic']:row.update(range_start=args.get('range_start',row['start']),range_end=args.get('range_end',row['start']+row['duration']))
    d[category].append(row);created.append(key)
   elif op in ('caption.edit','graphic.edit'):
    if set(args['values'])-{'start','duration','text','style','order','dynamic','range_start','range_end'}:fail('immutable_id','Text edits cannot replace stable IDs, tracks or provenance.')
-   row=_find(d,'captions' if op.startswith('caption') else 'graphics',args['id'])
+   row=_find(d,'captions' if op.startswith('caption') else 'graphics',args['id']);unlocked(d,[('captions' if op.startswith('caption') else 'graphics',row)])
+   if 'visual_window' in row and 'start' in args['values'] and 'duration' in args['values']:row['visual_window']['offset']+=args['values']['start']-row['start']
    for k,v in args['values'].items():
     if k=='style':row['style'].update(deepcopy(v))
     else:row[k]=deepcopy(v)
   elif op in ('caption.remove','graphic.remove'):
-   category='captions' if op.startswith('caption') else 'graphics';_find(d,category,args['id']);d[category]=[r for r in d[category] if r['id']!=args['id']]
+   category='captions' if op.startswith('caption') else 'graphics';unlocked(d,[(category,_find(d,category,args['id']))]);d[category]=[r for r in d[category] if r['id']!=args['id']]
   elif op=='export.settings':d['export'].update(args['values'])
   else:fail('unsupported_command','Unsupported project edit: '+str(op))
- return validate(d),created
+  if prior_visual:
+   from project_visual import reconcile
+   reconcile(prior_visual,d)
+ if d!=document:
+  d['version']=VERSION;d.setdefault('buses',[]);d.setdefault('master',dict(gain=1.,mute=False))
+ if any((r['id'],r['destination']) not in recoverable_routes for r in missing_routes(d)):fail('missing_audio_destination','Choose Master, None or an existing bus; new missing routes were not accepted.')
+ return validate(d,allow_missing_routes=bool(recoverable_routes),_copy=False),created

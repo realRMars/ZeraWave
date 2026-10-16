@@ -182,16 +182,16 @@ def main():
     owner.projects.transport_admit=admit_project_transport
     def service_project_audio():
         nonlocal project_audio_version,project_audio_evaluator
-        data=owner.projects.transport_state();version=(data['epoch'],data['revision'])
+        combined=owner.projects.transport_state();source=owner.projects.audio_target=='source';clock=owner.projects.source.transport if source else owner.projects.transport;data=clock.state();document=owner.projects.source.document if source else owner.projects.document;version=(data['epoch'],data['revision'],data['project'])
         if version!=project_audio_version:
-            project_audio_version=version;project_audio_evaluator=Evaluator(owner.projects.document,*version) if owner.projects.document else None
+            project_audio_version=version;project_audio_evaluator=Evaluator(document,*version[:2]) if document else None
         audio=owner.audio_owner.project_snapshot()
         terminal=audio.get('active') and tuple((audio.get('binding') or [])[:3])==(data['epoch'],data['revision'],data['generation']) and audio.get('status') in ('Ended','Unavailable','Release unconfirmed') and not data['playing']
-        if not terminal:owner.audio_owner.offer_project(project_audio_evaluator,dict(data,sample=owner.projects.transport.audio_seed))
+        if not terminal:owner.audio_owner.offer_project(project_audio_evaluator,dict(data,sample=clock.audio_seed))
         if data['active'] and project_audio_evaluator and (data['playing'] or audio.get('active')):
             if audio.get('active') and tuple((audio.get('binding') or [])[:3])==(data['epoch'],data['revision'],data['generation']) and not audio.get('transition_pending'):
-                owner.projects.transport.audio_position(audio)
-            elif owner.projects.transport.audio_clock is None or owner.projects.transport.audio_clock['binding']!=(data['epoch'],data['revision'],data['generation']):owner.projects.transport.audio_position()
+                clock.audio_position(audio)
+            elif clock.audio_clock is None or clock.audio_clock['binding']!=(data['epoch'],data['revision'],data['generation']):clock.audio_position()
     sampler=ResourceSampler();sampler.enabled.set()
     sampler.configure({'Qt GUI':int(host['ZERAWAVE_WORKSPACE_PID']),'control owner':os.getpid()})
     def draft_key():return json.dumps([list(view.owner_key()),view.target.target_id])
@@ -265,7 +265,7 @@ def main():
                 for item in owner.composition_history.undo+owner.composition_history.redo:
                     history.update(a['id'] for scene in (item['before'],item['after']) for a in scene['assets'])
                 ownership=owner.rasters.ownership(document,history,owner.publication_pins)
-                return dict(project=dict(owner.projects.state(),endpoint=str(project_api.path)),values=dict(media=owner.media_scene,artwork_outputs=getattr(owner,'artwork_outputs',[])),media_library=library,
+                return dict(project=dict(owner.projects.state(_omit_document=project_candidate is not None,_owner_projection=True),endpoint=str(project_api.path)),values=dict(media=owner.media_scene,artwork_outputs=getattr(owner,'artwork_outputs',[])),media_library=library,
                     media_control=dict(session=owner.media_session,revision=owner.media_revision,history=owner.composition_history.snapshot(),transactions=owner.outcomes.state(),raster=owner.rasters.state(),ownership=ownership),
                     tuning_drafts=list(drafts.values()),tuning_dirty=any(d['dirty'] for d in drafts.values()),close_state=dict(owner.close_state),session_path=str(owner.session_path) if owner.session_path else None)
             resolution=owner.preview_state.get('resolution') or {}
@@ -297,7 +297,7 @@ def main():
         if project_candidate is not None:
             # Admission measures a hypothetical projection without publishing,
             # advancing its sequence, or consuming a client's full-state request.
-            parts=deepcopy(publisher.cache)
+            parts=dict(publisher.cache)
             parts['document']=build('document')
             parts['document']['project']['document']=project_candidate
             return dict(version=2,owner=publisher.owner,identity=identity,sections=parts,versions=publisher.versions)
@@ -724,16 +724,22 @@ def main():
             project_binding=data.get('project_binding')
             if project_binding is None and (owner.projects.document is not None or owner.projects.jobs):raise ValueError('Video project close needs the captured project identity/epoch/revision/command binding.')
             project_discard=project_mode=='discard'
-            if not owner.projects.can_shutdown(project_discard,binding=project_binding):raise ValueError('Video project jobs still own work; wait before closing.')
             if not discard and (failed or owner.rasters.save_pins or pending and not data.get('mode')):raise ValueError('Accepted raster work is not secured. Retry/Save As, Cancel, or explicitly Discard before closing.')
+            ready=owner.projects.can_shutdown(project_discard,binding=project_binding)
+            if not ready and owner.projects.jobs:raise ValueError('Video project jobs still own work; wait before closing.')
+            # Recovery publication is a normal close drain, not a failed close.
+            # Its immutable snapshot must finish before workers are released.
             owner.close_state=dict(phase='draining',discard=discard,project_discard=project_discard,project_binding=project_binding,started=time.perf_counter(),error='')
         elif name=='close_cancel':
-            if owner.close_state['phase']=='draining':owner.close_state=dict(phase='open',error='')
+            if owner.close_state['phase']=='draining':owner.projects.recovery.resume();owner.close_state=dict(phase='open',error='')
         else:raise ValueError('Unsupported control command: '+str(name))
     def action(name,data):
         nonlocal configuration_epoch,document_epoch,runtime_epoch
         ordered='operation_id' in data
-        if ordered and not owner.outcomes.begin(name,data):return
+        if ordered and not owner.outcomes.begin(name,data):
+            # Replay the same inner project ID to recover its actual receipt,
+            # never execute a second edit after a lost outer ACK.
+            return owner.projects.request(data['request']) if name=='project' else None
         admitted={}
         try:
             project_query=name=='project' and data.get('request',{}).get('op') in ('state','operation_status','cancel')
@@ -770,7 +776,7 @@ def main():
                 admitted=owner.rasters.admit(data.get('raster_assets',[])+sources)
             result=perform_action(name,data)
             runtime_epoch+=1
-            if name not in ('hold','release','media_transport','operation_status','state_full','attach'):
+            if name not in ('hold','release','media_transport','operation_status','state_full','attach','project'):
                 if not name.startswith(('composition','media_','raster_')) and name not in ('image_layers','save','save_retry','cancel_save','close','close_cancel','web_frame','artwork_output'):configuration_epoch+=1
                 if name.startswith(('composition','media_','raster_')) or name in ('image_layers','save','save_retry','cancel_save','load','tune','range','override','reset_audio','restore_draft','authored','web_frame','artwork_output'):document_epoch+=1
             if ordered:owner.outcomes.finish(data,status='applied',revision=owner.media_revision,session=owner.media_session,publication=owner.media_publication_revision,accepted=time.perf_counter(),resources=[a['id'] for a in owner.media_scene['assets'] if a['id'] in owner.rasters.rows],output='queued' if owner.process is not None else 'inactive')
@@ -874,7 +880,14 @@ def main():
                     if message['action']=='project' and isinstance(result,dict):
                         from project_service import summary
                         receipt={'ok':result.get('ok'), 'outcome':summary(result['outcome']) if result.get('outcome') else None,'error':result.get('error')}
-                    emit({'id':message['id'],'snapshot':snapshot(),'project_result':receipt})
+                    transport_only=message['action']=='project' and message.get('data',{}).get('request',{}).get('op')=='transport'
+                    if transport_only:
+                        # Transport changes no document recipe. Publish its real
+                        # clock/command receipt now; the existing periodic section
+                        # publisher still reconciles all operation ledgers/state.
+                        clock=owner.projects.transport_state();clock['command_revision']=owner.projects.command_revision
+                        emit({'id':message['id'],'project_clock':clock,'project_result':receipt})
+                    else:emit({'id':message['id'],'snapshot':snapshot(),'project_result':receipt})
             except Exception as exc:
                 op=message.get('data',{}).get('operation_id');outcome=owner.outcomes.rows.get(op,{})
                 # Expected admission backpressure is already an explicit rejected
@@ -890,9 +903,11 @@ def main():
             if owner.rasters.prepare_close(state['discard']):
                 owner.rasters.poll()
                 if not state['discard'] and (owner.rasters.failures or owner.rasters.save_pins):owner.close_state=dict(phase='failed',error='Close did not secure accepted work. Retry/Save As or explicitly Discard.');emit({'snapshot':snapshot()})
-                else:closing=True
-            elif time.perf_counter()-state['started']>15:
-                owner.close_state=dict(phase='failed',error='A write has not stopped within 15 seconds. Editor remains open; accepted work retained. Correct the destination, Retry/Save As or try close again.');emit({'snapshot':snapshot()})
+                else:
+                    try:closing=owner.projects.can_shutdown(state.get('project_discard',False),binding=state.get('project_binding'))
+                    except Exception as exc:owner.projects.recovery.resume();owner.close_state=dict(phase='failed',error='Project close deferred: '+str(exc));emit({'snapshot':snapshot()})
+            if not closing and owner.close_state['phase']=='draining' and time.perf_counter()-state['started']>15:
+                owner.projects.recovery.resume();owner.close_state=dict(phase='failed',error='A write has not stopped within 15 seconds. Editor remains open; accepted work retained. Correct the destination, Retry/Save As or try close again.');emit({'snapshot':snapshot()})
         if closing:
             owner.close_state['phase']='releasing';emit({'snapshot':snapshot()})
             # EOF is an exceptional route, with cooperative cancellation. Normal
@@ -920,8 +935,12 @@ def main():
         nonlocal project_clock_sent
         if closing:return
         try:
-            service_project_audio();data=owner.projects.transport_state();stamp=(data['epoch'],data['revision'],data['generation'],data['frame'],data.get('audio_status'))
-            if stamp!=project_clock_sent:emit({'project_clock':data});project_clock_sent=stamp
+            service_project_audio();data=owner.projects.transport_state();source=data['source'];stamp=(data['epoch'],data['revision'],data['generation'],data['frame'],data.get('audio_status'),source['epoch'],source['generation'],source['frame'],source.get('audio_status'),data['audio_target'])
+            if stamp!=project_clock_sent:
+                audio=owner.audio_owner.project_snapshot()
+                data['command_revision']=owner.projects.command_revision
+                data['audio_report']={key:deepcopy(audio[key]) for key in ('active','binding','status','levels','meter_span','meter_sample_estimate','meter_basis','meter_timing_available','padding_frames','submitted_sample') if key in audio}
+                emit({'project_clock':data});project_clock_sent=stamp
         except Exception as exc:failure(type(exc),exc,exc.__traceback__)
         root.after(16,publish_project_clock)
     analyzer_sent=None

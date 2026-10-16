@@ -43,9 +43,13 @@ try:
   r=demand(m,e,e.end);assert not r['images'] and m.metrics['decoders']==0 and m.metrics['plane_bytes']==0;m.release(r['serial']);m.close();m.thread.join(5);assert m.exited() and m.metrics['rgba_bytes']==0;m=None
  checks.append('End-exclusive gap retires all actual decoder planes/conversions; close waits for real worker exit')
  from media_frames import DecoderWindow
- decoder=DecoderWindow(signed,24576,source_timestamps=True);cancel=threading.Event()
+ legacy=DecoderWindow(signed,24576,source_timestamps=True);assert legacy.codec_threads==legacy.stream.codec_context.thread_count==2;legacy.close()
+ for bad in (0,5,True,'4'):
+  try:DecoderWindow(signed,24576,codec_threads=bad);raise AssertionError('Unbounded codec policy admitted')
+  except ValueError:pass
+ decoder=DecoderWindow(signed,24576,source_timestamps=True,codec_threads=4);cancel=threading.Event()
  try:
-  decoder.get(.9,cancel);pts,_=decoder.get(-.4,cancel);assert pts==-.4 and decoder.seek_count==2
+  decoder.get(.9,cancel);pts,_=decoder.get(-.4,cancel);assert pts==-.4 and decoder.seek_count==2 and decoder.stream.codec_context.thread_count==decoder.codec_threads==4
  finally:decoder.close()
  checks.append('Signed backwards PTS cache miss rewinds refused-negative-seek demuxer within existing GOP/cache bounds')
  # Actual encoded stream SAR and display matrix, not a metadata-only fixture.

@@ -1,6 +1,7 @@
 """Actual media/Qt-widget/GL callbacks with controlled interleavings, no scanout claim."""
 from pathlib import Path
 from copy import deepcopy
+from types import SimpleNamespace
 import os,sys,time,json,uuid,hashlib,traceback
 root=Path(r'C:\ZeraWave');sys.path[:0]=[str(root/'app/visuals'),str(root/'app/audio')];os.environ['QT_QPA_PLATFORM']='offscreen'
 from PySide6.QtWidgets import QApplication,QWidget,QLabel
@@ -17,7 +18,7 @@ import glfw,moderngl,numpy as np
 out=Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=False);app=QApplication([]);checks=[];rows=[];window=None;ctx=None;surface=None;preview=None
 source_binding={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (root/'app/visuals').glob('*.py')};(out/'SOURCE.json').write_text(json.dumps(source_binding,indent=2),'utf8')
 class Workspace:
- def __init__(self,d):self.current=dict(document=d,epoch='old',revision=1);self.transport=dict(frame=0,generation=1,playing=False);self.notice=QLabel();self.trees={};self.pending=None
+ def __init__(self,d):self.current=dict(document=d,epoch='old',revision=1);self.transport=dict(frame=0,generation=1,playing=False);self.notice=QLabel();self.trees={};self.pending=None;self.timeline=SimpleNamespace(decorations=None,cancel_placement=lambda:None);self.shell=SimpleNamespace(statusBar=lambda:SimpleNamespace(showMessage=lambda text:None))
  def state(self):return self.current
  def transport_state(self):return self.transport
  def binding(self):return dict(expected_epoch=self.current['epoch'],expected_revision=self.current['revision'])
@@ -45,7 +46,7 @@ try:
   elif case=='replacement':workspace.current['epoch']='replacement';timeline.set_document(document,('replacement',workspace.current['revision']))
   else:timeline.close()
   assert timeline.gesture is None and QWidget.mouseGrabber() is not timeline;QTest.mouseRelease(timeline,Qt.LeftButton,pos=pos);assert document==before and QWidget.mouseGrabber() is not timeline;rows.append(dict(cancel=case,immediate_capture_released=True,no_edit=True))
- timeline.show();app.processEvents();pos=press();QTest.keyClick(timeline,Qt.Key_Escape);other=QWidget();other.show();other.grabMouse();timeline.cancel_gesture();assert QWidget.mouseGrabber() is other;other.releaseMouse();other.close();timeline.close();dying=Timeline(workspace);dying.set_document(document,('destroy',9));dying.show();app.processEvents();rect=dying.rects[('clips',c)];QTest.mousePress(dying,Qt.LeftButton,pos=QPoint(round(rect.center().x()),round(rect.center().y())));assert QWidget.mouseGrabber() is dying;dying.deleteLater();app.sendPostedEvents(dying,QEvent.DeferredDelete);assert QWidget.mouseGrabber() is None;checks.append('Actual Qt widget revision/Escape/hide/deactivate/replacement/close/destruction cancellation releases own capture immediately; repeated subsequent presses and other-widget grab preserved')
+ timeline.show();app.processEvents();pos=press();QTest.keyClick(timeline,Qt.Key_Escape);other=QWidget();other.show();other.grabMouse();timeline.cancel_gesture();assert QWidget.mouseGrabber() is other;other.releaseMouse();other.close();timeline.close();workspace.current.update(epoch='destroy',revision=9);dying=Timeline(workspace);dying.set_document(document,('destroy',9));dying.show();app.processEvents();rect=dying.rects[('clips',c)];QTest.mousePress(dying,Qt.LeftButton,pos=QPoint(round(rect.center().x()),round(rect.center().y())));assert QWidget.mouseGrabber() is dying;dying.deleteLater();app.sendPostedEvents(dying,QEvent.DeferredDelete);assert QWidget.mouseGrabber() is None;checks.append('Actual Qt widget revision/Escape/hide/deactivate/replacement/close/destruction cancellation releases own capture immediately; repeated subsequent presses and other-widget grab preserved')
  # Native GL consumption with actual codec owner and snapshot leases.
  document['clips'][0]['start']=0;workspace=Workspace(document);preview=ProjectPreview(workspace);preview.timer.stop();preview.view.release();view=GPUView(preview);view.setMinimumSize(0,0);view.resize(64,64);preview.view=view
  assert glfw.init();glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR,3);glfw.window_hint(glfw.CONTEXT_VERSION_MINOR,3);glfw.window_hint(glfw.OPENGL_PROFILE,glfw.OPENGL_CORE_PROFILE);glfw.window_hint(glfw.VISIBLE,False);window=glfw.create_window(64,64,'ZeraWave B pending-frame correction',None,None);assert window;glfw.make_context_current(window);ctx=moderngl.create_context(require=330);surface=ProjectSurface(ctx);view.surface=surface

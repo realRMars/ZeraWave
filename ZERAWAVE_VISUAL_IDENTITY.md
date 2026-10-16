@@ -1,14 +1,34 @@
 # ZeraWave Visual Identity
 
+## October 16 development checkpoint publication
+
+Robert authorized commit/push/Pages for the current editor development checkpoint.
+The implementation remains overall HOLD, with no new progression or acceptance.
+See [publication status](ZERAWAVE_HANDOFF.md#october-16-development-checkpoint-publication)
+and [receipt](work/publication-editor-visual-build-20261016-1792134379821453600/review-index.json). Older task-time uncommitted wording is historical for this
+publication; all failed/unverified gates and unrelated work remain preserved.
+
+
 ## October 15 current checkpoint
 
-The existing editor foundation is being published under Robert's explicit Git and
-Pages authorization. See [current status](ZERAWAVE_HANDOFF.md#october-15-editor-foundation-checkpoint-and-current-overhaul)
-and [the sole plan](ROADMAP.md#october-15-editor-foundation-checkpoint-and-current-overhaul).
-The new product-quality overhaul is assigned, not implemented or accepted. Earlier
-pre-implementation and handoff-only wording below is historical where superseded
-by those current sections; artistic standards and preserved evidence remain intact.
+The approved Editor Visual Build Plan and BOTH Editing/Audio Mixing layouts now
+define the native workspace direction. Preserve the approved hierarchy, readable
+icons/values, contextual Inspector, aspect-correct Program and full-width Timeline;
+Mixer visibility changes layout, never artwork or routing. Reference artwork,
+waveforms, meters, rates and values are fictional, not product assets/defaults or
+proof of implemented behavior. Master has no extra pan despite the illustration.
+1280x720 at actual scaling is required; 1280x800 is an additional comparison.
+Native ADS floating already exists; reuse its ownership/rehosting contracts.
 
+See [ROADMAP's current contract](ROADMAP.md#approved-editor-visual-build-plan---current-execution)
+and [handoff](ZERAWAVE_HANDOFF.md#october-15-editor-foundation-checkpoint-and-current-overhaul).
+Foundation 4775137 is published. The [implemented continuation](work/editor-visual-build-20261015-1792088667789300800/final-candidate-1792131017952188300/FINAL_REPORT.md)
+contains the approved workspace and scoped visual/text/audio tools; overall HOLD,
+historical Stage 2 8.5 HOLD and unverified interaction/performance gates remain.
+Quiet seek callback results pass, playback callback results fail; neither replaces
+visual craft, listening, measured presentation or final hands-on acceptance. Layout approval is complete, functional/technical
+and Robert's final hands-on acceptance are separate. All artistic standards and
+original visual behavior below remain in force; this is no world-art redesign.
 
 ## October 14 published migration and existing editor direction
 

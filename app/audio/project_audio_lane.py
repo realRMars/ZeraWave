@@ -6,12 +6,12 @@ from project_mixer import Mixer,BLOCK
 class AudioLane:
  def __init__(self):
   self.condition=threading.Condition();self.desired=None;self.current=None;self.serial=0;self.packets=deque();self.stopping=False;self.error='';self.metrics={};self.active_cancel=None;self.thread=threading.Thread(target=self.run,name='Project audio preparation',daemon=True);self.thread.start()
- def offer(self,evaluator,binding,start,playing):
+ def offer(self,evaluator,binding,start,playing,end=None):
   with self.condition:
    if self.stopping:raise RuntimeError('Project audio preparation is closing.')
    self.serial+=1
    if self.active_cancel:self.active_cancel.set()
-   self.desired=dict(serial=self.serial,evaluator=evaluator,binding=tuple(binding),cursor=start,playing=playing,cancel=threading.Event());self.packets.clear();self.error='';self.condition.notify_all();return self.serial
+   self.desired=dict(serial=self.serial,evaluator=evaluator,binding=tuple(binding),cursor=start,playing=playing,end=end,cancel=threading.Event());self.packets.clear();self.error='';self.condition.notify_all();return self.serial
  def take(self,serial):
   with self.condition:
    if serial!=self.serial:return None
@@ -34,10 +34,11 @@ class AudioLane:
      cursor=spec['cursor'];serial=spec['serial'];evaluator=spec['evaluator'];cancel=spec['cancel']
     began=time.perf_counter()
     try:
-     plan=evaluator.audio_span(cursor,BLOCK)
+     count=BLOCK if spec['end'] is None else max(1,min(BLOCK,spec['end']-cursor));plan=evaluator.audio_span(cursor,count)
+     if spec['end'] is not None and cursor>=spec['end']:plan=dict(plan,count=0,audio=[])
      if not plan['count']:packet=dict(serial=serial,binding=spec['binding'],start=cursor,pcm=None,end=True,error='')
      else:
-      pcm=mixer.render(plan,cancel);pcm.flags.writeable=False;packet=dict(serial=serial,binding=spec['binding'],start=cursor,pcm=pcm,end=False,error='',prepare_ms=(time.perf_counter()-began)*1000);spec['cursor']+=len(pcm)
+      pcm=mixer.render(plan,cancel);pcm.flags.writeable=False;packet=dict(serial=serial,binding=spec['binding'],start=cursor,pcm=pcm,end=False,error='',prepare_ms=(time.perf_counter()-began)*1000,levels=mixer.metrics.get('levels'),level_span=mixer.metrics.get('level_span'));spec['cursor']+=len(pcm)
     except Exception as exc:
      packet=dict(serial=serial,binding=spec['binding'],start=cursor,pcm=None,end=False,error=type(exc).__name__+': '+str(exc));spec['playing']=False
     with self.condition:

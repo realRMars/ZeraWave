@@ -1,41 +1,118 @@
 # ZeraWave handoff
 
+## October 16 development checkpoint publication
+
+Robert authorized this scoped commit, normal GitHub push and Pages update. The
+checkpoint contains the implemented Editor Visual Build, its earlier overhaul
+dependencies and shared guidance. [Publication receipt](work/publication-editor-visual-build-20261016-1792134379821453600/review-index.json) records the resulting
+commit and remote verification; source/native identity remains
+`8915f8bcd87c1211fcbea800c13cbe929dad473dd36642113d156ed417f86fc1`.
+
+**Phase F and the whole editor stage remain HOLD.** Publication is a recovery
+checkpoint, not a >=9/10 pass, progression or final product acceptance. Playback
+callback samples still fail; OLE/OS-DPI, scrub/property-paint/cold/resource/listening
+and correlated A/V requirements stay open under the recorded local-only direction.
+Earlier uncommitted/no-publication wording records task-time status; this explicit
+publication authorization supersedes it only for this checkpoint. No new work is
+dispatched, and implementation evidence and historical verdicts stay unchanged.
+
+
 ## October 15 editor foundation checkpoint and current overhaul
 
-Robert authorized a scoped commit, normal GitHub push and Pages reconciliation.
-This checkpoint publishes the existing A-F editor foundation and shared guidance,
-not the newly assigned product-quality overhaul. The retained independent F and
-connected A-F verdicts are 9.0/10 for their recorded scopes; publication is not
-acceptance of the new workspace, responsiveness or performance requirements.
-The reviewed source/native identity is
-`6dcc71cd907c24cde171e8a9dc7cd8550c9c9877ea0f1db889efc905cbfabccc`.
-The [publication receipt](work/publication-editor-foundation-20261015-1792059595189235700/review-index.json) records the resulting commit and remote verification.
+**Current assignment:** Robert approved both Editing and Audio Mixing layouts and
+the October 15 Editor Visual Build Plan; the existing sole Builder implements it
+through the existing Reviewer. This is approved scope, not a finished/accepted editor.
+[ROADMAP](ROADMAP.md#approved-editor-visual-build-plan---current-execution) is the sole
+plan with phase A-F mapping, transport/routing contracts and current F1/F2 gates.
+The [retained master](work/editor-visual-build-20261015-1792088667789300800/reference/ZERAWAVE-EDITOR-BUILD-PLAN.md) resolves older appendices;
+archive SHA256 `d2826ac545fea28cd7cd5debdb32e0763950c57d1b957e7cf2f824629fc89044`.
+Both PNGs and matching SVGs remain unmodified proposals; artwork/meters/values are
+fictional. Owner layout approval is complete, implementation verification is not.
 
-Robert has separately assigned the existing Builder a substantial editor overhaul:
-independent Qt/ADS workspace panels, unified Library/timeline editing, everyday
-owner-model/UI/API tools, inspector/keyframes/transitions/mixer, autosave/schema
-recovery, and measured playback/export improvements. These are approved work,
-not completed capabilities. Preserve the existing renderer, one document owner,
-accepted edits, original media, saved projects and unrelated work.
+**Publication and dirty candidate:** main/HEAD/origin main inspected at
+`4775137229e03203439932146679dee357d91960`, index empty. The
+[foundation publication receipt](work/publication-editor-foundation-20261015-1792059595189235700/review-index.json)
+retains its exact prior A-F9.0 scope. Historical, then-uncommitted
+[Stage 2 correction manifest](work/editor-overhaul-20261015-1792059173805953200/stage2-review-correction-1792075149351003200/candidate-1792075544538658000/MANIFEST.json) binds 344 source files, 3 DLLs and 6 guides,
+source/native `227263c227ec949e18002bb2bcf4d0cab3f3433578e5a3c655716a87cfaef856`,
+manifest SHA256 `181d8d1234861ac1061ff73da4ac02566e2cd79160a001c078f4285c114a80ee`.
+The earlier reconciliation matched those entries at its own checkpoint. Current
+source/guide readback identities belong in separate receipts, not changed old manifests.
+The original Builder [recoverable baseline](work/editor-visual-build-20261015-1792088667789300800/BASELINE.json)
+has SHA256 `31ca3f978d58d64777e0d5bc2e7fe5200c4ed651456f99c45d0d9caab1a6453f`.
+Preserve its 482 files, unrelated material, saved production revision 27, originals,
+reference package and all failed/interrupted evidence; do not restore old revision 19.
 
-This current assignment supersedes older handoff-only, pre-implementation and
-no-further-Computer-Use wording below within its explicit scope. Necessary Computer
-Use is preapproved for owned disposable tests in an available desktop/device window;
-close owned test windows promptly, stop on Escape/user activity/unsafe pressure,
-and do not resume an interrupted desktop without authorization. It does not permit
-new Upgrade+ production, narration, full-episode exports, repeated long playback,
-installations, extra workers or unrelated expansion. Existing Builder/Reviewer
-stage gates continue; prior scores do not satisfy the new gates. Robert's final
-hands-on product acceptance remains separate. Publication dispatches no work.
+**Current application packet - overall HOLD:** [actual results](work/editor-visual-build-20261015-1792088667789300800/final-candidate-1792131017952188300/FINAL_REPORT.md),
+source/native `8915f8bcd87c1211fcbea800c13cbe929dad473dd36642113d156ed417f86fc1`;
+[MANIFEST](work/editor-visual-build-20261015-1792088667789300800/final-candidate-1792131017952188300/MANIFEST.json) SHA256
+`03eeb3abff971015ff084bc44fe201a67735f155b97748f8bbc83005cdd5b446`;
+task patch `fe25cdf6796f56fa9d657b87881976607449f836b36490c0b816e51efe47d709`.
+363 source/asset entries and 3 unchanged DLLs; 54 task paths against the original
+dirty baseline. Builder's packet preserves 441 unrelated plus 7 external guide/skill
+edits and exact revision 27 hash
+`a45538ecf548bf446dfb9931f8642b5604e71aa982b2f10ed90e5c8446bef261`.
+This pass changes five shared guides separately; it does not reseal that application
+packet, own the two skill edits, change production or restore a previous project.
 
-Retain the earlier preview tails up to 1.33 s, unverified correlated audible-clock/
-scanout and broad device/format/capacity/multi-hour coverage, and historical B3
-stall/fallback/physical-interaction limits. Session and still saving and project
-Export Video are implemented; the distinct legacy moving-video Save writer remains
-OPEN. Capacity/storage work, separate image follow-ups and chroma key remain separate.
+Implemented within [feature-contract](docs/VIDEO_PROJECT.md) limits: independent
+Editing/Audio Mixing ADS workspaces/single contextual transport; Source range and
+audition; bound inline Inspector/direct handles, two effects, Linear/Hold keys,
+native titles/dedicated captions/SRT and premultiplied dissolve; schema 3 protected
+migration/backups, stable named buses/Master/routing/pan/mute/solo/sample meters;
+pinned Save/export, bounded automatic metadata snapshots/new-copy recovery and
+ordered uncertain-command reconciliation. Recovery retains external references
+and does not mark unsaved work durable. These features are implemented, not an
+overall pass. The finite correction [review](work/reviewer-editor-visual-phase-f-20261015-01/decoder-followup/REVIEW.md) and
+[verdict](work/reviewer-editor-visual-phase-f-20261015-01/decoder-followup/VERDICT.json) are complete: no new confirmed correctness defect,
+Phase F/whole-stage HOLD, no >=9/10 score or progression approval.
 
+Current quiet foreground settled-seek callback proxy uses discard-test audio and
+synthetic Qt Return, not actual-device seek timing: 100 per fixture/policy/run
+across 3 counterbalanced runs, 1200 total; every sample below 250ms. Candidate p95
+F1 164.529-184.634ms, F2 161.260-175.250ms. Both codec policies pass these conditions;
+four threads are not a uniform end-to-end UI speedup. Current Qt/WASAPI playback
+still **FAILS the <1% callback proxy**: F1 649/1800 not observed (36.056%);
+F2 508/1800 (28.222%). Native compositor 1920x1080; Qt FBO 1315x530; client 1947x1146,
+DPR 1; 144Hz display; Full/native quality, no proxy. Callback samples are not physical
+scanout, full property-paint, listening or correlated A/V evidence; seek-arm actual
+FBO geometry was not logged. No new full export was rendered. Older component/
+12-second export evidence retains its own candidate provenance, not whole-current-
+source MP4 parity. Rejected experiments do not establish a hardware ceiling.
+
+Historical Stages 0/1 and A-F scores/identities remain; [Stage 2](work/reviewer-editor-overhaul-stage2-correction-20261015-01/REVIEW.md)
+remains 8.5/10 HOLD for ordinary single-release Library/header journeys. Existing
+Insert/stale-confirmation fixes retain their checks, not new natural OLE evidence.
+Requested scrub, other full UI/property-paint/cold gates, retained 15s startup
+failure, whole-app memory plateau, ordinary OLE/OS file drop, actual OS-DPI change,
+listening/physical unplug and correlated one-frame audible/display A/V remain
+failed or UNVERIFIED as recorded. Local-only A/V direction remains. Required open
+gates block unqualified final acceptance; no new whole-stage score is asserted.
+
+The latest owner brief permits independent layout/inspector/audio/persistence work
+with stable dependencies while preserving that HOLD. It supersedes only the old
+blanket pause, not its missing evidence or final gates. Source audition, dedicated
+captions and autosave require tested implementation or explicit scope adjustment.
+Use F1 12s 1080p30/48k and F2 200 instances/16 tracks/max 4 active video, no F2 export;
+older 30s/500-clip evidence stays historical. Required 1280x720 and approved single
+transport/pause/routing semantics are defined in ROADMAP, not mockup values.
+
+Retain preview tails up to 1.33s, historical B3 stalls/fallback/physical gaps and
+unverified broad-device/scanout/multi-hour conditions. Robert selected local A/V
+measurement only; unsupported correlated audible/display evidence remains UNVERIFIED,
+not waived. Project Export Video/session/still Save work; legacy video-layer Save
+is separate OPEN scope. Image/capacity/storage/chroma and other expansion stay separate.
+Necessary owned Computer Use is preapproved with prompt normal closure, available
+desktop/device time and stop-on-Escape/user-activity/unsafe-pressure boundaries;
+no interrupted-desktop resumption without authorization. No installations, Git,
+new workers, production episode/narration or implementation by this doc pass.
+Shared guide reconciliation does not dispatch work or replace Robert acceptance.
 
 ## Current capability-first editor handoff - October 14 client date
+
+Historical handoff below; its checkpoint/uncommitted/no-further-work/no-CU wording
+is superseded by the current approved visual-build assignment above. Preserve its
+actual scores, observations and limits without treating them as new-stage passes.
 
 Latest coordinating-owner live-call clarification: Robert wanted an editor capable
 of the Upgrade+ workflow, not another Upgrade+ video-production deliverable.

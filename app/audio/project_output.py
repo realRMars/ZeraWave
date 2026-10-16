@@ -1,6 +1,7 @@
 """Project mix adapter inside the existing AudioOwner, not another device owner."""
 
 from fractions import Fraction
+from collections import deque
 
 import threading,time
 
@@ -19,6 +20,7 @@ class ProjectOutputMixin:
   self.project_lane=AudioLane();self.project_desired=None;self.project_offer_serial=0;self.project_applied=0;self.project_signature=None;self.project_saved=None;self.project_serial=None;self.project_binding=None;self.project_cursor=0;self.project_last_submitted=None;self.project_spec=None;self.next_project=0.
 
   self.state['project_audio']=dict(active=False,status='Stopped',device_position=None,clock_note='Submitted minus observed padding estimate; correlated audible position unavailable.')
+  self.project_meter_blocks=deque(maxlen=32)
 
  def offer_project(self,evaluator,transport):
 
@@ -46,7 +48,9 @@ class ProjectOutputMixin:
 
   current=self.project_spec or {};binding=current.get('binding',self.project_binding);estimate,padding=self.project_estimate() if self.project_spec else (0,0)
 
-  value=dict(active=self.project_saved is not None,name=current.get('name','Video Project'),status=status,error=error,binding=list(binding) if binding else None,submitted_sample=self.project_cursor,sample_estimate=estimate,padding_frames=padding,device_position=None,clock_note='Submitted minus observed padding estimate; not measured audible position',transition_pending=False,preparation=self.project_lane.snapshot(),**extra)
+  value=dict(active=self.project_saved is not None,name=current.get('name','Video Project'),status=status,error=error,binding=list(binding) if binding else None,submitted_sample=self.project_cursor,sample_estimate=estimate,sample_estimate_ns=time.monotonic_ns() if padding is not None else None,padding_frames=padding,device_position=None,clock_note='Submitted minus observed padding estimate; not measured audible position',transition_pending=False,preparation=self.project_lane.snapshot(),**extra)
+  meter=next((b for b in reversed(self.project_meter_blocks) if b['binding']==binding and b['start']<=estimate<b['end']),None) if status in ('Playing','Buffering') else None
+  value.update(levels=meter['levels'] if meter else None,meter_span=[meter['start'],meter['end']] if meter else None,meter_sample_estimate=estimate,meter_basis='Submitted block containing submitted-minus-padding sample estimate; not measured heard-device position',meter_timing_available=meter is not None,meter_blocks=len(self.project_meter_blocks))
 
   if 'output' not in value:value['output']=self.output.snapshot() if hasattr(self.output,'snapshot') else None
 
@@ -66,6 +70,7 @@ class ProjectOutputMixin:
   if not desired or desired['serial']==self.project_applied:return
 
   self.project_applied=desired['serial'];evaluator=desired['evaluator'];transport=desired['transport'];binding=desired['binding'];playing=transport.get('playing',False);active=transport.get('active',False)
+  self.project_meter_blocks.clear()
 
   if evaluator is None or not active:
 
@@ -102,7 +107,7 @@ class ProjectOutputMixin:
 
   else:self.release_output()
 
-  self.boundary();start=carry if carry is not None else transport.get('sample',evaluator.at(transport['frame'])['sample']);end=evaluator.at(evaluator.end)['sample'];start=max(0,min(end,start));self.project_spec=dict(serial=desired['serial'],binding=binding,start=start,end=end,playing=playing,name=evaluator.document['name']);self.project_binding=binding;self.project_cursor=start;self.project_serial=self.project_lane.offer(evaluator,binding,start,playing);self.next_project=time.perf_counter();self.change(playing=False,error='',status='Project buffering' if playing else 'Project paused',playhead=start/RATE,duration=end/RATE);self.project_report('Buffering' if playing else 'Paused')
+  self.boundary();start=carry if carry is not None else transport.get('sample',evaluator.at(transport['frame'])['sample']);end=min(evaluator.at(evaluator.end)['sample'],transport.get('audio_end',evaluator.at(evaluator.end)['sample']));start=max(0,min(end,start));self.project_spec=dict(serial=desired['serial'],binding=binding,start=start,end=end,playing=playing,name=evaluator.document['name']);self.project_binding=binding;self.project_cursor=start;self.project_serial=self.project_lane.offer(evaluator,binding,start,playing,end=end);self.next_project=time.perf_counter();self.change(playing=False,error='',status='Project buffering' if playing else 'Project paused',playhead=start/RATE,duration=end/RATE);self.project_report('Buffering' if playing else 'Paused')
 
  def service_project(self):
 
@@ -148,6 +153,7 @@ class ProjectOutputMixin:
 
   pcm=packet['pcm'];self.start_output();started=time.perf_counter();audible=pcm*self.state['volume'];clipped=0 if self.state['mute'] else int(np.count_nonzero(abs(audible)>1.));audible=np.zeros_like(pcm) if self.state['mute'] else np.clip(audible,-1,1);prepared_ms=(time.perf_counter()-started)*1000;started=time.perf_counter();self.output.play(audible);output_ms=(time.perf_counter()-started)*1000;self.project_cursor=packet['start']+len(pcm);self.project_last_submitted=dict(binding=tuple(packet['binding']),sample=self.project_cursor);self.change(playing=True,status='Project playing',playhead=self.project_cursor/RATE)
 
+  self.project_meter_blocks.append(dict(binding=tuple(packet['binding']),start=packet['start'],end=self.project_cursor,levels=packet.get('levels')))
   metrics=dict(output_rms=float(np.sqrt(np.mean(audible*audible))),output_peak=float(abs(audible).max()),output_clipped=clipped);started=time.perf_counter();self.publish(pcm,metrics);self.project_report('Playing',prepare_ms=packet['prepare_ms'],output_prepare_ms=prepared_ms,output_ms=output_ms,publish_ms=(time.perf_counter()-started)*1000,block_frames=len(pcm),output=self.output.snapshot() if hasattr(self.output,'snapshot') else None)
 
   self.next_project=time.perf_counter() if getattr(self.output,'paces_audio',False) else max(self.next_project+len(pcm)/RATE,time.perf_counter())

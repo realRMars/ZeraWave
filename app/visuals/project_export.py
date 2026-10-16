@@ -20,19 +20,27 @@ def atomic_json(path,value,optional=False):
  # bounded advisory snapshot; keep the previous snapshot instead of failing
  # accepted export work over telemetry. Final result/completion stays strict.
 
-def protect(document,destination,extra=()):
+def protect(document,destination,extra=(),suffix='.mp4'):
  destination=Path(destination).resolve();sources=[Path(a['location']['path']).resolve() for a in document['media']]
  sources.extend(Path(p).resolve() for p in document['protected_paths']);sources.extend(Path(p).resolve() for a in document['media'] for p in (a.get('provenance',{}).get('import_path'),a.get('provenance',{}).get('original_path')) if p);sources.extend(Path(p).resolve() for p in extra if p)
  for source in sources:
   if os.path.normcase(str(source))==os.path.normcase(str(destination)) or source.exists() and destination.exists() and os.path.samefile(source,destination):fail('protected_source','Export destination is or aliases a source, project or protected output.')
- if destination.suffix.lower()!='.mp4':fail('invalid_destination','Export Video requires an .mp4 destination; Save project uses .zwv.')
+ if destination.suffix.lower()!=suffix:fail('invalid_destination','Export requires a '+suffix+' destination; Save project uses .zwv.')
  return destination
 
-def export_project(document,epoch,revision,path,crf,folder,cancel,extra=()):
- document=validate(document);integer(crf,0,51);destination=protect(document,path,extra)
+def export_range(document,value=None):
+ end=duration(document)
+ if value is None:return [0,end]
+ if not isinstance(value,list) or len(value)!=2:fail('invalid_range','Export range is [In, exclusive Out] in integer sequence frames.')
+ left=integer(value[0],0,end);right=integer(value[1],0,end)
+ if left>=right:fail('invalid_range','Export In must precede exclusive Out; no output admitted.')
+ return [left,right]
+
+def export_project(document,epoch,revision,path,crf,folder,cancel,extra=(),frame_range=None):
+ document=validate(document);integer(crf,0,51);destination=protect(document,path,extra);frame_range=export_range(document,frame_range)
  if duration(document)<=0:fail('empty_project','Place timed content before exporting.')
  folder=Path(folder);folder.mkdir(parents=True,exist_ok=False)
- config=dict(document=document,epoch=epoch,revision=revision,path=str(destination),crf=crf,protected_extra=list(extra));(folder/'request.json').write_text(json.dumps(config,ensure_ascii=False),'utf8')
+ config=dict(document=document,epoch=epoch,revision=revision,path=str(destination),crf=crf,protected_extra=list(extra),frame_range=frame_range);(folder/'request.json').write_text(json.dumps(config,ensure_ascii=False),'utf8')
  env=dict(os.environ,QT_QPA_PLATFORM='offscreen');command=[sys.executable,'-B','-X','utf8',str(Path(__file__).resolve()),'--worker',str(folder)]
  with (folder/'worker.stdout').open('wb') as stdout,(folder/'worker.stderr').open('wb') as stderr:
   process=subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr,env=env,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
@@ -94,7 +102,7 @@ def worker(folder):
   from project_surface import ProjectSurface
   from project_mixer import Mixer
   atomic_json(folder/'PROGRESS.json',dict(phase='initializing Qt',revision=config['revision']),True)
-  app=QApplication.instance() or QApplication([]);check(cancel);e=Evaluator(d,config['epoch'],config['revision']);width,height=d['settings']['width'],d['settings']['height'];fps=Fraction(*d['settings']['fps']);frames=e.end;samples=sample_at(d,frames)
+  app=QApplication.instance() or QApplication([]);check(cancel);e=Evaluator(d,config['epoch'],config['revision']);width,height=d['settings']['width'],d['settings']['height'];fps=Fraction(*d['settings']['fps']);range_in,range_out=export_range(d,config.get('frame_range'));frames=range_out-range_in;sample_begin=sample_at(d,range_in);sample_end=sample_at(d,range_out);samples=sample_end-sample_begin
   if width%2 or height%2:fail('export_dimensions','H264 yuv420p requires even output dimensions. Set deliberate project settings before export; no automatic resizing.')
   if width*height>8_000_000:fail('export_capacity','Export readback/encoder staging supports at most8million native pixels; no resolution reduced.')
   atomic_json(folder/'PROGRESS.json',dict(phase='initializing GL',revision=config['revision']),True)
@@ -104,13 +112,13 @@ def worker(folder):
   glfw.make_context_current(window);context=moderngl.create_context(require=330);atomic_json(folder/'PROGRESS.json',dict(phase='initializing compositor',revision=config['revision']),True);surface=ProjectSurface(context);media=Media();mixer=Mixer();destination.parent.mkdir(parents=True,exist_ok=True);staging=destination.parent/('.'+destination.name+'.export-'+uuid.uuid4().hex+'.mp4')
   container=av.open(str(staging),'w',format='mp4',options={'movflags':'+faststart'});video=container.add_stream(os.environ.get('ZERAWAVE_PROJECT_TEST_EXPORT_ENCODER','libx264'),rate=fps);video.width=width;video.height=height;video.pix_fmt='yuv420p';video.time_base=1/fps;video.codec_context.thread_count=2;video.options={'crf':str(config['crf']),'preset':'veryfast','tune':'zerolatency','bf':'0'}
   audio=container.add_stream('aac',rate=48000);audio.layout='stereo';audio.bit_rate=192000;audio.time_base=Fraction(1,48000);audio.codec_context.thread_count=1
-  log=(folder/'frames.jsonl').open('w',encoding='utf8');sample=0;last_report=0.;began=time.perf_counter();peak_pcm=0.;owned_peak=0;preencode_hash=hashlib.sha256();pcm_hash=hashlib.sha256()
-  def report(phase,frame):atomic_json(folder/'PROGRESS.json',dict(phase=phase,frame=frame,frames=frames,sample=sample,samples=samples,revision=config['revision'],epoch=config['epoch'],elapsed_seconds=time.perf_counter()-began),True)
+  log=(folder/'frames.jsonl').open('w',encoding='utf8');sample=sample_begin;last_report=0.;began=time.perf_counter();peak_pcm=0.;owned_peak=0;preencode_hash=hashlib.sha256();pcm_hash=hashlib.sha256()
+  def report(phase,frame):atomic_json(folder/'PROGRESS.json',dict(phase=phase,frame=frame,frames=frames,sample=sample-sample_begin,samples=samples,revision=config['revision'],epoch=config['epoch'],elapsed_seconds=time.perf_counter()-began),True)
   report('rendering',0)
   for frame_number in range(frames):
    check(cancel);barrier=os.environ.get('ZERAWAVE_PROJECT_TEST_EXPORT_BARRIER')
    while barrier and Path(barrier).exists():check(cancel);time.sleep(.02)
-   started=time.perf_counter();media.submit(e.at(frame_number))
+   started=time.perf_counter();media.submit(e.at(range_in+frame_number))
    while not media.ready():check(cancel);time.sleep(.001)
    prepared=media.take()
    try:
@@ -120,14 +128,14 @@ def worker(folder):
     for packet in video.encode(picture):container.mux(packet)
     encode_ms=(time.perf_counter()-encode_start)*1000;picture=rgb=raw=None
    finally:media.release(prepared['serial']);prepared=None
-   target=sample_at(d,frame_number+1);mix_ms=0.;audio_encode_ms=0.
+   target=sample_at(d,range_in+frame_number+1);mix_ms=0.;audio_encode_ms=0.
    while sample<target:
     check(cancel);count=min(2048,target-sample);mix_start=time.perf_counter();pcm=mixer.render(e.audio_span(sample,count),cancel);mix_ms+=(time.perf_counter()-mix_start)*1000;peak_pcm=max(peak_pcm,float(np.max(np.abs(pcm))));pcm_hash.update(pcm)
     if peak_pcm>1.000001:fail('export_clipping','Authored mix exceeds full scale. Adjust track/clip gains before export; accepted work retained, no hidden master change.')
-    af=av.AudioFrame.from_ndarray(np.ascontiguousarray(pcm.T),format='fltp',layout='stereo');af.sample_rate=48000;af.pts=sample;af.time_base=Fraction(1,48000);encode_start=time.perf_counter()
+    af=av.AudioFrame.from_ndarray(np.ascontiguousarray(pcm.T),format='fltp',layout='stereo');af.sample_rate=48000;af.pts=sample-sample_begin;af.time_base=Fraction(1,48000);encode_start=time.perf_counter()
     for packet in audio.encode(af):container.mux(packet)
     audio_encode_ms+=(time.perf_counter()-encode_start)*1000;sample+=count;af=pcm=None
-   owned_peak=max(owned_peak,mixer.metrics.get('peak_owned_bytes',0));log.write(json.dumps(dict(frame=frame_number,media_ms=prepared_ms,draw_ms=draw_ms,readback_ms=read_ms,video_encode_ms=encode_ms,mix_ms=mix_ms,audio_encode_ms=audio_encode_ms,total_ms=(time.perf_counter()-started)*1000,media=media.metrics,text_cache_bytes=surface.stats.get('text_cache_bytes'),texture_bytes=surface.stats.get('texture_bytes'),pcm_owned=mixer.metrics.get('owned_after_prepare_bytes',0)))+'\n')
+   owned_peak=max(owned_peak,mixer.metrics.get('peak_owned_bytes',0));log.write(json.dumps(dict(frame=frame_number,sequence_frame=range_in+frame_number,media_ms=prepared_ms,draw_ms=draw_ms,readback_ms=read_ms,video_encode_ms=encode_ms,mix_ms=mix_ms,audio_encode_ms=audio_encode_ms,total_ms=(time.perf_counter()-started)*1000,media=media.metrics,text_cache_bytes=surface.stats.get('text_cache_bytes'),texture_bytes=surface.stats.get('texture_bytes'),pcm_owned=mixer.metrics.get('owned_after_prepare_bytes',0)))+'\n')
    if time.perf_counter()-last_report>.25:report('rendering',frame_number+1);last_report=time.perf_counter()
   check(cancel);report('draining',frames)
   for stream in (video,audio):
@@ -143,7 +151,7 @@ def worker(folder):
   check(cancel);protect(d,destination,config['protected_extra']);failure=os.environ.get('ZERAWAVE_PROJECT_TEST_EXPORT_FAILURE')
   if failure=='1' or failure and Path(failure).exists():raise OSError('Controlled export write failure before atomic replacement')
   with staging.open('rb') as handle:encoded_hash=hashlib.file_digest(handle,'sha256').hexdigest()
-  result=dict(path=str(destination),revision=config['revision'],epoch=config['epoch'],project=d['id'],sha256=encoded_hash,frames=frames,samples=samples,dimensions=[width,height],fps=[fps.numerator,fps.denominator],crf=config['crf'],preencode_rgb_sha256=preencode_hash.hexdigest(),canonical_pcm_sha256=pcm_hash.hexdigest(),peak_pcm=peak_pcm,validation=validation,seconds=time.perf_counter()-began,pcm_peak_owned_bytes=owned_peak,compositor=surface.stats,graphics_backend=context.info['GL_RENDERER'],codec_versions=av.library_versions,diagnostics=str(folder),frame_timing_log=str(folder/'frames.jsonl'))
+  result=dict(path=str(destination),revision=config['revision'],epoch=config['epoch'],project=d['id'],sha256=encoded_hash,frame_range=[range_in,range_out],frames=frames,samples=samples,dimensions=[width,height],fps=[fps.numerator,fps.denominator],crf=config['crf'],preencode_rgb_sha256=preencode_hash.hexdigest(),canonical_pcm_sha256=pcm_hash.hexdigest(),peak_pcm=peak_pcm,validation=validation,seconds=time.perf_counter()-began,pcm_peak_owned_bytes=owned_peak,compositor=surface.stats,graphics_backend=context.info['GL_RENDERER'],codec_versions=av.library_versions,diagnostics=str(folder),frame_timing_log=str(folder/'frames.jsonl'))
   # Retire context/readers before publication; a cleanup failure must leave the
   # prior good output. A cancel after os.replace may not change durable outcome.
  except BaseException as exc:primary=exc;traceback.print_exc()

@@ -125,6 +125,14 @@ def curve(recipe,frames,length):
   points=np.asarray(recipe['envelope'],float);gain*=np.interp(frames,points[:,0],points[:,1])
  return gain.astype(np.float32)
 
+def balance_pcm(pcm,pan):
+ """Legacy mono duplicate/center unity; linear stereo channel balance."""
+ if pan>0:pcm[:,0]*=1.-pan
+ elif pan<0:pcm[:,1]*=1.+pan
+ return pcm
+def signal_levels(pcm):
+ return dict(peak=np.max(np.abs(pcm),axis=0).astype(float).tolist(),rms=np.sqrt(np.mean(pcm.astype(np.float64)**2,axis=0)).tolist(),clipped=np.any(np.abs(pcm)>=1.,axis=0).tolist())
+
 class Mixer:
  """One preparation owner,16 active source readers/32MiB caches and scratch."""
  def __init__(self,force_fallback=False,pcm_limit=PCM_LIMIT):self.budget=Budget(pcm_limit);self.owner=threading.get_ident();self.readers={};self.verified=OrderedDict();self.closed=False;self.force_fallback=force_fallback;self.metrics={};self.peak=0
@@ -156,12 +164,18 @@ class Mixer:
   if self.closed or threading.get_ident()!=self.owner:raise RuntimeError('Mixer reader calls require its live owning preparation thread.')
   cancel=cancel or threading.Event();check(cancel);count=plan['count']
   if type(count) is not int or not 1<=count<=BLOCK:raise ValueError('Mix blocks contain1–2048 canonical samples.')
-  items=plan['audio'];active=[r for r in items if not r['clip']['audio']['mute'] and not r['track']['audio']['mute']];needed=set()
+  items=plan['audio'];graph=plan.get('graph')
+  if graph is None:
+   tracks={r['track']['id']:r['track'] for r in items};graph=dict(tracks=list(tracks.values()),buses=[],master=dict(gain=1.,mute=False),missing=[])
+  if graph.get('missing'):raise ValueError('Missing audio destination: '+', '.join(r['name'] for r in graph['missing'])+'. Route deliberately; no fallback to Master.')
+  tracks={t['id']:t for t in graph['tracks']};buses={b['id']:b for b in graph['buses']};any_solo=any(t.get('solo',False) for t in tracks.values()) or any(b['solo'] for b in buses.values())
+  def eligible(track):return not track['audio']['mute'] and (not any_solo or track.get('solo',False) or buses.get(track.get('output'),{}).get('solo',False))
+  active=[r for r in items if not r['clip']['audio']['mute'] and eligible(r['track'])];needed=set()
   for item in active:self.verify(item['asset'],cancel);needed.add(clock_key(item,plan))
   if len(needed)>16:raise ValueError('Sixteen active project audio readers are supported; requested mix rejected.')
   for key in list(self.readers):
    if key not in needed:self.readers.pop(key).close()
-  output=np.zeros((count,2),np.float32);began=time.perf_counter();decode_ms=0.;gain_ms=0.;scratch=output.nbytes
+  track_pcm={};bus_pcm={};output=np.zeros((count,2),np.float32);began=time.perf_counter();decode_ms=0.;gain_ms=0.;scratch=output.nbytes
   for item in active:
    check(cancel);asset=item['asset'];clip=item['clip'];key=clock_key(item,plan);reader=self.readers.get(key)
    if reader is None:
@@ -178,9 +192,32 @@ class Mixer:
    cache=sum(r.bytes for r in self.readers.values());scratch=4*1024*1024
    if cache+scratch>self.budget.limit:raise MemoryError('Project canonical audio/cache/scratch exceeds32MiB; no mix samples dropped.')
    self.peak=max(self.peak,self.budget.peak);before=time.perf_counter();offset=item['offset'];global_samples=plan['start']+offset+np.arange(item['count']);fps=Fraction(*plan['fps']);local=(global_samples/RATE-float(Fraction(clip['start'])/fps))*float(fps)+clip['audio_window']['offset'];track_frames=global_samples/RATE*float(fps)
-   gains=curve(clip['audio'],local,clip['audio_window']['duration'])*curve(item['track']['audio'],track_frames,plan['end_frame']);output[offset:offset+len(pcm)]+=pcm*gains[:,None];gain_ms+=(time.perf_counter()-before)*1000
+   gains=curve(clip['audio'],local,clip['audio_window']['duration'])
+   for fade in item.get('transition_fades',[]):
+    phase=np.clip((track_frames-fade['start'])/fade['duration'],0.,1.);gains*=phase if fade['side']==1 else 1.-phase
+   pcm*=gains[:,None];balance_pcm(pcm,clip['audio'].get('pan',0.));key=item['track']['id']
+   if key not in track_pcm:track_pcm[key]=np.zeros((count,2),np.float32)
+   track_pcm[key][offset:offset+len(pcm)]+=pcm;gain_ms+=(time.perf_counter()-before)*1000
+  zero=dict(peak=[0.,0.],rms=[0.,0.],clipped=[False,False]);levels={};track_frames=(plan['start']+np.arange(count))/RATE*float(Fraction(*plan['fps']))
+  for key,track in tracks.items():
+   pcm=track_pcm.get(key)
+   if pcm is None:levels[key]=dict(zero);continue
+   before=time.perf_counter();pcm*=curve(track['audio'],track_frames,plan['end_frame'])[:,None];balance_pcm(pcm,track['audio'].get('pan',0.));levels[key]=signal_levels(pcm);destination=track.get('output','master')
+   if destination=='master':output+=pcm
+   elif destination is not None:
+    if destination not in buses:raise ValueError('Missing named bus; accepted project retained and no signal rerouted.')
+    if destination not in bus_pcm:bus_pcm[destination]=np.zeros((count,2),np.float32)
+    bus_pcm[destination]+=pcm
+   gain_ms+=(time.perf_counter()-before)*1000
+  before=time.perf_counter()
+  for key,bus in buses.items():
+   pcm=bus_pcm.get(key)
+   if pcm is None:levels[key]=dict(zero);continue
+   pcm*=0. if bus['mute'] else bus['gain'];balance_pcm(pcm,bus['balance']);levels[key]=signal_levels(pcm)
+   if bus['output']=='master':output+=pcm
+  output*=0. if graph['master']['mute'] else graph['master']['gain'];levels['master']=signal_levels(output);gain_ms+=(time.perf_counter()-before)*1000
   if not np.isfinite(output).all():raise ValueError('Nonfinite prepared project mix')
-  self.metrics=dict(readers=len(self.readers),cache_bytes=sum(r.bytes for r in self.readers.values()),scratch_reserved_upper_bound_bytes=scratch,peak_owned_bytes=self.peak,limit=self.budget.limit,verified_sources=len(self.verified),decode_ms=decode_ms,gain_mix_ms=gain_ms,total_ms=(time.perf_counter()-began)*1000,frames=count,source_clipped=int(np.count_nonzero(abs(output)>1)),backends=sorted({r.backend for r in self.readers.values()}));return output
+  self.metrics=dict(readers=len(self.readers),cache_bytes=sum(r.bytes for r in self.readers.values()),scratch_reserved_upper_bound_bytes=scratch,graph_pcm_bytes=output.nbytes+sum(p.nbytes for p in track_pcm.values())+sum(p.nbytes for p in bus_pcm.values()),peak_owned_bytes=self.peak,limit=self.budget.limit,verified_sources=len(self.verified),decode_ms=decode_ms,gain_mix_ms=gain_ms,total_ms=(time.perf_counter()-began)*1000,frames=count,source_clipped=int(np.count_nonzero(abs(output)>1)),backends=sorted({r.backend for r in self.readers.values()}),levels=levels,level_span=[plan['start'],plan['start']+count],level_basis='Canonical authored post-gate signal; preparation is ahead of output, not heard-device metering');return output
  def close(self):
   if self.closed:return
   if threading.get_ident()!=self.owner:raise RuntimeError('Mixer closes on its reader owner thread.')

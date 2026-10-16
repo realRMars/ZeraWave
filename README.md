@@ -1,14 +1,33 @@
 # ZeraWave
 
+## October 16 development checkpoint publication
+
+Robert authorized commit/push/Pages for the current editor development checkpoint.
+The implementation remains overall HOLD, with no new progression or acceptance.
+See [publication status](ZERAWAVE_HANDOFF.md#october-16-development-checkpoint-publication)
+and [receipt](work/publication-editor-visual-build-20261016-1792134379821453600/review-index.json). Older task-time uncommitted wording is historical for this
+publication; all failed/unverified gates and unrelated work remain preserved.
+
+
 ## October 15 current checkpoint
 
-The existing editor foundation is being published under Robert's explicit Git and
-Pages authorization. See [current status](ZERAWAVE_HANDOFF.md#october-15-editor-foundation-checkpoint-and-current-overhaul)
-and [the sole plan](ROADMAP.md#october-15-editor-foundation-checkpoint-and-current-overhaul).
-The new product-quality overhaul is assigned, not implemented or accepted. Earlier
-pre-implementation and handoff-only wording below is historical where superseded
-by those current sections; artistic standards and preserved evidence remain intact.
-
+Published editor foundation: `4775137229e03203439932146679dee357d91960`.
+Robert approved both layouts and assigned the Editor Visual Build Plan; its
+implementation remains uncommitted and overall HOLD. The [consolidated candidate](work/editor-visual-build-20261015-1792088667789300800/final-candidate-1792131017952188300/FINAL_REPORT.md)
+implements the workspace, Source audition, inline visual/text authoring, mixer/
+routing and bounded metadata recovery within their documented limits. Quiet
+discard-test settled-seek callback samples are supported; playback callback samples
+still fail. Neither establishes physical-display/listening/A/V acceptance. The
+[finite review](work/reviewer-editor-visual-phase-f-20261015-01/decoder-followup/REVIEW.md) is complete with no new confirmed correctness defect;
+Phase F/whole-stage HOLD, no progression approval and final open gates remain.
+Stages 0/1 have recorded 9/10 passes; Stage 2
+remains 8.5 HOLD for ordinary single-release Library placement/header reorder.
+Independent layout/inspector/audio/persistence work may proceed on stable
+contracts under the latest brief; this does not close the HOLD or final gates.
+See [current handoff](ZERAWAVE_HANDOFF.md#october-15-editor-foundation-checkpoint-and-current-overhaul)
+and [the sole plan](ROADMAP.md#approved-editor-visual-build-plan---current-execution)
+for approved phases, F1/F2 and acceptance. Older pre-implementation/handoff-only
+wording below is historical where superseded; no new capability is accepted here.
 
 ## October 13 selective-migration publication checkpoint
 

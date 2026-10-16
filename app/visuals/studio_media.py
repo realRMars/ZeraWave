@@ -144,6 +144,8 @@ class MediaLibrary(QWidget):
     def use_image(self,index):
         if self.selected in self.assets:self.shell.image_editor.add_asset(self.assets[self.selected],another=index==1,offer=True)
     def activate(self,item):
+        panels=getattr(self.shell,'video_panels',None);key=item.data(0,Qt.UserRole)
+        if panels is not None and panels.active and key in self.assets:return panels.open_source(self.assets[key])
         identity=item.data(0,Qt.UserRole)
         if identity is None:item.setExpanded(not item.isExpanded());return
         self.tree.setCurrentItem(item)
