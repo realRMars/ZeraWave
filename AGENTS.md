@@ -1,5 +1,34 @@
 # ZeraWave engineering and creative working agreement
 
+## October 16 current human and agent workflow assignment
+
+Robert manually assigned the [five-stage human/agent workflow brief](<Plan and brainstorms/ZeraWave-Episode08-Workflow-Builder-Implementation-Prompt-2026-10-16.md>).
+Follow [ROADMAP's current bounded stages](ROADMAP.md#october-16-current-human-and-agent-workflow-assignment):
+sample-preserving audio timing/integer fades; mixed Project Media import; manifest
+helper over the existing API; editable recipe expansion; complete coarse waveform
+and ONE new short editable/export proof. Existing API, global Library multi-import,
+styles/layouts and envelope arrays are reused, not newly invented capabilities.
+No workflow completion or new review pass is claimed by this guidance. Preserve
+the approved layouts and one document/history/persistence/audio authority.
+
+Keep the same sole Builder/Reviewer IDs/route below. Each Workflow Stage needs an
+explicit source-bound >=9/10 before dependent progression, without routine owner
+reapproval; this numbering is separate from historical overhaul stages/phases.
+The engineering-wide HOLD and old failed/unverified gates remain. Narrow workflow
+passes and successful production do not certify broad performance or physical A/V.
+
+Episode 8 is content-approved at 20:34 UTC October 16; publication authority remains
+PENDING. Preserve revision 264 and its 49 managed media, derivatives, approved
+thumbnail/masters and saved idle production Studio. Do not rebuild production,
+write behind a live owner or substitute a flattened deliverable. Root coordinates
+later desktop/GPU/audio use; use/close only owned disposable windows and respect
+interruption. Helper requests stay ordered within 128 changes/512 KiB actual wire
+bytes and 4 clients; same-ID outcomes/retries preserve manual edits and never leak
+endpoint secrets. No new server, worker, install, quality/capacity change, Git,
+Pages, upload/scheduling or unrelated dispatch. Shared guide ownership remains
+Overseer; Builder owns only assigned implementation/contracts/results.
+
+
 ## October 16 development checkpoint publication
 
 Robert authorized commit/push/Pages for the current editor development checkpoint.

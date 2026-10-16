@@ -1,5 +1,102 @@
 # ZeraWave development plan
 
+## October 16 current human and agent workflow assignment
+
+Robert manually assigned the [five-stage workflow execution brief](<Plan and brainstorms/ZeraWave-Episode08-Workflow-Builder-Implementation-Prompt-2026-10-16.md>)
+to the existing sole Builder. This is the active bounded assignment within this
+sole plan; its Workflow Stages 1-5 do not renumber earlier overhaul stages or
+phases A-F. Both approved Editing/Audio Mixing layouts stay approved. Implement
+ordinary editable projects through the existing authenticated owner API/CLI so
+Robert can inspect and manually adjust the same timeline/entities. No second
+editor, API server, history, renderer or direct writes behind a live owner.
+
+**Current checkpoint:** main/HEAD/cached origin-main
+`b38fca7d2f1e1f6a82d141cd80f6c87d36cc0371`, index empty at handoff. The
+[Builder baseline](work/human-agent-workflow-20261016-1792188215954068500/BASELINE.json) SHA256
+`459970158f2c2a409ca875efe0a5a0920249d7e04250c7a2b7f9b496aab6065e`
+binds 504 captured files, 355 source entries and three DLLs under its inventory
+identity `a29e36310f59f41604241ab471b8c5a58275be941b0be2372acf3fd05f96fc87`.
+This is the new task's inventory recipe, not a replacement for historical bundle
+identities. The five workflow stages below are the active assigned scope; no
+completed stage or review pass is established by this guidance. Preserve dirty
+skills/notes/research/assets and all production evidence.
+
+**Scope classification:** owner API/CLI, validated ordered commands, async media
+preparation, stable IDs, atomic batches/history, portable saves/export, global
+Library multi-file import/drop, Project Media extended selection, styles/layouts
+and full envelope arrays already exist. Serial production import/repeated dialogs
+include discoverability/usage friction. Inspector fade fields passing floats to
+integer validation need focused reproduction; duration-floor narration tails are
+a code-supported timing risk plus producer observation, not every-media failure.
+Project Media mixed import, the manifest helper, recipe expansion and complete
+coarse waveform coverage are planned improvements. The first-64s decoration limit
+is not proof that playback was truncated; retained near-end waveform/backing
+verification (correlation 0.99959, gain about 0.04) keeps its original scope.
+
+| Workflow stage | Bounded implementation and review boundary |
+| --- | --- |
+| 1 - Audio timing and fades | Exact available samples/rate, rational source_in/rate and smallest frame Out covering the canonical audio interval; explicit audio-only final partial-frame silence after real samples. No source padding/derivatives, blind video ceiling or invented video tails. Inspector integer fades retain strict model validation; gain/pan stay fractional. Verify 48,017 samples at 48 kHz, below/on/above frame boundaries, 44.1 kHz resampling, 30000/1001, Source/placement, intentional trim/rate, split/history, stale input and reopen. |
+| 2 - Mixed Project Media import | One mixed supported file selection with deterministic ordering, real hash/type/provenance, Ready-identity reuse/duplicate policy, bounded progress/cancel and truthful per-file/atomic outcomes. Import creates references, never clips. Reuse/discover global Library multi-import; no second registry or higher caps. Deliberate still placement exposes duration, initially 5s unless existing preference applies; explicit recipe duration wins. Check valid/duplicate/changed/corrupt files, cancel, Undo and portable reopen. |
+| 3 - Manifest assembly | Builder identifies the smallest new helper/test paths and compiles versioned logical media/track/bus/clip/range/gain/envelope/caption/graphic/style/section/save recipes into existing validated commands. Dry-run shows creates/reuses/conflicts, section Undo boundaries and actual wire counts. Ordered execution waits for prepared media, checks bindings before each new command, persists exact request/operation ID before send and reconciles same-ID unknown outcomes. Stable entity IDs and operation IDs remain distinct; preserve manual edits on resume. Test chunking, lost replies, retries/conflicts, stale state and partial resume against the real owner. |
+| 4 - Editable recipes | Manifest/helper expands entrance/review-card, timer/progress, caption, full music-envelope and still-duration parameters into normal editable entities. Two variants, independent manual edits, exact Undo/reopen and deliberate reapplication conflicts; no independent template runtime, flattened substitute, automatic editorial ducking or content rewriting. Add only a necessary small contextual Apply action, not a template-browser/layout redesign. |
+| 5 - Waveform and proof | Bounded complete coarse peaks across visible source/clip duration, lazy zoom refinement, source identity/rate/trim mapping, raw/post-gain semantics and clear unprocessed/error versus silence. Incremental cancel/stale rejection and bounded queues/cache/scratch/readers; no whole-file PCM or GUI decode, raised caps or playback starvation. Separately verify a generated ~240s beginning/middle/end fixture without long playback/export. Complete the ONE reusable 12s editable human/helper proof and one short native export below. |
+
+Every Workflow Stage needs the existing Reviewer's explicit source-bound >=9/10
+before dependent progression, using the existing Builder/Reviewer identities and
+reciprocal route. Fix findings and resubmit, then continue without routine owner
+reapproval. Receipt, elapsed time, missing evidence or a score alone is not a pass.
+These narrow stages may pass while the editor-wide engineering HOLD remains open;
+no blanket Phase-F closure or unrelated follow-on dispatch is implied.
+
+**Helper/transaction limits:** at most 128 changes per batch and 512 KiB actual UTF-8
+request bytes including envelope/auth/newline, four simultaneous clients and all
+existing metadata/history/active-media limits. Use an ordered helper, not fan-out.
+Dry-run binds intended owner/epoch/project/revision/command; do not choose another
+instance or log tokens. Persist exact requests without endpoint secrets. Same-ID
+retry must remain identical; unknown/retired outcomes are not rejection. Restart,
+manual edits or divergence require reconciliation/new plan decisions, not silent
+rebasing/new IDs or automatic rollback over Robert's work. A bounded section is
+one atomic Undo batch; oversized sections split at explicit labeled safe boundaries
+without cross-batch atomicity claims. Save normally at a named pinned revision;
+accepted, durable and exported remain distinct. Preserve existing media leases,
+cancellation/drain behavior, GL contexts, rational clocks and the single audio owner.
+
+**One integrated proof:** extend ONE new disposable 12s 1920x1080/30, 48 kHz project
+through all stages: mixed media/two shots, fractional narration with a distinctive
+real final tail, caption/title/overlay, independent music with complete editable
+envelope, integer fades, named tracks/existing routing and explicit source/still
+ranges. Human GUI and helper commands must produce ordinary manually adjustable
+entities, exact section Undo/Redo and portable SaveAs/reopen/media hashes. Export
+once to a new destination: 360 video frames, frame/audio checkpoints, declared
+encoder delay/padding. Same-rate exact PCM, declared resampler/reference tolerances
+and lossy encoding tolerances are separate evidence. Reuse component results and
+rerender only a demonstrated failed short range; no Episode 8 or other production
+rebuild, broad qualification matrix or repeated long playback/export.
+
+**Episode 8 boundary:** content approved at 20:34 UTC October 16 (16:34 EDT), documented
+owner message `Sentinel_0a553791870081919de5a3852d24086e`; publication authorization
+is still PENDING. Preserve revision 264 project hash
+`c13b6296ed47d8c97639b69b19fc67521812a030e6ecde250aff158cdaea10f6`,
+its 49 managed files, original footage/narration/music, ten technical derivatives,
+delivery copies, approved thumbnail and accepted masters. Content approval closes
+only content review, not ZeraWave engineering, API/helper proof or permission to
+upload/schedule. Keep production's saved idle Studio untouched; use owned disposable
+projects and coordinate desktop/GPU/audio availability with Root before later tests.
+Close owned windows normally and respect interruption. Producer time includes
+preparation/checking/recovery and is not an editing-performance benchmark.
+
+Keep all recorded playback callback failures, scrub/property-paint/cold/resource,
+physical drag/OS-DPI/listening and correlated A/V gaps, including local-only A/V
+direction, explicit. Historical visual-build protocols/results remain below as
+background obligations, not a demand to rerun their broad matrix for this task.
+No new workers, installs, credentials, production changes, capacity increase,
+engine/layout replacement, commit/push, upload/scheduling or Pages publication.
+Final workflow acceptance, Episode 8 content approval, editor-wide review and Git/
+production publication authorization remain separate. Return exact source/diff,
+test/gate ledger, helper/recipe quick-start, guarded recovery/rollback and runnable
+human/agent review steps; leave the implementation uncommitted.
+
+
 ## October 16 development checkpoint publication
 
 Robert authorized this scoped commit, normal GitHub push and Pages update. The
@@ -20,6 +117,10 @@ dispatched, and implementation evidence and historical verdicts stay unchanged.
 ## October 15 editor foundation checkpoint and current overhaul
 
 ### Approved Editor Visual Build Plan - current execution
+
+The newer human/agent Workflow Stages above are the active bounded assignment.
+This retained visual-build matrix preserves underlying engineering obligations,
+not authority to repeat its broad qualification or overwrite its historical HOLD.
 
 Robert approved BOTH Editing and Audio Mixing layouts and the complete October 15
 build plan, then assigned the existing sole Builder. Visual discovery/approval is

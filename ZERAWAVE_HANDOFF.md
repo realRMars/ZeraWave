@@ -1,5 +1,61 @@
 # ZeraWave handoff
 
+## October 16 current human and agent workflow assignment
+
+Robert manually assigned the [human/agent workflow implementation brief](<Plan and brainstorms/ZeraWave-Episode08-Workflow-Builder-Implementation-Prompt-2026-10-16.md>).
+[ROADMAP](ROADMAP.md#october-16-current-human-and-agent-workflow-assignment) is the sole
+plan for its five bounded Workflow Stages: 1 sample-preserving audio/integer fades;
+2 mixed Project Media import; 3 manifest assembly on the existing owner API;
+4 editable recipe expansion; 5 complete coarse waveform plus one short integrated
+proof/export. These are assigned boundaries; no stage completion/review pass is
+established here. Existing
+layouts, Qt/Python/document/history/render/audio owners and prior findings remain.
+No editor-wide HOLD or historical gate is closed by this narrower assignment.
+
+**Baseline inspected:** main/HEAD/cached origin-main
+`b38fca7d2f1e1f6a82d141cd80f6c87d36cc0371`, index empty. The [Builder baseline](work/human-agent-workflow-20261016-1792188215954068500/BASELINE.json)
+SHA256 `459970158f2c2a409ca875efe0a5a0920249d7e04250c7a2b7f9b496aab6065e`
+inventories 504 files, 355 source entries and 3 DLLs; its inventory-specific identity is
+`a29e36310f59f41604241ab471b8c5a58275be941b0be2372acf3fd05f96fc87`.
+Prior 8915f8bc visual-build identities/results retain their original recipe/scope.
+Dirty skills/notes/research/assets and sealed evidence stay preserved. This separate
+guide reconciliation does not alter that recoverable baseline or implementation.
+
+**Episode 8: CONTENT APPROVED, PUBLICATION PENDING.** The brief records authenticated
+owner message `Sentinel_0a553791870081919de5a3852d24086e`, “episode 8 is approved”,
+at 20:34 UTC October 16 (16:34 EDT). This supersedes earlier content-review-pending
+wording in retained production evidence only; it is not upload/scheduling authority.
+Protected project: `E:\UpgradePlusGaming\assets\episode08\zerawave-full-v1\UpgradePlus-Gaming-Episode08-ZeraWave-edit-v1.zwv`,
+revision 264, SHA256 `c13b6296ed47d8c97639b69b19fc67521812a030e6ecde250aff158cdaea10f6`.
+Preserve its adjacent 49 managed files, original media, technical/delivery derivatives,
+approved thumbnail and accepted release masters. Existing master receipt SHA256
+`b7eaefd4e3a3e18224ace59271bbdcb73a574c8249fc10f412d0e4777d925a06`.
+No production rebuild, saved-session replacement or takeover of the idle Studio.
+
+Recorded production used GUI assembly/native export: 49 managed references,
+12 narration units, 63 captions, 12 timed graphics; 232.5s 1280x720/30 master, 6975 frames,
+427.924s export. The producer's ~2h35 includes preparation/checking/recovery and is
+not an editing benchmark. That production did not exercise agent API assembly;
+numerical PCM/caption checks do not certify continuous viewing/listening. These
+workflow findings motivate the new bounded proof, not another episode render.
+
+Existing owner API, multi-file global Library import and full envelopes are reused
+capabilities. New helper/recipes/mixed Project Media/coarse waveform are pending.
+Integer-fade conversion needs focused reproduction; natural narration duration
+flooring is a bounded timing risk, not universal format breakage. Missing overview
+coverage is not proof of truncated playback (retained near-end correlation 0.99959,
+gain ~0.04). Do not silently waive the planned corrections as mere usage advice.
+
+Each Workflow Stage requires the existing Reviewer's explicit source-bound >=9/10
+before dependent progression; retain all old stage names/scores and overall HOLD.
+Use ONE new 12s 1080p30/48 kHz project extended across stages, one short native export,
+and a separate generated ~240s waveform fixture without long playback/export.
+Root coordinates later desktop/GPU/audio availability; only owned disposables may
+be operated/closed. No broad historical benchmark rerun, new worker, source edit
+by Overseer, install, Git or Pages action. Builder owns implementation contracts/
+actual results; this readback transfers no acceptance or publication authority.
+
+
 ## October 16 development checkpoint publication
 
 Robert authorized this scoped commit, normal GitHub push and Pages update. The
