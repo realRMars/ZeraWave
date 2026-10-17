@@ -4,7 +4,7 @@ from copy import deepcopy
 from types import SimpleNamespace
 import threading
 from PySide6.QtCore import Qt,QTimer,QEvent
-from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QLabel,QSlider,QSpinBox,QComboBox,QPushButton
+from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QLabel,QSlider,QSpinBox,QComboBox,QPushButton,QDoubleSpinBox
 
 class SourcePanel(QWidget):
  def __init__(self,workspace):
@@ -16,8 +16,14 @@ class SourcePanel(QWidget):
   for text,box in [('In',self.in_box),('Out',self.out_box)]:
    box.setAccessibleName('Source '+text+(' exclusive' if text=='Out' else ''));box.setRange(0,1);box.setKeyboardTracking(False);row.addWidget(QLabel(text));row.addWidget(box,1);box.editingFinished.connect(lambda:workspace.shell.safe(self.mark_range));box.installEventFilter(self);box.valueChanged.connect(lambda _:self.range_edited());box.lineEdit().textEdited.connect(lambda _:self.range_edited())
   self.range_retry=QPushButton('Apply retained range to current Source');self.range_retry.clicked.connect(lambda:workspace.shell.safe(self.retry_range));self.range_retry.hide();layout.addWidget(self.range_retry)
+  self.still_row=QWidget();line=QHBoxLayout(self.still_row);line.setContentsMargins(0,0,0,0);line.addWidget(QLabel('Still seconds'));self.still_seconds=QDoubleSpinBox();self.still_seconds.setRange(.001,86400);self.still_seconds.setDecimals(3);self.still_seconds.setValue(5.);self.still_seconds.setKeyboardTracking(False);self.still_seconds.setAccessibleName('Still placement duration seconds');self.still_seconds.setToolTip('New still placements only; maps down to whole sequence frames, minimum one. Existing clips stay unchanged.');line.addWidget(self.still_seconds);layout.addWidget(self.still_row);self.still_row.hide()
   row=QHBoxLayout();layout.addLayout(row);self.channels=workspace.timeline.source_mode;self.channels.setParent(self);row.addWidget(self.channels,1);self.channels.show();button=QPushButton('Place');button.setToolTip('Place the current Source In/Out using the Timeline mode');button.clicked.connect(lambda:workspace.shell.safe(self.place));row.addWidget(button)
   self.info=QLabel();self.info.setWordWrap(True);layout.addWidget(self.info);self.timer=QTimer(self);self.timer.setInterval(30);self.timer.timeout.connect(lambda:workspace.shell.safe(self.poll));self.timer.start();self.setMinimumSize(180,220);self.setFocusPolicy(Qt.StrongFocus)
+  self.still_seconds.valueChanged.connect(lambda *_:self.still_note())
+ def still_note(self):
+  if self.asset and self.asset['kind']=='Image':
+   from fractions import Fraction
+   fps=Fraction(*(self.workspace.state().get('document') or {}).get('settings',{}).get('fps',[30,1]));frames=max(1,int(Fraction(str(self.still_seconds.value()))*fps));self.info.setText('New still placement: '+str(frames)+' sequence frames. Existing clips stay unchanged.')
  def load(self,asset):
   self.cancel.set();self.next_source=deepcopy(asset);self.prepared_asset=None;self.heading.setText('Preparing Source…');self.poll()
  def clock(self):return self.workspace.source_transport_state()
@@ -38,7 +44,7 @@ class SourcePanel(QWidget):
    asset=self.prepared_asset;self.prepared_asset=None;self.request_id=self.workspace.submit('source_open',asset=asset)
   state=self.workspace.state().get('source',{});document=state.get('document');version=(state.get('epoch'),state.get('revision'))
   if not document and self.asset:
-   self.retire_preview();self.asset=None;self.version=None;self.heading.setText('Double-click media to preview.');self.metadata.clear();self.info.clear()
+   self.retire_preview();self.asset=None;self.version=None;self.heading.setText('Double-click media to preview.');self.metadata.clear();self.info.clear();self.still_row.hide()
   if document and version!=self.version:
    self.version=version;self.install(state)
   if self.request_id and not self.workspace.pending:
@@ -59,12 +65,14 @@ class SourcePanel(QWidget):
  def install(self,state):
   self.version=(state['epoch'],state['revision'])
   self.retire_preview();document=state['document'];self.asset=deepcopy(document['media'][0]);self.serial+=1;clock=self.clock();self.end=clock.get('end',1);self.fps=document['settings']['fps'];self.frame=clock.get('frame',0);self.range=[clock.get('range_in',0),clock.get('range_out',self.end)];self.heading.setText('SOURCE • '+self.asset['name']);self.metadata.setText(self.asset['kind']+' • '+str(self.end)+' frames');self.metadata.setToolTip(self.asset['location']['path'])
+  self.still_row.setVisible(self.asset['kind']=='Image')
   for box,low,high in [(self.seek,0,max(0,self.end-1)),(self.in_box,0,max(0,self.end-1)),(self.out_box,1,self.end)]:box.blockSignals(True);box.setRange(low,high);box.blockSignals(False)
   self.derived_state=dict(document=document,revision=state['revision'],epoch=state['epoch'])
   if self.asset['kind']=='Audio':self.info.setText('Audio source ready. Choose Source in the shared monitor transport to audition.');return
   if not self.isVisible():return
   from studio_project_preview import ProjectPreview
   self.preview=ProjectPreview(SimpleNamespace(state=lambda:self.derived_state,transport_state=self.clock));self.preview.view.setMinimumHeight(80);self.preview.status.hide();self.host.addWidget(self.preview);self.preview.show();self.info.setText('Out is exclusive; sequence playhead is independent.')
+  self.still_note()
  def seek_to(self,frame):
   if self.asset and not self.closed:
    version,binding=self.seek_intent or (self.version,self.workspace.binding());source=self.workspace.state().get('source',{});current=self.workspace.binding()

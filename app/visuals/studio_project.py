@@ -36,6 +36,9 @@ class ProjectWorkspace(QWidget):
     self.media_search=QLineEdit();self.media_search.setPlaceholderText('Search Project Media names, type or paths…');self.media_search.setAccessibleName('Search Project Media');self.media_search.textChanged.connect(lambda:self.filter_media());body.addWidget(self.media_search)
    tree=ProjectMediaTree() if key=='media' else QTreeWidget();tree.setHeaderLabels(columns);tree.setSelectionMode(QTreeWidget.ExtendedSelection if key=='media' else QTreeWidget.SingleSelection);body.addWidget(tree,1);buttons=QHBoxLayout();body.addLayout(buttons);self.trees[key]=tree;self.pages[key]=(page,buttons);self.tabs.addTab(page,title)
   for title,fn in [('Import…',self.import_media),('Relink…',self.relink)]:self.button(self.pages['media'][1],title,fn)
+  from studio_project_import import ImportStatus
+  self.import_status=ImportStatus(self);self.pages['media'][0].layout().addWidget(self.import_status)
+  self.import_hint=QLabel('Project import accepts mixed files; adds references only. For reusable Library collections, switch Media scope to Library: its Import also accepts multiple files.');self.import_hint.setWordWrap(True);self.pages['media'][0].layout().addWidget(self.import_hint)
   media_actions=QHBoxLayout();self.pages['media'][0].layout().addLayout(media_actions)
   for title,fn in [('Place selected…',self.place),('Remove reference',self.remove_media)]:self.button(media_actions,title,fn)
   for title,fn in [('Add track…',self.add_track),('Volume…',lambda:self.audio_edit('tracks'))]:self.button(self.pages['tracks'][1],title,fn)
@@ -62,7 +65,7 @@ class ProjectWorkspace(QWidget):
   sections=getattr(self.client,'sections',None)
   if sections is not None and sections.owner and not sections.valid:return
   try:
-   self.poll_pending();self.poll_transport();state=self.state();token=(state.get('epoch'),state.get('revision'),state.get('version'))
+   self.poll_pending();self.poll_transport();self.import_status.poll();state=self.state();token=(state.get('epoch'),state.get('revision'),state.get('version'))
    if token!=self.pulse_token:self.pulse_token=token;self.refresh()
    panels=getattr(self,'video_panels',None)
    if panels is None or not panels.active:return
@@ -283,10 +286,10 @@ class ProjectWorkspace(QWidget):
   ok,discard=self.replace_allowed()
   if ok:self.submit('close',discard=discard)
  def import_media(self):
-  self.document();binding=self.binding();kind=QComboBox();kind.addItems(['Video','Audio','Image'])
-  if not self.dialog('Import source type',[('Type',kind)]):return
-  path,_=QFileDialog.getOpenFileName(self,'Import '+kind.currentText(),str(Path.home()),'Media files (*.*)')
-  if path:self.batch('Import '+Path(path).name,[dict(op='media.add',name=Path(path).name,kind=kind.currentText(),location=dict(kind='external',path=str(Path(path).resolve())))],binding)
+  self.document();binding=self.binding();paths,_=QFileDialog.getOpenFileNames(self,'Import Project Media — mixed references',str(Path.home()),'Supported project media (*.png *.jpg *.jpeg *.wav *.mp3 *.mp4 *.mov *.mkv *.webm *.avi *.m4v);;All files (*.*)')
+  if paths:
+   import os
+   paths=sorted((str(Path(p).resolve()) for p in paths),key=lambda p:(os.path.normcase(p),p));key=self.submit('import_media',binding=binding,label='Import Project Media',paths=paths);self.import_status.start(key);return key
  def relink(self):
   r=self.selected('media');binding=self.binding();path,_=QFileDialog.getOpenFileName(self,'Relink '+r['name'],str(Path(r['location']['path']).parent),'Media files (*.*)')
   if not path:return

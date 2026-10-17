@@ -1181,3 +1181,84 @@ hardware decoder was introduced. Existing cancellation, drain-before-retire,
 single-reader lease, stale-generation and serial-within-reservation behavior
 remains required. Resource plateau, physical display/audio and full UI timing
 claims require their own matched evidence.
+
+
+## October 16 workflow audio-tail and integer-fade boundary
+
+`media_registry.inspect` adds decoder-established audio sample count/rate and
+rational duration without changing existing metadata fields or project schema.
+`project_audio_timing.py` owns audio-only natural-end frame coverage, shared by
+Source and Library/Project Media placement. It must cover the canonical finite
+resampler interval using absolute frame-to-sample rounding, retain exact aligned
+ends, and never apply audio ceiling/padding to video. Explicit Source Out trims
+remain deliberate. Existing project contents and source PCM are not rewritten.
+
+Only Inspector audio fade fields convert UI double-spin values to integer frame
+semantics. Preserve strict model integer validation, fractional gain/pan, pinned
+selection/revision, retained input, gesture history, ordinary source locks and
+ordered owner reconciliation. Native/fallback interpolation/flush evidence has
+separate references; no numeric assertion is a listening certificate.
+
+
+### Mixed project import ownership (October16 workflow)
+
+`project_import.py` prepares immutable recipes on ProjectService's existing pool.
+Its progress channel retains one bounded latest <=128row snapshot. Only the owner
+validates/admit/commits and records history. Imported references create no clips;
+whole-group failures/cancellation preserve accepted document/history. Match full
+path/provenance plus verified hash/type and Ready state, never names. Reuse is not
+Relink. Preserve source protection and pending output reservations before worker
+admission and again at owner commit.
+
+Qt's `studio_project_import.py` asynchronously queries the exact operation for
+complete per-file details. Periodic state carries counts/four-row summaries; only
+an explicit import status query returns all bounded rows as a separate reply.
+Do not grow the command,history,media,worker or wire caps. Cancellation is a
+request until acknowledged; unknown receipts never justify a new operation ID.
+`studio_project_source` owns the new-still placement preference; `Placement`
+pins its value before preparation, with no alteration of accepted existing clips.
+
+
+### Manifest client boundary (October16 workflow Stage3)
+
+`project_manifest.py` plans ordinary validated owner commands; it owns no document,
+renderer, server or preparation pool. `project_manifest_cli.py` applies the exact
+exclusive saved plan, with one ordered existing API client and an OS-leased 8MiB
+journal. Persist exact requests before sending. Preserve receipt/uncertain outcome
+semantics, strict planned clocks plus document digest, guarded manual overrides,
+stable entity IDs, source identity and revision-pinned output verification. Never
+retry with a new ID/rebase because a response is missing. No endpoint secrets in
+plans/evidence. Existing caps/atomic owner commit remain authoritative.
+
+`studio_video_workspace` may hide old Media-page action duplicates, but must retain
+the new import-status descendant controls. Active-layout visibility and paint/input
+are separate from widget existence. The Stage3 regression evidence covers actual
+Details and enabled-during-preparation Cancel in a disposable native Qt window;
+its fixed chooser fixture is disclosed and is not a native chooser acceptance.
+
+
+### Editable recipe ownership (October16 workflow Stage4)
+
+`project_recipes.py` expands six explicit version1 parameter families into ordinary
+manifest items; it owns no clocks, surfaces, document or API. Manifest planning
+validates input and expanded metadata, uses ordinary text keyframe commands at one
+safe entity boundary, and compares canonical complete content before reuse. Validate
+the full text key arrays before command expansion; duplicate tracks/points must not
+silently become last-writer wins. Keep guarded manual conflicts, curve/visual origins,
+source identities, recipe provenance and immutable exact request journals. New
+recipes stay individually editable; no runtime regeneration or flattened assets.
+
+
+### Complete timeline waveform ownership (October16 workflow Stage5)
+
+`timeline_waveform.py` uses the existing Mixer/readers at unity rate to inspect
+every covering canonical source sample,then aggregates source peaks. It does not
+change audio/mixing/export policy. `timeline_decorations.py` owns the existing one
+worker,32pending,128cache entries/8MiB payload; Mixer32MiB accounting and64KiB peak
+aggregation reservation remain bounded. No whole-file PCM allocation/GUI decode.
+Partial arrays are copied before worker mutation; only completely scanned bins
+represent silence. Keep per-source/timing/view cancellation,publication guards,
+unavailable errors,source/hash cache identity and owner-thread release. Timeline
+refresh supplies the current document for invalidation; unrelated gain edits do
+not invalidate raw peaks. Cache metadata/opaque codec allocations are not a total
+process-memory guarantee. First preparation may exceed the approximate slice.

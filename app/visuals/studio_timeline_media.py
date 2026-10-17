@@ -36,9 +36,10 @@ class Placement:
         self.sources=[deepcopy(assets[i]) for i in ids]
         if any(a['kind'] not in ('Video','Audio','Image','Images') for a in self.sources):raise ValueError('Timeline accepts existing video, audio and still images.')
         source=w.video_panels.source
+        self.still_duration=Fraction(str(source.still_seconds.value()))
         if len(ids)==1 and source.asset and (source.asset['id']==ids[0] or os.path.normcase(source.asset['location']['path'])==os.path.normcase(self.sources[0].get('path') or self.sources[0]['location']['path'])):
             if getattr(source,'retained_range',None) is not None or getattr(w,'transport_future',None) or getattr(w,'transport_desired',None):raise ValueError('Source range/transport is still reconciling or rejected. Resolve it before a new placement; this drop was not admitted.')
-            self.range=dict(sha256=source.asset['sha256'],fps=deepcopy(source.fps),interval=list(source.range))
+            self.range=dict(sha256=source.asset['sha256'],fps=deepcopy(source.fps),interval=list(source.range),natural_end=source.range[1]==source.end)
         self.pool=ThreadPoolExecutor(max_workers=1,thread_name_prefix='Timeline source inspection');self.future=self.pool.submit(inspect_all,self.sources,self.cancel);panel.canvas.notify('Preparing dropped source identity/range • no project edit accepted yet. Escape cancels; later tool/mode changes do not alter this drop.')
     def poll(self):
         if self.finished or not self.future.done():return
@@ -84,7 +85,11 @@ class Placement:
             fps=rational(d['settings']['fps']);source_fps=rational(a['metadata'].get('rational_fps') or [30,1]);source_in=Fraction(0);available=rational(a['metadata']['duration_time']) if 'duration_time' in a['metadata'] else Fraction(str(a['metadata'].get('duration',5)))
             if self.range and index==0:
                 source_in=Fraction(self.range['interval'][0])/rational(self.range['fps']);available=Fraction(self.range['interval'][1]-self.range['interval'][0])/rational(self.range['fps'])
-            length=max(1,int(available*fps)) if a['kind']!='Image' else max(1,int(5*fps))
+            natural_audio=a['kind']=='Audio' and (self.range is None or self.range.get('natural_end',False))
+            if natural_audio:
+                from project_audio_timing import natural_frames
+                length=natural_frames(a['metadata'],pair(fps),start=cursor,source_in=pair(source_in))
+            else:length=max(1,int(available*fps)) if a['kind']!='Image' else max(1,int(getattr(self,'still_duration',Fraction(5))*fps))
             has_audio=a['kind']=='Audio' or bool(a['metadata'].get('has_audio'));video=a['kind']!='Audio' and self.channels!='Audio only';audio=has_audio and self.channels!='Video only'
             if self.channels=='Audio only' and not has_audio:raise ValueError(a['name']+' contains no audio stream. Choose video-only or another source.')
             if a['kind']=='Audio' and self.channels=='Video only':raise ValueError(a['name']+' is an audio source; choose audio placement.')
@@ -92,7 +97,7 @@ class Placement:
             if video:
                 kind='graphics' if a['kind']=='Image' and target and target['kind']=='graphics' else 'video';track=destination(kind,target);rows.append(dict(category='clips',row=clip_recipe(uuid.uuid4().hex,asset=asset_id,track=track,name=a['name'],start=cursor,duration=length,source_in=pair(source_in),link_id=link)))
             if audio:
-                track=destination('audio',target);rows.append(dict(category='clips',row=clip_recipe(uuid.uuid4().hex,asset=asset_id,track=track,name=a['name']+' audio' if video else a['name'],start=cursor,duration=length,source_in=pair(source_in),link_id=link)))
+                track=destination('audio',target);rows.append(dict(category='clips',row=clip_recipe(uuid.uuid4().hex,asset=asset_id,track=track,name=a['name']+' audio' if video else a['name'],start=cursor,duration=length,source_in=pair(source_in),link_id=link,**({'pad_end':'silence'} if natural_audio else {}))))
             cursor+=length
         changes.append(dict(op='items.place',rows=rows,mode=self.mode));return changes,rows
     def exited(self):return self.finished and all(not t.is_alive() for t in self.pool._threads)

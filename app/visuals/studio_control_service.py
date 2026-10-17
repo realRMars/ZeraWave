@@ -879,7 +879,15 @@ def main():
                     receipt={}
                     if message['action']=='project' and isinstance(result,dict):
                         from project_service import summary
-                        receipt={'ok':result.get('ok'), 'outcome':summary(result['outcome']) if result.get('outcome') else None,'error':result.get('error')}
+                        outcome=result.get('outcome')
+                        import_details=message.get('data',{}).get('request',{}).get('op')=='operation_status' and outcome and outcome.get('op')=='import_media'
+                        receipt={'ok':result.get('ok'), 'outcome':outcome if import_details else summary(outcome) if outcome else None,'error':result.get('error')}
+                        if import_details:
+                            # Explicit read-only query gets all <=128 bounded
+                            # file outcomes once, without combining that receipt
+                            # with a full state projection. Periodic publications
+                            # keep their compact summaries and reconcile state.
+                            emit({'id':message['id'],'project_result':receipt});continue
                     transport_only=message['action']=='project' and message.get('data',{}).get('request',{}).get('op')=='transport'
                     if transport_only:
                         # Transport changes no document recipe. Publish its real

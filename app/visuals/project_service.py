@@ -11,7 +11,10 @@ import hashlib,json,os,threading,time,uuid,traceback
 from video_project import create,validate,apply,ProjectError,fail,identity,MAX_DOCUMENT_BYTES,LIMITS,duration,text,fields,integer,VERSION
 
 def summary(row):
- result=deepcopy({k:v for k,v in row.items() if k!='result'})
+ result=deepcopy({k:v for k,v in row.items() if k not in ('result','files')})
+ if 'files' in row:
+  from project_import import counts
+  files=row['files'];result.update(file_count=len(files),file_counts=counts(files),files=deepcopy(files[:4]),files_truncated=max(0,len(files)-4))
  if 'result' in row:
   r=row['result'];result['result']=deepcopy({k:v for k,v in r.items() if k not in ('dependencies','warnings')});result['result']['dependency_count']=len(r.get('dependencies',{}));result['result']['warnings']=deepcopy(r.get('warnings',[])[:8])
  return result
@@ -273,6 +276,12 @@ class ProjectService:
    for begin in range(0,len(prepared),LIMITS['batch']):
     doc,part=apply(doc,prepared[begin:begin+LIMITS['batch']],request['operation_id']);created.extend(part)
    return self._commit(doc,request.get('label','Import SRT captions'),created)
+  if op=='import_media':
+   changes=prepared['changes']
+   if not changes:return []
+   doc,created=apply(self.document,changes,request['operation_id']);states=deepcopy(self.media_state)
+   for c in changes:states[c['id']]=dict(status='Ready',path=c['location']['path'],expected=c['sha256'])
+   return self._commit(doc,request.get('label','Import Project Media'),created,states)
   if op=='batch':
    changes=prepared if prepared is not None else request['changes'];doc,created=apply(self.document,changes,request['operation_id']);states=deepcopy(self.media_state)
    if prepared is not None:
@@ -316,11 +325,22 @@ class ProjectService:
       if field in change and not isinstance(change[field],dict):fail('invalid_request',field+' must be a structured object.')
    for flag in ('discard','portable','allow_missing'):
     if flag in data and type(data[flag]) is not bool:fail('invalid_value',flag+' must be true or false.')
-   if op in ('new','open','close','undo','redo','batch','import_captions') and any(j['kind'] not in ('save','export','caption_export','recovery_copy','source') for j in self.jobs.values()):fail('busy','Source/open preparation is pending; completed edit was not accepted. Wait and repeat it.')
+   if op=='import_media':
+    paths=data.get('paths')
+    if len(self.jobs)>=16:fail('busy','Sixteen owner preparations are pending; import was not admitted.')
+    if self.document is None:fail('no_project','Create/open a project before importing references.')
+    if not isinstance(paths,list) or not 1<=len(paths)<=LIMITS['batch']:fail('invalid_batch','One import group requires1–128 paths.')
+    for path in paths:
+     text(path,1024)
+     if not Path(path).is_absolute():fail('invalid_path','Import paths must be explicit absolute files.')
+   if op in ('new','open','close','undo','redo','batch','import_captions','import_media') and any(j['kind'] not in ('save','export','caption_export','recovery_copy','source') for j in self.jobs.values()):fail('busy','Source/open preparation is pending; completed edit was not accepted. Wait and repeat it.')
    if op in ('new','open','close') and self.jobs:fail('busy','Pinned save/export work is pending; wait for its real outcome before replacement/close.')
    cancel=threading.Event();job=None
    if op=='batch':self._preflight_reserved(data['changes'])
-   if op=='source_open':
+   if op=='import_media':
+    from project_import import prepare,Progress
+    self._preflight_reserved([dict(op='media.add',location=dict(kind='external',path=p)) for p in paths]);progress=Progress();row['files']=[dict(index=i,path=p,name=Path(p).name[:256],status='queued') for i,p in enumerate(paths)];job=dict(kind='import_media',progress=progress,future=self.pool.submit(prepare,list(paths),deepcopy(self.document),deepcopy(self.media_state),self.source_base,key,cancel,progress))
+   elif op=='source_open':
     if any(j['kind']=='source' for j in self.jobs.values()):fail('busy','Source inspection is pending; wait or cancel its exact operation.')
     if len(self.jobs)>=16:fail('busy','Sixteen owner preparations are pending. Source was not opened.')
     from project_source import prepare_source
@@ -408,6 +428,9 @@ class ProjectService:
   self.check_thread();self.recovery.observe(self.document,self.epoch,self.revision,self.saved_revision,self.path);self.recovery.poll()
   if self.recovery.version!=getattr(self,'recovery_version',-1):self.recovery_version=self.recovery.version;self.version+=1
   for key,job in list(self.jobs.items()):
+   if job['kind']=='import_media':
+    progress=job['progress'].take()
+    if progress is not None:self.outcomes[key]['files']=progress;self.version+=1
    if not job['future'].done():
     if job['kind']=='export':
      try:
@@ -418,6 +441,7 @@ class ProjectService:
    row=self.outcomes[key]
    try:
     prepared=job['future'].result()
+    if job['kind']=='import_media':row['files']=deepcopy(prepared['files'])
     if job['kind'] in ('export','caption_export'):row.update(status='exported',result=prepared,revision=job['revision'])
     elif job['kind']=='recovery_copy':row.update(status='durable',result=prepared,revision=prepared['revision'])
     elif job['kind']=='save':
@@ -434,7 +458,14 @@ class ProjectService:
      else:
       created=self._apply(job['request'],prepared)
      row.update(status='accepted',created=created,revision=self.revision)
-   except BaseException as exc:row.update(status='failed',error=dict(code=getattr(exc,'code','preparation_failed'),message=str(exc),notes=getattr(exc,'__notes__',[])))
+     if job['kind']=='import_media':
+      from project_import import finish
+      row['files']=finish(row['files'],True)
+   except BaseException as exc:
+    row.update(status='failed',error=dict(code=getattr(exc,'code','preparation_failed'),message=str(exc),notes=getattr(exc,'__notes__',[])))
+    if job['kind']=='import_media':
+     from project_import import finish
+     row['files']=finish(getattr(exc,'files',row.get('files',[])),False,row['error']['code']=='cancelled')
    del self.jobs[key];self.version+=1
  def can_shutdown(self,discard=False,binding=None):
   self.poll()

@@ -20,12 +20,15 @@ def prepare_source(asset,operation,cancel):
  # roundtrip that can turn five CFR frames into4. VFR keeps the documented
  # complete nominal-grid interval policy; no blind ceil invents a tail frame.
  length=rational(meta['duration_time']) if 'duration_time' in meta else Fraction(str(meta.get('duration',1)))
- end=1 if source['kind']=='Image' else max(1,int(length*rational(fps)))
+ if source['kind']=='Audio':
+  from project_audio_timing import natural_frames
+  end=natural_frames(meta,fps)
+ else:end=1 if source['kind']=='Image' else max(1,int(length*rational(fps)))
  settings=dict(width=max(16,meta.get('width',1280)),height=max(16,meta.get('height',720)),fps=fps)
  d=create('Source — '+source['name'],settings,uuid.uuid5(uuid.UUID(operation),'source-document').hex);changes=[source]
  for kind in (['video'] if source['kind']!='Audio' else [])+(['audio'] if source['kind']=='Audio' or meta.get('has_audio') else []):
   key=uuid.uuid5(uuid.UUID(operation),kind+'-track').hex
-  changes.extend([dict(op='track.add',id=key,kind=kind,name='Source '+kind),dict(op='clip.add',id=uuid.uuid5(uuid.UUID(operation),kind+'-clip').hex,asset=source['id'],track=key,start=0,duration=end)])
+  changes.extend([dict(op='track.add',id=key,kind=kind,name='Source '+kind),dict(op='clip.add',id=uuid.uuid5(uuid.UUID(operation),kind+'-clip').hex,asset=source['id'],track=key,start=0,duration=end,**({'pad_end':'silence'} if source['kind']=='Audio' else {}))])
  return apply(d,changes,operation)[0]
 
 class SourceContext:

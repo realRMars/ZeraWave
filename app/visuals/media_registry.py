@@ -96,7 +96,7 @@ def inspect(path,cancel):
         try:
             check_cancel(cancel);block=decoder.read();check_cancel(cancel)
             if not len(block):raise ValueError('Audio decoder produced no samples.')
-            meta.update(duration=decoder.duration,samplerate=decoder.rate,channels=decoder.channels,validation='Header and first decoded PCM block; later decode errors reported by Audio Hub')
+            meta.update(duration=decoder.duration,samplerate=decoder.rate,sample_count=decoder.frames,duration_time=[decoder.frames,decoder.rate],channels=decoder.channels,validation='Decoder sample count/rate and first decoded PCM block; later decode errors reported by Audio Hub')
         finally:decoder.close()
     elif kind in ('Video','Animated'):
         from media_frames import inspect_animation

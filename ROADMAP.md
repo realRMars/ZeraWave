@@ -1,5 +1,41 @@
 # ZeraWave development plan
 
+## October 16 bounded workflow implementation checkpoint
+
+The five human/agent Workflow Stages below are now implemented and each received
+an explicit source-bound **9.0/10 PASS** from the existing Reviewer. The connected
+workflow also received 9.0/10 for bounded technical handoff, with no blocking finding
+inside that assignment. [Actual results](work/human-agent-workflow-20261016-1792188215954068500/FINAL_REPORT.md),
+[final verdict](work/reviewer-human-agent-workflow-20261016/stage5/VERDICT.json) and the
+[feature contract](docs/VIDEO_PROJECT.md) define its limits. Earlier assignment-time
+planned/pending wording below is retained as history and is superseded by this status.
+
+Implemented: sample-preserving natural audio tails and integer Inspector fades;
+bounded mixed Project Media import with Details/Cancel and explicit still duration;
+ordered manifest/API assembly with persisted same-ID reconciliation; six ordinary
+editable recipe families; complete incremental coarse waveform with lazy refinement.
+Existing API, Library import, document/history/audio/render owners and caps remain.
+Final source/native identity is
+`509ba15e8de96a73e2d47cfb53ec95905e844ad23c28bc2570e790341adc92bd`
+(372 app entries, three unchanged DLLs); the sealed candidate accounts for 32 paths.
+
+Robert's latest direct "commit push etx" authorizes this implementation checkpoint,
+normal GitHub push and Pages reconciliation. The [publication receipt](work/publication-human-agent-workflow-20261016-013516/review-index.json)
+records exact staging and remote identity. Publication is separate from personal
+usability/picture/audio acceptance and does not close the editor-wide engineering HOLD.
+
+**Next boundary:** Robert reviews the existing portable 12-second proof, adjusts
+clips/audio/captions/envelope, exercises Undo/Redo, Save As/reopen and inspects the
+retained 360-frame movie. No automatic next implementation stage or dispatch.
+Do not rebuild/re-export the proof or repeat broad historical qualification just to
+publish it. Native caption typing/pickers/modal interactions remain unverified;
+the synthetic linked vertical-move mismatch and all historical playback/resource/
+physical/listening/correlated A/V gates remain open. Waveform completion is coverage,
+not a matched speedup or universal latency claim. Separate capacity/storage/image
+and future feature commitments remain. Episode 8 stays content-approved/publication-
+pending; preserve revision 264, originals, 49 managed files and accepted masters.
+
+
 ## October 16 current human and agent workflow assignment
 
 Robert manually assigned the [five-stage workflow execution brief](<Plan and brainstorms/ZeraWave-Episode08-Workflow-Builder-Implementation-Prompt-2026-10-16.md>)

@@ -1,5 +1,46 @@
 # ZeraWave handoff
 
+## October 16 bounded workflow implementation checkpoint
+
+All five human/agent Workflow Stages are implemented and independently **9.0/10 PASS**;
+the connected workflow received 9.0/10 for bounded technical handoff. See
+[actual results](work/human-agent-workflow-20261016-1792188215954068500/FINAL_REPORT.md),
+[sealed manifest](work/human-agent-workflow-20261016-1792188215954068500/stage5/candidate-1792193962263979500/MANIFEST.json),
+[final independent review](work/reviewer-human-agent-workflow-20261016/stage5/REVIEW.md) and
+[feature instructions](docs/VIDEO_PROJECT.md). The 32-path candidate has source/native
+identity `509ba15e8de96a73e2d47cfb53ec95905e844ad23c28bc2570e790341adc92bd`,
+372 app entries and three unchanged DLLs; manifest SHA256
+`93e372c1f30aec82b00b22d362e0f67813d3e5848cd9a991e48ad797577ede05`.
+
+Natural audio tails/integer fades, mixed Project Media import, exact-plan manifest
+helper, six editable recipe families and full-duration coarse waveforms are implemented
+within their contracts. Source-bound checks cover native/fallback PCM, real owner/API/
+CLI, offscreen Qt, persistence/retry/cancellation and focused regressions. One existing
+12s 1080p30/48 kHz portable proof (revision 39) and one native 360-frame H264/AAC export
+passed separate numerical checks. Same-rate original PCM is exact; lossy AAC/video
+checks use declared tolerances. Publication reuses those results without a new app,
+device, export or benchmark run.
+
+Robert directly authorized "commit push etx"; [publication receipt](work/publication-human-agent-workflow-20261016-013516/review-index.json)
+records this checkpoint's exact 32 implementation/test/contract/note paths plus the
+three necessary shared status guides. Parent is `a5e8e702cbcf36fedbacd3404f0e6d7686d3c1c3`.
+Historical task reports retain their task-time uncommitted/pending labels; this current
+status supersedes those labels, without rewriting evidence or claiming broad acceptance.
+
+**Still open:** Robert's hands-on usability/picture/audio acceptance, native caption
+typing/pickers/modal Cancel/Close, the baseline-linked vertical-move test/contract
+mismatch and all editor-wide failed/unverified playback, physical, cold/resource,
+listening and correlated A/V gates. Full waveform coverage is not a matched speedup:
+10.191s covers 240s versus the old 4.479s/64s; a 573.203ms cold worker slice remains.
+No whole-editor latency or opaque-codec retirement guarantee follows. Editor-wide HOLD,
+separate capacity/storage/image work and legacy moving-video layer Save remain.
+
+Next is Robert's review of the retained portable proof/movie, not a new automatic stage.
+Episode 8 remains content-approved/publication-pending and unchanged at revision 264.
+The earlier `b7eaefd4...` identity labels its master video, not a JSON-receipt hash.
+Preserve all original/managed media, derivatives, accepted masters and historical failures.
+
+
 ## October 16 current human and agent workflow assignment
 
 Robert manually assigned the [human/agent workflow implementation brief](<Plan and brainstorms/ZeraWave-Episode08-Workflow-Builder-Implementation-Prompt-2026-10-16.md>).

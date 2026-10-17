@@ -761,9 +761,10 @@ original import identity; unavailable references require explicit Relink.
 
 Decorative thumbnails/waveforms use existing media/canonical mixer readers, one
 worker,32 pending requests,128 entries and8MiB owned image/peak payload. This payload
-bound excludes Python/codec overhead. Short exact source spans generate128 peak
-bins; very coarse long clips ask for waveform zoom. Native preview/export quality
-is unchanged. Hidden/empty/replaced timelines retire readers after actual exit.
+bound excludes Python/codec overhead. Complete coarse waveforms now span the
+whole clip with1024bins and incremental raw canonical source reads; visible zoom
+refines two-second spans with128bins. Pending/error coverage is distinct from
+processed silence. Native preview/export quality is unchanged. Hidden/empty/replaced timelines retire readers after actual exit.
 View zoom/track height/snapping/link and channel choices persist with the separate
 Video layout, not in artwork. Full visual automation/inspector, autosave, expanded
 export controls and measured full-quality performance remain subsequent assigned
@@ -949,3 +950,188 @@ four-owner CUDA caller was slower for both sequential and random F1/F2 demands.
 It is retained as a diagnostic experiment, not installed as the product route.
 The actual-results note binds raw samples, fresh-process memory costs, failed
 probes, current source and remaining UI/presentation gates.
+
+
+## October 16 human/agent workflow: audio timing and fades
+
+Newly inspected audio retains decoder `sample_count`, `samplerate` and rational
+`duration_time`, alongside the compatible floating duration. Existing projects
+are not rewritten. Audio-only full-natural-end Source and placement use the
+shared `project_audio_timing.natural_frames` policy: rational ceiling, canonical
+48 kHz finite output coverage, and the existing absolute nearest sample boundary.
+The smallest covering sequence Out is selected; an aligned source gets no extra
+frame. Only the final partial audio frame explicitly uses `pad_end="silence"`.
+Original samples and files are retained. A Source range ending before natural
+Out remains an intentional trim. Video, embedded-video audio and VFR policies
+retain their existing duration/frame rules; picture is not extended.
+
+Integer fade controls convert their zero-decimal UI value to an integer before
+the normal bound owner command. Model integer validation remains strict. Gain,
+pan and other fractional fields remain fractional; stale drafts remain rejected
+and retained for deliberate re-entry. No envelope/fade origin is reset except by
+the existing explicit curve-edit contract.
+
+Focused generated WAV checks cover exact same-rate PCM, separate native flushed
+resampler and linear-fallback references, rational FPS/nonzero In/rate/start,
+split and portable save/reopen. Codec-format-wide count guarantees, encoded-output
+tolerances, actual device/listening and physical UI acceptance are separate.
+The existing editor-wide HOLD is not closed by this narrower correction.
+
+
+## October 16 workflow: mixed Project Media import and still duration
+
+Project Media **Import…** accepts a mixed multi-file selection of the already
+supported video, audio and PNG/JPEG image formats. It adds references only, no
+clips. Qt sorts explicit absolute paths deterministically; API callers supply
+their deliberate order. `import_media` accepts `paths` (1–128), optional `label`,
+and the normal operation ID/epoch/project/revision/command binding. The existing
+two-worker preparation pool verifies hashes/types/metadata/provenance. Existing
+16-job,128-change,document and media capacities remain; no new registry/pool.
+
+One import group commits atomically in one named Undo step. Matching Ready
+identities at the recorded full path/import provenance are reused, repeated paths
+in that group are skipped, and changed recorded sources require deliberate
+Relink. A corrupt/unsupported/changed source or pre-accept cancellation admits
+none of that group's new references; prior accepted work remains. No basename
+identity matching or silent replacement. Verified preparation is not acceptance.
+
+The progress line and nonmodal **Details** report every input. Per-file outcomes
+include queued/preparing, verified/reuse_planned/duplicate_planned, then accepted/
+reused/skipped. Failure converts unaccepted rows to not_accepted/cancelled while
+existing reused references are retained. Cancel requests the same owner job; a
+late cancel cannot reverse a confirmed accepted operation. Unknown outcomes are
+queried by the same operation ID, never automatically resubmitted. Periodic
+publication includes counts and at most4rows per operation; an explicit read-only
+`operation_status` query returns all <=128file rows, without combining them with
+a full Qt state projection.
+
+The existing global Library Import and file-drop routes already support multiple
+files. Choose **Library** in the Media scope for reusable collections; choose
+**Project Media** for this document's references. These are separate memberships.
+
+An Image Source exposes **Still seconds**, initially5, in the existing Source
+placement context. It affects deliberate new still placements only and is pinned
+at gesture admission. Duration maps down to whole sequence frames (minimum1),
+consistent with existing image placement; existing clips, audio/video durations
+and original files are unchanged. A manifest/recipe's explicit frame duration
+takes precedence over this human placement default.
+
+
+## October 16 workflow: explicit manifest plan, apply and resume
+
+`app/visuals/project_manifest_cli.py` is an ordered client of the existing
+authenticated Studio project endpoint. Select the intended running instance's
+endpoint explicitly; it never discovers/selects another project automatically.
+Version1 `zerawave-edit-manifest` declares a manifest UUID, project UUID, verified
+absolute media paths/SHA256, named ordered sections of ordinary entities/setters,
+and an explicit portable .zwv save destination. Logical keys derive stable item
+IDs; operation IDs are separate. Ready references match full path/provenance/hash
+and type, never basenames. Natural audio duration uses sample-preserving coverage;
+video/stills have explicit frame durations. Full envelope arrays are supported.
+
+Human: Open the proof -> preview/select a clip -> adjust its existing Inspector
+audio/layout, caption/graphic text/style or envelope -> Undo/Redo -> Save As to a
+new destination -> reopen. Project Media Import adds references; Source places
+them. Import Details and Cancel stay visible in the approved Editing layout.
+
+Agent: choose that instance's endpoint -> inspect `project_cli.py --help`/state ->
+run `project_manifest_cli.py --endpoint ENDPOINT --plan --manifest MANIFEST
+--plan-file NEW_PLAN.json` -> inspect creates/reuses/conflicts, sections, request
+counts and bytes -> `--endpoint ENDPOINT --apply --plan-file NEW_PLAN.json
+--journal NEW_DIRECTORY` -> inspect owner/GUI state and checkpoint. A timeout uses
+`--endpoint ENDPOINT --resume --journal SAME_DIRECTORY`. Apply consumes the exact
+saved dry-run plan; it never recompiles against fresh state. A changed manifest
+or manual intervention requires a deliberate new plan/destination, preserving
+accepted work. Do not pass the manifest to Apply/Resume. No endpoint token is
+printed or retained in plans/journals; protect the existing endpoint file.
+
+One client submits ordered <=128-change and <=524288-byte actual authenticated
+UTF8/newline requests. Each fitting section is one named Undo/atomic batch;
+oversized sections split at validated complete entity/setter boundaries into
+named parts, with no cross-part atomicity. Existing document/history/media and
+four-client limits remain. Planning is read-only, <=512KiB input; journal <=8MiB.
+Every deliberate command checks the original planned epoch/project/revision/
+command and document digest; source identity signals are rechecked before send.
+Changed signals require a matching full source hash. Owner preparation/save also
+verifies sources. Spoofed unchanged filesystem signals are not a security claim.
+
+The exact operation/request/hash/binding is fsynced before submission. Resume
+queries the same ID. Exact pre-command state permits appropriate same-ID replay;
+unknown/retired outcomes after an advanced boundary require explicit reconciliation,
+never a new automatic ID or silent rebase. Accepted receipts survive later state
+conflicts. Matching stable entities are already-applied; divergent manual entities
+block regeneration. Deliberate idempotent setters require an expected prior entity
+hash (linked clip moves must explicitly disable companion moves). Unsupported,
+destructive and relative commands are not guessed. Version1 recipe expansion is described below. Normal pinned portable Save must verify the requested revision
+and output hash; accepted, durable and exported states remain distinct.
+
+
+## October 16 workflow: editable recipe expansion
+
+Manifest sections may include `recipes`: each `{key,kind,version:1,params}` uses a
+unique logical key (<=128 instances per manifest, within unchanged document caps).
+Supported kinds: entrance (brand/game text and optional enter/exit opacity keys),
+review_card (heading/body), chapter (counter plus progress), caption (text/style/
+timing), music (audio clip with complete supplied controls/array), still (explicit
+frame duration/layout). Every recipe declares track/start/duration; music/still
+also declare asset. Use normal logical `{ref:"tracks:..."}`/media references.
+No text rewriting, automatic ducking or new template runtime. Source/rate and
+curve origins remain ordinary clip data; deliberate manual trims are conflicts.
+
+`style` supplies common text styling; entrance/review_card/chapter `parts` may
+override individual brand/game,heading/body,timer/progress styles and bounds.
+Entrance enter_frames/exit_frames fit inside duration (default bounded12-frame
+entrance, no exit); chapter range_start/range_end explicitly pin timer progress.
+Caption/music/still use normal model fields and limits. Full supplied envelopes
+are retained, no point sampling. Music name/source_in/rate/pad_end and still
+name/source_in/layout are explicit optional parameters. Supported fields are
+validated; unknown fields/versions fail read-only planning before submission.
+
+Default entity provenance records recipe key/kind/version/parameter digest.
+An explicit provenance object can preserve compatible pre-existing ordinary
+entities (the proof adopts its Stage3 music/still with `{}`); complete content
+comparison still protects manual work. The saved manifest/plan retains parameter
+identity. Text animation expands to existing keyframe.set operations in the same
+atomic entity unit; it is not a hidden rendering clock. A unit exceeding the
+existing128-change/wire ceiling is rejected rather than partly created.
+
+Human recipe use: choose intended tracks/media, edit a copy of the proof manifest's
+recipe parameters, inspect a new dry-run, then apply that exact plan. Preview the
+ordinary expanded timeline items and adjust them in the existing Inspector, text
+and envelope table. Undo/Redo and Save As remain normal owner operations. There is
+no new template browser or toolbar. Reapply recognizes compatible content and
+refuses divergent manual text/layout/audio/timing; preserve the override and make
+an explicit new guarded plan if a change is desired. It never auto-regenerates.
+
+
+## October 16 workflow: complete raw waveform overview
+
+The existing decoration worker now builds1024coarse peaks over the WHOLE source
+interval represented by an audio clip. At detailed scale (>=64pixels/sequence
+second), only visible two-second spans request128bins. Coarse graphics fit inside
+the existing clip handles. Peaks are max absolute L/R of canonical48k source,
+before authored gain/fades/envelope/mute/routing. This is source-content decoration,
+not post-fader metering. No audio/playback/export sample or quality is changed.
+
+All canonical samples in the covering floor(In)/ceil(Out) source interval are read
+at unity rate; source_in,clip rate,trim and rational FPS map that interval to the
+clip. Faster rates do not thin samples and miss short signals. Original source
+hash/path/metadata and clip timing key caches; deliberate source changes invalidate
+old generations. Relink changed sources through normal controls. Painting never
+opens/decodes a file. Pending bins use a dashed line and preparing percentage;
+only fully scanned bins draw solid peaks/zero-silence, and failures say unavailable.
+
+Work yields after at most five source seconds or an approximately50ms between-
+block slice. First imports/codec calls can exceed that slice; this is not a hard
+deadline. Cancellation is checked between2048-sample reads; obsolete source/view
+results cannot publish. Lazy refinement cancels unwanted work; compatible completed
+or partial caches stay within the existing limits. One worker,32pending,128entries,
+8MiB image/peak payload plus bounded metadata and32MiB Mixer cache/scratch remain.
+An extra64KiB aggregation phase is reserved inside that Mixer budget. Python/opaque
+codec working memory is separate. Readers close only on their worker after use.
+
+For overlapping titles/captions on a track, existing View -> Panels -> Project
+data / captions exposes individual entries. Resize its dock if necessary; choose
+Titles / graphics or Captions,then Edit or Style / placement. The inline Inspector
+also edits timeline-selected items. This reuses existing controls without changing
+the approved workspace. Normal Undo/Redo and Save As remain the same owner history.

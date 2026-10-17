@@ -105,7 +105,8 @@ class VideoPanels(QObject):
   w.layout().removeWidget(w.tabs);self.data=w.tabs;self.data.setParent(None)
   splitter=w.preview.parentWidget();splitter.hide();w.preview.setParent(None);w.timeline.setParent(None);w.layout().removeWidget(splitter);splitter.deleteLater()
   media_page=w.pages['media'][0];self.data.removeTab(self.data.indexOf(media_page));self.shell.panels['media'].takeWidget();library=QWidget();body=QVBoxLayout(library);body.setContentsMargins(4,4,4,4);self.scope=QComboBox();self.scope.addItems(['Project Media','Library']);self.scope.setAccessibleName('Media scope');body.addWidget(self.scope);self.stack=QStackedWidget();self.stack.addWidget(media_page);self.stack.addWidget(self.shell.media_library);body.addWidget(self.stack,1);self.scope.currentIndexChanged.connect(self.stack.setCurrentIndex);self.shell.panels['media'].setWidget(library)
-  for button in media_page.findChildren(QPushButton):button.hide()
+  for button in media_page.findChildren(QPushButton):
+   if not w.import_status.isAncestorOf(button):button.hide()
   tools=QHBoxLayout();media_page.layout().insertLayout(0,tools);button=QPushButton('Import…');button.clicked.connect(lambda:self.shell.safe(w.import_media));tools.addWidget(button);w.media_type=QComboBox();w.media_type.addItems(['All types','Video','Audio','Image']);w.media_type.currentTextChanged.connect(w.filter_media);tools.addWidget(w.media_type,1);tree=w.trees['media'];tree.setColumnHidden(3,True);tree.setColumnHidden(2,True);tree.setContextMenuPolicy(Qt.CustomContextMenu)
   def media_menu(pos):
    menu=QMenu(tree)

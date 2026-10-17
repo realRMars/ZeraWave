@@ -1,5 +1,25 @@
 # ZeraWave engineering and creative working agreement
 
+## October 16 bounded workflow implementation checkpoint
+
+The five human/agent workflow stages are implemented, with source-bound 9.0/10
+Reviewer PASS for each and the connected bounded handoff. Follow
+[ROADMAP's current checkpoint](ROADMAP.md#october-16-bounded-workflow-implementation-checkpoint)
+and [feature contracts](docs/VIDEO_PROJECT.md); do not describe the helper, recipes,
+mixed import, audio-tail/fade fix or complete coarse waveform as wholly unbuilt.
+Older assignment-time pending/no-publication language below retains its original
+scope. Robert's newer direct "commit push etx" authorizes this scoped checkpoint's
+commit, normal push and Pages update, recorded in the
+[publication receipt](work/publication-human-agent-workflow-20261016-013516/review-index.json).
+
+Publication grants no personal acceptance, editor-wide HOLD closure, additional
+implementation, production rebuild or next-worker dispatch. Preserve all recorded
+failures/native-input/listening/A-V/resource limits, one owner/history/audio/render
+architecture, existing caps and unrelated dirty work. Robert's review uses the
+existing portable proof/movie; do not rerun export or a broad qualification matrix.
+Episode 8 content approval remains separate from its pending publication authority.
+
+
 ## October 16 current human and agent workflow assignment
 
 Robert manually assigned the [five-stage human/agent workflow brief](<Plan and brainstorms/ZeraWave-Episode08-Workflow-Builder-Implementation-Prompt-2026-10-16.md>).

@@ -57,7 +57,7 @@ try:
  wait(lambda:not shell.client.snapshot['media_library']['loading']);baseline=deepcopy(shell.owner.values());edit(button('New video'),{'Name':'Qt editable fixture'})
  assert doc()['name']=='Qt editable fixture' and not shell.client.snapshot['media_library']['assets']
  edit(button('Add track…','tracks'),{'Name':'Narration','Kind':'audio'});edit(button('Add track…','tracks'),{'Name':'Captions','Kind':'graphics'})
- with patch.object(QFileDialog,'getOpenFileName',return_value=(str(source),'')):edit(button('Import…','media'),{'Type':'Audio'})
+ with patch.object(QFileDialog,'getOpenFileNames',return_value=([str(source)],'')):click(button('Import…','media'))
  assert len(doc()['media'])==1 and w.trees['media'].topLevelItemCount()==1
  click(button('Place selected…','media'));wait(lambda:w.timeline.placement is None and not w.pending and len(doc()['clips'])==1);assert doc()['clips'][0]['duration']==120;clip_id=doc()['clips'][0]['id'];original=doc()
  edit(button('Trim…','clips'),{'Start frame':10,'End frame (exclusive)':60});trimmed=doc();r=trimmed['clips'][0];assert r['id']==clip_id and r['duration']==50 and r['source_in']==[1,3] and r['audio_window']['offset']==10

@@ -471,5 +471,6 @@ class TimelinePanel(QWidget):
         if self.placement:
             self.placement.poll()
             if self.placement.exited():self.placement=None
-        if self.decorations:self.decorations.poll()
+        if self.decorations:
+            self.decorations.set_document(d);self.decorations.poll()
         self.header_footer.setFixedHeight(self.scroll.horizontalScrollBar().height() if self.scroll.horizontalScrollBar().isVisible() else 0)

@@ -45,7 +45,7 @@ class Inspector(QWidget):
   for box,form in self.groups.values():form.setRowWrapPolicy(QFormLayout.WrapAllRows if self.width()<260 else QFormLayout.WrapLongRows)
   super().resizeEvent(event)
  def spin(self,group,key,label,low,high,factor,section,field,index=None,decimals=3,default=0.):
-  box=BoundSpin(self);box.setRange(low,high);box.setDecimals(decimals);box.setKeyboardTracking(False);box.setAccessibleName(label);box.factor=factor;box.section=section;box.field=field;box.index=index;box.default=default;box.valueChanged.connect(lambda value,b=box:self.queue(b.section,b.field,value/b.factor,b.index,b.intent,raw=b.accessibleName()+': '+b.text(),source=b));box.editingFinished.connect(lambda b=box:self.finish_spin(b));self.groups[group][1].addRow(label,box);self.fields[key]=box
+  box=BoundSpin(self);box.setRange(low,high);box.setDecimals(decimals);box.setKeyboardTracking(False);box.setAccessibleName(label);box.factor=factor;box.section=section;box.field=field;box.index=index;box.default=default;box.valueChanged.connect(lambda value,b=box:self.queue(b.section,b.field,round(value/b.factor) if b.section=='audio' and b.field in ('fade_in','fade_out') else value/b.factor,b.index,b.intent,raw=b.accessibleName()+': '+b.text(),source=b));box.editingFinished.connect(lambda b=box:self.finish_spin(b));self.groups[group][1].addRow(label,box);self.fields[key]=box
  def combo(self,group,key,label,items,section):
   box=BoundCombo();box.inspector=self;box.popup_intent=None;box.addItems(items);box.setAccessibleName(label);box.activated.connect(lambda index,b=box,f=key,s=section:self.combo_changed(b,s,f));self.groups[group][1].addRow(label,box);self.fields[key]=box
  def capture(self):
