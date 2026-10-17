@@ -14,6 +14,10 @@ from video_project import layout_defaults,MAX_DOCUMENT_BYTES,fail
 
 TEXT_BYTES=64*1024*1024
 
+class TextFitError(ValueError):
+ def __init__(self,code,message,details=None):
+  super().__init__(message);self.code=code;self.details=dict(details or {})
+
 _font_registry=None
 _registered_font_files={}
 def existing_font(family):
@@ -46,7 +50,7 @@ def existing_font(family):
     identity=QFontDatabase.addApplicationFont(str(path))
     if identity>=0:_registered_font_files[str(path)]=dict(sha256=hashlib.sha256(path.read_bytes()).hexdigest(),families=QFontDatabase.applicationFontFamilies(identity))
  available={name.casefold() for name in QFontDatabase.families()}
- if family.casefold() not in available:raise ValueError('Requested font family is unavailable: '+family+'. Choose an installed family; no missing-glyph success is reported.')
+ if family.casefold() not in available:raise TextFitError('font_unavailable','Requested font family is unavailable: '+family+'. Choose an installed family; no missing-glyph success is reported.',dict(font_requested=family))
 def checked_font(font,text):
  import unicodedata
  chars={ord(c) for c in text if not c.isspace() and unicodedata.category(c) not in ('Cf','Cc')}
@@ -58,7 +62,7 @@ def checked_font(font,text):
    try:existing_font(family)
    except ValueError:pass
   absent=missing()
- if absent:raise ValueError('Glyphs unavailable in installed Qt fonts: '+', '.join(f'U+{code:04X}' for code in absent[:8])+'. Accepted text retained; choose a covering font.')
+ if absent:raise TextFitError('glyph_unavailable','Glyphs unavailable in installed Qt fonts: '+', '.join(f'U+{code:04X}' for code in absent[:8])+'. Accepted text retained; choose a covering font.',dict(font_requested=font.family(),missing_codepoints=absent[:128],missing_count=len(absent)))
 
 def clock_text(value):
  seconds=max(0,int(value));return f'{seconds//60}:{seconds%60:02}'
@@ -86,12 +90,13 @@ class TextSurface:
    raster_style={key:value for key,value in style.items() if key not in ('bounds','rotation','opacity','keys')}
    key=hashlib.sha256(json.dumps([text,progress,raster_style,width,height],sort_keys=True,ensure_ascii=False).encode()).hexdigest();values.append(dict(item=item,text=text,progress=progress,style=style,size=(width,height),key=key,bytes=width*height*4))
   return values
- def pixels(self,descriptor):
+ def pixels(self,descriptor,*,measure_only=False):
+  self.check()
   d=descriptor;w,h=d['size'];style=d['style'];padding=style['padding'];px=style.get('padding_x',padding);py=style.get('padding_y',padding);radius=style.get('radius',9);image=QImage(w,h,QImage.Format_RGBA8888_Premultiplied);image.fill(Qt.transparent);p=QPainter(image);details={}
   try:
    p.setRenderHints(QPainter.Antialiasing|QPainter.TextAntialiasing);p.setPen(Qt.NoPen);p.setBrush(QColor(style['background']));p.drawRoundedRect(QRectF(0,0,w,h),radius,radius)
    if d['progress'] is not None:
-    p.setBrush(QColor(style['color']));p.drawRect(QRectF(0,0,w*d['progress'],h));details=dict(dynamic='progress')
+    p.setBrush(QColor(style['color']));p.drawRect(QRectF(0,0,w*d['progress'],h));details=dict(dynamic='progress',font_used=False)
    elif d['text']:
     existing_font(style['font']);render_text=d['text'].replace('\r\n','\n').replace('\r','\n').replace('\n','\u2028').replace('\u2029','\u2028');font=QFont(style['font']);font.setPointSizeF(style['size']*72/image.logicalDpiY());font.setBold(style['bold']);checked_font(font,render_text);layout=QTextLayout(render_text,font);option=QTextOption();option.setWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere);option.setTextDirection(Qt.LayoutDirectionAuto);layout.setTextOption(option)
     fmt=QTextCharFormat();fmt.setForeground(QColor(style['color']));stroke=style.get('stroke_width',0)
@@ -103,15 +108,16 @@ class TextSurface:
       if not line.isValid():break
       line.setLineWidth(max(1,w-2*px));lines.append(line);height=max(height,(len(lines)-1)*style['line_spacing']+line.height()) if style.get('line_spacing') else height+line.height()
     finally:layout.endLayout()
-    maximum=style.get('max_lines',0)
-    if maximum and len(lines)>maximum or height+2*py>h+1:raise ValueError('Text does not fit its saved bounds/line limit. Enlarge bounds, reduce font or retime/edit text; no characters were dropped.')
+    maximum=style.get('max_lines',0);widths=[line.naturalTextWidth() for line in lines];resolved=QFontInfo(font).family()
+    details=dict(lines=len(lines),font_requested=style['font'],font_resolved=resolved,font_fallback=resolved.casefold()!=style['font'].casefold(),font_used=True,font_pixels=style['size'],native_size=[w,h],padding=[px,py],available_width=w-2*px,available_height=h-2*py,text_height=height,max_natural_width=max(widths,default=0.),max_lines=maximum,line_heights=[line.height() for line in lines[:128]],line_widths=widths[:128],line_metrics_omitted=max(0,len(lines)-128),font_resolution_note='Installed primary family and codepoint coverage verified; per-glyph fallback names not enumerated.')
+    if (maximum and len(lines)>maximum) or height+2*py>h+1 or max(widths,default=0.)>w-2*px+1:
+     raise TextFitError('text_overflow','Text does not fit its saved native bounds/padding/line limit. Make explicit parameter changes; no characters were dropped.',details)
     valign=style.get('valign','center');y=py if valign=='top' else h-py-height if valign=='bottom' else (h-height)/2
     for line in lines:
      line_width=line.naturalTextWidth();x=px if style['align']=='left' else w-px-line_width if style['align']=='right' else (w-line_width)/2;line.setPosition(QPointF(x,y));y+=style.get('line_spacing') or line.height()
     layout.draw(p,QPointF(0,0))
-    resolved=QFontInfo(font).family()
-    details=dict(lines=len(lines),font_requested=style['font'],font_resolved=resolved,font_fallback=resolved.casefold()!=style['font'].casefold(),font_resolution_note='Installed primary family and codepoint coverage verified; per-glyph fallback names not enumerated.')
   finally:p.end()
+  if measure_only:return dict(width=w,height=h,pts=d['key'],text_details=details)
   import numpy as np
   data=np.frombuffer(image.constBits(),np.uint8).reshape(h,image.bytesPerLine())[:,:w*4].reshape(h,w,4)[::-1].tobytes();return dict(width=w,height=h,pixel_aspect=1.,data=data,pts=d['key'],text_details=details)
  def augment(self,result):

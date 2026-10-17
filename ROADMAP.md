@@ -1,5 +1,32 @@
 # ZeraWave development plan
 
+## October 17 reviewed retrospective and repair checkpoint
+
+The three Episode09 retrospective increments are implemented and each received
+9.0/10 PASS; the connected bounded technical handoff also received 9.0/10 PASS.
+[Actual results](work/episode09-retrospective-20261017-1792225166092712200/FINAL_REPORT.md) and
+[connected verdict](work/reviewer-episode09-retrospective-20261017/increment3/CONNECTED_VERDICT.json) bind source/native
+`e030cc849ed05cadeb4089b1306a723269b579e10a3c5f6f155a6e0388a8090b`
+(395 app entries, three unchanged DLLs). Delivered: canonical audio contribution/
+coverage inspection; ordinary editable v2 card/outro components with native text-fit
+checks; contextual Source/timeline range, duplicate-use and short-sample review.
+Existing authoring/history/audio/GPU owners and capacity limits remain.
+
+Robert authorized commit and normal GitHub push. The [publication receipt](work/publication-retrospective-20261017-211659/review-index.json)
+accounts for 34 retrospective paths, nine additional unique reviewed dialog-folder,
+video-placement and Layers playback-handoff dependency paths, and three shared
+status guides. Earlier task-time uncommitted/pending statements remain historical.
+
+**Next:** Robert reviews a disposable copy of the existing stage3-ui-06 proof,
+checks coverage/component edits/Source handles/duplicate uses, Undo and Save As/reopen,
+then inspects the two retained short samples. No automatic next stage or new export.
+All six original combined CPU/GPU/H264 picture comparisons remain FAIL; separate
+matched GPU/codec checks passed their existing limits and do not repair that gate.
+Physical interaction, listening/correlated A/V, wider performance/resource/editor HOLD
+and personal acceptance remain open. Preserve unrelated work, prior failures, original
+media and Episode8/Episode9 accepted production. No production rebuild or new dispatch.
+
+
 ## October 16 bounded workflow implementation checkpoint
 
 The five human/agent Workflow Stages below are now implemented and each received

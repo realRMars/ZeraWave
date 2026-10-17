@@ -22,9 +22,23 @@ def inspect_all(sources,cancel):
         result.append(inspect_source(source,cancel))
     return result
 
+def placement_channels(document,target,explicit=None):
+    """A direct drop follows its target; Source Place pins its visible choice.
+
+    Source's remembered extraction setting must never silently suppress video
+    from a Library/Project Media drop onto a visual track.
+    """
+    row=next((t for t in document['tracks'] if t['id']==target),None)
+    if target is not None and row is None:raise ValueError('Placement target track no longer exists. Nothing was accepted.')
+    if explicit is None:return 'Audio only' if row and row['kind']=='audio' else 'A/V linked'
+    if explicit not in ('A/V linked','Video only','Audio only'):raise ValueError('Choose supported Source placement channels.')
+    if row and explicit=='Audio only' and row['kind']!='audio':raise ValueError('Source is set to Audio only extraction. Choose an Audio track, or select A/V linked / Video only for a video track. Nothing was accepted.')
+    if row and explicit=='Video only' and row['kind']=='audio':raise ValueError('Source is set to Video only. Choose a Video track, or select A/V linked / Audio only for an audio track. Nothing was accepted.')
+    return explicit
+
 class Placement:
-    def __init__(self,panel,mime,track,frame):
-        self.panel=panel;w=panel.workspace;self.binding=w.binding();self.document=deepcopy(w.document());self.target=track;self.frame=frame;self.mode=panel.canvas.mode;self.channels=panel.source_mode.currentText();self.cancel=threading.Event();self.finished=False;self.dispatched=False;self.library=False;self.range=None
+    def __init__(self,panel,mime,track,frame,channels=None):
+        self.panel=panel;w=panel.workspace;self.binding=w.binding();self.document=deepcopy(w.document());self.target=track;self.frame=frame;self.mode=panel.canvas.mode;self.channels=placement_channels(self.document,track,channels);self.cancel=threading.Event();self.finished=False;self.dispatched=False;self.library=False;self.range=None
         if mime.hasFormat('application/x-zerawave-project-media'):
             raw=bytes(mime.data('application/x-zerawave-project-media'));assets={a['id']:a for a in self.document['media']}
         elif mime.hasFormat('application/x-zerawave-assets'):
@@ -40,7 +54,7 @@ class Placement:
         if len(ids)==1 and source.asset and (source.asset['id']==ids[0] or os.path.normcase(source.asset['location']['path'])==os.path.normcase(self.sources[0].get('path') or self.sources[0]['location']['path'])):
             if getattr(source,'retained_range',None) is not None or getattr(w,'transport_future',None) or getattr(w,'transport_desired',None):raise ValueError('Source range/transport is still reconciling or rejected. Resolve it before a new placement; this drop was not admitted.')
             self.range=dict(sha256=source.asset['sha256'],fps=deepcopy(source.fps),interval=list(source.range),natural_end=source.range[1]==source.end)
-        self.pool=ThreadPoolExecutor(max_workers=1,thread_name_prefix='Timeline source inspection');self.future=self.pool.submit(inspect_all,self.sources,self.cancel);panel.canvas.notify('Preparing dropped source identity/range • no project edit accepted yet. Escape cancels; later tool/mode changes do not alter this drop.')
+        self.pool=ThreadPoolExecutor(max_workers=1,thread_name_prefix='Timeline source inspection');self.future=self.pool.submit(inspect_all,self.sources,self.cancel);panel.canvas.notify('Preparing '+self.channels+' placement • no project edit accepted yet. Escape cancels; later channel/tool changes do not alter this drop.')
     def poll(self):
         if self.finished or not self.future.done():return
         if getattr(self.panel.workspace,'transport_future',None) or getattr(self.panel.workspace,'transport_desired',None):return
@@ -57,7 +71,7 @@ class Placement:
             if self.range and assets[0]['sha256']!=self.range['sha256']:raise ValueError('Source changed after its In/Out selection. No placement accepted; refresh and select the range again.')
             changes,rows=self.plan(assets)
             if len(changes)>128:raise ValueError('This placement exceeds the existing128-change atomic batch limit. Choose fewer new references; nothing was accepted.')
-            self.dispatched=bool(self.panel.canvas.perform('Place Library media • '+self.mode,changes,self.binding,{r['row']['id']:r['row'] for r in rows}))
+            self.dispatched=bool(self.panel.canvas.perform('Place media • '+self.mode+' • '+self.channels,changes,self.binding,{r['row']['id']:r['row'] for r in rows}))
         except InterruptedError:
             if not self.panel.closed:self.panel.canvas.notify('Placement cancelled before acceptance. No automatic resubmission.')
         except Exception as exc:

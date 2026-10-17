@@ -18,9 +18,25 @@ MAX_CACHE_BYTES=96*1024*1024
 MAX_STAGING_BYTES=128*1024*1024
 HEADER=64
 
+class MediaSourceUnavailable(ValueError):pass
+class MediaSourceChanged(ValueError):pass
+class MediaSourceInvalid(ValueError):pass
+
+def failure_kind(exc):
+    # Typed source failures must not be confused with recoverable resource/codec
+    # service errors. This labels an observed failure; it never retries by itself.
+    if isinstance(exc,MediaSourceChanged):return 'source_changed'
+    if isinstance(exc,MediaSourceInvalid):return 'source_invalid'
+    if isinstance(exc,(MediaSourceUnavailable,FileNotFoundError,PermissionError,IsADirectoryError,NotADirectoryError)):return 'source_unavailable'
+    try:
+        import av
+        if isinstance(exc,av.error.InvalidDataError):return 'source_invalid'
+    except ImportError:pass
+    return 'decode_retryable'
+
 def backend():
     try:import av;return av
-    except ImportError:raise ValueError('Video requires PyAV 19.0.1; the decoder is unavailable in this environment. Still images remain available.')
+    except ImportError:raise MediaSourceUnavailable('Video requires PyAV 19.0.1; the decoder is unavailable in this environment. Still images remain available.')
 
 def inspect_animation(path,cancel):
     av=backend()
@@ -350,7 +366,7 @@ class SourceLane:
             return bool(not self.owner.closed and not self.retiring and state and state['visible'] and not state.get('release') and self.owner.stamp(state)[:3]==job['stamp'][:3] and not job['cancel'].is_set())
     def open(self,job):
         s=job['state']
-        if s['key'][2] is not None and Path(s['path']).stat().st_mtime_ns!=s['key'][2]:raise ValueError('Animated source changed; Refresh it before use.')
+        if s['key'][2] is not None and Path(s['path']).stat().st_mtime_ns!=s['key'][2]:raise MediaSourceChanged('Animated source changed; Refresh it before use.')
         if s['type']=='Sprite':
             from media_registry import decode_image
             meta,data=decode_image(s['path'],job['cancel']);self.image=(meta['width'],meta['height'],data);capacity=len(data)
@@ -358,7 +374,7 @@ class SourceLane:
             self.decoder=DecoderWindow(s['path'],job['budget']);self.decoder.pool=self.owner.plane_budget
             c=self.decoder.stream.codec_context;capacity=c.width*c.height*4
         if not self.source_valid(job):return
-        if capacity<4 or capacity>MAX_FRAME_PIXELS*4:raise ValueError('Invalid animated native frame capacity.')
+        if capacity<4 or capacity>MAX_FRAME_PIXELS*4:raise MediaSourceInvalid('Invalid animated native frame capacity.')
         with self.owner.condition:
             if self.owner.staging_bytes+capacity*2>MAX_STAGING_BYTES:raise CachePressure('Waiting for shared staging retirement.')
             self.owner.staging_bytes+=capacity*2;self.capacity=capacity
@@ -495,7 +511,7 @@ class SourceLane:
         if not self.valid(job):return
         if frame is not None and self.last!=(pts,s['generation']):
             w,h,data=frame
-            if len(data)!=w*h*4 or len(data)>self.capacity:raise ValueError('Invalid animated converted frame bounds.')
+            if len(data)!=w*h*4 or len(data)>self.capacity:raise MediaSourceInvalid('Invalid animated converted frame bounds.')
             sequence=self.sequence+2;slot=(sequence//2)%2
             # Copy only the inactive slot, outside the control lock. Commit a
             # short seqlock header only after all identity guards pass again.
@@ -514,6 +530,7 @@ class SourceLane:
         with o.condition:
             self.last_completed=(job['stamp'],job['target'])
             if self.valid(job) and self.identity in o.results:
+                o.layers[self.identity]['error_kind']=''
                 o.results[self.identity]['ready_at_request']=selection_ready
                 o.results[self.identity]['selection_requested_pts']=target
         if s.get('release_decoder') and self.decoder:
@@ -552,7 +569,7 @@ class SourceLane:
                     # separate bounded ledger. Never fail a new transport epoch.
                     with o.condition:
                         if self.valid(job):
-                            s=o.layers[self.identity];s['error']=str(exc)[:240];s['error_stamp']=job['stamp'];s['playing']=False;s['mode']='failed';o.failed+=1
+                            s=o.layers[self.identity];s['error']=str(exc)[:240];s['error_kind']=failure_kind(exc);s['error_stamp']=job['stamp'];s['playing']=False;s['mode']='failed';o.failed+=1
                         else:o.stale+=1
                     if self.decoder:
                         self.decoder_needs_close=True
@@ -606,7 +623,7 @@ class MediaFrames:
                 old=self.layers.get(row['id'])
                 if old:self.advance(old,clock)
                 changed=old is None or old['key']!=key or old['settings']!=settings or old['visible']!=visible
-                state=old if not changed else deepcopy(old) if old and old['key']==key else dict(key=key,path=asset['path'],type=row['type'],playing=False,elapsed=0.,at=clock,error='',waiting='',position=settings['start'],mode='paused',direction=1,turn=0)
+                state=old if not changed else deepcopy(old) if old and old['key']==key else dict(key=key,path=asset['path'],type=row['type'],playing=False,elapsed=0.,at=clock,error='',waiting='',position=settings['start'],mode='paused',direction=1,turn=0,error_kind='')
                 if changed:
                     rate_only=bool(old and old['key']==key and old['visible']==visible and all(old['settings'][k]==settings[k] for k in settings if k!='rate'))
                     if old and old['key']==key and old['settings']!=settings:
@@ -672,7 +689,7 @@ class MediaFrames:
             for identity,s in self.layers.items():
                 self.advance(s,now);frame=self.results.get(identity);lag=abs(s['position']-frame['pts']) if frame else None;held=bool(frame and (s['error'] or not frame.get('ready_at_request',True) or lag>.1))
                 status='cancelled' if self.closed or s.get('release') or not s['visible'] else 'failed' if s['error'] else 'waiting' if frame is None or s['playing'] and not self.frozen and held else 'paused' if self.frozen else s['mode']
-                result[identity]=dict(playing=s['playing'],position=s['position'],duration=s['settings']['end'],source=list(s['key']),seek_pending=s.get('seek_pending',False),step_pending=deepcopy(s.get('step_request')),error=s['error'],waiting=s['waiting'],state=status,transport=s['mode'],direction=s['direction'],generation=s['generation'],epoch=s['epoch'],turn=s['turn'],frame=deepcopy(frame),silent=True,
+                result[identity]=dict(playing=s['playing'],position=s['position'],duration=s['settings']['end'],source=list(s['key']),seek_pending=s.get('seek_pending',False),step_pending=deepcopy(s.get('step_request')),error=s['error'],error_kind=s.get('error_kind',''),waiting=s['waiting'],state=status,transport=s['mode'],direction=s['direction'],generation=s['generation'],epoch=s['epoch'],turn=s['turn'],frame=deepcopy(frame),silent=True,
                     held=held,lag_seconds=lag,last_good_policy='Only this visible source and generation; when decoding lags, best cached floor (nearest for ping-pong) may replace a farther last-good image, explicitly held, not ready at requested time. Paused/seek demands stay exact.')
             return result
     def resources(self):

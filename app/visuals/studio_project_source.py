@@ -4,22 +4,39 @@ from copy import deepcopy
 from types import SimpleNamespace
 import threading
 from PySide6.QtCore import Qt,QTimer,QEvent
-from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QLabel,QSlider,QSpinBox,QComboBox,QPushButton,QDoubleSpinBox
+from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QLabel,QSlider,QSpinBox,QComboBox,QPushButton,QDoubleSpinBox,QScrollArea,QSizePolicy,QBoxLayout,QLayout
 
 class SourcePanel(QWidget):
  def __init__(self,workspace):
   super().__init__();self.workspace=workspace;self.pool=ThreadPoolExecutor(max_workers=1,thread_name_prefix='Source inspection');self.future=None;self.cancel=threading.Event();self.next_source=None;self.prepared_asset=None;self.asset=None;self.preview=None;self.retiring=[];self.closed=False;self.serial=0;self.frame=0;self.range=[0,1];self.version=None;self.request_id=None;self.end=1;self.fps=[30,1]
-  self.range_intent=None;self.retained_range=None;self.seek_intent=None
+  self.range_intent=None;self.retained_range=None;self.seek_intent=None;self.control_rows=[]
   layout=QVBoxLayout(self);layout.setContentsMargins(4,4,4,4);layout.setSpacing(3);self.heading=QLabel('Double-click media to preview.');self.heading.setWordWrap(True);layout.addWidget(self.heading);self.metadata=QLabel();layout.addWidget(self.metadata);self.host=QVBoxLayout();layout.addLayout(self.host,1)
-  self.seek=QSlider(Qt.Horizontal);self.seek.setAccessibleName('Source frame');self.seek.setMinimumHeight(24);self.seek.valueChanged.connect(lambda frame:workspace.shell.safe(lambda:self.seek_to(frame)));layout.addWidget(self.seek);row=QHBoxLayout();layout.addLayout(row);self.in_box=QSpinBox();self.out_box=QSpinBox()
+  # Scroll authoring controls only. The native Source preview remains a
+  # direct sibling, outside any scroll viewport/graphics-host reparenting.
+  self.controls_scroll=QScrollArea();self.controls_scroll.setWidgetResizable(True);self.controls_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff);self.controls_scroll.setMinimumHeight(60);self.controls_body=QWidget();self.controls_body.setMinimumWidth(0);self.controls_body.setSizePolicy(QSizePolicy.Ignored,QSizePolicy.Preferred);self.controls_scroll.setWidget(self.controls_body);layout.addWidget(self.controls_scroll,2);layout=QVBoxLayout(self.controls_body);layout.setContentsMargins(0,0,0,0);layout.setSpacing(3)
+  # Dynamic expansion/reflow must update the scroll CONTENT height, rather
+  # than allowing tall children to overflow a viewport-sized content widget.
+  # Horizontal sizing stays unconstrained so narrow panes still wrap/fit.
+  layout.setSizeConstraints(QLayout.SetNoConstraint,QLayout.SetMinimumSize)
+  self.seek=QSlider(Qt.Horizontal);self.seek.setAccessibleName('Source frame');self.seek.setMinimumHeight(24);self.seek.valueChanged.connect(lambda frame:workspace.shell.safe(lambda:self.seek_to(frame)));layout.addWidget(self.seek);row=QBoxLayout(QBoxLayout.LeftToRight);self.control_rows.append(row);layout.addLayout(row);self.in_box=QSpinBox();self.out_box=QSpinBox()
   self.seek.sliderPressed.connect(lambda:setattr(self,'seek_intent',(self.version,self.workspace.binding())));self.seek.sliderReleased.connect(lambda:setattr(self,'seek_intent',None))
   for text,box in [('In',self.in_box),('Out',self.out_box)]:
    box.setAccessibleName('Source '+text+(' exclusive' if text=='Out' else ''));box.setRange(0,1);box.setKeyboardTracking(False);row.addWidget(QLabel(text));row.addWidget(box,1);box.editingFinished.connect(lambda:workspace.shell.safe(self.mark_range));box.installEventFilter(self);box.valueChanged.connect(lambda _:self.range_edited());box.lineEdit().textEdited.connect(lambda _:self.range_edited())
   self.range_retry=QPushButton('Apply retained range to current Source');self.range_retry.clicked.connect(lambda:workspace.shell.safe(self.retry_range));self.range_retry.hide();layout.addWidget(self.range_retry)
-  self.still_row=QWidget();line=QHBoxLayout(self.still_row);line.setContentsMargins(0,0,0,0);line.addWidget(QLabel('Still seconds'));self.still_seconds=QDoubleSpinBox();self.still_seconds.setRange(.001,86400);self.still_seconds.setDecimals(3);self.still_seconds.setValue(5.);self.still_seconds.setKeyboardTracking(False);self.still_seconds.setAccessibleName('Still placement duration seconds');self.still_seconds.setToolTip('New still placements only; maps down to whole sequence frames, minimum one. Existing clips stay unchanged.');line.addWidget(self.still_seconds);layout.addWidget(self.still_row);self.still_row.hide()
-  row=QHBoxLayout();layout.addLayout(row);self.channels=workspace.timeline.source_mode;self.channels.setParent(self);row.addWidget(self.channels,1);self.channels.show();button=QPushButton('Place');button.setToolTip('Place the current Source In/Out using the Timeline mode');button.clicked.connect(lambda:workspace.shell.safe(self.place));row.addWidget(button)
-  self.info=QLabel();self.info.setWordWrap(True);layout.addWidget(self.info);self.timer=QTimer(self);self.timer.setInterval(30);self.timer.timeout.connect(lambda:workspace.shell.safe(self.poll));self.timer.start();self.setMinimumSize(180,220);self.setFocusPolicy(Qt.StrongFocus)
+  self.still_row=QWidget();line=QBoxLayout(QBoxLayout.LeftToRight,self.still_row);self.control_rows.append(line);line.setContentsMargins(0,0,0,0);line.addWidget(QLabel('Still seconds'));self.still_seconds=QDoubleSpinBox();self.still_seconds.setRange(.001,86400);self.still_seconds.setDecimals(3);self.still_seconds.setValue(5.);self.still_seconds.setKeyboardTracking(False);self.still_seconds.setAccessibleName('Still placement duration seconds');self.still_seconds.setToolTip('New still placements only; maps down to whole sequence frames, minimum one. Existing clips stay unchanged.');line.addWidget(self.still_seconds);layout.addWidget(self.still_row);self.still_row.hide()
+  row=QBoxLayout(QBoxLayout.LeftToRight);self.control_rows.append(row);layout.addLayout(row);self.channels=workspace.timeline.source_mode;self.channels.setParent(self);row.addWidget(self.channels,1);self.channels.show();self.place_button=QPushButton();self.place_button.clicked.connect(lambda:workspace.shell.safe(self.place));row.addWidget(self.place_button)
+  from studio_project_review import SourceReview
+  self.review=SourceReview(self);layout.addWidget(self.review)
+  self.info=QLabel();self.info.setWordWrap(True);layout.addWidget(self.info);self.channels.setToolTip('Source Place only. Direct Library/Project Media drops follow the target track: visual/empty adds A/V, audio extracts audio.');self.channels.currentTextChanged.connect(self.channel_note);self.channel_note();self.timer=QTimer(self);self.timer.setInterval(30);self.timer.timeout.connect(lambda:workspace.shell.safe(self.poll));self.timer.start();self.setMinimumSize(180,220);self.setFocusPolicy(Qt.StrongFocus)
   self.still_seconds.valueChanged.connect(lambda *_:self.still_note())
+ def resizeEvent(self,event):
+  for row in getattr(self,'control_rows',[]):row.setDirection(QBoxLayout.TopToBottom if self.width()<320 else QBoxLayout.LeftToRight)
+  super().resizeEvent(event)
+ def channel_note(self):
+  channels=self.channels.currentText();self.place_button.setText('Place '+channels);self.place_button.setToolTip('Place current Source In/Out as '+channels+' using the Timeline mode. Single-channel placement must match the selected target track. Library drops use their target, independently.')
+  if channels=='Audio only':self.info.setText('Audio-only extraction: no video will be added. Choose an Audio track, or change to A/V linked / Video only for a visual target.')
+  elif channels=='Video only':self.info.setText('Video-only placement: no audio will be added. Choose a Video track or change Source channels.')
+  else:self.info.setText('A/V linked placement: video plus embedded audio when present. Source Out is exclusive.')
  def still_note(self):
   if self.asset and self.asset['kind']=='Image':
    from fractions import Fraction
@@ -30,6 +47,7 @@ class SourcePanel(QWidget):
  def poll(self):
   self.retiring=[p for p in self.retiring if not self.retire_finished(p)]
   if self.closed:return
+  self.review.poll()
   if self.future and self.future.done():
    future=self.future;self.future=None
    try:
@@ -51,7 +69,7 @@ class SourcePanel(QWidget):
    outcome=getattr(self.workspace,'last_outcome',{})
    if outcome.get('id')==self.request_id:
     self.request_id=None
-    if outcome.get('status')!='accepted':self.info.setText('Source not opened: '+str(outcome.get('error',{}).get('message','Outcome unknown; inspect status before retry.')))
+    if outcome.get('status')!='accepted':self.info.setText('Source not opened: '+str(outcome.get('error',{}).get('message','Outcome unknown; inspect status before retry.')));self.heading.setText('SOURCE • '+self.asset['name'] if self.asset else 'Double-click media to preview.')
   if self.asset:
    clock=self.clock();self.frame=clock.get('frame',self.frame);self.range=[clock.get('range_in',0),clock.get('range_out',self.end)]
    for box,value in [(self.seek,min(self.frame,self.end-1)),(self.in_box,self.range[0]),(self.out_box,self.range[1])]:
@@ -106,13 +124,16 @@ class SourcePanel(QWidget):
   self.workspace.transport('range',values,target='source',source_epoch=state['epoch'],binding=self.workspace.binding());self.retained_range=None;self.range_intent=None;self.range_retry.hide()
  def place(self):
   if not self.asset:raise ValueError('Load a Source first.')
+  from studio_timeline_media import placement_channels
+  channels=placement_channels(self.workspace.document(),self.workspace.timeline.canvas.current_track,self.channels.currentText())
   from PySide6.QtCore import QMimeData
   import json
   mime=QMimeData();d=self.workspace.document();known=next((a for a in d['media'] if a['id']==self.asset['id']),None)
   if known:mime.setData('application/x-zerawave-project-media',json.dumps([known['id']]).encode())
   else:mime.setData('application/x-zerawave-assets',json.dumps([self.asset['id']]).encode())
-  self.workspace.timeline.place_mime(mime,self.workspace.timeline.canvas.current_track,self.workspace.transport_state().get('frame',0))
+  self.workspace.timeline.place_mime(mime,self.workspace.timeline.canvas.current_track,self.workspace.transport_state().get('frame',0),channels=channels)
  def hideEvent(self,event):
+  self.review.cancel()
   self.cancel.set();self.next_source=self.prepared_asset=None;self.retire_preview()
   if not self.closed:
    if self.request_id:self.workspace.shell.safe(lambda:self.workspace.client.submit('project',request=dict(op='cancel',operation_id=self.request_id)))
@@ -123,5 +144,5 @@ class SourcePanel(QWidget):
   state=self.workspace.state().get('source',{})
   if state.get('document') and self.preview is None:self.install(state)
  def close_resources(self):
-  self.closed=True;self.timer.stop();self.cancel.set();self.next_source=self.prepared_asset=None;self.retire_preview();self.pool.shutdown(wait=False,cancel_futures=True)
- def exited(self):return (self.future is None or self.future.done()) and all(p.exited() for p in self.retiring) and (not self.closed or all(not t.is_alive() for t in self.pool._threads))
+  self.closed=True;self.review.close_resources();self.timer.stop();self.cancel.set();self.next_source=self.prepared_asset=None;self.retire_preview();self.pool.shutdown(wait=False,cancel_futures=True)
+ def exited(self):return (self.future is None or self.future.done()) and all(p.exited() for p in self.retiring) and (not self.closed or all(not t.is_alive() for t in self.pool._threads)) and self.review.exited()

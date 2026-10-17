@@ -68,6 +68,8 @@ class ProjectWorkspace(QWidget):
    self.poll_pending();self.poll_transport();self.import_status.poll();state=self.state();token=(state.get('epoch'),state.get('revision'),state.get('version'))
    if token!=self.pulse_token:self.pulse_token=token;self.refresh()
    panels=getattr(self,'video_panels',None)
+   if panels is not None:
+    panels.inspector.audio_inspection.poll();panels.mixer.audio_inspection.poll()
    if panels is None or not panels.active:return
    clock=self.transport_state();source=self.source_transport_state();stamp=(clock.get('epoch'),clock.get('revision'),clock.get('generation'),clock.get('frame'),clock.get('playing'),source.get('epoch'),source.get('generation'),source.get('frame'),source.get('playing'),panels.preview_transport.target)
    if stamp!=self.clock_token:
@@ -168,7 +170,7 @@ class ProjectWorkspace(QWidget):
  def refresh(self):
   self.poll_pending();self.poll_transport()
   if hasattr(self,'video_panels'):self.video_panels.refresh()
-  self.timeline.refresh();s=self.state();d=s.get('document');recovery_error=s.get('recovery',{}).get('error','')
+  self.timeline.refresh();s=self.state();self.remember_dialog_folders(s);d=s.get('document');recovery_error=s.get('recovery',{}).get('error','')
   if recovery_error and recovery_error!=getattr(self,'last_recovery_error',''):self.notice.setText('Automatic recovery metadata could not be written: '+recovery_error+' Current accepted edits still need Save/Save As.')
   self.last_recovery_error=recovery_error;busy=bool(self.pending or any(o['status']=='preparing' for o in s.get('operations',[])))
   exporting=next((o for o in s.get('operations',[]) if o['id']==self.export_id),None)
@@ -243,11 +245,30 @@ class ProjectWorkspace(QWidget):
   if not ok:return
   binding=self.binding();name=QLineEdit('Untitled video')
   if self.dialog('New video project',[('Name',name)]):self.submit('new',binding=binding,name=name.text(),discard=discard);self.show_workspace()
+ def remember_dialog_folders(self,state):
+  # These are confirmed owner paths,never requested/pending destinations.
+  updates={};project=state.get('path')
+  if state.get('saved_revision') is not None and isinstance(project,str) and Path(project).is_absolute() and Path(project).suffix.lower()=='.zwv':updates['project']=str(Path(project).parent)
+  exported=next((o for o in reversed(state.get('operations',[])) if o.get('op')=='export' and o.get('status')=='exported'),None)
+  if exported and exported.get('id')!=getattr(self,'dialog_export_operation',None):
+   path=exported.get('result',{}).get('path')
+   if isinstance(path,str) and Path(path).is_absolute() and Path(path).suffix.lower()=='.mp4':updates['export']=str(Path(path).parent);self.dialog_export_operation=exported['id']
+  previous=self.shell.preferences.get('video_dialog_folders',{});previous=previous if isinstance(previous,dict) else {}
+  if any(previous.get(k)!=v for k,v in updates.items()):self.shell.preferences['video_dialog_folders']=dict(previous,**updates)
+ def dialog_directory(self,kind):
+  folders=self.shell.preferences.get('video_dialog_folders',{});folders=folders if isinstance(folders,dict) else {};current=self.state().get('path');current=str(Path(current).parent) if isinstance(current,str) and Path(current).is_absolute() else None;root=Path(__file__).resolve().parents[2]
+  candidates=([folders.get('export')] if kind=='export' else [])+[current,folders.get('project'),str(root/'work'),str(root)]
+  for value in candidates:
+   if isinstance(value,str) and Path(value).is_absolute():
+    try:
+     if Path(value).is_dir():return Path(value)
+    except OSError:pass
+  return root
  def open(self,path=None):
   ok,discard=self.replace_allowed()
   if not ok:return
   binding=self.binding()
-  if not path:path,_=QFileDialog.getOpenFileName(self,'Open video project',str(Path.home()),'ZeraWave video project (*.zwv)')
+  if not path:path,_=QFileDialog.getOpenFileName(self,'Open video project',str(self.dialog_directory('project')),'ZeraWave video project (*.zwv)')
   if path:self.submit('open',binding=binding,path=path,discard=discard);self.show_workspace()
  def show_workspace(self):
   if hasattr(self,'video_panels'):self.video_panels.activate()
@@ -259,7 +280,7 @@ class ProjectWorkspace(QWidget):
    allow_missing=QMessageBox.question(self,'Missing project media','Save editable reference metadata while these sources are missing? Their content remains unresolved. Relink before playback/export can use it.',QMessageBox.Yes|QMessageBox.No)==QMessageBox.Yes
    if not allow_missing:return
   if not path:path=s.get('path') if not save_as else None
-  if not path:path,_=QFileDialog.getSaveFileName(self,'Save video project with managed media',str(Path.home()/'video.zwv'),'ZeraWave video project (*.zwv)')
+  if not path:path,_=QFileDialog.getSaveFileName(self,'Save video project with managed media',str(self.dialog_directory('project')/'video.zwv'),'ZeraWave video project (*.zwv)')
   if path:self.last_save=self.submit('save',binding=binding,path=path,portable=True,allow_missing=allow_missing);return self.last_save
  def project_settings(self):
   d=self.document();binding=self.binding();values=d['settings'];width=QSpinBox();width.setRange(16,8192);width.setValue(values['width']);height=QSpinBox();height.setRange(16,8192);height.setValue(values['height']);numerator=QSpinBox();numerator.setRange(1,1000000);numerator.setValue(values['fps'][0]);denominator=QSpinBox();denominator.setRange(1,1000000);denominator.setValue(values['fps'][1])
@@ -280,7 +301,7 @@ class ProjectWorkspace(QWidget):
    scope.currentIndexChanged.connect(choose_scope);choose_scope(0)
    if not self.dialog('Export Video — frozen project revision',[('Output',details),('H264 CRF',quality),('Range',scope),('Sequence In frame',begin),('Sequence Out exclusive',out)]):return
    crf=quality.value();range_frames=[begin.value(),out.value()]
-  if not path:path,_=QFileDialog.getSaveFileName(self,'Export Video MP4',str(Path.home()/'video.mp4'),'MP4 H264/AAC (*.mp4)')
+  if not path:path,_=QFileDialog.getSaveFileName(self,'Export Video MP4',str(self.dialog_directory('export')/'video.mp4'),'MP4 H264/AAC (*.mp4)')
   if path:return self.submit('export',binding=binding,path=path,crf=crf,**({'range':range_frames} if range_frames is not None else {}))
  def close_project(self):
   ok,discard=self.replace_allowed()

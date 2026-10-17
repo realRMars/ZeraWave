@@ -116,20 +116,8 @@ class NativeSource:
   if self.closed:return
   self.container.close();self.closed=True;self.budget.release(self.bytes);self.chunks.clear();self.bytes=0;self.iterator=self.resampler=None
 
-def curve(recipe,frames,length):
- if recipe['mute']:return np.zeros(len(frames),np.float32)
- gain=np.full(len(frames),recipe['gain'],np.float64)
- if recipe['fade_in']:gain*=np.clip(frames/recipe['fade_in'],0,1)
- if recipe['fade_out']:gain*=np.clip((length-frames)/recipe['fade_out'],0,1)
- if recipe['envelope']:
-  points=np.asarray(recipe['envelope'],float);gain*=np.interp(frames,points[:,0],points[:,1])
- return gain.astype(np.float32)
+from project_mix_factors import curve,balance_pcm,clip_curve,eligible
 
-def balance_pcm(pcm,pan):
- """Legacy mono duplicate/center unity; linear stereo channel balance."""
- if pan>0:pcm[:,0]*=1.-pan
- elif pan<0:pcm[:,1]*=1.+pan
- return pcm
 def signal_levels(pcm):
  return dict(peak=np.max(np.abs(pcm),axis=0).astype(float).tolist(),rms=np.sqrt(np.mean(pcm.astype(np.float64)**2,axis=0)).tolist(),clipped=np.any(np.abs(pcm)>=1.,axis=0).tolist())
 
@@ -168,9 +156,8 @@ class Mixer:
   if graph is None:
    tracks={r['track']['id']:r['track'] for r in items};graph=dict(tracks=list(tracks.values()),buses=[],master=dict(gain=1.,mute=False),missing=[])
   if graph.get('missing'):raise ValueError('Missing audio destination: '+', '.join(r['name'] for r in graph['missing'])+'. Route deliberately; no fallback to Master.')
-  tracks={t['id']:t for t in graph['tracks']};buses={b['id']:b for b in graph['buses']};any_solo=any(t.get('solo',False) for t in tracks.values()) or any(b['solo'] for b in buses.values())
-  def eligible(track):return not track['audio']['mute'] and (not any_solo or track.get('solo',False) or buses.get(track.get('output'),{}).get('solo',False))
-  active=[r for r in items if not r['clip']['audio']['mute'] and eligible(r['track'])];needed=set()
+  tracks={t['id']:t for t in graph['tracks']};buses={b['id']:b for b in graph['buses']}
+  active=[r for r in items if not r['clip']['audio']['mute'] and eligible(r['track'],tracks,buses)];needed=set()
   for item in active:self.verify(item['asset'],cancel);needed.add(clock_key(item,plan))
   if len(needed)>16:raise ValueError('Sixteen active project audio readers are supported; requested mix rejected.')
   for key in list(self.readers):
@@ -191,10 +178,7 @@ class Mixer:
    before=time.perf_counter();pcm=reader.read(Fraction(*item['source_time']),Fraction(*clip['rate']),item['count'],cancel);decode_ms+=(time.perf_counter()-before)*1000
    cache=sum(r.bytes for r in self.readers.values());scratch=4*1024*1024
    if cache+scratch>self.budget.limit:raise MemoryError('Project canonical audio/cache/scratch exceeds32MiB; no mix samples dropped.')
-   self.peak=max(self.peak,self.budget.peak);before=time.perf_counter();offset=item['offset'];global_samples=plan['start']+offset+np.arange(item['count']);fps=Fraction(*plan['fps']);local=(global_samples/RATE-float(Fraction(clip['start'])/fps))*float(fps)+clip['audio_window']['offset'];track_frames=global_samples/RATE*float(fps)
-   gains=curve(clip['audio'],local,clip['audio_window']['duration'])
-   for fade in item.get('transition_fades',[]):
-    phase=np.clip((track_frames-fade['start'])/fade['duration'],0.,1.);gains*=phase if fade['side']==1 else 1.-phase
+   self.peak=max(self.peak,self.budget.peak);before=time.perf_counter();offset=item['offset'];global_samples=plan['start']+offset+np.arange(item['count']);fps=Fraction(*plan['fps']);gains=clip_curve(item,global_samples,fps)
    pcm*=gains[:,None];balance_pcm(pcm,clip['audio'].get('pan',0.));key=item['track']['id']
    if key not in track_pcm:track_pcm[key]=np.zeros((count,2),np.float32)
    track_pcm[key][offset:offset+len(pcm)]+=pcm;gain_ms+=(time.perf_counter()-before)*1000

@@ -38,6 +38,8 @@ class Inspector(QWidget):
   self.combo('Text style','align','Alignment',['left','center','right'],'style');self.bold=QCheckBox('Bold');self.bold.clicked.connect(lambda value:self.queue('style','bold',value));self.groups['Text style'][1].addRow(self.bold)
   from studio_project_visual_controls import VisualControls,EnvelopeEditor
   self.group('Effects');self.group('Keyframes');self.group('Transition');self.visual=VisualControls(self);self.groups['Effects'][1].addRow(self.visual.effects_panel);self.groups['Keyframes'][1].addRow(self.visual.keys_panel);self.groups['Transition'][1].addRow(self.visual.transition_panel);self.envelope=EnvelopeEditor(self);self.groups['Audio'][1].addRow(self.envelope)
+  from studio_project_audio_inspection import AudioInspection
+  self.audio_inspection=AudioInspection(w);self.groups['Audio'][1].addRow(self.audio_inspection)
   self.form.addStretch();self.setMinimumWidth(180)
  def group(self,name):
   box=QWidget();layout=QVBoxLayout(box);layout.setContentsMargins(0,0,0,0);layout.setSpacing(3);header=QToolButton();header.setText(name);header.setToolButtonStyle(Qt.ToolButtonTextBesideIcon);header.setCheckable(True);header.setChecked(True);header.setArrowType(Qt.DownArrow);layout.addWidget(header);body=QWidget();form=QFormLayout(body);form.setContentsMargins(5,2,5,5);form.setSpacing(3);form.setRowWrapPolicy(QFormLayout.WrapLongRows);layout.addWidget(body);header.toggled.connect(lambda checked:(body.setVisible(checked),header.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)));self.form.addWidget(box);self.groups[name]=(box,form)
@@ -141,6 +143,7 @@ class Inspector(QWidget):
    if key:self.text_intent=None;self.text_rejected=False
   self.w.shell.safe(submit)
  def refresh(self):
+  self.audio_inspection.poll()
   if self.updating:return
   w=self.w;s=w.state();c=w.timeline.canvas;selected=set(c.selection);category=c.selected[0] if c.selected else None;rows=[r for r in (s.get('document') or {}).get(category,[]) if r['id'] in selected] if category else [];frame=w.transport_state().get('frame',0);version=(s.get('epoch'),s.get('revision'),tuple(sorted(selected)),category,bool(w.pending),frame if any(r.get('layout',r.get('style',{})).get('keys') for r in rows) else None)
   if version==self.version:

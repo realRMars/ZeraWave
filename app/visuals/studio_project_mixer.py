@@ -246,7 +246,7 @@ class TrackMixer(QWidget):
 
  def __init__(self,workspace):
 
-  super().__init__();self.workspace=workspace;self.strips={};self.version=None;self.closed=False;self.retained_numeric=None;layout=QVBoxLayout(self);layout.setContentsMargins(4,4,4,4);row=QHBoxLayout();layout.addLayout(row);add=QPushButton('+ Bus');add.clicked.connect(self.add_bus);row.addWidget(add);track=QPushButton('+ Audio Track');track.clicked.connect(lambda:workspace.timeline.quick_track('audio'));row.addWidget(track);row.addStretch();self.message=QLabel('');self.message.setWordWrap(True);self.message.setMinimumHeight(self.message.fontMetrics().lineSpacing()*2+4);layout.addWidget(self.message);body=QHBoxLayout();layout.addLayout(body,1);self.scroll=QScrollArea();self.scroll.setWidgetResizable(True);self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff);body.addWidget(self.scroll,1);self.channels=QWidget();self.channel_layout=QHBoxLayout(self.channels);self.channel_layout.setContentsMargins(0,0,0,0);self.channel_layout.setSpacing(3);self.scroll.setWidget(self.channels);self.master=Strip(self,'master','master');body.addWidget(self.master);self.setMinimumSize(280,250)
+  super().__init__();self.workspace=workspace;self.strips={};self.version=None;self.closed=False;self.retained_numeric=None;layout=QVBoxLayout(self);layout.setContentsMargins(4,4,4,4);row=QHBoxLayout();layout.addLayout(row);add=QPushButton('+ Bus');add.clicked.connect(self.add_bus);row.addWidget(add);track=QPushButton('+ Audio Track');track.clicked.connect(lambda:workspace.timeline.quick_track('audio'));row.addWidget(track);row.addStretch();self.message=QLabel('');self.message.setWordWrap(True);self.message.setMinimumHeight(self.message.fontMetrics().lineSpacing()*2+4);layout.addWidget(self.message);from studio_project_audio_inspection import AudioInspection;self.audio_inspection=AudioInspection(workspace);layout.addWidget(self.audio_inspection);body=QHBoxLayout();layout.addLayout(body,1);self.scroll=QScrollArea();self.scroll.setWidgetResizable(True);self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff);body.addWidget(self.scroll,1);self.channels=QWidget();self.channel_layout=QHBoxLayout(self.channels);self.channel_layout.setContentsMargins(0,0,0,0);self.channel_layout.setSpacing(3);self.scroll.setWidget(self.channels);self.master=Strip(self,'master','master');body.addWidget(self.master);self.setMinimumSize(280,250)
 
  def add_bus(self):
 
@@ -284,6 +284,7 @@ class TrackMixer(QWidget):
 
   if self.closed:return
 
+  self.audio_inspection.poll()
   w=self.workspace;s=w.state();document=s.get('document') or {};version=(s.get('epoch'),s.get('revision'),w.pending['id'] if w.pending else None);buses=document.get('buses',[]);rows=[('track',t) for t in sorted(document.get('tracks',[]),key=lambda t:t['order']) if t['kind']=='audio']+[('bus',b) for b in buses];needed={row['id'] for _,row in rows}
 
   requested={};p=w.pending

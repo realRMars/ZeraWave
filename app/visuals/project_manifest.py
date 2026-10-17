@@ -90,7 +90,7 @@ def check_manifest(value,*,allow_recipes=False):
  if not Path(value['save']['path']).is_absolute() or Path(value['save']['path']).suffix.lower()!='.zwv' or type(value['save'].get('portable',True)) is not bool:raise ValueError('Save needs an absolute .zwv path and boolean portable option.')
  return deepcopy(value)
 
-def compile_plan(endpoint,manifest,*,state=None):
+def compile_plan(endpoint,manifest,*,state=None,text_fit=False,cancel=None):
  """Read-only source validation and local command simulation; never accepts edits."""
  from project_service import prepare_changes
  from project_import import normalized
@@ -164,6 +164,10 @@ def compile_plan(endpoint,manifest,*,state=None):
     if edit['expect']!=digest(row):raise Conflict('Guarded edit precondition differs; manual values retained.')
     doc=new;groups.append(dict(section=section['key'],label=section['label'],changes=[change]));action='edit'
    summary.append(dict(section=section['key'],category=category,id=row['id'],action=action))
+ components={r['instance_id'] for r in recipes if r['version']==2}
+ if components:
+  from project_components import validate_components
+  validate_components(doc,components)
  # Chunk only at complete entity/setter boundaries. Every intermediate candidate
  # is validated by the same model. No cross-batch atomicity is promised.
  predicted=deepcopy(state);batches=[];index=0
@@ -185,6 +189,12 @@ def compile_plan(endpoint,manifest,*,state=None):
  # Protect the journal/input/endpoint separately at CLI admission; normal owner
  # Save additionally guards every actual media/protected/output alias.
  plan=dict(format=PLAN,version=1,id=uuid.uuid4().hex,manifest_id=manifest['id'],manifest_sha256=digest(original),expanded_sha256=digest(manifest),recipes=recipes,endpoint=str(Path(endpoint).resolve()),owner=owner,initial=stamp(state),sources=sources,entities=summary,ids=ids,steps=batches,limits=dict(changes=128,wire_bytes=MAX_BYTES,clients=4,ordered_clients_used=1,journal_bytes=JOURNAL_BYTES),atomicity='Each bounded section part is one owner Undo/atomic batch; no cross-part atomicity.',prepared_not_accepted=True)
+ if components or text_fit:
+  from project_text_fit import native_preflight
+  selected=sorted({r['id'] for r in summary if r['category'] in ('graphics','captions')})
+  plan['prepared_document_sha256']=digest(doc)
+  report=native_preflight(doc,selected,plan['initial'],cancel)
+  report['plan_sha256']=digest(plan);report['report_sha256']=digest(report);plan['text_fit']=report
  if len(encoded(plan))>JOURNAL_BYTES//2:raise ValueError('Plan/journal accounting exceeds8MiB helper budget; no command submitted.')
  return plan
 
@@ -236,6 +246,15 @@ def apply_plan(endpoint,journal,*,timeout=120.,send=call,stop_after=None):
  """One ordered client. Resume reconciles SAME exact IDs; never silently rebases."""
  plan=journal.value['plan']
  if plan.get('format')!=PLAN or endpoint_identity(endpoint)!=plan['owner'] or str(Path(endpoint).resolve())!=plan['endpoint']:raise Conflict('Owner endpoint changed; explicit new plan/reconciliation required.')
+ required_fit=any(r.get('version')==2 for r in plan.get('recipes',[]));fit=plan.get('text_fit')
+ if required_fit or fit is not None:
+  from project_text_fit import source_bindings
+  unsigned=deepcopy(plan);unsigned.pop('text_fit',None)
+  report=deepcopy(fit) if isinstance(fit,dict) else {};report_hash=report.pop('report_sha256',None)
+  complete=isinstance(fit,dict) and fit.get('worker_exit')==0 and not fit.get('failures') and not fit.get('unrun') and fit.get('resources',{}).get('closed') and fit.get('resources',{}).get('retained_pixel_cache_bytes')==0 and {r['id'] for r in fit.get('checks',[]) if r['status']=='PASS'}==set(fit.get('selected_ids',[]))
+  if not isinstance(fit,dict) or not complete or fit.get('status')!='PASS' or report_hash!=digest(report) or fit.get('plan_sha256')!=digest(unsigned) or fit.get('document_sha256')!=plan.get('prepared_document_sha256') or fit.get('binding')!=plan['initial'] or fit.get('conditions',{}).get('source_hashes')!=source_bindings():raise Conflict('Native text preflight is failed, incomplete, changed, stale or belongs to another exact plan/source. Accepted work retained; fix explicit parameters and prepare a new plan.')
+  for path,value in fit.get('conditions',{}).get('application_font_sources',{}).items():
+   if not Path(path).is_file() or file_hash(path)!=value['sha256']:raise Conflict('Native font identity changed after preflight; prepare a new plan. No command submitted.')
  current=read_state(endpoint)
  if binding(current)['expected_epoch']!=plan['initial']['binding']['expected_epoch'] or current['project_id']!=plan['initial']['binding']['expected_project']:raise Conflict('Owner/project epoch changed; no automatic resume/rebase.')
  records=journal.value['records'];completed=0

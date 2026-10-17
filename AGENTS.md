@@ -1,5 +1,22 @@
 # ZeraWave engineering and creative working agreement
 
+## October 17 reviewed retrospective and repair checkpoint
+
+The retrospective audio contribution/coverage, editable components/native text-fit
+and Source/timeline review increments are implemented, each and connected handoff
+9.0/10 technical PASS. Follow [current ROADMAP status](ROADMAP.md#october-17-reviewed-retrospective-and-repair-checkpoint)
+and [feature contracts](docs/VIDEO_PROJECT.md). The reviewed dialog-folder, video-
+placement and Layers playback handoff/retry fixes are retained dependencies.
+Robert's newer direct commit/push request authorizes this scoped checkpoint;
+[publication receipt](work/publication-retrospective-20261017-211659/review-index.json) records exact paths and remote identity.
+
+Keep the six original combined picture failures and separate matched GPU/codec passes
+distinct. Personal/native/listening/A-V and editor-wide HOLD remain; publication
+supplies no automatic next implementation, production rebuild or new worker authority.
+Preserve earlier task-time reports, unrelated edits, originals, owners/clocks/caps and
+accepted Episode8/Episode9 production. Reuse existing proof/samples for Robert review.
+
+
 ## October 16 bounded workflow implementation checkpoint
 
 The five human/agent workflow stages are implemented, with source-bound 9.0/10

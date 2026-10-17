@@ -25,6 +25,34 @@ from session_performance import ResourceSampler
 class ObsoleteMediaCommand(ValueError):
     """Rejected ephemeral intent; log/ACK it without affecting a new selection."""
 
+def dispatch_media_transport(owner,data):
+    state=owner.media_frames.layers.get(data.get('layer'))
+    obsolete=data.get('media_session')!=owner.media_session or state is None or data.get('source') is not None and list(state['key'])!=data['source']
+    if obsolete:
+        # Ephemeral intent from a replaced session/source has no action
+        # in this owner. A late cancel is idempotent; other commands
+        # retain an explicit rejected ACK without opening Diagnostics.
+        if data.get('op')=='cancel_resume':return
+        raise ObsoleteMediaCommand('Animation command belongs to an obsolete session/source.')
+    handoff=False
+    if data.get('op')=='play':
+        # Validate BOTH domains before changing either. A hidden/unavailable
+        # layer cannot silently take a still-active project/source lease.
+        handoff=owner.projects.release_for_layers(data.get('project_binding'),validate_only=True)
+        if handoff and data.get('source') is None:
+            raise ValueError('Layer source identity is not pinned. Refresh the selected layer and press Play again; Video Editor/Source remains unchanged.')
+        if handoff and not state['visible']:
+            raise ValueError('Show the selected layer before returning playback to Layers. Video Editor/Source remains unchanged.')
+        # Same precedence as canonical MediaFrames.sync: raster-owned sources
+        # override matching Library records; valid Sprite sheets need no reimport.
+        record=owner.rasters.rows.get(state['key'][0],owner.media_registry.assets.get(state['key'][0]))
+        if handoff and (not record or record.get('status')!='Ready' or state.get('error_kind') in ('source_unavailable','source_invalid','source_changed')):
+            raise ValueError('Layer source is unavailable, changed or invalid. Refresh/Relink it before returning playback to Layers. Video Editor/Source remains unchanged.')
+        # A Ready, pinned source with a transient decoder/resource error keeps
+        # the established explicit Play retry. No hidden Release, no auto retry.
+    owner.media_frames.command(data.get('layer'),data.get('op'),data.get('value'),data.get('source'))
+    if handoff:owner.projects.release_for_layers(data['project_binding'])
+
 class ControlOwner(Studio):
     def __init__(self,root,host):
         self.host=host;super().__init__(root)
@@ -480,16 +508,7 @@ def main():
                     audio=owner.audio_owner.snapshot()
                     if audio['mode']!='Audio File' or normalized(audio['path'])!=normalized(record['path']):owner.audio_owner.submit('open',path=record['path'])
                 else:raise ValueError('Unsupported media action.')
-        elif name=='media_transport':
-            state=owner.media_frames.layers.get(data.get('layer'))
-            obsolete=data.get('media_session')!=owner.media_session or state is None or data.get('source') is not None and list(state['key'])!=data['source']
-            if obsolete:
-                # Ephemeral intent from a replaced session/source has no action
-                # in this owner. A late cancel is idempotent; other commands
-                # retain an explicit rejected ACK without opening Diagnostics.
-                if data.get('op')=='cancel_resume':return
-                raise ObsoleteMediaCommand('Animation command belongs to an obsolete session/source.')
-            owner.media_frames.command(data.get('layer'),data.get('op'),data.get('value'),data.get('source'))
+        elif name=='media_transport':dispatch_media_transport(owner,data)
         elif name=='web_frame':
             if data.get('media_session')!=owner.media_session:raise ValueError('Web pixels belong to an obsolete session.')
             row=next((r for r in owner.media_scene['layers'] if r['id']==data.get('layer') and r['type']=='Web'),None)
@@ -742,7 +761,7 @@ def main():
             return owner.projects.request(data['request']) if name=='project' else None
         admitted={}
         try:
-            project_query=name=='project' and data.get('request',{}).get('op') in ('state','operation_status','cancel')
+            project_query=name=='project' and data.get('request',{}).get('op') in ('state','operation_status','cancel','audio_inspect','review_inspect','review_cancel')
             if owner.close_state['phase'] in ('draining','releasing') and not project_query and name not in ('close_cancel','close','cancel_save','state_full','operation_status'):raise ValueError('Closing; cancel close before editing.')
             if data.get('raster_assets') or data.get('raster_sources'):
                 if owner.color_link and sum(bool(p.get('ordered')) for p in owner.color_link.pending_controls.values())>=60:raise ValueError('Renderer publication queue full; raster not accepted. Retry after output catches up.')
@@ -869,6 +888,18 @@ def main():
             except queue.Empty:break
             try:
                 result=action(message['action'],message.get('data',{}));sequence+=1
+                from concurrent.futures import Future
+                if isinstance(result,Future):
+                    # Read-only snapshot work completes on the existing pool;
+                    # ProjectService reconciles it on this owner thread before
+                    # resolving the reply. Never block the command/tick loop.
+                    def inspection_reply(future,message=message):
+                        reply=future.result()
+                        if '_api_reply' in message:
+                            target=message['_api_reply']
+                            if not target.done():target.set_result(reply)
+                        else:emit({'id':message['id'],'project_result':reply})
+                    result.add_done_callback(inspection_reply);continue
                 drop=os.environ.get('ZERAWAVE_RASTER_TEST_DROP_ACK')
                 if drop and Path(drop).exists() and 'operation_id' in message.get('data',{}):
                     Path(drop).unlink() # isolated fixture: exactly one lost ACK
@@ -878,6 +909,10 @@ def main():
                 else:
                     receipt={}
                     if message['action']=='project' and isinstance(result,dict):
+                        if message.get('data',{}).get('request',{}).get('op') in ('audio_inspect','review_inspect','review_cancel'):
+                            # Derived reply has its own 1MiB bound; inspection
+                            # changes no document state to republish here.
+                            emit({'id':message['id'],'project_result':result});continue
                         from project_service import summary
                         outcome=result.get('outcome')
                         import_details=message.get('data',{}).get('request',{}).get('op')=='operation_status' and outcome and outcome.get('op')=='import_media'

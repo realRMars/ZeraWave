@@ -19,6 +19,9 @@ def expand(manifest):
    logical(key)
    if key in seen or len(seen)>=128:raise ValueError('Recipe keys are unique across the manifest; at most128 explicit instances.')
    seen.add(key)
+   if type(recipe['version']) is int and recipe['version']==2 and kind in ('review_card','outro') and isinstance(params,dict):
+    from project_components import expand_component
+    made,description=expand_component(recipe,manifest);section['items'].extend(made);summaries.append(dict(section=section['key'],**description));continue
    if type(recipe['version']) is not int or recipe['version']!=1 or kind not in KINDS or not isinstance(params,dict):raise ValueError('Unsupported recipe kind/version/parameters.')
    common=('track','start','duration');optional=('style','provenance','order')
    required,extra={

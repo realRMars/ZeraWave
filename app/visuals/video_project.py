@@ -202,6 +202,12 @@ def validate(value,allow_missing_routes=False,_copy=True):
  for row in d['protected_paths']:
   text(row,4096)
   if not PureWindowsPath(row).is_absolute():fail('invalid_path','Protected source/output paths must be explicit absolute paths.')
+ # A namespaced recognized review payload is ordinary validated provenance.
+ # Unknown historical metadata is preserved; the review helper refuses to
+ # reinterpret a colliding unrecognized namespace or silently overwrite it.
+ from project_review import MARK_KEY,MARKS,validate_marks
+ review_marks=d['provenance'].get(MARK_KEY)
+ if isinstance(review_marks,dict) and review_marks.get('format')==MARKS:validate_marks(review_marks)
  from project_visual import validate_document as validate_visual_document
  validate_visual_document(d)
  from project_audio_graph import validate as validate_audio_graph

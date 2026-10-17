@@ -1,5 +1,37 @@
 # ZeraWave handoff
 
+## October 17 reviewed retrospective and repair checkpoint
+
+The three retrospective increments and connected technical handoff are independently
+9.0/10 PASS at source/native
+`e030cc849ed05cadeb4089b1306a723269b579e10a3c5f6f155a6e0388a8090b`.
+The [34-path sealed candidate](work/episode09-retrospective-20261017-1792225166092712200/final-candidate-1792244506685866600/MANIFEST.json)
+SHA256 is `3ca7cbfa9dca86063b2fd4047b2d60d6b4a49d34641e2cc9753c76d26e72d8e7`;
+[actual results](work/episode09-retrospective-20261017-1792225166092712200/FINAL_REPORT.md) and
+[connected review](work/reviewer-episode09-retrospective-20261017/increment3/CONNECTED_REVIEW.md) retain the exact evidence/limits.
+Audio factor/coverage reports, editable components/native text fit and Source/timeline
+review samples are implemented within [feature contracts](docs/VIDEO_PROJECT.md).
+Reported gain factors are not measured audibility; text fit does not auto-shrink or
+truncate accepted wording; stale reports/samples remain visibly outdated.
+
+Robert's direct commit/push request authorizes this checkpoint on parent
+`942dca42a16936c29e955ef4162a6ac8df255108`. [Publication receipt](work/publication-retrospective-20261017-211659/review-index.json)
+binds 43 implementation/test/contract/note paths including the reviewed dialog-folder,
+video-placement and Layers playback repairs, plus three shared status guides. The
+final Layers follow-up is 9.0 PASS; its earlier 8.0 HOLD remains preserved. All 395 app
+entries/three unchanged DLLs are bound. Publication reuses the source-bound checks,
+reviews and two existing short native exports without a new app/device/export run.
+Task-time uncommitted/pending labels are superseded only for publication status.
+
+**Limits remain:** six original combined picture comparisons FAIL (p99 36–37 versus
+32); separate matched GPU/codec results pass existing bounds without relabeling the
+original run. Native typing/modal/drag/DPI, listening/heard A/V, whole-editor cold/
+resource/playback gates and Robert's acceptance remain open. The pre-restart New-only
+Layers cause was not established; only the reproduced transport-handoff defect was
+corrected. No broad HOLD closure or automatic next stage. Review the retained proof/
+samples, preserve originals/accepted production/sessions and all unrelated dirty work.
+
+
 ## October 16 bounded workflow implementation checkpoint
 
 All five human/agent Workflow Stages are implemented and independently **9.0/10 PASS**;

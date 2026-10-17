@@ -1355,3 +1355,32 @@ immediately after a known rejected command saves existing accepted work; an
 unresolved command still requires reconciliation. No recovery requires deleting
 artwork. [Actual checks and owner-review limits](agent-notes/selective-migration-20261013.md)
 include real Qt operations, native Windows observations and disposable saves.
+
+
+## October 17 explicit Layer playback handoff
+
+Press the existing Layer Play button to return playback from an active Video
+Editor Program/Source transport. This happens through the existing owner; no
+hidden Release command is needed for ordinary Layer playback. Both project and
+Source positions and In/Out ranges remain where they were. Their documents,
+unsaved work, saved revision, layer IDs and artwork history are unchanged. The
+single audio owner retires its project output normally; Layers video stays silent.
+Selecting or inspecting a layer, pausing it or scrubbing does not steal playback.
+
+Layer Play captures its source and project/epoch/revision/command binding. Stale,
+obsolete, unbound cross-domain, hidden or known-unavailable/invalid-source requests
+reject before either context changes. Refresh/Relink a changed or invalid source.
+A transient decoder/resource error on a Ready, pinned source keeps the established
+ordinary Play retry and handoff: no hidden Release step and no automatic retry.
+The source/runtime failure distinction changes neither source bytes nor artwork.
+Ready editable-artwork Sprite sheets use the same source check as Library media;
+no reimport is needed to return playback to them.
+The Layers time label explains a retained Video Editor transport gate. Existing
+global pause/Hold behavior, four decoder lanes and memory limits remain intact.
+
+An empty New Video project/workspace alone does not acquire Program transport;
+the offscreen CPU control keeps a looping Layer moving through New and return.
+The separately demonstrated paused/seek-active Program gate is now handled by
+explicit Layer Play. Robert's pre-restart failed-session state was unavailable;
+these checks do not establish that his reported New-only picture freeze is fixed.
+Physical/native GPU presentation and actual legacy-renderer Hold remain unverified.

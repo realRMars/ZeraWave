@@ -300,7 +300,9 @@ class Timeline(QWidget):
         if event.mimeData().hasFormat('application/x-zerawave-assets') or event.mimeData().hasFormat('application/x-zerawave-project-media'):event.setDropAction(Qt.CopyAction);event.accept()
     def dragMoveEvent(self,event):
         try:
-            frame=self.at(event.position().x());index=int((event.position().y()-self.ruler_height)//self.row_height);track=self.tracks[index]['id'] if 0<=index<len(self.tracks) else None;self.drop_preview=dict(frame=frame,track=track,label=self.mode+' media placement • release to prepare',duration=30);event.setDropAction(Qt.CopyAction);event.accept();self.update()
+            frame=self.at(event.position().x());index=int((event.position().y()-self.ruler_height)//self.row_height);track=self.tracks[index]['id'] if 0<=index<len(self.tracks) else None
+            from studio_timeline_media import placement_channels
+            channels=placement_channels(self.workspace.document(),track);self.drop_preview=dict(frame=frame,track=track,label=channels+' • '+self.mode+' placement • release to prepare',duration=30);event.setDropAction(Qt.CopyAction);event.accept();self.update()
         except Exception:event.ignore()
     def dragLeaveEvent(self,event):self.drop_preview=None;self.update();event.accept()
     def dropEvent(self,event):
@@ -432,10 +434,10 @@ class TimelinePanel(QWidget):
         rows=self.canvas.members() if selection else [];left=min((r['start'] for _,r in rows),default=0);right=max((r['start']+r['duration'] for _,r in rows),default=self.canvas.end)
         if selection and not rows:self.canvas.notify('Select timeline items before Fit Selection.');return
         self.canvas.scale=max(.002,min(240.,max(1,self.scroll.viewport().width()-30)/max(1,right-left)));self.canvas.resize_canvas();self.scroll.horizontalScrollBar().setValue(round(self.canvas.x(left)))
-    def place_mime(self,mime,track,frame):
+    def place_mime(self,mime,track,frame,channels=None):
         from studio_timeline_media import Placement
         if self.placement or self.workspace.pending:self.canvas.notify('A placement/edit is still pending. This drop was not admitted; try again after its outcome.');return
-        try:self.placement=Placement(self,mime,track,frame)
+        try:self.placement=Placement(self,mime,track,frame,channels=channels)
         except Exception as exc:self.canvas.notify(str(exc))
     def cancel_placement(self):
         if self.placement:self.placement.cancel.set();self.canvas.notify('Placement preparation cancelled; no automatic resubmission. Accepted work retained.')

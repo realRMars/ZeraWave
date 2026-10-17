@@ -1262,3 +1262,176 @@ unavailable errors,source/hash cache identity and owner-thread release. Timeline
 refresh supplies the current document for invalidation; unrelated gain edits do
 not invalidate raw peaks. Cache metadata/opaque codec allocations are not a total
 process-memory guarantee. First preparation may exceed the approximate slice.
+
+
+### Layer/Project explicit runtime handoff — October 17
+
+`ProjectService.release_for_layers` validates captured project/epoch/revision and
+ordered command clocks before a valid outer Layer Play can release Program/Source
+ownership. The canonical `dispatch_media_transport` owner handler first validates the current
+layer session/source, visibility and known source availability, then commands the
+layer and releases only active project clocks
+in that same owner turn. Outer ordered replay supplies operation reconciliation;
+one handoff advances the project command/version clock, never document revision,
+history or saved state. Preserve positions/ranges and normal single-audio-owner
+drain. The shared freeze/hold policy, media budgets and codec lifetimes are unchanged.
+
+`MediaFrames` labels observed typed unavailable/changed/invalid-source errors
+separately from retriable codec/resource service errors. A Ready pinned source
+keeps explicit Play retry; an invalid or unvalidated source cannot take an active
+project context. Successful guarded decode clears the runtime label. Do not infer
+source validity from a generic error string or disable all retries. These labels
+are ephemeral diagnostics, not project-schema/media/history changes.
+Use the same authoritative source lookup as MediaFrames.sync: raster resource
+rows take precedence over Library records. A valid raster-owned Sprite sheet
+remains playable; an unavailable overriding row cannot silently use a Library copy.
+
+Do not substitute workspace activation or empty New for active transport ownership.
+Offscreen actual Qt controls/reader-image tests, real owner state, static unchanged
+Hold-policy evidence and physical/native/legacy-Hold validation are distinct. The
+restart-sensitive owner report retains its unknown prior-session attribution.
+
+
+### Bound read-only audio inspection (October 17 retrospective increment1)
+
+`project_mix_factors` is canonical authored curve/clip-transition/balance/solo-gate
+math shared by Mixer and `project_audio_inspection`; preserve float64 factor order
+and established float32 stage boundaries. Pre-increment Mixer comparisons protect
+samples, retained trim/split origins, rates, fades, bus/Master and pan law. Do not
+replace per-channel transfer with one gain or infer loudness from a unity source.
+
+`ProjectService.request(audio_inspect)` returns an internal Future after guarding
+and copying its immutable input; public API/control callers still receive one final
+structured report/error. Only owner `poll_inspections` reconciles and resolves it.
+Every ProjectService pool submission uses its owner-thread _submit_preparation
+combined16 gate, including Open/media add-relink batches/caption import; partial
+branch checks are insufficient. Preserve replay-before-admission and synchronous
+edits when preparation is full. The existing controller defers that read reply without blocking its loop, adding
+no authoring outcome/history/revision/command. Four bounded queries share the
+existing two preparation workers and total16 admission with normal jobs. Preserve
+the existing Layer handoff, raster-first availability, explicit transient retry,
+publication and ordered authoring. No graphics/decoder/device belongs to this query.
+
+Completion must reject changed epoch/project/revision or owner source verification.
+Source availability is dated last validation, not a new file check or decoded
+stream-coverage certificate. On normal close, cancel/drain read-only work before
+pool teardown; never replace live pending work or discard an accepted edit.
+
+The Inspector/Mixer `AudioInspection` submits through existing Shell operations/API
+so heavy reads do not block the ordered GUI authoring client. Each widget owns at
+most one future and one latest deliberate intent. Keep stale results explicitly
+Outdated and require deliberate reinspection; failure/pressure never auto-retries.
+The existing fast editor pulse services completion even when paused. Retain detached
+document/media references and selection context: idle/clock-only pulses must not
+repeat clip walks or validation hashing. New detached source-validation publications
+must invalidate the cache even if document revision does not change.
+
+Coverage uses canonical integer sample intervals with conservative affine-factor
+bounds; float32 zero/underflow ambiguity requires exact bounded samples. Exceeding
+32768 work units or1MiB reply is an explicit report failure, not partial coverage
+or a new project-capacity limit. Keep exact sample/source/hash data in the versioned
+JSON and show timeline-readable intervals/names in the human projection. Only
+first/middle/last range checkpoints are observed; decoded silence and range extrema
+remain unmeasured unless a separately labelled PCM measurement supplies them.
+
+
+### Native component/text-fit extension (October17 retrospective increment2)
+
+`project_components` supplies version2 definitions only to the existing
+`project_recipes.expand`; version1 implementation remains unchanged. Expand to
+normal source/text entities, stable namespace/instance/part IDs and compatible
+provenance. Track roles and complete declared source intervals are validated on
+the resolved final document. Voice/music roles require actual audio-track targets;
+Video sources with audio remain valid extraction inputs on those tracks. Do not
+confuse a valid Video/video model pairing with a mixed-audio contribution. Preserve
+explicit mute/None authoring choices; target validation does not assert audibility.
+Reject incorrect component targets before native fit or any owner submission.
+Do not persist a second template runtime, retarget
+an existing manual edit or silently rewrite wording/design/routing.
+
+`project_text.TextSurface.pixels` remains the canonical native QImage/QTextLayout
+raster routine. Its measure_only option returns diagnostics without copying RGBA
+bytes; ordinary pixels stay byte-identical for valid styles. Typed font/glyph/fit
+failures retain actual native dimensions, padding, line heights/widths and primary
+font resolution. Horizontal single-glyph overflow is also failure. Always end
+QPainter and preserve the original failure. Per-line diagnostic arrays are bounded
+to128 entries with actual aggregate counts; no artwork characters are removed.
+
+`project_text_fit` runs the same routine in one bounded offscreen Qt process.
+Native images/fonts belong to that process/thread; no GPU/codec/audio ownership.
+Bound native/relevant states, cumulative pixel work, reply/log bytes and deadline;
+cancel/timeout cannot return fit acceptance, including late completion. Release
+scratch/cache before normal owned exit. Retained failure/cancel reports are
+evidence; temporary input/scratch is task-owned and retired, never user media.
+
+The manifest helper binds native-fit report to projected document, exact saved
+plan, initial owner/project/epoch/revision/command, implementation hashes and
+actual registered font files. Report-content integrity, worker success, complete
+selected-ID coverage and closed zero pixel cache are required before Apply.
+Failed/incomplete/changed reports are not certificates; CLI retains aggregate
+diagnostics with explicit nonzero status. Authoring still uses existing ordered
+bounded requests, pre-send journals and same-ID reconciliation. Native preflight
+does not accept a source/entity, create history or change a saved revision.
+
+### Source/timeline review extension (October17 retrospective increment3)
+
+`project_review` derives version1 reports from detached owner snapshots. Source
+handles/rates/times remain exact rationals; natural content and audition-grid
+policy are separate. Reuse prepare_source's Video floor and canonical Audio tail
+coverage, not an unconditional ceil. Empty-timeline Source-only review is valid
+with range=None; it cannot admit a mixed sample export. Source range/seek remains
+explicitly targeted/epoch-bound and independent of Program and the one audio owner.
+
+Fingerprint complete overlapping entity recipes, sources, keys/masks/effects/text,
+transitions, relevant tracks/routes/curves/buses/Master, global solo/missing routes
+and sequence-end fade origins. Duplication uses full source SHA and actual overlap,
+never basename. Page bounded rows with exact total/next_offset; no automatic edits.
+Reports are dated recipe/source-verification descriptions, not decoded-pixel or
+audibility claims. Read work uses existing4/16/2-worker ownership and final owner
+reconciliation. Source-epoch/document/media changes or cancellation, including late
+completion, cannot publish a stale Ready result. No extra service/pool/timer.
+
+Explicit later validation compares the ORIGINAL dependency/query/availability
+fingerprints and preserves original evidence binding separately from current
+validation. Never replace the original basis with a changed intermediate report:
+repeated Validate cannot launder an outdated output into Ready. Fresh inspection
+creates new derived provenance; actual sample rendering is a separate operation.
+
+Authored marks live in a recognized versioned provenance namespace, validated by
+the ordinary document. Retain unknown historical metadata, reject collisions in
+the helper, and keep notes when referenced media/placements vanish.64marks/64KiB
+and512-character purposes are new bounded metadata limits, not reduced document/
+media/timeline capacity. Null sequence range denotes Source-only authoring. No
+hidden import or external-media durability claim follows from saving a mark.
+
+`studio_project_review.SourceReview` adds a collapsible Source context within one
+controls-only scroll viewport. Never place the native Source preview/GL host under
+that scroll viewport. Use ancestor visibleRegion and both vertical/horizontal
+reachability at1280x720; a viewport-width-only assertion misses parent clipping.
+It provides
+readable names/times/units and existing command/transport/export actions. The same
+Source timer polls one read plus latest intent; idle/clock-only work must not hash
+documents or walk clips. Keep history/pending/error/unknown-outcome state truthful,
+protect modal-dialog bindings, preserve the reviewed dialog-folder behavior, and
+cancel/drain owned reads before normal close. Minimum1280x720 layout is a bounded
+Qt test gate, not grounds for a general layout redesign.
+Keep actual detached references per retained report and active/latest/failure
+intent. Context generations advance on meaningful values, including A→B→A, while
+equal detached refreshes do not reject a valid completion. Idle identity hits do
+no deep comparison/hash. Do not keep only the latest references and reuse Python
+object addresses as durable identity.
+
+Optional review certificates use the existing single export job/worker. Revalidate
+against the pinned document/range/media/Source before any graphics process; retain
+exact <=16KiB certificate beside unique diagnostics using protected exclusive-create
+and fsync. Original failure/output wins: do not obscure exporter failure or turn a
+durable output into a rejected one. Frozen sample provenance remains original after
+new edits; late/outdated output never relabels the current accepted document saved.
+Preserve existing export source rehash/atomic replacement/codec/drain/reader/GL
+ownership and same-ID reconciliation. No parallel export or second compositor.
+Protect captured unplaced Source paths as well as timeline media, and reject
+Source opening onto an active export destination before owner installation.
+Keep the exact sample's terminal receipt after it leaves the64-row projection;
+explicit Check/Cancel uses the SAME operation ID. Unknown is not rejection and
+cannot silently create another export ID. Preserve original export provenance
+separately when an unchanged dependency report is explicitly revalidated later.

@@ -752,9 +752,14 @@ The single visible Library switches between searchable Project Media and the
 existing wider collections/search surface. ADS releases its old widget ownership
 before transferring that same Library into the scope stack. Project reference
 removal never deletes originals and rejects references still used by clips.
-Direct Qt drops prepare source identity off the input callback, capture Source
-In/Out, Normal/Insert/Overwrite and A/V/Video-only/Audio-only choices, and default
-to linked compatible picture/audio tracks for actual AV sources. One inspection
+Direct Qt drops prepare source identity off the input callback and capture Source
+In/Out and Normal/Insert/Overwrite. Library/Project Media drops follow the target:
+visual tracks or empty space add linked picture/audio for actual AV sources;
+audio tracks extract audio. The remembered Source channel choice does not suppress
+video on a visual-target drop. Source Place explicitly pins its visible
+A/V linked / Video only / Audio only choice; its button names that choice.
+Single-channel Source placement onto a contradictory target rejects unchanged and
+explains which target/channel to choose. No saved preferences are reset. One inspection
 job is pending at a time; Escape cancels, stale preparation rejects and neither
 path automatically resubmits. Matching managed sources reuse their hash-bound
 original import identity; unavailable references require explicit Relink.
@@ -1135,3 +1140,303 @@ data / captions exposes individual entries. Resize its dock if necessary; choose
 Titles / graphics or Captions,then Edit or Style / placement. The inline Inspector
 also edits timeline-selected items. This reuses existing controls without changing
 the approved workspace. Normal Undo/Redo and Save As remain the same owner history.
+
+## October 16 video-project dialog folders
+
+Open video project and new Save/Save As start in the current confirmed project's
+folder, then the remembered successful project folder. First use falls back to
+the existing `work` directory; there is no single canonical project/export tree.
+Export Video first uses its separately remembered successful export folder, then
+the project choices. The `video.zwv`/`video.mp4` suggestions and file filters remain.
+Any other location can be chosen, and ordinary Save keeps the current file path.
+Confirmed owner paths (including observed API saves/opens) update memory; pending,
+failed and cancelled destinations do not. Memory uses the existing layout
+preferences and persists on normal Studio close. Unavailable remembered folders
+fall back without creating directories. No settings UI or artwork behavior changes.
+
+
+## October 17 video placement channel correction
+
+Direct Library and Project Media drags onto a video track retain the actual video
+stream even if Source previously remembered Audio only. The drop preview names
+the target-based channel intent. A/V companions remain linked and one atomic Undo
+operation restores the whole placement. Moving the Source selector or target
+selection during preparation cannot change that already captured intent.
+
+For deliberate single-channel extraction, load Source and choose its explicit
+channel selector. Place Audio only requires an Audio target (or empty selection
+for an appropriate new track); Place Video only requires a visual target. A/V
+linked creates the existing compatible pair. Mismatched single-channel targets,
+locks, cancellation and stale preparation accept nothing; no silent fallback to
+a different track defeats the requested single-channel intent. Sources without
+audio create video only on a visual drop. No import, codec, renderer, document
+schema, audio engine, capacity, production project or live session is changed.
+
+Focused check: `studio_timeline_video_placement_test.py <new-output>` uses real
+offscreen Qt enter/move/drop dispatch and Source load/Place with an isolated owner,
+restored modes, target types, pinned intent, locks, cancellation, Undo/Redo and
+portable Save/reopen. It does not establish physical Windows/OLE drag acceptance,
+native file-picker use, listening or GPU output. Historical editor-wide HOLD and
+the independent natural-input review boundary remain.
+
+
+## October 17: bound audio contribution and coverage inspection
+
+Select audio clips and use **At playhead** in Inspector > Audio. The same two
+buttons appear in Audio Mixer; with no selected audio clips they inspect all
+audio. **Marked range** uses Program's existing In/Out, with exclusive Out.
+Inspection never moves Source or Program, changes gain/routing, creates history,
+marks the project saved, or starts an output device. Normal edits remain ordinary
+named Undo operations.
+
+The human report leads with track/clip/source names, seconds and frame intervals.
+It distinguishes source gaps, intentional end padding, unknown/unavailable source
+validation, nonzero routed gain, and mute/solo/None/missing-route exclusions. It
+shows clip-local versus sequence envelope coordinates, fades and dissolve factors,
+linear gain/dB, channel balance, bus output and Master. Authored and routed L/R are
+separate. For example, .04 clip gain at exact +12dB is about .159242868; gain4 is
+about +12.0412dB. A higher fader cannot fill an absent clip. Device volume is outside
+this mix. Derived multipliers are **not** dBFS, RMS, loudness or heard audibility;
+actual decoded silence and embedded packet gaps remain explicitly unmeasured.
+
+Scripts use the existing authenticated endpoint, API and `project_cli.py`, with
+`op: audio_inspect`, current expected_epoch/revision/project, and exactly one of
+`frame`, canonical 48kHz `sample`, or `[In, exclusive Out]` frame `range`. Optional
+`tracks`, `sources`, `clips` are stable-ID selectors (at most128 distinct each).
+`offset` and `limit` page contribution rows (limit1–128, default64); coverage still
+covers the complete selected query. Reply format is `zerawave-audio-inspection`,
+version1, bound to exact request, source SHA/metadata, provenance, project/epoch/
+revision and source-validation fingerprint. Range observations are only first,
+middle and last overlapping samples, never extrema or a range loudness measure.
+
+Source availability means the owner's bound **last verification**, without a new
+filesystem scan. Exact coverage intervals use declared canonical source extents;
+video embedded stream gaps require decoded evidence. Source-verification changes,
+edits, project/selection changes and a changed requested position/range make old
+human output visibly Outdated. A delayed result is never silently retargeted.
+
+Read work uses detached snapshots on the existing preparation pool/API. It does
+not occupy the ordered GUI authoring client or block the owner tick loop while
+calculating. Up to4 inspections share the existing16 preparation admissions; no
+new thread pool/server or larger document/media limits. Pressure returns explicit
+busy; retry is deliberate. Replies stay within1MiB and32768 coverage-work units.
+Rare float32 underflow intervals use bounded exact samples; if that work or reply
+would exceed the bound, the report fails with narrower-query guidance and makes
+no partial claim. Accepted work remains intact. Normal shutdown cancels and drains
+queries before releasing snapshots. Worker completion rechecks owner bindings
+and source validation before returning a current result.
+
+Focused standalone checks: `project_audio_inspection_test.py`,
+`project_audio_inspection_owner_test.py`, `studio_audio_inspection_test.py`.
+The latter uses real offscreen Qt press/release, owner/API/CLI, named edits and
+portable Save/reopen; controlled delayed completions and validation changes are
+labelled. It does not establish physical Windows input, GPU display, listening
+or correlated physical A/V. Scoped Reviewer approval and Robert's acceptance
+remain separate from the wider editor HOLD.
+
+
+## Version2 approved editable components and native batch text fit
+
+The existing manifest/recipe helper retains all six version1 families unchanged.
+Version2 supports `review_card` and `outro`, expanded to ordinary individually
+editable clips/graphics with stable component/instance/part IDs and provenance.
+There is no template playback engine or automatic regeneration. Existing manual
+Inspector edits and named Undo/Redo work normally; reapplication reports a
+content conflict rather than replacing a manual override. Compatible .zwv data
+remains version3; source/window/rate/style/key/routing data stays ordinary.
+
+Definitions bind accepted Episode09-v2 project SHA256
+29803e6bbd3dec2ea5a91c512d96f3e819a76e0549439ec191d16f45b8f04e39
+and exact native part IDs. That1280x720 reference supplies navy card hierarchy,
+Recommended/author/date/playtime/full quote/response/context, avatar/inset footage,
+and branded question/five-capsule recap over moving gameplay. Pixel style sizes,
+padding and radii scale explicitly with the manifest's native output height;
+normalized bounds and source media dimensions/rates remain declared. This is
+design scaling, never automatic text-fit shrink or reduced render resolution.
+
+Both components require explicit manifest.settings and five reusable ordered
+track references: background/picture video, then panel/images/text graphics.
+They share these tracks across instances; they do not create hidden tracks.
+`picture` names the Video asset, rational source_in/source_out/rate and exactly
+matches declared component duration. `parts` contains named text-style overrides;
+`layouts` contains named ordinary clip-layout overrides. Font, colors, bounds,
+padding, timing and media remain explicit editable parameters. Unknown versions,
+fields, parts, duplicate fade ownership, wrong media types and invalid stacking
+fail before application. Existing project/active-instance limits remain.
+
+Review-card parameters supply author, quote, posted, playtime, response, context
+and explicit avatar (None deliberately omits it); labels and visual hierarchy
+retain the accepted treatment. No review wording is invented or truncated.
+Outro parameters supply question, exactly five label/status/image capsules,
+brand image, explicit progress_range, voice/music sources/track/start/duration/
+source_in/source_out/rate/audio and optional padding policy. Voice starts are
+absolute project frames and may precede the visible outro; its complete declared
+source interval must finish before the music sendoff. Both voice and music must
+target actual audio tracks; an audio-bearing Video source remains valid for
+deliberate extraction on an audio track. A video-track target is rejected before
+native fit or application. Explicit authored mute/None routing stays permitted.
+Music covers the sendoff
+through outro end with a declared short fade. Default sendoff is exactly4seconds
+when representable. Fractional FPS requires explicit sendoff_frames covering
+four seconds within one project frame, disclosing actual duration. No routing,
+fader, ducking or editorial choice is inferred. Fades use the new declared native
+interval; literal reference593-frame keys are not copied into shorter components.
+
+Version2 plan compilation automatically runs one native batch fit; `--text-fit`
+also enables it for legacy expanded text. The same QImage/QTextLayout/font/glyph
+path as preview/export measures actual native bounds, horizontal/vertical fit,
+padding_x/padding_y, max-lines and line spacing. Failures aggregate with stable
+component/part IDs, fonts, dimensions and actual line metrics. Dynamic counters
+check all relevant displayed time/frame states within the stated work budget;
+progress/unchanged descriptors safely reuse proven geometry. No sampled worst
+case or missing-font substitution is labelled success.
+
+Preflight is read-only and cancellable, in one owned offscreen Qt helper process;
+it uses no codec, graphics context, audio device or authoring command. Limits are
+4096 native/relevant states,256MiB cumulative native pixel work,1MiB report and a
+30second preparation deadline. Capacity/deadline/cancel returns incomplete or
+cancelled, never partial PASS or an applied repair; narrow the scope explicitly.
+Scratch/native cache retires before process exit. The saved exact plan contains
+the report/binding and source/font/plan/report hashes. Apply rejects failed,
+incomplete, changed, stale or unclosed reports before any owner command. Native
+failures still save a diagnostic plan; CLI returns nonzero/blocked status.
+Explicit parameter repairs require a new plan; existing same-ID journal/recovery
+rules continue. No source/project limit is reduced to achieve a fit PASS.
+
+Focused checks: `project_text_fit_test.py`, `project_components_test.py`,
+`project_component_audio_targets_test.py`,
+`project_text_fit_cli_test.py`, `studio_components_test.py`, plus existing
+`project_recipes_test.py`. Native CPU/Qt synthetic input, physical Windows input,
+GPU presentation, listening and owner acceptance remain separate evidence classes.
+
+## Source / timeline review samples
+
+Expand **Source / timeline review** in the existing Source pane. One controls-only
+scroll viewport makes original fields and expanded review actions reachable in a
+narrow/short pane. The native Source preview remains outside this viewport; its
+graphics hosting and the Editing/Audio Mixing dock layouts stay unchanged.
+Before/After are explicitly **Source frames at the displayed Source FPS**, while
+the sequence In/Out controls use project frames. Inspect Source reads the requested
+Source In/Out; Inspect placement uses the selected clip's exact rational source
+interval and rate. The report leads with names, purpose, readable seconds, frame
+units, clamp/overlap explanations and short disambiguating IDs. Full SHA256/IDs
+and rational pairs remain in the versioned structured report.
+
+Source-only inspection works in a new empty timeline: its sequence range is
+explicitly `null`. Set Source handles changes only that Source's In/Out; use the
+existing Source Loop/Play controls to audition it. It does not start playback or
+move Program. Source Play still uses the single existing audio owner. Selecting
+a mixed sample changes Program In/Out deliberately without moving the playhead.
+Source-only review cannot export a nonexistent mixed interval; place material
+and choose a valid exclusive sequence Out first.
+
+Handles clamp to natural source content. Exact natural content and the actual
+audition grid are reported separately: existing Video Source floors complete
+nominal frames; Audio covers its canonical natural-tail samples, including
+explicit final-frame padding. A fractional video tail does not invent an extra
+Source frame. The placement mapping shows rational sequence-frame boundaries
+and outward-rounded/clamped suggested review bounds. Source handles beyond a
+placement are not automatically inserted footage; mixed samples show the actual
+neighboring edits. No trim, duplication or editorial policy is applied.
+
+Repeated-use rows match source identity/SHA and real source-range overlap, with
+clip/track names, sequence intervals and component roles (including intentional
+background/inset reuse). Same-name different-hash media are distinct. JSON rows
+are paged (default64, max128, offset/next_offset); total counts include all uses.
+Inspecting creates no document/history/saved-state operation.
+
+Remember range stores compatible version1 `zerawave_source_review_marks`
+provenance through ordinary named commands/Undo/Redo/Save. At most64 authored
+marks /64KiB metadata, with bounded purpose text, stable mark IDs, source ID/SHA,
+exact source range/FPS/handles, selected placement/rate and optional sequence
+range. Marks are authored data, not a rendered cache. Missing/replaced/deleted
+references leave notes intact and become unavailable; unknown historical metadata
+is never silently reinterpreted. Source-only marks do not secretly import media:
+after reopen, explicitly open the matching Source if it is not Project Media.
+
+The existing owner/API/CLI accepts read-only `review_inspect` and `review_cancel`
+(a bounded `query_id`, separate from authoring operation IDs). Queries bind
+project/epoch/accepted revision, explicit Source epoch when applicable, exact
+source/sequence ranges and source verification. They share existing four-query,
+sixteen combined preparation and two-worker limits. Qt retains one active read
+plus the latest unsent intent, discards stale replies and reports pending, ready,
+outdated, unavailable, cancelled or failed states. Failures never auto-retry.
+
+Dependency fingerprints include complete overlapping clip/text/layout/style/key/
+mask/effect/transition recipes, source metadata/identity, contributing tracks and
+audio routes/gains/envelopes/buses/Master, global solo/missing-route influences
+and sequence end (track fade origins). Ready means a derived bound inspection,
+not a decoded preview, measured mix, heard device output or creative acceptance.
+After edits, Validate report explicitly recomputes dependencies. Only an unchanged
+original dependency result can be reused; original provenance remains separate
+from the new validation binding. Repeated validation cannot turn a changed cached
+result current. Fresh Inspect creates new derived provenance.
+
+Export sample uses the existing single revision/range-pinned native exporter and
+normal destination dialog. Its compact certificate (max16KiB) is checked before
+graphics work and retained next to job diagnostics as `project-export-ID-review.json`.
+This exact request/result evidence survives failed/superseded output and owner
+outcome retirement. Existing source/project/alias protection, cancellation, atomic
+durability, codec/pixel/audio quality and normal resource retirement remain.
+Later edits leave a frozen sample as clearly outdated evidence. No export fan-out,
+hidden full-sequence render, automatic new-ID retry or output replacement policy.
+Check sample queries the exact existing operation even after it leaves the recent
+64-row view; Cancel sample targets that same ID. Unknown/pending outcome blocks a
+replacement submission from this context. Durable completion wins a late Cancel.
+An unplaced loaded Source is also protected from export overwrite, and opening a
+pending export destination as Source refuses before changing the current Source.
+
+Scripts use the same `project_cli.py --endpoint ... --request exact-query.json`.
+An inspection request supplies `op=review_inspect`, captured `expected_project`,
+`expected_epoch`, `expected_revision`, `source`, rational-second `source_range`,
+two Source-frame `handles`, explicit exclusive-frame `range` (or null), `purpose`
+and optional `clip`, `source_epoch`, `query_id`, `offset`, `limit`, `prior`.
+The result's `report.certificate` retains exact query/dependency/original bindings.
+`project_review.remember_change(document, report, mark_id, binding)` builds an
+ordinary provenance change; `export_request(report,binding,new_path,operation_id)`
+builds an ordinary export request. Save that exact JSON to a NEW file before
+`project_cli --request`; uncertain replies reconcile `--status SAME_ID`, never
+automatically rebase/resubmit another ID. Do not write live .zwv JSON directly.
+
+For a script using the disposable 12-second proof, choose the intended owner's
+endpoint and one explicit clip ID. This example prepares a read-only query; it
+does not select an arbitrary running Studio, place clips or start an export:
+
+```python
+import json, sys, uuid
+from pathlib import Path
+sys.path[:0] = [r"C:\ZeraWave\app\visuals", r"C:\ZeraWave\app\audio"]
+from project_api import call
+from project_manifest import binding
+from project_review import source_interval, export_request
+from video_project import pair
+
+endpoint = Path(r"C:\your-disposable-proof\endpoint.json")
+clip_id = "THE_EXPLICIT_32_HEX_CLIP_ID"
+state = call(endpoint, {"op": "state"})["state"]
+document = state["document"]
+clip = next(c for c in document["clips"] if c["id"] == clip_id)
+asset = next(a for a in document["media"] if a["id"] == clip["asset"])
+query = dict(op="review_inspect", **binding(state),
+             query_id=uuid.uuid4().hex, source=asset["id"], clip=clip_id,
+             source_range=[pair(v) for v in source_interval(document, clip, asset)],
+             handles=[12, 18], range=[90, 210],
+             purpose="Review to highlight boundary; actual neighboring edits")
+with Path(r"C:\your-disposable-proof\new-query.json").open("x", encoding="utf8") as f:
+    json.dump(query, f, ensure_ascii=False, indent=2)
+```
+
+Submit that exact file through the existing CLI:
+
+```powershell
+C:\ZeraWave\.venv\Scripts\python.exe -B -X utf8 C:\ZeraWave\app\visuals\project_cli.py --endpoint C:\your-disposable-proof\endpoint.json --request C:\your-disposable-proof\new-query.json
+```
+
+Use the returned `report` only at its bound accepted context. To deliberately
+export, `export_request(report, binding(current_state), NEW_MP4_PATH,
+uuid.uuid4().hex, current_state['document']['export']['crf'])` builds the ordinary
+request; persist it to a new file before submission. Reconcile uncertain outcomes
+with `project_cli.py --status SAME_OPERATION_ID`. A later source/gain edit requires
+explicit validation or fresh inspection, rather than substituting a new binding
+onto the old report. This example's frames are specific to the 30FPS proof;
+choose and inspect the intended exclusive range for other projects.

@@ -1330,6 +1330,8 @@ class Layers(QWidget):
         row=self.selected_row();state=snap.get('media_frames',{}).get(self.selected,{})
         decode=(state.get('frame') or {}).get('decode_ms',0.)
         self.time.setText(f"{state.get('position',0):.2f} / {self.duration():.2f} s • {state.get('state','paused').title()} • muted"+(f'\nDecode/refill {decode:.0f} ms • '+('slow source: frames skipped; reverse may stall' if decode>100 else 'high rates skip source frames') if row and row['type']=='Video' else ''))
+        if row and row['type'] in ('Video','GIF','Sprite') and state.get('playing') and state.get('state')=='paused' and snap.get('project_transport',{}).get('active'):
+            self.time.setText(self.time.text()+'\nVideo Editor holds transport; Play here returns to Layers without resetting its position.')
         if state and getattr(self,'media_stats',None):
             self.time.setText(self.time.text()+(f" • held {state['lag_seconds']:.3f} s" if state.get('held') and state.get('lag_seconds') is not None else ''))
             self.time.setToolTip(self.media_stats['transfer']['message']+'; '+state.get('last_good_policy',''))
@@ -1778,7 +1780,7 @@ class Layers(QWidget):
         row=self.selected_row();return float(self.metadata(row).get('duration',1.)) if row else 1.
     def transport(self,op,value=None):
         if not self.selected:return
-        self.shell.safe(lambda:self.shell.client.command('media_transport',layer=self.selected,op=op,value=value,media_session=self.binding[0]))
+        self.shell.safe(lambda:self.shell.client.command('media_transport',layer=self.selected,op=op,value=value,media_session=self.binding[0],source=self.shell.client.snapshot.get('media_frames',{}).get(self.selected,{}).get('source'),project_binding=self.shell.project_workspace.binding()))
     def media_edit(self,key,value):
         if self.syncing:return
         row=self.selected_row()

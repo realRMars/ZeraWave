@@ -5,7 +5,7 @@ thread installs document/history state. UI and local API call this same service.
 """
 from pathlib import Path
 from collections import OrderedDict
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor,Future
 from copy import deepcopy
 import hashlib,json,os,threading,time,uuid,traceback
 from video_project import create,validate,apply,ProjectError,fail,identity,MAX_DOCUMENT_BYTES,LIMITS,duration,text,fields,integer,VERSION
@@ -178,13 +178,17 @@ def write_project(document,revision,base,path,portable,cancel,allow_missing=Fals
 
 class ProjectService:
  def __init__(self):
-  self.thread=threading.get_ident();self.document=None;self.revision=0;self.epoch=uuid.uuid4().hex;self.path=None;self.saved_revision=None;self.undo=[];self.redo=[];self.history_bytes=0;self.history_limit=64*1024*1024;self.outcomes=OrderedDict();self.jobs={};self.pool=ThreadPoolExecutor(max_workers=2,thread_name_prefix='Video project preparation');self.version=0;self.closed=False;self.media_state={};self.admit=lambda doc:None;self.save_serial=0;self.path_serial=0;self.source_base=None;self.command_revision=0
+  self.thread=threading.get_ident();self.document=None;self.revision=0;self.epoch=uuid.uuid4().hex;self.path=None;self.saved_revision=None;self.undo=[];self.redo=[];self.history_bytes=0;self.history_limit=64*1024*1024;self.outcomes=OrderedDict();self.jobs={};self.inspections={};self.pool=ThreadPoolExecutor(max_workers=2,thread_name_prefix='Video project preparation');self.version=0;self.closed=False;self.media_state={};self.admit=lambda doc:None;self.save_serial=0;self.path_serial=0;self.source_base=None;self.command_revision=0
   from project_transport import Transport
   self.transport=Transport();self.transport_admit=lambda request:None
   from project_source import SourceContext
   self.source=SourceContext();self.audio_target='program'
   from project_recovery import Recovery
   self.recovery=Recovery(self.pool)
+ def _submit_preparation(self,function,*args,**kwargs):
+  self.check_thread()
+  if len(self.jobs)+len(self.inspections)>=16:fail('busy','Sixteen combined project preparations/inspections are pending; this request was not admitted. Accepted work remains intact.')
+  return self.pool.submit(function,*args,**kwargs)
  def check_thread(self):
   if threading.get_ident()!=self.thread:raise RuntimeError('Video document may only be mutated by its Studio owner thread.')
  def transport_state(self):
@@ -194,6 +198,22 @@ class ProjectService:
   # Only the same-thread section publisher may read owner references here; it
   # copies before retaining/publication. Public/API callers always detach.
   return value if _owner_projection else deepcopy(value)
+ def release_for_layers(self,binding,validate_only=False):
+  """Explicit valid Layer Play hands off runtime only, preserving both positions.
+
+  The outer ordered media operation supplies replay/receipt ownership. Its
+  captured project clocks must still match before any layer/project change.
+  Inspection, selection and Layer pause/seek do not acquire this handoff.
+  """
+  self.check_thread();self.transport_state();self.source.state(False)
+  clocks=[clock for clock in (self.transport,self.source.transport) if clock.active]
+  if not clocks:return False
+  if not isinstance(binding,dict):fail('unbound_handoff','Video Editor/Source still owns transport. Refresh and press Layer Play again with its current project binding; no playback was changed.')
+  self._guard(binding)
+  if validate_only:return True
+  for clock in clocks:clock.command('release')
+  self.command_revision+=1;self.version+=1
+  return True
  def _guard(self,data,command=True):
   if self.closed:fail('closed','Project service is closed.')
   if type(data.get('expected_revision')) is not int:fail('invalid_revision','Expected revision must be an integer.')
@@ -263,7 +283,7 @@ class ProjectService:
     if other.binding and other.binding[2]:other.command('release')
     self.audio_target=target
    return []
-  if op=='source_open':self.source.install(prepared);return []
+  if op=='source_open':self._reserved(prepared);self.source.install(prepared);return []
   if op=='source_release':self.source.release();return []
   if op=='new':
    if self.document is not None and self.revision!=self.saved_revision and not request.get('discard'):fail('unsaved_project','Save or explicitly discard the current project before creating another.')
@@ -302,6 +322,35 @@ class ProjectService:
   if not isinstance(data,dict):return dict(ok=False,error=dict(code='invalid_request',message='Project request must be a structured object.'),outcome=None)
   op=data.get('op')
   if op=='state':return dict(ok=True,state=self.state())
+  if op=='audio_inspect':
+   try:
+    self._guard(data,command=False)
+    if len(self.inspections)>=4:fail('busy','Audio inspections share the bounded preparation pool; wait for the pending queries. No edit was made.')
+    from project_audio_inspection import inspect_audio
+    document=deepcopy(self.document);media=deepcopy(self.media_state);query=deepcopy(data);cancel=threading.Event();reply=Future()
+    worker=self._submit_preparation(inspect_audio,document,self.epoch,self.revision,query,media,cancel)
+    self.inspections[reply]=dict(future=worker,cancel=cancel,query=query,media=media)
+    return reply
+   except (ProjectError,ValueError,TypeError,KeyError) as exc:
+    return dict(ok=False,error=dict(code=getattr(exc,'code','invalid_request'),message=str(exc)))
+  if op=='review_cancel':
+   try:
+    key=identity(data['query_id']);found=False
+    for job in self.inspections.values():
+     if job.get('kind')=='review' and job['query'].get('query_id')==key:job['cancel'].set();found=True
+    return dict(ok=True,cancel_requested=found,query_id=key)
+   except (ProjectError,KeyError,TypeError) as exc:return dict(ok=False,error=dict(code=getattr(exc,'code','invalid_request'),message=str(exc)))
+  if op=='review_inspect':
+   try:
+    self._guard(data,command=False)
+    if len(self.inspections)>=4:fail('busy','Four shared audio/source inspections are pending; this review was not admitted. No edit was made.')
+    from project_review import inspect_review
+    document=deepcopy(self.document);media=deepcopy(self.media_state);source=self.source.state();query=deepcopy(data);query.setdefault('query_id',uuid.uuid4().hex);identity(query['query_id'])
+    if any(job.get('kind')=='review' and job['query'].get('query_id')==query['query_id'] for job in self.inspections.values()):fail('busy','This read-only review query is already pending; no duplicate inspection admitted.')
+    cancel=threading.Event();reply=Future();worker=self._submit_preparation(inspect_review,document,self.epoch,self.revision,query,media,source,cancel)
+    self.inspections[reply]=dict(kind='review',future=worker,cancel=cancel,query=query,media=media,source=source)
+    return reply
+   except (ProjectError,ValueError,TypeError,KeyError) as exc:return dict(ok=False,error=dict(code=getattr(exc,'code','invalid_request'),message=str(exc)))
   if op=='recovery_refresh':self.recovery.refresh();return dict(ok=True,state=self.state(False))
   if op=='operation_status':
    outcome=deepcopy(self.outcomes.get(data['operation_id']))
@@ -327,7 +376,6 @@ class ProjectService:
     if flag in data and type(data[flag]) is not bool:fail('invalid_value',flag+' must be true or false.')
    if op=='import_media':
     paths=data.get('paths')
-    if len(self.jobs)>=16:fail('busy','Sixteen owner preparations are pending; import was not admitted.')
     if self.document is None:fail('no_project','Create/open a project before importing references.')
     if not isinstance(paths,list) or not 1<=len(paths)<=LIMITS['batch']:fail('invalid_batch','One import group requires1–128 paths.')
     for path in paths:
@@ -339,32 +387,29 @@ class ProjectService:
    if op=='batch':self._preflight_reserved(data['changes'])
    if op=='import_media':
     from project_import import prepare,Progress
-    self._preflight_reserved([dict(op='media.add',location=dict(kind='external',path=p)) for p in paths]);progress=Progress();row['files']=[dict(index=i,path=p,name=Path(p).name[:256],status='queued') for i,p in enumerate(paths)];job=dict(kind='import_media',progress=progress,future=self.pool.submit(prepare,list(paths),deepcopy(self.document),deepcopy(self.media_state),self.source_base,key,cancel,progress))
+    self._preflight_reserved([dict(op='media.add',location=dict(kind='external',path=p)) for p in paths]);progress=Progress();row['files']=[dict(index=i,path=p,name=Path(p).name[:256],status='queued') for i,p in enumerate(paths)];job=dict(kind='import_media',progress=progress,future=self._submit_preparation(prepare,list(paths),deepcopy(self.document),deepcopy(self.media_state),self.source_base,key,cancel,progress))
    elif op=='source_open':
     if any(j['kind']=='source' for j in self.jobs.values()):fail('busy','Source inspection is pending; wait or cancel its exact operation.')
-    if len(self.jobs)>=16:fail('busy','Sixteen owner preparations are pending. Source was not opened.')
     from project_source import prepare_source
-    job=dict(kind='source',future=self.pool.submit(prepare_source,data.get('asset'),key,cancel))
+    job=dict(kind='source',future=self._submit_preparation(prepare_source,data.get('asset'),key,cancel))
    elif op=='open':
     if self.document is not None and self.revision!=self.saved_revision and not data.get('discard'):fail('unsaved_project','Save or explicitly discard before opening another project.')
-    job=dict(kind='open',future=self.pool.submit(read_project,data['path'],cancel))
-   elif op=='batch' and any(c.get('op') in ('media.add','media.relink') for c in data['changes']):job=dict(kind='batch',future=self.pool.submit(prepare_changes,data['changes'],self.source_base,cancel))
+    job=dict(kind='open',future=self._submit_preparation(read_project,data['path'],cancel))
+   elif op=='batch' and any(c.get('op') in ('media.add','media.relink') for c in data['changes']):job=dict(kind='batch',future=self._submit_preparation(prepare_changes,data['changes'],self.source_base,cancel))
    elif op=='import_captions':
     if self.document is None:fail('no_project','Create/open a project before importing captions.')
     track=next((t for t in self.document['tracks'] if t['id']==data.get('track')),None)
     if not track or track['kind']!='graphics':fail('invalid_track','Caption import needs a selected graphics track.')
     from project_text import parse_srt
-    job=dict(kind='caption_import',future=self.pool.submit(parse_srt,data['path'],track['id'],deepcopy(self.document['settings']['fps']),key,cancel))
+    job=dict(kind='caption_import',future=self._submit_preparation(parse_srt,data['path'],track['id'],deepcopy(self.document['settings']['fps']),key,cancel))
    elif op=='recover_copy':
-    if len(self.jobs)>=16:fail('busy','Sixteen project preparations are pending; recovery copy was not admitted.')
     from project_recovery import recover_copy
     from project_export import protect
     target=protect(self.document or {'media':[],'protected_paths':[]},data['path'],[self.path],suffix='.zwv')
     if any(os.path.normcase(j.get('path',''))==os.path.normcase(str(target)) for j in self.jobs.values()):fail('busy','This destination is already pinned by another job.')
-    row['status']='saving';job=dict(kind='recovery_copy',path=str(target),future=self.pool.submit(recover_copy,self.recovery.root,data['snapshot'],data['snapshot_sha256'],str(target),cancel))
+    row['status']='saving';job=dict(kind='recovery_copy',path=str(target),future=self._submit_preparation(recover_copy,self.recovery.root,data['snapshot'],data['snapshot_sha256'],str(target),cancel))
    elif op=='export_captions':
     if self.document is None:fail('no_project','Create/open a project before exporting captions.')
-    if len(self.jobs)>=16:fail('busy','Sixteen preparations/save/export jobs pending; SRT not admitted.')
     from project_caption_export import write_srt
     from project_export import protect
     target=protect(self.document,data['path'],[self.path],suffix='.srt')
@@ -377,14 +422,13 @@ class ProjectService:
         history_paths.add(asset['location']['path']);history_paths.update(p for p in (asset.get('provenance',{}).get('import_path'),asset.get('provenance',{}).get('original_path')) if p)
     protect({'media':[],'protected_paths':list(history_paths)},target,[self.path],suffix='.srt')
     if any(os.path.normcase(j.get('path',''))==os.path.normcase(str(target)) for j in self.jobs.values()):fail('busy','This destination is already pinned by another job.')
-    row['status']='exporting';job=dict(kind='caption_export',path=str(target),future=self.pool.submit(write_srt,deepcopy(self.document),self.revision,str(target),cancel,[self.path]))
+    row['status']='exporting';job=dict(kind='caption_export',path=str(target),future=self._submit_preparation(write_srt,deepcopy(self.document),self.revision,str(target),cancel,[self.path]))
    elif op=='export':
     if self.document is not None:
      from project_audio_graph import validate as validate_audio_graph
      validate_audio_graph(self.document)
     if self.document is None:fail('no_project','Create/open a project before Export Video.')
     if any(j['kind'] in ('export','caption_export','recovery_copy') for j in self.jobs.values()):fail('busy','One export context/job is already owned; wait or cancel that exact operation.')
-    if len(self.jobs)>=16:fail('busy','Sixteen preparations/save/export jobs pending; export not admitted.')
     if any(r.get('status')!='Ready' for r in self.media_state.values()):fail('missing_media','Relink unavailable project sources before export.')
     from project_export import export_project,protect,export_range
     if any(j['kind'] not in ('save','export','caption_export','recovery_copy') for j in self.jobs.values()):fail('busy','An unaccepted source/open edit is preparing; reconcile it before pinning export.')
@@ -400,14 +444,17 @@ class ProjectService:
     protect({'media':[],'protected_paths':list(history_paths)},target,[self.path])
     if any(os.path.normcase(j.get('path',''))==os.path.normcase(str(target)) for j in self.jobs.values()):fail('busy','This destination is already pinned by another job.')
     folder=Path(os.environ.get('ZERAWAVE_ARTWORK_STORE',str(Path(__file__).resolve().parents[2]/'work/project-exports'))).parent/('project-export-'+key)
-    row['status']='exporting';row['diagnostics']=str(folder);job=dict(kind='export',path=str(target),folder=str(folder),future=self.pool.submit(export_project,deepcopy(self.document),self.epoch,self.revision,str(target),crf,str(folder),cancel,[self.path] if self.path else [],frame_range))
+    export_function=export_project;export_args=[deepcopy(self.document),self.epoch,self.revision,str(target),crf,str(folder),cancel,[self.path] if self.path else [],frame_range]
+    if 'review_sample' in data:
+     from project_review import export_review_project,certificate_ok
+     certificate_ok(data['review_sample']);export_function=export_review_project;export_args.extend([deepcopy(self.media_state),self.source.state(),deepcopy(data['review_sample'])])
+    row['status']='exporting';row['diagnostics']=str(folder);job=dict(kind='export',path=str(target),folder=str(folder),future=self._submit_preparation(export_function,*export_args))
    elif op=='save':
     if self.document is None:fail('no_project','Create/open a project before saving.')
     target=str(Path(data.get('path') or self.path or '').resolve())
     if not data.get('path') and self.path is None:fail('missing_destination','Choose a project Save destination.')
     if any(os.path.normcase(j.get('path',''))==os.path.normcase(target) for j in self.jobs.values()):fail('busy','This destination already has a pinned save; previous/newer work retained.')
-    if len(self.jobs)>=16:fail('busy','Sixteen project preparations/saves pending; request not accepted.')
-    self.save_serial+=1;row['status']='saving';job=dict(kind='save',serial=self.save_serial,path=target,future=self.pool.submit(write_project,deepcopy(self.document),self.revision,None,target,data.get('portable',True),cancel,data.get('allow_missing',False)))
+    self.save_serial+=1;row['status']='saving';job=dict(kind='save',serial=self.save_serial,path=target,future=self._submit_preparation(write_project,deepcopy(self.document),self.revision,None,target,data.get('portable',True),cancel,data.get('allow_missing',False)))
    if job:
     job.update(cancel=cancel,request=deepcopy(data),epoch=self.epoch,revision=self.revision);self.jobs[key]=job
    else:row.update(status='accepted',created=self._apply(data),revision=self.revision)
@@ -424,8 +471,24 @@ class ProjectService:
     else:row.update(status='rejected' if known else 'failed',error=error)
     self.version+=1
    return dict(ok=False,error=error,outcome=deepcopy(locals().get('row')),state=self.state(False))
+ def poll_inspections(self):
+  self.check_thread()
+  for reply,job in list(self.inspections.items()):
+   if not job['future'].done():continue
+   try:
+    if job.get('kind')=='review' and job['cancel'].is_set():fail('cancelled','Source review cancelled, including late completion; no report published.')
+    report=job['future'].result();self._guard(job['query'],command=False)
+    if job.get('kind')=='review' and job['query'].get('source_epoch') is not None:
+     current=self.source.state()
+     if (current['epoch'],current['revision'],current['document'])!=(job['source']['epoch'],job['source']['revision'],job['source']['document']):fail('stale_source','Source changed while inspecting; old result was not published.')
+    if self.media_state!=job['media']:fail('stale_source_verification','Source verification changed while inspecting; retained report is outdated. Inspect again.')
+    value=dict(ok=True,report=report)
+   except BaseException as exc:
+    value=dict(ok=False,error=dict(code=getattr(exc,'code','inspection_failed'),message=str(exc)))
+   del self.inspections[reply]
+   if not reply.done():reply.set_result(value)
  def poll(self):
-  self.check_thread();self.recovery.observe(self.document,self.epoch,self.revision,self.saved_revision,self.path);self.recovery.poll()
+  self.check_thread();self.poll_inspections();self.recovery.observe(self.document,self.epoch,self.revision,self.saved_revision,self.path);self.recovery.poll()
   if self.recovery.version!=getattr(self,'recovery_version',-1):self.recovery_version=self.recovery.version;self.version+=1
   for key,job in list(self.jobs.items()):
    if job['kind']=='import_media':
@@ -474,11 +537,12 @@ class ProjectService:
   if binding is not None:self._guard(binding)
   if discard:
    for job in self.jobs.values():job['cancel'].set()
-  if self.jobs:return False
+  for job in self.inspections.values():job['cancel'].set()
+  if self.jobs or self.inspections:return False
   if self.document is not None and self.revision!=self.saved_revision and not discard:fail('unsaved_project','Video project remains unsaved; Save it or explicitly Discard.')
   self.recovery.observe(self.document,self.epoch,self.revision,self.saved_revision,self.path)
   return self.recovery.finish()
  def shutdown(self):
   self.check_thread()
-  if self.jobs:fail('busy','Project jobs still own immutable work; cannot release them yet.')
+  if self.jobs or self.inspections:fail('busy','Project jobs still own immutable work; cannot release them yet.')
   self.source.clear();self.recovery.closed=True;self.pool.shutdown(wait=True);self.recovery.poll();self.closed=True
